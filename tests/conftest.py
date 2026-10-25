@@ -26,6 +26,8 @@ os.chdir(PROJECT_ROOT)
 # concurrent runs cannot clobber each other's state.
 _TEST_STATE_DIR = tempfile.mkdtemp(prefix="neurocore-test-state-")
 os.environ.update(NEUROCORE_STATE_DIR=_TEST_STATE_DIR)
+# The TestClient connects as "testclient"/"testserver"; the app trusts those names only here.
+os.environ.update(NEUROCORE_TEST_MODE="1")
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -317,8 +319,9 @@ def protect_module_files():
     """
     global _PROTECTED_SNAPSHOT
     if _PROTECTED_SNAPSHOT is None:
+        # Absolute paths: a test that chdirs must not redirect the snapshot or the restore.
         _PROTECTED_SNAPSHOT = {
-            filepath: _snapshot_protected_file(filepath)
+            str(PROJECT_ROOT / filepath): _snapshot_protected_file(str(PROJECT_ROOT / filepath))
             for filepath in PROTECTED_MODULE_FILES
         }
 
@@ -334,6 +337,24 @@ def protect_module_files():
             current = None
         if current != content:
             _restore_protected_file(filepath, content)
+
+
+@pytest.fixture(autouse=True)
+def brain_module_enabled(request, monkeypatch):
+    """Load the opt-in brain module for brain tests without editing its manifest on disk."""
+    if not request.module.__name__.rsplit(".", 1)[-1].startswith("test_brain_"):
+        return
+    from core.module_manager import ModuleManager
+
+    original = ModuleManager._discover_modules
+
+    def discover(self):
+        modules = original(self)
+        if "brain" in modules:
+            modules["brain"] = dict(modules["brain"], enabled=True)
+        return modules
+
+    monkeypatch.setattr(ModuleManager, "_discover_modules", discover)
 
 
 @pytest.fixture

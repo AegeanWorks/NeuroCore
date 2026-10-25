@@ -342,3 +342,42 @@ class TestFlowVersioning:
     def test_get_versions_unknown_flow_returns_empty_list(self, flow_manager):
         """get_versions() for a flow that never existed returns []."""
         assert flow_manager.get_versions("ghost-id") == []
+
+def test_add_flow_validates_and_preserves_imported_fields(tmp_path):
+    manager = FlowManager(storage_file=str(tmp_path / "flows.json"))
+    imported = {
+        "id": "ignored-id",
+        "name": "Imported",
+        "nodes": [{"id": "n1", "moduleId": "chat", "nodeTypeId": "chat_output"}],
+        "connections": [],
+        "custom": {"keep": True},
+    }
+
+    saved = manager.add_flow("imported", imported)
+
+    assert saved["id"] == "imported"
+    assert saved["custom"] == {"keep": True}
+    assert manager.get_flow("imported")["custom"] == {"keep": True}
+    reopened = FlowManager(storage_file=str(tmp_path / "flows.json"))
+    assert reopened.get_flow("imported")["name"] == "Imported"
+
+
+def test_add_flow_rejects_a_second_identical_id(tmp_path):
+    manager = FlowManager(storage_file=str(tmp_path / "flows.json"))
+    manager.add_flow("dup", {"name": "Dup", "nodes": [], "connections": []})
+
+    with pytest.raises(ValueError):
+        manager.add_flow("dup", {"name": "Dup 2", "nodes": [], "connections": []})
+
+
+def test_validate_flow_reports_a_dangling_connection_without_saving(tmp_path):
+    manager = FlowManager(storage_file=str(tmp_path / "flows.json"))
+
+    errors = manager.validate_flow("bad", {
+        "name": "Bad",
+        "nodes": [{"id": "n1", "moduleId": "chat", "nodeTypeId": "chat_output"}],
+        "connections": [{"from": "n1", "to": "missing"}],
+    })
+
+    assert errors
+    assert manager.get_flow("bad") is None

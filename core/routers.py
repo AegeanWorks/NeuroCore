@@ -19,7 +19,7 @@ from core.flow_manager import flow_manager
 from core.llm import LLMBridge
 from core.debug import debug_logger
 from core.research_manager import ResearchManager
-from core.paths import state_path
+from core.paths import data_path, state_path
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +48,43 @@ def format_reasoning_content(content):
 
 templates.env.filters["format_reasoning"] = format_reasoning_content
 
+def _legacy_hardware_id_path() -> str:
+    """The nested path some builds used (``<state dir>/data/hardware_id.txt``).
+
+    Ownership claims are keyed by the persisted hardware id, so a build that discovers this
+    file adopts it instead of generating a new id and orphaning the user's marketplace items.
+    """
+    return state_path("data", "hardware_id.txt")
+
+
+def _adopt_legacy_hardware_id(id_file: str, legacy_file: str) -> None:
+    import os
+
+    if id_file == legacy_file or os.path.exists(id_file) or not os.path.exists(legacy_file):
+        return
+    try:
+        with open(legacy_file, "r", encoding="utf-8") as f:
+            persisted = f.read()
+        if len(persisted.strip()) < 16:
+            return  # hygiene: allow corrupt legacy id is not adopted
+        os.makedirs(os.path.dirname(id_file) or ".", exist_ok=True)
+        tmp = id_file + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(persisted)
+        os.replace(tmp, id_file)
+        logger.info("Adopted hardware id from legacy path %s", legacy_file)
+    except OSError as exc:
+        logger.warning("Could not adopt legacy hardware id: %s", exc)
+
+
 def get_hardware_id():
     import uuid
     import hashlib
     import subprocess
     import os
 
-    id_file = state_path("data", "hardware_id.txt")
+    id_file = data_path("hardware_id.txt")
+    _adopt_legacy_hardware_id(id_file, _legacy_hardware_id_path())
 
     # Return persisted ID so hardware changes never alter it
     if os.path.exists(id_file):
@@ -111,15 +141,29 @@ def get_hardware_id():
     return hardware_id
 
 
+def _decoder_key_path() -> str:
+    """Where the decoder key lives; every reader and writer must use this one location."""
+    return data_path("decoder.key")
+
+
+def _dashboard_paths() -> dict:
+    """The state files the dashboard counts, at the locations the app actually writes them."""
+    return {
+        "memory": data_path("memory.sqlite3"),
+        "sessions": state_path("chat_sessions.json"),
+        "knowledge_base": data_path("knowledge_base.sqlite3"),
+    }
+
+
 def get_decoder() -> bytes:
     """
     Load or generate the local decoder key (32 random bytes).
-    Stored in data/decoder.key as a 64-char hex string.
+    Stored in the data directory as decoder.key, a 64-char hex string.
     This key NEVER leaves the machine and is the basis for all ownership claims.
     If lost, the user permanently loses the ability to manage their marketplace items.
     """
     import secrets, os
-    key_file = os.path.join("data", "decoder.key")
+    key_file = _decoder_key_path()
     if os.path.exists(key_file):
         try:
             with open(key_file, "r", encoding="utf-8") as f:
@@ -131,7 +175,7 @@ def get_decoder() -> bytes:
     # Generate new random key
     key = secrets.token_bytes(32)
     try:
-        os.makedirs("data", exist_ok=True)
+        os.makedirs(data_path(), exist_ok=True)
         # Write atomically: temp file + rename
         tmp = key_file + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -193,7 +237,7 @@ def make_report_id() -> str:
 
 def _load_blocklist() -> list:
     import os
-    path = os.path.join("data", "blocklist.json")
+    path = data_path("blocklist.json")
     if not os.path.exists(path):
         return []
     try:
@@ -205,8 +249,8 @@ def _load_blocklist() -> list:
 
 def _save_blocklist(handles: list) -> None:
     import os
-    path = os.path.join("data", "blocklist.json")
-    os.makedirs("data", exist_ok=True)
+    path = data_path("blocklist.json")
+    os.makedirs(data_path(), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(handles, f, indent=2)
@@ -216,7 +260,7 @@ def _save_blocklist(handles: list) -> None:
 MARKETPLACE_MAX_FILE_MB = 10  # max upload size in megabytes
 
 
-_PROFILE_PATH = os.path.join("data", "marketplace_profile.json")
+_PROFILE_PATH = data_path("marketplace_profile.json")
 
 
 def _load_profile() -> dict:
@@ -230,7 +274,7 @@ def _load_profile() -> dict:
 
 def _save_profile_field(key: str, value: str) -> None:
     """Atomically update a single field in the local marketplace profile."""
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(data_path(), exist_ok=True)
     profile = _load_profile()
     profile[key] = value
     tmp = _PROFILE_PATH + ".tmp"
@@ -249,7 +293,7 @@ def _get_marketplace_description() -> str:
 
 # ── Marketplace notifications ──────────────────────────────────────────────────
 
-_NOTIFS_PATH = os.path.join("data", "marketplace_notifications.json")
+_NOTIFS_PATH = data_path("marketplace_notifications.json")
 
 
 def _load_notifs() -> list:
@@ -261,7 +305,7 @@ def _load_notifs() -> list:
 
 
 def _save_notifs(notifs: list) -> None:
-    os.makedirs("data", exist_ok=True)
+    os.makedirs(data_path(), exist_ok=True)
     tmp = _NOTIFS_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(notifs, f, indent=2)
@@ -364,10 +408,11 @@ async def get_dashboard_stats(request: Request):
     from pathlib import Path
     
     base_dir = Path(__file__).resolve().parent.parent
-    
+    state_files = _dashboard_paths()
+
     # Memory count
     memory_count = 0
-    memory_path = base_dir / "data" / "memory.sqlite3"
+    memory_path = Path(state_files["memory"])
     if memory_path.exists():
         try:
             import sqlite3
@@ -383,7 +428,7 @@ async def get_dashboard_stats(request: Request):
     
     # Chat sessions count
     sessions_count = 0
-    sessions_path = base_dir / "chat_sessions.json"
+    sessions_path = Path(state_files["sessions"])
     if sessions_path.exists():
         try:
             with open(sessions_path, 'r', encoding="utf-8") as f:
@@ -398,7 +443,7 @@ async def get_dashboard_stats(request: Request):
     
     # Knowledge base docs count
     docs_count = 0
-    kb_path = base_dir / "data" / "knowledge_base.sqlite3"
+    kb_path = Path(state_files["knowledge_base"])
     if kb_path.exists():
         try:
             import sqlite3
@@ -484,7 +529,7 @@ async def get_recent_sessions(request: Request):
     import html
     from datetime import datetime
     
-    sessions_path = "chat_sessions.json"
+    sessions_path = _dashboard_paths()["sessions"]
     if not os.path.exists(sessions_path):
         return '<p class="text-slate-500 text-sm italic">No sessions yet</p>'
     
@@ -1074,7 +1119,7 @@ async def get_marketplace(request: Request, settings_man: SettingsManager = Depe
 
     # 2. Community Catalog
     catalog = []
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if os.path.exists(catalog_path):
          try:
              with open(catalog_path, "r", encoding="utf-8") as f:
@@ -1082,7 +1127,7 @@ async def get_marketplace(request: Request, settings_man: SettingsManager = Depe
          except Exception as _exc: logger.debug("ignored exception: %s", _exc)
 
     # Load local download history for "new version" badges
-    dl_history_path = os.path.join("data", "download_history.json")
+    dl_history_path = data_path("download_history.json")
     dl_history = {}
     try:
         if os.path.exists(dl_history_path):
@@ -1133,16 +1178,8 @@ async def get_marketplace(request: Request, settings_man: SettingsManager = Depe
         "enabled": sp_module.get("enabled", False),
     }
 
-    # Flows for Library tab
-    flows_data = {}
-    flows_path = os.path.join("ai_flows.json")
-    if os.path.exists(flows_path):
-        try:
-            with open(flows_path, "r", encoding="utf-8") as f:
-                flows_raw = json.load(f)
-            flows_data = flows_raw if isinstance(flows_raw, dict) else {}
-        except Exception as _exc:
-            logger.debug("ignored exception: %s", _exc)
+    # Flows for Library tab: the store in memory is the one that was validated and saved.
+    flows_data = flow_manager.get_all_flows_dict()
 
     return templates.TemplateResponse(request, "marketplace.html", {
         "request": request,
@@ -1183,7 +1220,7 @@ async def upload_marketplace_item(
     import shutil
     import os
     
-    upload_dir = os.path.join("data", "marketplace", "uploads")
+    upload_dir = data_path("marketplace", "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     
     item_id = str(uuid.uuid4())
@@ -1207,7 +1244,7 @@ async def upload_marketplace_item(
         with open(img_save_path, "wb") as f:
              shutil.copyfileobj(image.file, f)
         
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     catalog = []
     if os.path.exists(catalog_path):
          try:
@@ -1241,7 +1278,7 @@ async def upload_marketplace_item(
 @router.get("/marketplace/image/{item_id}")
 async def get_marketplace_image(item_id: str):
     import os
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
          raise HTTPException(status_code=404, detail="Catalog not found")
         
@@ -1255,7 +1292,7 @@ async def get_marketplace_image(item_id: str):
     if not item or not item.get("image_filename"):
          raise HTTPException(status_code=404, detail="Image not configured")
         
-    file_path = os.path.join("data", "marketplace", "uploads", item["image_filename"])
+    file_path = data_path("marketplace", "uploads", item["image_filename"])
     if not os.path.exists(file_path):
          raise HTTPException(status_code=404, detail="Image missing on disk")
         
@@ -1264,7 +1301,7 @@ async def get_marketplace_image(item_id: str):
 @router.get("/marketplace/download/{item_id}")
 async def download_marketplace_item(item_id: str):
     import os
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
          raise HTTPException(status_code=404, detail="Catalog not found")
         
@@ -1278,7 +1315,7 @@ async def download_marketplace_item(item_id: str):
     if not item:
          raise HTTPException(status_code=404, detail="Item not found")
         
-    file_path = os.path.join("data", "marketplace", "uploads", item["save_filename"])
+    file_path = data_path("marketplace", "uploads", item["save_filename"])
     if not os.path.exists(file_path):
          raise HTTPException(status_code=404, detail="File missing on disk")
         
@@ -1298,7 +1335,7 @@ async def download_marketplace_item(item_id: str):
         logger.debug("ignored exception: %s", _exc)
 
     # Record which version this user downloaded
-    dl_history_path = os.path.join("data", "download_history.json")
+    dl_history_path = data_path("download_history.json")
     try:
         dl_history = {}
         if os.path.exists(dl_history_path):
@@ -1317,7 +1354,7 @@ async def download_marketplace_item(item_id: str):
 @router.get("/marketplace/item/{item_id}", response_class=HTMLResponse)
 async def marketplace_item_detail(request: Request, item_id: str, module_manager: ModuleManager = Depends(get_module_manager), settings_man: SettingsManager = Depends(get_settings_manager)):
     import os, zipfile
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
         raise HTTPException(status_code=404, detail="Catalog not found")
     try:
@@ -1330,7 +1367,7 @@ async def marketplace_item_detail(request: Request, item_id: str, module_manager
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    file_path = os.path.join("data", "marketplace", "uploads", item["save_filename"])
+    file_path = data_path("marketplace", "uploads", item["save_filename"])
     ext = os.path.splitext(item["save_filename"])[1].lower()
     is_owner = is_item_owner(item)
     user_vote = item.get("voters", {}).get(make_vote_id(item_id))
@@ -1342,7 +1379,7 @@ async def marketplace_item_detail(request: Request, item_id: str, module_manager
     is_blocked = item.get("uploader_handle", "") in _load_blocklist()
 
     # New version badge for non-owners who have downloaded before
-    dl_history_path = os.path.join("data", "download_history.json")
+    dl_history_path = data_path("download_history.json")
     dl_history = {}
     try:
         if os.path.exists(dl_history_path):
@@ -1424,7 +1461,7 @@ async def marketplace_item_detail(request: Request, item_id: str, module_manager
 @router.get("/marketplace/item/{item_id}/file")
 async def marketplace_item_file(item_id: str, path: str = ""):
     import os, zipfile
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     try:
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog = json.load(f)
@@ -1435,7 +1472,7 @@ async def marketplace_item_file(item_id: str, path: str = ""):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    file_path = os.path.join("data", "marketplace", "uploads", item["save_filename"])
+    file_path = data_path("marketplace", "uploads", item["save_filename"])
     ext = os.path.splitext(item["save_filename"])[1].lower()
 
     if ext == ".zip":
@@ -1461,14 +1498,14 @@ async def marketplace_item_file(item_id: str, path: str = ""):
 @router.get("/marketplace/preview/{item_id}")
 async def preview_marketplace_item(item_id: str):
     import os, json
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path): raise HTTPException(status_code=404, detail="Catalog not found")
     try:
          with open(catalog_path, "r", encoding="utf-8") as f: catalog = json.load(f)
     except Exception: raise HTTPException(status_code=500, detail="Failed to read catalog")
     item = next((i for i in catalog if i["id"] == item_id), None)
     if not item: raise HTTPException(status_code=404, detail="Item not found")
-    file_path = os.path.join("data", "marketplace", "uploads", item["save_filename"])
+    file_path = data_path("marketplace", "uploads", item["save_filename"])
     if not os.path.exists(file_path): raise HTTPException(status_code=404, detail="File missing on disk")
     content = ""
     try:
@@ -1489,7 +1526,7 @@ async def update_marketplace_item(
 ):
     """Owner publishes a new version. Bumps version counter, optionally replaces file/image/description."""
     import os, shutil
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
         raise HTTPException(status_code=404, detail="Catalog not found")
     try:
@@ -1504,7 +1541,7 @@ async def update_marketplace_item(
     if not is_item_owner(item):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    upload_dir = os.path.join("data", "marketplace", "uploads")
+    upload_dir = data_path("marketplace", "uploads")
     os.makedirs(upload_dir, exist_ok=True)
 
     # Replace file if provided
@@ -1564,7 +1601,7 @@ async def update_marketplace_item(
 @router.post("/marketplace/delete/{item_id}")
 async def delete_marketplace_item(item_id: str):
     import os
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
          raise HTTPException(status_code=404, detail="Catalog not found")
         
@@ -1582,7 +1619,7 @@ async def delete_marketplace_item(item_id: str):
         raise HTTPException(status_code=403, detail="You can only delete items that you uploaded")
         
     # Remove files
-    upload_dir = os.path.join("data", "marketplace", "uploads")
+    upload_dir = data_path("marketplace", "uploads")
     if item.get("save_filename"):
          fpath = os.path.join(upload_dir, item["save_filename"])
          if os.path.exists(fpath): os.remove(fpath)
@@ -1606,7 +1643,7 @@ async def report_marketplace_item(item_id: str, reason: str = Form(...)):
     if not reason or not reason.strip():
         raise HTTPException(status_code=400, detail="Reason is required")
 
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
         raise HTTPException(status_code=404, detail="Catalog not found")
     try:
@@ -1680,7 +1717,7 @@ async def marketplace_uploader_profile(
 ):
     """Public uploader profile: all their items, stats, and reports."""
     import os
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     catalog = []
     if os.path.exists(catalog_path):
         try:
@@ -1708,7 +1745,7 @@ async def marketplace_uploader_profile(
     owned_ids = {i["id"] for i in their_items if is_item_owner(i)}
 
     dl_history = {}
-    dl_path = os.path.join("data", "download_history.json")
+    dl_path = data_path("download_history.json")
     if os.path.exists(dl_path):
         try:
             with open(dl_path, "r", encoding="utf-8") as f:
@@ -1751,7 +1788,7 @@ async def vote_marketplace_item(item_id: str, direction: str):
     if direction not in ("up", "down"):
         raise HTTPException(status_code=400, detail="Direction must be 'up' or 'down'")
 
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if not os.path.exists(catalog_path):
         raise HTTPException(status_code=404, detail="Catalog not found")
 
@@ -1820,7 +1857,7 @@ async def add_marketplace_comment(item_id: str, text: str = Form(...)):
     if len(text) > 1000:
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Comment too long (max 1000 chars)"})
 
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     try:
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog = json.load(f)
@@ -1865,7 +1902,7 @@ async def add_marketplace_comment(item_id: str, text: str = Form(...)):
 @router.delete("/marketplace/item/{item_id}/comment/{comment_id}")
 async def delete_marketplace_comment(item_id: str, comment_id: str):
     """Delete a comment if it belongs to the current user."""
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     try:
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog = json.load(f)
@@ -1897,7 +1934,7 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
     """Import a marketplace item directly into NeuroCore (no file saved to user's disk)."""
     import os, zipfile, shutil, re
 
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     try:
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog = json.load(f)
@@ -1908,7 +1945,7 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    file_path = os.path.join("data", "marketplace", "uploads", item["save_filename"])
+    file_path = data_path("marketplace", "uploads", item["save_filename"])
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on disk")
 
@@ -1982,43 +2019,40 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         if not flow_data or not isinstance(flow_data, dict):
             return JSONResponse(status_code=400, content={"status": "error", "detail": "No valid JSON flow file found"})
 
-        flows_path = os.path.join("ai_flows.json")
-        flows: dict = {}
-        try:
-            if os.path.exists(flows_path):
-                with open(flows_path, "r", encoding="utf-8") as f:
-                    flows = json.load(f)
-        except Exception as _exc:
-            logger.debug("ignored exception: %s", _exc)
-
         import uuid as _uuid
-        if all(isinstance(v, dict) and "nodes" in v for v in flow_data.values()):
-            for fid, fdata in flow_data.items():
-                nid = fid if fid not in flows else f"{fid}_{_uuid.uuid4().hex[:6]}"
-                flows[nid] = fdata
-            result_message = f"Imported {len(flow_data)} flow(s) from '{item['name']}'."
+        multiple = all(isinstance(v, dict) and "nodes" in v for v in flow_data.values())
+        if multiple:
+            entries = list(flow_data.items())
         elif "nodes" in flow_data or "name" in flow_data:
             flow_name = flow_data.get("name", item["name"])
-            fid = re.sub(r'[^a-zA-Z0-9_]', '_', flow_name.lower())
-            if fid in flows:
-                fid = f"{fid}_{_uuid.uuid4().hex[:6]}"
-            flows[fid] = flow_data
-            result_message = f"Flow '{flow_name}' imported to your flows."
+            entries = [(re.sub(r'[^a-zA-Z0-9_]', '_', flow_name.lower()), flow_data)]
         else:
             return JSONResponse(status_code=400, content={"status": "error", "detail": "Unrecognized flow format"})
 
-        tmp = flows_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(flows, f, indent=4)
-        os.replace(tmp, flows_path)
+        # Validate every flow before adding any, so a bad package changes nothing.
+        pending = []
+        for fid, fdata in entries:
+            target_id = str(fid)
+            if target_id in flow_manager.flows:
+                target_id = f"{target_id}_{_uuid.uuid4().hex[:6]}"
+            errors = flow_manager.validate_flow(target_id, fdata)
+            if errors:
+                return JSONResponse(status_code=400, content={
+                    "status": "error", "detail": f"Invalid flow '{fid}': " + "; ".join(errors)})
+            pending.append((target_id, fdata))
+
+        imported_ids = [flow_manager.add_flow(target_id, fdata)["id"] for target_id, fdata in pending]
+        if multiple:
+            result_message = f"Imported {len(imported_ids)} flow(s) from '{item['name']}'."
+        else:
+            saved_name = flow_manager.get_flow(imported_ids[0])["name"]
+            result_message = f"Flow '{saved_name}' imported to your flows."
 
         # Auto-activate the first imported flow if none are currently active
         active_flows = list(settings_man.get("active_ai_flows", []))
-        if not active_flows:
-            first_id = list(flows.keys())[0] if flows else None
-            if first_id:
-                settings_man.save_settings({"active_ai_flows": [first_id]})
-                result_message += " Set as active flow."
+        if not active_flows and imported_ids:
+            settings_man.save_settings({"active_ai_flows": [imported_ids[0]]})
+            result_message += " Set as active flow."
 
 
     elif item_type == "module":
@@ -2099,7 +2133,7 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         result_message = f"Tool '{t_name}' registered and ready in Tools."
 
     elif item_type == "system prompt":
-        prompts_dir = os.path.join("data", "marketplace", "imported_prompts")
+        prompts_dir = data_path("marketplace", "imported_prompts")
         os.makedirs(prompts_dir, exist_ok=True)
         prompt_name = re.sub(r'[^a-zA-Z0-9\s_-]', '', item["name"]).strip()
         shutil.copy2(file_path, os.path.join(prompts_dir, f"{prompt_name}.md"))
@@ -2123,7 +2157,7 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
     except Exception as _exc:
         logger.debug("ignored exception: %s", _exc)
 
-    dl_history_path = os.path.join("data", "download_history.json")
+    dl_history_path = data_path("download_history.json")
     try:
         dl: dict = {}
         if os.path.exists(dl_history_path):
@@ -2166,7 +2200,7 @@ async def set_marketplace_description(description: str = Form(...)):
 @router.get("/marketplace/handles")
 async def get_marketplace_handles():
     """Return all distinct uploader handles + display names from the catalog."""
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     try:
         with open(catalog_path, "r", encoding="utf-8") as f:
             catalog = json.load(f)
@@ -2226,9 +2260,9 @@ async def import_decoder_key(key: str = Form(...)):
     key = key.strip().upper()
     if not re.fullmatch(r"[0-9A-F]{64}", key):
         return JSONResponse(status_code=400, content={"status": "error", "message": "Invalid key format. Must be 64 hex characters."})
-    key_file = os.path.join("data", "decoder.key")
+    key_file = _decoder_key_path()
     try:
-        os.makedirs("data", exist_ok=True)
+        os.makedirs(data_path(), exist_ok=True)
         tmp = key_file + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             f.write(key.lower())
@@ -2323,8 +2357,8 @@ async def upload_skill_to_marketplace(skill_id: str):
     with open(content_path, "r", encoding="utf-8") as f: content_str = f.read()
     content_hash = hashlib.md5(content_str.encode("utf-8")).hexdigest()
 
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
-    upload_dir = os.path.join("data", "marketplace", "uploads")
+    catalog_path = data_path("marketplace", "catalog.json")
+    upload_dir = data_path("marketplace", "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     try:
          if os.path.exists(catalog_path):
@@ -2385,7 +2419,7 @@ async def get_settings(request: Request, settings_man: SettingsManager = Depends
          except Exception as _exc: logger.debug("ignored exception: %s", _exc)
          
     catalog = []
-    catalog_path = os.path.join("data", "marketplace", "catalog.json")
+    catalog_path = data_path("marketplace", "catalog.json")
     if os.path.exists(catalog_path):
          try:
               with open(catalog_path, "r", encoding="utf-8") as f: catalog = json.load(f)

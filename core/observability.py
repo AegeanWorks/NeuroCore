@@ -32,7 +32,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
-from core.paths import project_path
+from core.paths import data_path
 
 logger = logging.getLogger(__name__)
 
@@ -295,7 +295,7 @@ class Metrics:
         # FIX: Use threading.Lock for sync-safe operations instead of asyncio.Lock
         self._lock = threading.Lock()
         self._max_timings_per_metric = 1000  # Keep last 1000 timings
-        self._metrics_file = project_path("data", "metrics_counters.json")
+        self._metrics_file = data_path("metrics_counters.json")
         self._load_counters()
         
     def _load_counters(self):
@@ -843,7 +843,7 @@ def get_token_stats() -> Dict[str, Any]:
 
 def get_trace_file_path() -> str:
     """Get the path to the execution trace file."""
-    return project_path("data", "execution_trace.jsonl")
+    return data_path("execution_trace.jsonl")
 
 
 def export_trace_to_file(trace_data: Dict[str, Any], file_path: Optional[str] = None) -> bool:

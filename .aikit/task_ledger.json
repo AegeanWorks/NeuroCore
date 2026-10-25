@@ -1,102 +1,23 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-audit-p0-v1",
+    "task_id": "neurocore-followups-v1",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792918177.1714308,
-    "owner": "claude-code:neurocore",
-    "started_by": "kilo:neurocore",
+    "updated_at": 1792928584.2233706,
+    "owner": "kilo:neurocore",
+    "started_by": "claude-code:neurocore",
     "continuations": [
       {
-        "agent": "claude-code:neurocore",
-        "from": "kilo:neurocore",
-        "at": 1792880640.2661777
+        "agent": "kilo:neurocore",
+        "from": "claude-code:neurocore",
+        "at": 1792927290.6451702
       }
     ],
-    "completed_at": 1792918758.6197298
+    "completed_at": 1792928900.7779856
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[4/6] M4 verification complete. Reviewed the brain diff and found/fixed: default ImprovementEngine lacked node/tool allowlists (now FlowEvolution is seeded with node_template_types plus configurable allowed_tools, with a policy test); brain snapshots embedded every candidate (now uses ImprovementEngine.summary, with a test); learning status inside a cycle was stale until after consolidation (refreshed); experiences_page(0) returned the whole ledger (fixed + test); non-object candidate operations surfaced as 500s (now validated + test); rollback silently succeeded when a snapshot was missing (now raises). Confirmed foreign-flow baselines and the 10ms latency floor block promotion correctly. 34 brain tests pass; full suite 1627 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792813501.9931898,
-      "timestamp_str": "2026-10-24 06:45:01",
-      "handoff": {
-        "state": "M1-M4 verified and green",
-        "next": "M5 policy-gated self-configuration (module/settings/tool changes with preview, snapshot, rollback)",
-        "open": "event bus is in-process, recall is lexical, eval suite is deterministic echo-only, auto mode remains disabled, promotion requires approval",
-        "evidence": "pytest 1627 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "Risk-fix verification pass: (1) baselines now require perfect pass rate, no failures, positive task count, same flow and recorded_by provenance; candidates must also be perfect; (2) evaluation rejects state-mutating/external-effect nodes via a read-only allowlist (tools, memory writes, messaging, calendar, subflows), enforced before execution with no HTTP opt-in; (3) promotion quota exhaustion marks the candidate blocked and persists its evaluation before raising; (4) promotion and baseline promotion require approved_by, stored on the record; (5) experience/skill/candidate ledgers are capped and mirrored memory rows pruned; (6) self-model providers run in asyncio.to_thread, event handlers time out, /state no longer writes on every request. Added tests for weak baselines, unsafe evaluation, approver identity, blocked quota, caps and event timeout. Brain suite 43 passed; full suite 1634 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792829369.7478027,
-      "timestamp_str": "2026-10-24 11:09:29",
-      "handoff": {
-        "state": "critical/high verification risks fixed and green",
-        "next": "M5 policy-gated self-configuration and M6 reactivity",
-        "open": "process-local brain ledgers, no chat/tool outcome hooks, lexical recall, self-asserted approver identity, auto mode disabled",
-        "evidence": "pytest 1634 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[5/6] Policy-gated self-configuration implemented: ConfigurationEngine supports whitelisted settings, a configurable module allowlist, bounded brain options and narrowing-only allowed_tools; protected modules/secrets rejected; preview shows before/after; apply requires approved_by, writes an atomic ledger and runtime limits, supports rollback, and blocks older changes over newer ones; daily quota. Tests: 8 configuration tests; all 57 brain tests pass.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792835325.784776,
-      "timestamp_str": "2026-10-24 12:48:45",
-      "handoff": {
-        "state": "M5 complete",
-        "next": "M6 governance kernel and drift",
-        "evidence": "tests/test_brain_configuration.py 8 passed, brain suite 57 passed"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[6/6] Governance kernel and drift implemented: BrainKernel modes normal/degraded/safe with risk from provider errors, evaluation pass rate, drift and blocked actions; hysteresis and attributed kill switch/reset; SAFE blocks learning writes, consolidation, improvement and configuration while allowing evaluation/rollback; DriftMonitor compares provider/evaluation/memory/knowledge metrics to an attributed baseline; kernel/drift API and persistence. Tif reference was moved out of the scanned project tree to references/Tif (analysis-only, no code copied). Full suite 1648 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792835350.9753973,
-      "timestamp_str": "2026-10-24 12:49:10",
-      "handoff": {
-        "state": "M1-M6 complete and green",
-        "next": "external event sources/proactive reactivity and actor identity",
-        "open": "kernel state is process-local, reactivity event sources are not wired, Tif remains analysis-only in references/Tif",
-        "evidence": "pytest 1648 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[Reactivity] Event-driven proposal layer implemented: ReactivityEngine subscribes to the brain bus, polls calendar/upcoming events, watched-file changes and metric thresholds; reactions are deduplicated by key, muteable for a bounded time, capped per hour, persisted atomically and dismissable; kernel allows only health/metric alerts in SAFE mode and blocks normal reactions; /brain/reactions, /reactions/dismiss|mute|unmute and /react/start|stop|poll endpoints; reactivity_auto_start remains false. Tif reference moved to references/Tif (analysis-only; no code copied). Full suite 1654 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792837654.1178365,
-      "timestamp_str": "2026-10-24 13:27:34",
-      "handoff": {
-        "state": "AI-Brain substrate, evaluation, learning, improvement, configuration, kernel/drift and reactivity are complete",
-        "next": "actor identity/authentication and background delivery channels",
-        "open": "38 modified/27 untracked, auto mode disabled, ledgers process-local",
-        "evidence": "pytest 1654 passed 7 skipped, aikit check 4/4"
-      }
-    },
     {
       "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
@@ -314,6 +235,79 @@
       "timestamp": 1792918758.619731,
       "timestamp_str": "2026-10-25 11:59:18",
       "agent": "claude-code:neurocore"
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/6] Brain and meta modules opt-in (enabled false) with docs. [2/6] Default flow messaging nodes use messaging_bridge messaging_input/messaging_output; test that every default-flow node dispatches. [3/6] Cycle breaking enters each cycle at its entry node (fed from sorted nodes) instead of the alphabetically first id; cycles stay bounded loops, strict_cycle_mode opt-in; ADR declines default rejection because the default tool loop is a cycle. [4/6] Brain token lookup by sha256 token id (one PBKDF2 per request), legacy records backfilled, last_used writes throttled. [5/6] testclient/testserver host hooks honoured only under NEUROCORE_TEST_MODE set by conftest. [6/6] data_path(): one data directory (NEUROCORE_STATE_DIR when set, else project data/) for every data/ file incl. decoder key, so tests isolate it; full verification, ADR.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792919103.4971278,
+      "timestamp_str": "2026-10-25 12:05:03",
+      "agent": "claude-code:neurocore",
+      "impact_assessment": {
+        "why": "Follow-ups 2-5 from the audit review: experimental brain enabled by default, dead telegram nodes in the default flow, cycles entered at the wrong node, per-actor PBKDF2 per request, test hooks reachable in production, data/ files outside the state dir.",
+        "benefits": "Experimental code stays off until chosen; default flow sends replies; source-less cyclic runs start at the cycle entry; brain auth cost O(1); no production path treats a host name string as loopback; tests never touch real data/.",
+        "risks": "contract: brain/meta disabled for installs that relied on default-on; default flow nodes change for new installs only; cyclic flows run in a different initial order without a source; brain token records gain token_id; dependency: none; concurrency: actor ledger writes reduced; state: data files keep their current location in every existing deployment (state dir set => same dir Docker uses today).",
+        "mitigation": "Failing-first tests per milestone, full suite plus concurrent-run chaos check, README and ADR-036, no commit until authorized."
+      }
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 3",
+      "phase_num": 3,
+      "description": "[1/6]-[3/6] done. Brain ships disabled (meta stays enabled: saved meta-flows use its subflow node and the runner rejects disabled modules); brain tests load it via an autouse fixture that patches discovery, never the manifest. Default flow uses messaging_bridge messaging_input/messaging_output(auto); test asserts every default-flow node dispatches. Cycle breaking enters at the node fed from sorted nodes; default tool loop now orders llm before router/tool/chat_output. 92+32 targeted tests pass.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792919352.6477227,
+      "timestamp_str": "2026-10-25 12:09:12",
+      "agent": "claude-code:neurocore"
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[4/6]-[6/6] done: brain tokens are <key_id>.<secret> so authentication verifies one record (legacy/caller-chosen tokens keep the scan, last_used rewrites at most once a minute); testclient/testserver are loopback only under NEUROCORE_TEST_MODE set by conftest; core.paths.data_path() is the single data directory (state dir when set, else project data/) used by routers, memory, knowledge base, research, observability, reasoning book, session manager and every brain ledger, decoder key included; decoder/hardware paths and dashboard counts follow it. ADR-036, README loop and brain opt-in docs, new tests for token cost, test-mode hooks and path isolation. Full suite 1760 passed 7 skipped; aikit check neurocore 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792927290.6451702,
+      "timestamp_str": "2026-10-25 14:21:30",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "state": "follow-ups complete and green",
+        "next": "commit approval for neurocore-followups-v1, then reaction delivery/inbox polish and optional auto-mode design",
+        "open": "34 modified/3 untracked, brain disabled, Docker image build still unverified (daemon not running)",
+        "evidence": "pytest 1760 passed 7 skipped, aikit check 4/4"
+      },
+      "continued_from": "claude-code:neurocore"
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "Post-review fixes on top of [4/6]-[6/6]: FlowManager.add_flow/validate_flow make marketplace flow imports validated, all-or-nothing, cache-consistent and field-preserving (a package with a dangling edge now returns 400 and changes nothing); the marketplace Library tab and the dashboard recent-sessions panel read the store/state directory instead of cwd-relative files; get_hardware_id adopts a legacy <state>/data/hardware_id.txt so ownership claims survive ADR-036's move; the autonomous agent flow store follows state_path. ADR-037 added. Full suite 1767 passed 7 skipped; aikit check 4/4; checklists: passed. No commit yet.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792928584.2233706,
+      "timestamp_str": "2026-10-25 14:43:04",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "state": "follow-ups complete, reviewed and green",
+        "next": "commit and push",
+        "open": "Docker image build unverified (daemon not running), reaction delivery/inbox polish and optional auto-mode design remain",
+        "evidence": "pytest 1767 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-followups-v1' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792928900.7779865,
+      "timestamp_str": "2026-10-25 14:48:20",
+      "agent": "kilo:neurocore"
     }
   ]
 }

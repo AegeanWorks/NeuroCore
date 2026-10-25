@@ -173,3 +173,28 @@ class TestOriginComparison:
 
     def test_malformed_origin_is_rejected(self):
         assert not security._origin_allowed("not an origin", self._request("http://testserver/do"))
+
+class TestTestClientHooksAreTestOnly:
+    @staticmethod
+    def _request(host):
+        return SimpleNamespace(client=SimpleNamespace(host=host))
+
+    def test_client_names_are_not_loopback_outside_test_mode(self, monkeypatch):
+        from modules.brain import auth as brain_auth
+
+        monkeypatch.delenv("NEUROCORE_TEST_MODE", raising=False)
+
+        assert not security._client_is_loopback(self._request("testclient"))
+        assert not security._client_is_loopback(self._request("testserver"))
+        assert "testserver" not in security.allowed_hosts()
+        assert not brain_auth._is_local("testclient")
+        assert security._client_is_loopback(self._request("127.0.0.1"))
+
+    def test_client_names_are_loopback_in_test_mode(self, monkeypatch):
+        from modules.brain import auth as brain_auth
+
+        monkeypatch.setenv("NEUROCORE_TEST_MODE", "1")
+
+        assert security._client_is_loopback(self._request("testclient"))
+        assert "testserver" in security.allowed_hosts()
+        assert brain_auth._is_local("testclient")

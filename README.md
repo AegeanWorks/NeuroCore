@@ -131,6 +131,14 @@ entry/exit nodes need explicit pathways; cycles and unknown endpoints are reject
 `COMPOSE_FLOW` action from structured `member_flows` metadata or from two or more flow ids in a
 combine/compose/merge request; `live` selects reference-based composition.
 
+### Loops
+
+A cycle in a flow is a bounded loop, not an error: the default flow's tool loop is
+`LLM → Conditional Router → Tool Dispatcher → LLM`. The runner re-runs a node whenever its inputs
+change, up to `max_node_loops` (Settings, default 100), and enters each cycle at the node fed from
+outside it. Set `"strict_cycle_mode": true` on a flow to reject cycles instead. Agent-proposed
+edits (below) must stay acyclic.
+
 ### Self-Evolution
 
 `core/flow_evolution.py` is the only write path for agent-initiated flow edits. A proposal is
@@ -161,8 +169,9 @@ pending proposals. Autonomous actuation (`auto`) is intentionally not implemente
 `GET /brain/state`, `GET /brain/events`, `POST /brain/start|stop|cycle|mode` and
 `POST /brain/events` expose the substrate. `POST /brain/eval/run` runs the deterministic echo
 suite (or a supplied flow id), `POST /brain/eval/baseline` promotes the last result, and
-`GET /brain/eval/status` compares current against baseline. The module is loaded but
-`auto_start` is false by default; enable it in `modules/brain/module.json` or call `/brain/start`.
+`GET /brain/eval/status` compares current against baseline. The brain is experimental and ships
+**disabled**: enable it on the Modules page (or set `"enabled": true` in
+`modules/brain/module.json`); even then `auto_start` stays false until you call `/brain/start`.
 
 Outcome learning mirrors experiences into the shared memory store: `POST /brain/learn` records
 an action outcome, `POST /brain/learn/consolidate` turns repeated **training** successes into
@@ -220,7 +229,8 @@ token from the actor registry. `GET /brain/actor` reports the resolved actor.
 
 Actor-management endpoints are admin-only: `GET/POST /brain/actors`,
 `POST /brain/actors/{name}/rotate|disable`, and `DELETE /brain/actors/{name}`. Tokens are returned
-once on create/rotate and stored only as salted PBKDF2 hashes. Roles are `viewer` (read-only),
+once on create/rotate as `<key_id>.<secret>` and stored only as salted PBKDF2 hashes; the public
+key id selects one record, so a check costs one hash. Roles are `viewer` (read-only),
 `operator` (learning, reactions, evaluation runs, cycles) and `admin` (promotions, configuration,
 kernel controls, baselines, actors). Promotions, configuration changes, kernel controls and drift
 baselines record the authenticated actor name.
@@ -279,7 +289,7 @@ access, the auto-reloader and secret-bearing exports are each an explicit opt-in
 
 | Environment variable | Default | Effect when set |
 |---|---|---|
-| `NEUROCORE_STATE_DIR` | project root | Store settings, flows, chats, calendar events and databases in one directory (Docker uses `/app/data`) |
+| `NEUROCORE_STATE_DIR` | project root | Store settings, flows, chats and calendar events, plus every data file (databases, decoder key, traces, uploads, brain ledgers), in one directory (Docker uses `/app/data`); unset, data files stay in `data/` |
 | `NEUROCORE_HOST` | `127.0.0.1` | Bind another interface (Docker uses `0.0.0.0` inside the container) |
 | `NEUROCORE_PORT` | `8000` | Bind another port |
 | `NEUROCORE_RELOAD` | off | Enable uvicorn auto-reload |

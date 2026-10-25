@@ -794,3 +794,75 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
     UID 1000 must set `NEUROCORE_UID`; DNS is still resolved again at connect time, so pinning the
     validated address remains open, as do cycle rejection by default (F1) and a container
     boundary for untrusted tools (S6).
+
+### ADR-036: Brain is opt-in, cycles are bounded loops, and one data directory
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Follow-ups from the ADR-035 review. The experimental brain shipped enabled. The
+  default flow's Telegram nodes named a `telegram` module that does not exist, so that branch was
+  a silent pass-through. The audit (F1) asked for cycles to be rejected by default, but the
+  default flow's tool loop (LLM → router → tool → LLM) is itself a cycle, and the runner re-queues
+  nodes whose inputs change, bounded by `max_node_loops`: cycles are the loop idiom. What was
+  wrong is narrower: cycle breaking took the alphabetically first node, so a source-less run of
+  the default flow ran the router, tool and chat output before the LLM. Each remote brain token
+  check ran PBKDF2 against every actor and rewrote the ledger. `testclient`/`testserver` were
+  trusted as loopback in production. Data files used three conventions (cwd-relative `data/`,
+  `project_path("data")`, `state_path("data")`), so tests rewrote the checkout's real databases
+  and the brain ledgers nested under `/app/data/data` in Docker.
+- **Decision**:
+  1. `modules/brain/module.json` ships `enabled: false`. `meta` stays enabled: saved meta-flows
+     use its subflow node and the runner rejects nodes from disabled modules. Brain tests load
+     the module through an autouse fixture that patches discovery, never the manifest.
+  2. The default flow uses `messaging_bridge` `messaging_input` and `messaging_output`
+     (`platform: auto`). Existing stored flows are not rewritten.
+  3. Cycles stay allowed. Cycle breaking picks a remaining node fed by an already ordered node
+     (the cycle entry), falling back to node ID order; `strict_cycle_mode` remains the opt-in
+     rejection. The audit's default-rejection recommendation is declined.
+  4. Generated brain tokens are `<key_id>.<secret>` with a random public key id; authentication
+     verifies one record. Legacy and caller-chosen tokens (no key id) still use the scan, limited
+     to records without a key id. `last_used` is rewritten at most once a minute. A hash of the
+     token was rejected as the index: it would let a ledger reader pre-filter guesses of a weak
+     caller-chosen token without PBKDF2.
+  5. The test-client host names are trusted only when `NEUROCORE_TEST_MODE` is set (conftest).
+  6. `core.paths.data_path()` is the data directory: `NEUROCORE_STATE_DIR` itself when set, else
+     `<project>/data`. Every data file uses it, including the decoder key. `main.py` has pinned
+     the working directory to the project since e13d2f0 and Docker sets the state dir to
+     `/app/data`, so no existing file moves, except brain ledgers and `hardware_id.txt`, which
+     move from `/app/data/data/` back to `/app/data/` in Docker (they were nested there only
+     since 060870d). The dashboard now counts chat sessions in the state directory.
+  7. Protected test files are snapshotted and restored by absolute path, so a test that changes
+     directory cannot redirect a restore.
+- **Consequences**:
+  - *Positive*: Experimental autonomy is off until chosen; messaging replies work in the default
+    flow; source-less cyclic runs start at the cycle entry; brain auth costs one hash; no host name
+    string is trusted outside tests; two concurrent full test runs leave every manifest, state file
+    and data file byte-identical.
+  - *Trade-offs*: Installs that used the brain must enable it; a Docker install that ran 060870d
+    keeps any brain ledgers it wrote under `./data/data/` until moved by hand; existing actor
+    tokens keep the scan path until rotated.
+
+### ADR-037: Imports and legacy state follow the validated store and canonical data directory
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Follow-up to ADR-036's "one data directory". Four paths still bypassed it: the
+  dashboard's recent sessions read a cwd-relative `chat_sessions.json`; marketplace flow import
+  read and replaced a cwd-relative `ai_flows.json` directly, so an imported flow stayed invisible
+  until restart and skipped validation; the autonomous agent derived its flow store from the
+  source tree; and builds between 060870d and this change nested `hardware_id.txt` under
+  `<state dir>/data`, so adopting `data_path()` would silently mint a new hardware id and orphan
+  marketplace ownership claims.
+- **Decision**:
+  1. `FlowManager.add_flow()` and `FlowManager.validate_flow()` are the import entry points. A
+     package is validated in full before any flow is added, unknown imported fields are kept, and
+     the in-memory store as well as the file are updated under the manager lock.
+  2. Marketplace flow import and the marketplace Library tab use that store; the dashboard reads
+     sessions through `_dashboard_paths()`.
+  3. `get_hardware_id()` copies an existing legacy nested id (at least 16 characters) to
+     `data_path("hardware_id.txt")` before generating a new one.
+  4. The autonomous agent's `flows_store_path` follows `state_path("ai_flows.json")`.
+- **Consequences**:
+  - *Positive*: An imported flow is usable immediately, malformed packages change nothing, and a
+    deployment that briefly nested the hardware id keeps its ownership claims.
+  - *Trade-offs*: Marketplace flow packages that fail validation now return 400 instead of being
+    written unvalidated; the legacy hardware id file is copied, not moved, so both files remain
+    until the operator removes the nested one.

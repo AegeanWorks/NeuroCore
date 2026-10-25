@@ -11,15 +11,15 @@ import logging
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .state import utc_now
 
 logger = logging.getLogger(__name__)
 
 MODULES_ROOT = Path(__file__).resolve().parents[1]
-STATE_LAST_EVAL = state_path("data", "brain_eval_last.json")
-STATE_BASELINE = state_path("data", "brain_eval_baseline.json")
+STATE_LAST_EVAL = data_path("brain_eval_last.json")
+STATE_BASELINE = data_path("brain_eval_baseline.json")
 
 Provider = Callable[[], Dict[str, Any] | Awaitable[Dict[str, Any]]]
 

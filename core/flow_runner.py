@@ -317,9 +317,11 @@ class FlowRunner:
         receive the same input. The bridge edges define execution order within
         the group, while connections to any group member feed the entire group.
         
-        Cycle handling: If cycles are detected (e.g., A->B->A), we break them
-        arbitrarily by picking remaining nodes and forcing them into the order.
-        This allows execution to continue even with malformed flows.
+        Cycle handling: cycles (e.g. the LLM -> router -> tool -> LLM loop) are bounded loops,
+        not errors: execution re-queues nodes whose inputs change, capped by max_node_loops. The
+        initial order enters each cycle at its entry node (one fed from outside the cycle), with
+        node ID order as the deterministic tie-break. Set ``strict_cycle_mode`` on a flow to
+        reject cycles instead.
         
         Returns:
             list: Topologically sorted list of node IDs for execution
@@ -400,14 +402,23 @@ class FlowRunner:
             if loop_nodes:
                 logger.warning(f"[FlowRunner] Note: Flow contains {len(loop_nodes)} node(s) marked as loop (isReverted): {loop_nodes}")
             
+            predecessors = {node_id: set() for node_id in self.nodes}
+            for source, targets in adj.items():
+                for target in targets:
+                    predecessors[target].add(source)
+
             while len(sorted_order) < len(self.nodes):
-                # Pick the first remaining node to break the deadlock
-                # Sort candidates for deterministic order (alphabetically by node ID)
+                # Break the deadlock at a cycle's entry: a remaining node already fed by a sorted
+                # node (e.g. the LLM in an LLM -> router -> tool -> LLM loop). Starting at an
+                # arbitrary member would run it before anything upstream produced its input.
+                # Ties and entry-less cycles fall back to node ID order, so it stays deterministic.
                 candidates = sorted([n for n in self.nodes if n not in sorted_order])
                 if not candidates:
                     break
-                
-                next_node = candidates[0]
+
+                placed = set(sorted_order)
+                entries = [n for n in candidates if predecessors[n] & placed]
+                next_node = (entries or candidates)[0]
                 sorted_order.append(next_node)
                 
                 # Simulate processing this node to free up its neighbors

@@ -17,11 +17,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from core.paths import project_path
+from core.paths import data_path
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = project_path("data", "research.sqlite3")
+DB_PATH = data_path("research.sqlite3")
 
 
 def _now() -> str:

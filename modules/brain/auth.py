@@ -1,8 +1,10 @@
 """Brain actor identity, token registry and role gates.
 
-Loopback/test clients are trusted as local admins. Remote clients must present a token.
+Loopback clients (and the TestClient in test mode) are trusted as local admins. Remote clients must present a token.
 Tokens are stored as salted PBKDF2 hashes; plaintext is only returned when an actor is created
-or rotated. The environment token remains a backward-compatible admin override.
+or rotated. Generated tokens are ``<key_id>.<secret>``: the random, public key id selects one
+record, so a request costs one PBKDF2 however many actors exist. The environment token remains a
+backward-compatible admin override.
 """
 
 import hashlib
@@ -18,16 +20,19 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, HTTPException, Request
 
-from core.paths import state_path
+from core.paths import data_path
+from core.security import LOOPBACK_HOSTS, TEST_CLIENT_HOSTS, test_mode
 
 from .persistence import LedgerLock, atomic_write_json, ledger_transaction
 
 logger = logging.getLogger(__name__)
 
-LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
 ROLE_LEVEL = {"viewer": 0, "operator": 1, "admin": 2}
 VALID_ROLES = tuple(ROLE_LEVEL)
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+# token_urlsafe never emits ".", so it separates a generated token's key id from its secret.
+KEY_SEPARATOR = "."
+LAST_USED_INTERVAL_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -41,7 +46,7 @@ class BrainActorRegistry:
     """Persistent actor credentials; only salted hashes are stored."""
 
     def __init__(self, path: Optional[str] = None, iterations: int = 120000):
-        self.path = path or state_path("data", "brain_actors.json")
+        self.path = path or data_path("brain_actors.json")
         self.iterations = max(10000, int(iterations))
         self.lock = LedgerLock(self.path)
 
@@ -63,6 +68,21 @@ class BrainActorRegistry:
         with self.lock.held():
             atomic_write_json(self.path, data)
 
+    @staticmethod
+    def _new_token(token: Optional[str]):
+        """(key_id, token) for a new credential; a caller-chosen token has no key id."""
+        if token:
+            return None, token
+        key_id = secrets.token_hex(6)
+        return key_id, f"{key_id}{KEY_SEPARATOR}{secrets.token_urlsafe(32)}"
+
+    def _verify(self, record: Dict[str, Any], token: str) -> bool:
+        try:
+            candidate = self._hash(token, str(record.get("salt", "")))
+        except (TypeError, ValueError):
+            return False
+        return hmac.compare_digest(candidate, str(record.get("token_hash", "")))
+
     def _hash(self, token: str, salt: str) -> str:
         return hashlib.pbkdf2_hmac(
             "sha256", token.encode("utf-8"), bytes.fromhex(salt), self.iterations
@@ -79,11 +99,12 @@ class BrainActorRegistry:
         actors = data["actors"]
         if name in actors:
             raise ValueError(f"actor '{name}' already exists")
-        secret = token or secrets.token_urlsafe(32)
+        key_id, secret = self._new_token(token)
         salt = secrets.token_hex(16)
         actors[name] = {
             "name": name,
             "role": role,
+            "key_id": key_id,
             "salt": salt,
             "token_hash": self._hash(secret, salt),
             "enabled": True,
@@ -97,30 +118,40 @@ class BrainActorRegistry:
     def authenticate(self, token: str) -> Optional[BrainActor]:
         if not token:
             return None
+        token = str(token)
         data = self.load()
-        matched = None
-        for record in data["actors"].values():
-            if not record.get("enabled", True):
-                continue
-            try:
-                candidate = self._hash(str(token), str(record.get("salt", "")))
-            except (TypeError, ValueError):
-                continue
-            if hmac.compare_digest(candidate, str(record.get("token_hash", ""))):
-                matched = record
-                break
+        enabled = [r for r in data["actors"].values() if r.get("enabled", True)]
+        key_id = token.split(KEY_SEPARATOR, 1)[0] if KEY_SEPARATOR in token else None  # aikit:allow-secret
+        keyed = [r for r in enabled if key_id and r.get("key_id") == key_id]
+        # A key id selects its one record; only legacy and caller-chosen tokens (no key id)
+        # still need the per-record scan.
+        candidates = keyed or [r for r in enabled if not r.get("key_id")]
+        matched = next((r for r in candidates if self._verify(r, token)), None)
         if matched is None:
             return None
-        matched["last_used"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        try:
-            self.save(data)
-        except OSError as exc:
-            logger.warning("Could not update actor last_used: %s", exc)
+        now = datetime.now(timezone.utc)
+        if self._last_used_is_stale(matched.get("last_used"), now):
+            matched["last_used"] = now.isoformat().replace("+00:00", "Z")
+            try:
+                self.save(data)
+            except OSError as exc:
+                logger.warning("Could not update actor last_used: %s", exc)
         return BrainActor(
             name=str(matched["name"]),
             role=str(matched.get("role", "operator")),
             authenticated=True,
         )
+
+    @staticmethod
+    def _last_used_is_stale(last_used, now: datetime) -> bool:
+        """Rewrite last_used at most once a minute, not on every authenticated request."""
+        if not last_used:
+            return True
+        try:
+            previous = datetime.fromisoformat(str(last_used).replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        return (now - previous).total_seconds() >= LAST_USED_INTERVAL_SECONDS
 
     def list(self) -> list:
         return [self._public(record) for record in self.load()["actors"].values()]
@@ -131,9 +162,10 @@ class BrainActorRegistry:
         record = data["actors"].get(name)
         if record is None:
             raise ValueError(f"actor '{name}' does not exist")
-        secret = secrets.token_urlsafe(32)
+        key_id, secret = self._new_token(None)
         salt = secrets.token_hex(16)
         record.update({
+            "key_id": key_id,
             "salt": salt,
             "token_hash": self._hash(secret, salt),
             "enabled": True,
@@ -188,7 +220,8 @@ def reset_actor_registry() -> None:
 
 
 def _is_local(host: str) -> bool:
-    return str(host or "").lower() in LOCAL_HOSTS
+    host = str(host or "").lower()
+    return host in LOOPBACK_HOSTS or (test_mode() and host in TEST_CLIENT_HOSTS)
 
 
 def _set_request_actor(request: Request, actor: BrainActor) -> BrainActor:

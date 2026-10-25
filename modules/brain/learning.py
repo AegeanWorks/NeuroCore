@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Protocol
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json, engine_transaction
 
@@ -128,7 +128,7 @@ class LearningStore:
     """Bounded local learning ledger with atomic persistence."""
 
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_learning.json")
+        self.path = path or data_path("brain_learning.json")
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:

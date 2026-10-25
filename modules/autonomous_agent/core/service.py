@@ -13,6 +13,7 @@ from datetime import datetime
 from core.flow_evolution import FlowEvolution
 from core.flow_manager import FlowManager, flow_manager as shared_flow_manager
 from core.meta_flow import MetaFlowComposer
+from core.paths import state_path
 from core.settings import settings
 from .types import (
     AgentConfig,
@@ -70,7 +71,7 @@ class AgentService:
         # State
         self.state = AgentState()
         # NeuroCore's flow store; overridable for tests and alternate deployments.
-        self.flows_store_path = Path(__file__).resolve().parents[3] / "ai_flows.json"
+        self.flows_store_path = Path(state_path("ai_flows.json"))
         
         # Set up callbacks
         self.communicator.on_perception = self._on_perception

@@ -38,14 +38,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.paths import project_path
+from core.paths import data_path
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-SESSION_FILE = project_path("data", "session.json")
-TRACE_FILE = project_path("data", "execution_trace.jsonl")
-EPISODE_DIR = project_path("data", "episodes")
+SESSION_FILE = data_path("session.json")
+TRACE_FILE = data_path("execution_trace.jsonl")
+EPISODE_DIR = data_path("episodes")
 AGENT_ID = "neurocore"
 
 

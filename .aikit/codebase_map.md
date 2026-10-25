@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `256`
-- **Total Classes**: `381`
-- **Total Top-Level Functions**: `1559`
-- **Total Class Methods**: `2054`
-- **Total Source Lines**: `72482`
+- **Total Python Modules**: `259`
+- **Total Classes**: `383`
+- **Total Top-Level Functions**: `1592`
+- **Total Class Methods**: `2065`
+- **Total Source Lines**: `73024`
 
 ---
 
@@ -255,7 +255,7 @@
 ---
 
 ### [`core/flow_manager.py`](core/flow_manager.py)
-**Size**: `605` lines (`29398` bytes)
+**Size**: `637` lines (`31020` bytes)
 
 **Classes:**
 - `class FlowManager`
@@ -280,6 +280,8 @@
   - Method `.get_versions(flow_id)` - *Return lightweight version metadata for *flow_id*, newest first.*
   - Method `.rollback_version(flow_id, version_num)` - *Restore *flow_id* to the snapshot identified by *version_num*.*
   - Method `.save_flow(name, nodes, connections, bridges, flow_id, metadata, reverted_nodes, validate)`
+  - Method `.validate_flow(flow_id, flow)` - *Validation errors for one flow, without saving it (for all-or-nothing imports).*
+  - Method `.add_flow(flow_id, flow, *, validate)` - *Add one flow without replacing the store, keeping imported fields intact.*
   - Method `.import_flows(flows_data)` - *Replaces all flows with the provided dictionary after validation.*
   - Method `.rename_flow(flow_id, new_name)`
   - Method `.get_flow(flow_id)`
@@ -291,7 +293,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1069` lines (`51614` bytes)
+**Size**: `1080` lines (`52358` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -377,7 +379,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `991` lines (`36278` bytes)
+**Size**: `991` lines (`36253` bytes)
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -463,11 +465,12 @@
 ### [`core/paths.py`](core/paths.py)
 > *Absolute locations for NeuroCore runtime files.*
 
-**Size**: `25` lines (`886` bytes)
+**Size**: `37` lines (`1425` bytes)
 
 **Functions:**
 - `def project_path(*parts)` - *Return an absolute path inside the NeuroCore project root.*
 - `def state_path(*parts)` - *Return a path for mutable state, honouring NEUROCORE_STATE_DIR.*
+- `def data_path(*parts)` - *Return a path in the data directory: databases, keys, traces, uploads and ledgers.*
 
 ---
 
@@ -489,7 +492,7 @@
 ### [`core/research_manager.py`](core/research_manager.py)
 > *Research Manager*
 
-**Size**: `915` lines (`38723` bytes)
+**Size**: `915` lines (`38709` bytes)
 
 **Classes:**
 - `class ResearchManager` - *Manages persistent storage of research entities using SQLite.*
@@ -542,11 +545,15 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3272` lines (`143814` bytes)
+**Size**: `3306` lines (`144896` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
+- `def _legacy_hardware_id_path()` - *The nested path some builds used (``<state dir>/data/hardware_id.txt``).*
+- `def _adopt_legacy_hardware_id(id_file, legacy_file)`
 - `def get_hardware_id()`
+- `def _decoder_key_path()` - *Where the decoder key lives; every reader and writer must use this one location.*
+- `def _dashboard_paths()` - *The state files the dashboard counts, at the locations the app actually writes them.*
 - `def get_decoder()` - *Load or generate the local decoder key (32 random bytes).*
 - `def make_claim(item_id)` - *Compute a cryptographic ownership claim for a marketplace item.*
 - `def get_public_handle()` - *A stable, opaque public identifier for this user, shown in the marketplace as the uploader.*
@@ -725,7 +732,7 @@
 ### [`core/security.py`](core/security.py)
 > *Control-plane security policy for NeuroCore.*
 
-**Size**: `302` lines (`12475` bytes)
+**Size**: `312` lines (`12967` bytes)
 
 **Classes:**
 - `class ControlPlaneGuard` - *CSRF origin check plus an opt-in API token for non-loopback clients.*
@@ -734,10 +741,11 @@
 **Functions:**
 - `def _env_flag(name)` - *True when the named environment variable holds an affirmative value.*
 - `def _env_list(name)` - *The comma-separated, non-empty, lower-cased entries of an environment variable.*
+- `def test_mode()` - *Whether the test suite is running (``NEUROCORE_TEST_MODE``, set by tests/conftest.py).*
 - `def bind_host()` - *The interface the server binds to; loopback unless NEUROCORE_HOST opts in.*
 - `def bind_port()` - *The TCP port the server binds to; 8000 when NEUROCORE_PORT is missing or invalid.*
 - `def reload_enabled()` - *Auto-reload is off unless NEUROCORE_RELOAD explicitly turns it on.*
-- `def allowed_hosts()` - *Loopback hosts plus the test host, plus any NEUROCORE_ALLOWED_HOSTS opt-in.*
+- `def allowed_hosts()` - *Loopback hosts (plus the test host in test mode) and any NEUROCORE_ALLOWED_HOSTS opt-in.*
 - `def export_includes_secrets()` - *Secrets stay out of the config export unless NEUROCORE_EXPORT_SECRETS opts in.*
 - `def _is_sensitive_key(key)` - *Whether a mapping key names a secret (its value must be masked or dropped).*
 - `def redact_secrets(values)` - *Return `values` with every sensitive entry replaced by REDACTED, recursively.*
@@ -759,7 +767,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1037` lines (`36573` bytes)
+**Size**: `1037` lines (`36537` bytes)
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -1225,7 +1233,7 @@
 ### [`modules/autonomous_agent/core/service.py`](modules/autonomous_agent/core/service.py)
 > *Main Agent Service - Ties all components together and runs the cognitive loop.*
 
-**Size**: `1043` lines (`44609` bytes)
+**Size**: `1044` lines (`44623` bytes)
 
 **Classes:**
 - `class AgentState` - *Current state of the agent.*
@@ -1361,7 +1369,7 @@
 ### [`modules/brain/auth.py`](modules/brain/auth.py)
 > *Brain actor identity, token registry and role gates.*
 
-**Size**: `246` lines (`8385` bytes)
+**Size**: `279` lines (`10098` bytes)
 
 **Classes:**
 - `class BrainActor`
@@ -1369,9 +1377,12 @@
   - Method `.__init__(path, iterations)`
   - Method `.load()`
   - Method `.save(data)`
+  - Method `._new_token(token)` - *(key_id, token) for a new credential; a caller-chosen token has no key id.*
+  - Method `._verify(record, token)`
   - Method `._hash(token, salt)`
   - Method `.create(name, role, token)`
   - Method `.authenticate(token)`
+  - Method `._last_used_is_stale(last_used, now)` - *Rewrite last_used at most once a minute, not on every authenticated request.*
   - Method `.list()`
   - Method `.rotate(name)`
   - Method `.disable(name)`
@@ -1391,7 +1402,7 @@
 ### [`modules/brain/configuration.py`](modules/brain/configuration.py)
 > *Policy-gated self-configuration for settings, modules and brain options.*
 
-**Size**: `411` lines (`17719` bytes)
+**Size**: `411` lines (`17709` bytes)
 
 **Classes:**
 - `class ConfigurationPolicyError` - *Raised when a requested change violates the configuration policy.*
@@ -1428,7 +1439,7 @@
 ### [`modules/brain/drift.py`](modules/brain/drift.py)
 > *Drift detection against a measured healthy baseline.*
 
-**Size**: `136` lines (`4931` bytes)
+**Size**: `136` lines (`4921` bytes)
 
 **Classes:**
 - `class DriftMonitor` - *Compare live self-model metrics with a baseline and score divergence.*
@@ -1448,7 +1459,7 @@
 ### [`modules/brain/evaluation.py`](modules/brain/evaluation.py)
 > *Deterministic evaluation harness used as the brain's scorecard.*
 
-**Size**: `362` lines (`13717` bytes)
+**Size**: `362` lines (`13698` bytes)
 
 **Classes:**
 - `class UnsafeEvaluationError` - *Raised when a flow contains nodes that must not run during evaluation.*
@@ -1498,7 +1509,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `421` lines (`17886` bytes)
+**Size**: `421` lines (`17876` bytes)
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -1529,7 +1540,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `274` lines (`10735` bytes)
+**Size**: `274` lines (`10725` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -1569,7 +1580,7 @@
 ### [`modules/brain/learning.py`](modules/brain/learning.py)
 > *Outcome-driven learning: experiences, consolidation and held-out recall.*
 
-**Size**: `517` lines (`19568` bytes)
+**Size**: `517` lines (`19558` bytes)
 
 **Classes:**
 - `class Outcome`
@@ -1640,7 +1651,7 @@
 ### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
 > *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
 
-**Size**: `392` lines (`15492` bytes)
+**Size**: `392` lines (`15482` bytes)
 
 **Classes:**
 - `class ReactionStore`
@@ -1731,7 +1742,7 @@
 ### [`modules/brain/self_model.py`](modules/brain/self_model.py)
 > *Real self-model for the brain.*
 
-**Size**: `204` lines (`7462` bytes)
+**Size**: `204` lines (`7443` bytes)
 
 **Classes:**
 - `class BrainSelfModel` - *Compose live subsystem snapshots into the brain's model of itself.*
@@ -1811,7 +1822,7 @@
 ### [`modules/brain/state.py`](modules/brain/state.py)
 > *Persistent brain state and mode definitions.*
 
-**Size**: `81` lines (`2556` bytes)
+**Size**: `81` lines (`2546` bytes)
 
 **Classes:**
 - `class BrainState` - *Observable state of the brain control plane.*
@@ -2096,7 +2107,7 @@
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1263` lines (`50565` bytes)
+**Size**: `1263` lines (`50551` bytes)
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -2177,7 +2188,7 @@
 ---
 
 ### [`modules/knowledge_base/router.py`](modules/knowledge_base/router.py)
-**Size**: `544` lines (`22274` bytes)
+**Size**: `544` lines (`22249` bytes)
 
 **Functions:**
 - `def _format_size(size_bytes)` - *Return a human-readable file size string.*
@@ -2285,7 +2296,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1102` lines (`48848` bytes)
+**Size**: `1102` lines (`48834` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -2671,7 +2682,7 @@
 ---
 
 ### [`modules/reasoning_book/service.py`](modules/reasoning_book/service.py)
-**Size**: `120` lines (`4547` bytes)
+**Size**: `120` lines (`4533` bytes)
 
 **Classes:**
 - `class ReasoningBookService`
@@ -3055,7 +3066,7 @@
 ### [`tests/conftest.py`](tests/conftest.py)
 > *Pytest configuration and fixtures for test isolation.*
 
-**Size**: `474` lines (`16805` bytes)
+**Size**: `495` lines (`17692` bytes)
 
 **Classes:**
 - `class FileBackupManager` - *Manages backup and restore operations for files during tests.*
@@ -3074,6 +3085,7 @@
 - `def _snapshot_protected_file(filepath)` - *The file's bytes, refusing to start from a JSON file that is already corrupt.*
 - `def _restore_protected_file(filepath, content)` - *Replace the file atomically so no reader ever sees it truncated.*
 - `def protect_module_files()` - *Restore module.json files (and legacy root state files) that a test modified.*
+- `def brain_module_enabled(request, monkeypatch)` - *Load the opt-in brain module for brain tests without editing its manifest on disk.*
 - `def temp_module_dir(tmp_path)` - *Provides a temporary directory for creating test module structures.*
 - `def sample_module_json()` - *Provides a sample module.json structure for testing.*
 - `def backup_specific_file()` - *Fixture to backup a specific file before a test and restore it after.*
@@ -3242,7 +3254,7 @@
 ### [`tests/test_archive_safety.py`](tests/test_archive_safety.py)
 > *Regression tests for M2: ZIP extraction must never escape its destination (zip-slip).*
 
-**Size**: `104` lines (`3902` bytes)
+**Size**: `106` lines (`4042` bytes)
 
 **Functions:**
 - `def _write_zip(path, members)`
@@ -3331,7 +3343,7 @@
 ### [`tests/test_brain_auth.py`](tests/test_brain_auth.py)
 > *Brain actor authentication and remote access gate.*
 
-**Size**: `183` lines (`5735` bytes)
+**Size**: `242` lines (`7675` bytes)
 
 **Functions:**
 - `def make_request(host, headers)`
@@ -3345,6 +3357,11 @@
 - `def test_viewer_cannot_use_admin_route()`
 - `def test_actor_admin_routes(tmp_path, monkeypatch)`
 - `def test_actor_route_reports_local_identity()`
+- `def _counting_registry(tmp_path, monkeypatch)`
+- `def test_authentication_hashes_once_however_many_actors_exist(tmp_path, monkeypatch)`
+- `def test_token_key_id_reveals_nothing_about_the_secret(tmp_path)`
+- `def test_legacy_and_caller_supplied_tokens_still_authenticate(tmp_path)`
+- `def test_last_used_is_written_at_most_once_a_minute(tmp_path, monkeypatch)`
 
 ---
 
@@ -3965,6 +3982,18 @@
 
 ---
 
+### [`tests/test_default_flows.py`](tests/test_default_flows.py)
+> *The flows a fresh install starts with must only use node types that really execute.*
+
+**Size**: `34` lines (`1203` bytes)
+
+**Functions:**
+- `def default_flows(tmp_path)`
+- `async def test_every_default_flow_node_dispatches_to_an_executor(default_flows)`
+- `def test_default_flow_replies_on_the_platform_a_message_came_from(default_flows)`
+
+---
+
 ### [`tests/test_dependencies.py`](tests/test_dependencies.py)
 **Size**: `29` lines (`1002` bytes)
 
@@ -4301,7 +4330,7 @@
 ---
 
 ### [`tests/test_flow_manager.py`](tests/test_flow_manager.py)
-**Size**: `344` lines (`14647` bytes)
+**Size**: `383` lines (`16099` bytes)
 
 **Classes:**
 - `class TestFlowVersioning`
@@ -4335,6 +4364,9 @@
 - `def test_delete_flow_prunes_active_settings(flow_manager, monkeypatch)` - *Deleting an active flow also removes it from active_ai_flows.*
 - `def test_returned_flows_are_copies(flow_manager)` - *Mutating a returned flow must not change the store.*
 - `def test_rename_flow(flow_manager)` - *Tests renaming a flow.*
+- `def test_add_flow_validates_and_preserves_imported_fields(tmp_path)`
+- `def test_add_flow_rejects_a_second_identical_id(tmp_path)`
+- `def test_validate_flow_reports_a_dangling_connection_without_saving(tmp_path)`
 
 ---
 
@@ -4361,7 +4393,7 @@
 ---
 
 ### [`tests/test_flow_runner.py`](tests/test_flow_runner.py)
-**Size**: `185` lines (`7634` bytes)
+**Size**: `220` lines (`9120` bytes)
 
 **Functions:**
 - `def mock_flow()` - *A fixture for a valid, simple, linear flow.*
@@ -4371,6 +4403,9 @@
 - `async def test_flow_run_success(mock_flow)` - *Tests the successful execution of a flow from start to finish.*
 - `async def test_flow_run_node_execution_error(mock_flow)` - *Tests that an error during a node's execution is caught and reported.*
 - `async def test_messages_list_not_shared_between_branches()` - *Regression test for the shared-messages-list bug.*
+- `def _node(node_id)`
+- `def test_cycle_is_entered_at_the_node_fed_from_outside_it()`
+- `def test_default_tool_loop_runs_the_llm_before_the_router(tmp_path)`
 
 ---
 
@@ -4841,6 +4876,25 @@
 
 ---
 
+### [`tests/test_marketplace_flow_import.py`](tests/test_marketplace_flow_import.py)
+> *Marketplace flow imports go through the validated flow store, not a direct file write.*
+
+**Size**: `84` lines (`2623` bytes)
+
+**Classes:**
+- `class FakeSettings`
+  - Method `.__init__()`
+  - Method `.get(key, default)`
+  - Method `.save_settings(values)`
+
+**Functions:**
+- `def marketplace(tmp_path, monkeypatch)`
+- `def package(state, item_id, flow, filename)`
+- `async def test_imported_flow_is_saved_and_visible_without_restart(marketplace)`
+- `async def test_invalid_import_changes_nothing(marketplace)`
+
+---
+
 ### [`tests/test_memory_arbiter.py`](tests/test_memory_arbiter.py)
 **Size**: `109` lines (`3689` bytes)
 
@@ -5124,6 +5178,19 @@
 - `async def test_get_executor_class_dispatch()`
 - `async def test_send_is_a_passthrough()`
 - `def test_module_manifest_declares_the_subflow_node()`
+
+---
+
+### [`tests/test_module_defaults.py`](tests/test_module_defaults.py)
+> *Which modules a fresh install loads: experimental autonomy stays opt-in.*
+
+**Size**: `42` lines (`1282` bytes)
+
+**Functions:**
+- `def _enabled(module_id)`
+- `def test_experimental_autonomy_modules_ship_disabled()`
+- `def test_meta_flow_ships_enabled_because_saved_flows_use_its_nodes()`
+- `def test_disabled_brain_is_neither_routed_nor_linked()`
 
 ---
 
@@ -5499,18 +5566,22 @@
 ### [`tests/test_runtime_paths.py`](tests/test_runtime_paths.py)
 > *Runtime state must stay inside the project, whatever the launch directory is.*
 
-**Size**: `56` lines (`1768` bytes)
+**Size**: `121` lines (`4594` bytes)
 
 **Functions:**
 - `def test_runtime_paths_are_absolute_and_inside_project()`
 - `def test_importing_the_app_from_another_directory_writes_nothing_there(tmp_path)`
+- `def test_data_path_is_the_state_dir_when_set_else_project_data(monkeypatch, tmp_path)`
+- `def test_every_data_file_follows_the_state_dir()`
+- `def test_legacy_nested_hardware_id_is_adopted(monkeypatch, tmp_path)`
+- `def test_recent_sessions_reads_the_dashboard_state_file(monkeypatch, tmp_path)`
 
 ---
 
 ### [`tests/test_runtime_regressions.py`](tests/test_runtime_regressions.py)
 > *Runtime regressions: state directory, raise_errors, debug trigger, hardware id.*
 
-**Size**: `111` lines (`3269` bytes)
+**Size**: `114` lines (`3329` bytes)
 
 **Classes:**
 - `class BoomExecutor`
@@ -5603,7 +5674,7 @@
 ### [`tests/test_security_middleware.py`](tests/test_security_middleware.py)
 > *Regression tests for auth (fail-closed API token) and CSRF (browser-origin) enforcement.*
 
-**Size**: `175` lines (`7158` bytes)
+**Size**: `200` lines (`8210` bytes)
 
 **Classes:**
 - `class TestDeploymentValidation`
@@ -5621,6 +5692,10 @@
   - Method `.test_trusted_origin_matches_the_normalized_origin(monkeypatch)`
   - Method `.test_trusted_origin_entries_are_normalized(monkeypatch)`
   - Method `.test_malformed_origin_is_rejected()`
+- `class TestTestClientHooksAreTestOnly`
+  - Method `._request(host)`
+  - Method `.test_client_names_are_not_loopback_outside_test_mode(monkeypatch)`
+  - Method `.test_client_names_are_loopback_in_test_mode(monkeypatch)`
 
 **Functions:**
 - `def _guarded_client()`

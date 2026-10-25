@@ -181,3 +181,62 @@ def test_actor_route_reports_local_identity():
     assert response.status_code == 200
     assert response.json()["name"] == "local"
     assert response.json()["authenticated"] is False
+
+
+def _counting_registry(tmp_path, monkeypatch):
+    registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
+    calls = []
+    original = registry._hash
+
+    def counted(token, salt):
+        calls.append(salt)
+        return original(token, salt)
+
+    monkeypatch.setattr(registry, "_hash", counted)
+    return registry, calls
+
+
+def test_authentication_hashes_once_however_many_actors_exist(tmp_path, monkeypatch):
+    registry, calls = _counting_registry(tmp_path, monkeypatch)
+    tokens = [registry.create(f"actor{i}")["token"] for i in range(6)]
+    calls.clear()
+
+    actor = registry.authenticate(tokens[-1])
+
+    assert actor.name == "actor5"
+    assert len(calls) == 1
+    calls.clear()
+    assert registry.authenticate(tokens[-1][:-1] + "x") is None
+    assert len(calls) == 1
+
+
+def test_token_key_id_reveals_nothing_about_the_secret(tmp_path):
+    registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
+    token = registry.create("alice")["token"]
+    key_id, secret = token.split(".", 1)
+
+    with open(tmp_path / "actors.json", encoding="utf-8") as f:
+        stored = f.read()
+    assert key_id in stored
+    assert secret not in stored
+
+
+def test_legacy_and_caller_supplied_tokens_still_authenticate(tmp_path):
+    registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
+    registry.create("chosen", token="my.chosen.token")
+
+    assert registry.authenticate("my.chosen.token").name == "chosen"
+
+
+def test_last_used_is_written_at_most_once_a_minute(tmp_path, monkeypatch):
+    registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
+    token = registry.create("alice")["token"]
+    saves = []
+    original = registry.save
+    monkeypatch.setattr(registry, "save", lambda data: (saves.append(1), original(data)))
+
+    registry.authenticate(token)
+    registry.authenticate(token)
+
+    assert len(saves) == 1
+

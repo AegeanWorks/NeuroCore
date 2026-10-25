@@ -71,6 +71,7 @@ def test_strips_single_root_directory(tmp_path):
 
 async def test_import_route_refuses_zip_slip(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "data"))
     uploads = tmp_path / "data" / "marketplace" / "uploads"
     uploads.mkdir(parents=True)
     _write_zip(uploads / "pkg.zip", [("../evil.py", "print('pwned')")])
@@ -89,6 +90,7 @@ async def test_import_route_refuses_zip_slip(tmp_path, monkeypatch):
 
 async def test_import_route_extracts_safe_module(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "data"))
     uploads = tmp_path / "data" / "marketplace" / "uploads"
     uploads.mkdir(parents=True)
     _write_zip(uploads / "pkg.zip", [("root/module.json", "{}"), ("root/__init__.py", "")])

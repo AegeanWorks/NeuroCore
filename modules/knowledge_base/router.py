@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 
 from core.dependencies import get_llm_bridge
 from core.llm import LLMBridge
-from core.paths import project_path
+from core.paths import data_path
 from core.settings import settings
 
 from .backend import document_store
@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
-UPLOAD_DIR = project_path("data", "uploaded_docs")
-PROCESSED_DIR = project_path("data", "processed_docs")
+UPLOAD_DIR = data_path("uploaded_docs")
+PROCESSED_DIR = data_path("processed_docs")
 
 
 def _format_size(size_bytes: int) -> str:

@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json
 
@@ -21,7 +21,7 @@ class DriftMonitor:
     """Compare live self-model metrics with a baseline and score divergence."""
 
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_drift.json")
+        self.path = path or data_path("brain_drift.json")
         self.lock = LedgerLock(self.path)
         self.baseline: Dict[str, Any] = self._load()
 

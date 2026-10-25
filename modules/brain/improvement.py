@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from core.flow_evolution import FlowEvolution, FlowEvolutionError
-from core.paths import state_path
+from core.paths import data_path
 
 from .evaluation import EvalStore, EvaluationRunner, compare_results
 from .persistence import LedgerLock, atomic_write_json, engine_transaction_async
@@ -51,7 +51,7 @@ class ImprovementStore:
     """Atomic candidate ledger under the configured state directory."""
 
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_improvements.json")
+        self.path = path or data_path("brain_improvements.json")
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:

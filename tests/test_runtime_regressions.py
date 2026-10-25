@@ -2,6 +2,7 @@
 
 import os
 import platform
+from pathlib import Path
 import subprocess
 import uuid
 
@@ -102,7 +103,9 @@ def test_hardware_id_differs_when_os_probes_are_empty(monkeypatch, tmp_path):
     monkeypatch.setattr(uuid, "getnode", lambda: 111)
     first = routers.get_hardware_id()
 
-    cache = tmp_path / "data" / "hardware_id.txt"
+    from core.paths import data_path
+
+    cache = Path(data_path("hardware_id.txt"))
     if cache.exists():
         os.remove(cache)
     monkeypatch.setattr(uuid, "getnode", lambda: 222)

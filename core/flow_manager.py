@@ -271,8 +271,8 @@ class FlowManager:
                     {"id": "node-4", "moduleId": "memory", "nodeTypeId": "memory_save", "name": "Memory Save", "x": 123, "y": 163, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
                     {"id": "node-5", "moduleId": "memory", "nodeTypeId": "memory_save", "name": "Memory Save", "x": 1134, "y": 249, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
                     {"id": "node-6", "moduleId": "memory", "nodeTypeId": "memory_recall", "name": "Memory Recall", "x": 123, "y": 249, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
-                    {"id": "node-7", "moduleId": "telegram", "nodeTypeId": "telegram_output", "name": "Telegram Output", "x": 909, "y": 337, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
-                    {"id": "node-8", "moduleId": "telegram", "nodeTypeId": "telegram_input", "name": "Telegram Input", "x": -289, "y": 249, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
+                    {"id": "node-7", "moduleId": "messaging_bridge", "nodeTypeId": "messaging_output", "name": "Messaging Output", "x": 909, "y": 337, "config": {"platform": "auto"}, "isReverted": False, "outputDot": {}, "inputDot": {}},
+                    {"id": "node-8", "moduleId": "messaging_bridge", "nodeTypeId": "messaging_input", "name": "Messaging Input", "x": -289, "y": 249, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
                     {"id": "node-9", "moduleId": "tools", "nodeTypeId": "tool_dispatcher", "name": "Tool Dispatcher", "x": 632.1, "y": -28.2, "config": {"allowed_tools": ["Weather", "Calculator", "TimeZoneConverter", "ConversionCalculator", "SystemTime", "FetchURL", "CurrencyConverter", "SaveReminder", "CheckCalendar"], "explanation": ""}, "isReverted": True, "outputDot": {}, "inputDot": {}},
                     {"id": "node-10", "moduleId": "logic", "nodeTypeId": "conditional_router", "name": "Conditional Router", "x": 717, "y": 250, "config": {"check_field": "tool_calls", "true_branches": ["node-9"], "false_branches": ["node-3", "node-7"], "explanation": ""}, "isReverted": False, "outputDot": {}, "inputDot": {}},
                     {"id": "node-11", "moduleId": "calendar", "nodeTypeId": "calendar_watcher", "name": "Calendar Watcher", "x": 719.2, "y": 336.8, "config": {}, "isReverted": False, "outputDot": {}, "inputDot": {}},
@@ -496,6 +496,38 @@ class FlowManager:
             self.flows[flow_id] = saved
             self._save_flows()
             return copy.deepcopy(self.flows[flow_id])
+
+    def validate_flow(self, flow_id: str, flow: dict) -> list:
+        """Validation errors for one flow, without saving it (for all-or-nothing imports)."""
+        candidate = copy.deepcopy(flow)
+        candidate.setdefault("name", flow_id)
+        candidate["id"] = flow_id
+        return self._validate_flow_structure(flow_id, candidate)
+
+    def add_flow(self, flow_id: str, flow: dict, *, validate: bool = True) -> dict:
+        """Add one flow without replacing the store, keeping imported fields intact.
+
+        Importers must validate and update the in-memory store as well as the file; a direct
+        file write leaves the edit invisible until restart and can store a malformed graph.
+        """
+        with self.lock:
+            if not isinstance(flow_id, str) or not flow_id:
+                raise ValueError("flow id must be a non-empty string")
+            if flow_id in self.flows:
+                raise ValueError(f"flow '{flow_id}' already exists")
+            candidate = copy.deepcopy(flow)
+            candidate.setdefault("name", flow_id)
+            candidate["id"] = flow_id
+            if validate:
+                errors = self._validate_flow_structure(flow_id, candidate)
+                if errors:
+                    raise ValueError("flow validation failed: " + "; ".join(errors))
+            now = datetime.utcnow().isoformat() + "Z"
+            candidate.setdefault("created_at", now)
+            candidate["updated_at"] = now
+            self.flows[flow_id] = candidate
+            self._save_flows()
+            return copy.deepcopy(candidate)
 
     def import_flows(self, flows_data: dict):
         """Replaces all flows with the provided dictionary after validation."""

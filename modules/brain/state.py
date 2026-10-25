@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json
 
@@ -61,7 +61,7 @@ class BrainStateStore:
     """Atomic JSON persistence for brain state under the configured state dir."""
 
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_state.json")
+        self.path = path or data_path("brain_state.json")
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:

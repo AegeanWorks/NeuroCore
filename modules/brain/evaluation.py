@@ -10,7 +10,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from core.flow_manager import flow_manager
 from core.flow_runner import FlowRunner
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json
 from .state import utc_now
@@ -265,8 +265,8 @@ class EvalStore:
 
     def __init__(self, last_path: Optional[str] = None,
                  baseline_path: Optional[str] = None):
-        self.last_path = last_path or state_path("data", "brain_eval_last.json")
-        self.baseline_path = baseline_path or state_path("data", "brain_eval_baseline.json")
+        self.last_path = last_path or data_path("brain_eval_last.json")
+        self.baseline_path = baseline_path or data_path("brain_eval_baseline.json")
         self.last_lock = LedgerLock(self.last_path)
         self.baseline_lock = LedgerLock(self.baseline_path)
 

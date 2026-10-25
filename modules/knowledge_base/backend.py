@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from core.paths import project_path
+from core.paths import data_path
 from core.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -287,7 +287,7 @@ class FaissDocumentStore(QueryExpansionMixin):
     - FAISS for vector embeddings (fast similarity search)
     """
 
-    def __init__(self, db_path: str = project_path("data", "knowledge_base.sqlite3"), embed_fn=None):
+    def __init__(self, db_path: str = data_path("knowledge_base.sqlite3"), embed_fn=None):
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
         self.embed_fn = embed_fn

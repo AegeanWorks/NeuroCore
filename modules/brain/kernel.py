@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json, engine_transaction
 
@@ -42,7 +42,7 @@ class KernelState:
 
 class KernelStore:
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_kernel.json")
+        self.path = path or data_path("brain_kernel.json")
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:

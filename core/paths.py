@@ -23,3 +23,15 @@ def state_path(*parts: str) -> str:
     """
     root = os.environ.get("NEUROCORE_STATE_DIR") or PROJECT_ROOT
     return str(Path(root).expanduser().resolve().joinpath(*parts))
+
+
+def data_path(*parts: str) -> str:
+    """Return a path in the data directory: databases, keys, traces, uploads and ledgers.
+
+    That is NEUROCORE_STATE_DIR itself when set, else ``<project>/data``. Docker mounts ./data
+    at /app/data and sets the state dir there, so every data file keeps its current location;
+    without the variable nothing moves either.
+    """
+    root = os.environ.get("NEUROCORE_STATE_DIR")
+    base = Path(root).expanduser().resolve() if root else PROJECT_ROOT / "data"
+    return str(base.joinpath(*parts))

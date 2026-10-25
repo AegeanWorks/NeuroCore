@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from core.paths import state_path
+from core.paths import data_path
 
 from .persistence import LedgerLock, atomic_write_json, engine_transaction
 
@@ -55,7 +55,7 @@ class ConfigurationStore:
     """Atomic ledger for applied changes and their rollback snapshots."""
 
     def __init__(self, path: Optional[str] = None):
-        self.path = path or state_path("data", "brain_configurations.json")
+        self.path = path or data_path("brain_configurations.json")
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:

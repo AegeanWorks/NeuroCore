@@ -183,3 +183,38 @@ async def test_messages_list_not_shared_between_branches():
     assert received_by_branch_b.get("messages") == [
         {"role": "user", "content": "hello"}
     ], f"branch_b received mutated messages: {received_by_branch_b.get('messages')}"
+
+def _node(node_id):
+    return {"id": node_id, "moduleId": "module_x", "nodeTypeId": "type_x", "name": node_id}
+
+
+def test_cycle_is_entered_at_the_node_fed_from_outside_it():
+    # start -> z-entry -> a-mid -> b-mid -> z-entry: alphabetical order would start mid-cycle.
+    flow = {
+        "id": "loop-flow",
+        "nodes": [_node("start"), _node("z-entry"), _node("a-mid"), _node("b-mid")],
+        "connections": [
+            {"from": "start", "to": "z-entry"},
+            {"from": "z-entry", "to": "a-mid"},
+            {"from": "a-mid", "to": "b-mid"},
+            {"from": "b-mid", "to": "z-entry"},
+        ],
+    }
+    with patch('core.flow_runner.flow_manager') as mock_fm:
+        mock_fm.get_flow.return_value = flow
+        runner = FlowRunner(flow_id="loop-flow")
+
+    assert runner.execution_order == ["start", "z-entry", "a-mid", "b-mid"]
+
+
+def test_default_tool_loop_runs_the_llm_before_the_router(tmp_path):
+    from core.flow_manager import FlowManager
+
+    flow = FlowManager(storage_file=str(tmp_path / "f.json")).flows["default-flow-001"]
+    runner = FlowRunner("default-flow-001", flow_override=flow)
+    types = {node["id"]: node["nodeTypeId"] for node in flow["nodes"]}
+    order = [types[node_id] for node_id in runner.execution_order]
+
+    assert order.index("llm_module") < order.index("conditional_router")
+    assert order.index("conditional_router") < order.index("tool_dispatcher")
+    assert order.index("llm_module") < order.index("chat_output")

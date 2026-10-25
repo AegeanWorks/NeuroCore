@@ -64,6 +64,16 @@ def _env_list(name: str) -> list:
     return [entry.strip().lower() for entry in raw.split(",") if entry.strip()]
 
 
+def test_mode() -> bool:
+    """Whether the test suite is running (``NEUROCORE_TEST_MODE``, set by tests/conftest.py).
+
+    Starlette's TestClient connects as the names in TEST_CLIENT_HOSTS instead of an address.
+    Outside test mode those names are never trusted, so a proxy that passes a client-supplied
+    ``X-Forwarded-For: testclient`` through cannot claim to be this machine.
+    """
+    return _env_flag("NEUROCORE_TEST_MODE")
+
+
 def bind_host() -> str:
     """The interface the server binds to; loopback unless NEUROCORE_HOST opts in."""
     return os.getenv("NEUROCORE_HOST", "127.0.0.1").strip() or "127.0.0.1"
@@ -84,14 +94,14 @@ def reload_enabled() -> bool:
 
 
 def allowed_hosts() -> list:
-    """Loopback hosts plus the test host, plus any NEUROCORE_ALLOWED_HOSTS opt-in.
+    """Loopback hosts (plus the test host in test mode) and any NEUROCORE_ALLOWED_HOSTS opt-in.
 
     Behind a reverse proxy (e.g. nginx → 127.0.0.1:8000), the proxy IP is seen as
     ``request.client.host``. To allow the proxy, either set ``NEUROCORE_API_TOKEN``
     (recommended) or add the proxy host to ``NEUROCORE_ALLOWED_HOSTS`` and
     ``NEUROCORE_TRUSTED_ORIGINS``.
     """
-    hosts = list(LOOPBACK_HOSTS) + [TEST_HOST]
+    hosts = list(LOOPBACK_HOSTS) + ([TEST_HOST] if test_mode() else [])
     for host in _env_list("NEUROCORE_ALLOWED_HOSTS"):
         if host not in hosts:
             hosts.append(host)
@@ -252,7 +262,7 @@ def _client_is_loopback(request) -> bool:
     """Whether the connecting peer is this machine (so the API token is not required)."""
     client = getattr(request, "client", None)
     host = getattr(client, "host", None)
-    if host and str(host).lower() in TEST_CLIENT_HOSTS:
+    if host and test_mode() and str(host).lower() in TEST_CLIENT_HOSTS:
         return True
     return _is_loopback_host(host)
 

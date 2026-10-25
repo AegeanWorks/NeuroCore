@@ -5,9 +5,9 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from core.paths import project_path
+from core.paths import data_path
 
-DATA_FILE = project_path("data", "reasoning_book.json")
+DATA_FILE = data_path("reasoning_book.json")
 MAX_THOUGHTS = 100
 MAX_DAYS_OLD = 7  # Prune thoughts older than 7 days
 
