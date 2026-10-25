@@ -75,7 +75,7 @@ def test_safe_mode_hysteresis_and_kill_switch(tmp_path):
 
 def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path):
     now = [5000.0]
-    kernel = BrainKernel(degrade_threshold=5.5, safe_threshold=90.0,
+    kernel = BrainKernel(degrade_threshold=25.0, safe_threshold=90.0,
                          store=KernelStore(str(tmp_path / "kernel.json")),
                          clock=lambda: now[0], dwell_seconds=0.0)
 
@@ -84,14 +84,30 @@ def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path):
 
     state = kernel.to_dict()
     assert state["windows"]["components"]["flows"]["count"] == 6
-    assert kernel.risk_score == 6.0
+    assert kernel.risk_score == 24.0
+    assert kernel.mode == "normal"
+
+    kernel.record_component_error("flows", "flow failed")
+    assert kernel.risk_score == 28.0
     assert kernel.mode == "degraded"
 
     # A success cancels one fresh error rather than resetting the whole window.
     kernel.record_component_recovery("flows")
-    assert kernel.to_dict()["windows"]["components"]["flows"]["count"] == 5
-    assert kernel.risk_score == 5.0
+    assert kernel.to_dict()["windows"]["components"]["flows"]["count"] == 6
+    assert kernel.risk_score == 24.0
     assert kernel.mode == "normal"
+
+
+def test_one_failing_subsystem_alone_can_degrade(tmp_path):
+    # A single unhealthy component used to contribute at most 10 risk, below the default
+    # degrade threshold, so its failures could never change the mode (ADR-052).
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         dwell_seconds=0.0)
+    for _ in range(10):
+        kernel.record_component_error("flows", "flow failed")
+
+    assert kernel.risk_score == 40.0
+    assert kernel.mode == "degraded"
 
 
 def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path):

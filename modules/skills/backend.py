@@ -43,8 +43,13 @@ class SkillBackend:
             return {}
     
     def _get_skill_path(self, skill_id: str) -> str:
-        """Get file path for a skill's markdown file."""
-        return os.path.join(self.storage_path, f"{skill_id}.md")
+        """Get file path for a skill's markdown file; reject anything that can escape it."""
+        name = str(skill_id)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", name):
+            raise ValueError(
+                "skill_id must be 1-128 characters of letters, digits, underscore or hyphen"
+            )
+        return os.path.join(self.storage_path, f"{name}.md")
     
     def _generate_skill_id(self, name: str) -> str:
         """Generate a URL-friendly skill ID from name."""

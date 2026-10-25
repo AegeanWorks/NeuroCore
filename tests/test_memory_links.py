@@ -212,3 +212,44 @@ def test_the_scan_route_returns_new_proposals(store, monkeypatch):
     assert second.json()["created"] == 0
     assert candidates.status_code == 200
     assert candidates.json()["candidates"] == []
+
+
+def stored_confidence(store, memory_id):
+    with store._connect() as con:
+        return con.execute(
+            "SELECT confidence FROM memories WHERE id=?", (memory_id,)
+        ).fetchone()[0]
+
+
+def test_an_accepted_link_persists_confidence_immediately(store):
+    target = add(store, "The API is stable")
+    source = add(store, "Release notes say stable")
+
+    store.add_link(source, target, relation="supports", status="accepted")
+
+    assert stored_confidence(store, target) == round(2 / 3, 4)
+    assert store.bayesian_confidence(target)["confidence"] == round(2 / 3, 4)
+
+
+def test_deleting_a_link_restores_the_stored_confidence(store):
+    target = add(store, "The API is stable")
+    source = add(store, "Release notes say stable")
+    link = store.add_link(source, target, relation="supports", status="accepted")
+    assert stored_confidence(store, target) == round(2 / 3, 4)
+
+    store.delete_link(link["id"])
+
+    assert stored_confidence(store, target) == 0.5
+    assert store.bayesian_confidence(target)["confidence"] == 0.5
+
+
+def test_deleting_an_evidence_memory_removes_its_links_and_confidence(store):
+    target = add(store, "The API is stable")
+    source = add(store, "Release notes say stable")
+    store.add_link(source, target, relation="supports", status="accepted")
+
+    store.delete_entry(source, reason="obsolete")
+
+    assert stored_confidence(store, target) == 0.5
+    assert store.bayesian_confidence(target)["supports"] == 0
+    assert store.get_links(target) == []

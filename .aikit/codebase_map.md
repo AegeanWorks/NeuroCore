@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `276`
 - **Total Classes**: `399`
-- **Total Top-Level Functions**: `1769`
-- **Total Class Methods**: `2142`
-- **Total Source Lines**: `77113`
+- **Total Top-Level Functions**: `1788`
+- **Total Class Methods**: `2144`
+- **Total Source Lines**: `77427`
 
 ---
 
@@ -320,7 +320,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1102` lines (`53019` bytes)
+**Size**: `1105` lines (`53254` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -344,7 +344,7 @@
 ### [`core/flow_simulation.py`](core/flow_simulation.py)
 > *Deterministic pre-flight flow analysis: structure, effects and a cost envelope.*
 
-**Size**: `284` lines (`11061` bytes)
+**Size**: `313` lines (`12304` bytes)
 
 **Classes:**
 - `class Finding`
@@ -357,6 +357,7 @@
 - `def _node_effects(node)`
 - `def _strongly_connected(nodes, adjacency)` - *Tarjan's SCCs with at least two nodes, or one node pointing at itself.*
 - `def _settings_int(key, default)`
+- `def node_type_catalogue(modules)` - *Installed (module_id, node_type_id) pairs from module manifests.*
 - `def simulate_flow(flow, known_node_types)` - *Analyse a flow without running it and return a JSON-safe report.*
 
 ---
@@ -539,7 +540,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `370` lines (`13919` bytes)
+**Size**: `394` lines (`15087` bytes)
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -623,7 +624,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3364` lines (`147190` bytes)
+**Size**: `3358` lines (`146897` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -987,11 +988,11 @@
 ### [`modules/agent_loop/loop_guard.py`](modules/agent_loop/loop_guard.py)
 > *Deterministic repetition and deadlock detection for an agent loop.*
 
-**Size**: `106` lines (`4370` bytes)
+**Size**: `97` lines (`3882` bytes)
 
 **Classes:**
 - `class LoopGuard` - *Watch a bounded call history and return a warning or an abort decision.*
-  - Method `.__init__(history, repeat_limit, oscillation_pairs, topic_limit)`
+  - Method `.__init__(history, repeat_limit)`
   - Method `.observe(tool_name, arguments)` - *Record one call; return ``None`` or a decision with ``action`` warn/abort.*
   - Method `._reason(signature)`
 
@@ -1002,7 +1003,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5703` lines (`263501` bytes)
+**Size**: `5721` lines (`263991` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1039,7 +1040,7 @@
   - Method `._resolve_tool_name(func_name, tool_library)` - *Resolve tool name with case-insensitive and camelCase↔snake_case matching.*
   - Method `._build_repl_system_prompt(metadata)`
   - Method `._init_repl_state(messages)` - *Initialize REPL state from messages.*
-  - Method `async def ._execute_tool(tool_call, tool_library, repl_state)` - *Execute a tool call — SubCall is intercepted as an async built-in.*
+  - Method `async def ._execute_tool(tool_call, tool_library, repl_state)`
   - Method `async def ._run_rlm_loop(initial_messages, repl_state, tools_list, tool_library, model, config, trace, stream_queue, thinking_steps)` - *Core RLM loop: LLM generates code → executes tools → only metadata goes back.*
   - Method `async def .receive(input_data, config)` - *RLM Agent Loop: processes arbitrarily long inputs via REPL environment.*
   - Method `async def .send(processed_data)`
@@ -1076,6 +1077,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _charge_llm_usage(response)` - *Charge the run budget with the tokens the provider reported.*
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -1620,7 +1622,7 @@
 ### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
 > *Deterministic guardrails for untrusted text entering or leaving the platform.*
 
-**Size**: `257` lines (`8947` bytes)
+**Size**: `258` lines (`9043` bytes)
 
 **Classes:**
 - `class Finding` - *One matched rule, with the surface and the action the mode applied.*
@@ -1684,7 +1686,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `406` lines (`16818` bytes)
+**Size**: `412` lines (`17150` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -1702,7 +1704,7 @@
   - Method `._prune(now)` - *Drop window entries that aged out; callers hold the ledger lock.*
   - Property `.mode`
   - Property `.is_safe`
-  - Method `._error_pressure()`
+  - Method `._error_pressure()` - *The worst single component's share of the error window, 0..1.*
   - Property `.risk_score`
   - Method `.observe(snapshot)` - *Update risk inputs from one self-model snapshot and reassess the mode.*
   - Method `.record_evaluation(result)`
@@ -1902,7 +1904,7 @@
 ### [`modules/brain/self_budget.py`](modules/brain/self_budget.py)
 > *One daily ceiling for everything the brain changes about itself.*
 
-**Size**: `141` lines (`4884` bytes)
+**Size**: `149` lines (`5303` bytes)
 
 **Classes:**
 - `class SelfBudgetExceeded` - *Raised when the daily ceiling for one kind of self-modification is reached.*
@@ -1918,6 +1920,7 @@
 
 **Functions:**
 - `def _today()`
+- `def _validated_cap(raw, kind)`
 
 ---
 
@@ -2134,7 +2137,7 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `572` lines (`25908` bytes)
+**Size**: `571` lines (`25917` bytes)
 
 **Functions:**
 - `def _flow_system_prompt(flow)` - *Concatenated system prompts configured in a flow, bounded for leak detection.*
@@ -2482,7 +2485,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1297` lines (`58226` bytes)
+**Size**: `1322` lines (`59362` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -2521,6 +2524,8 @@
   - Method `.get_link(link_id)`
   - Method `.get_links(memory_id, relation, status)` - *Links touching one memory, with the neighbour's text for display.*
   - Method `.delete_link(link_id)`
+  - Method `._confidence_stats(memory_id, con)` - *Accepted supports/contradictions from active memories about one memory.*
+  - Method `._recompute_confidence(memory_id, con)` - *Persist the evidence-based confidence; callers already hold the write lock.*
   - Method `.bayesian_confidence(memory_id)` - *Laplace-smoothed belief from accepted evidence: (s+1) / (s+c+2).*
   - Method `.accept_link(link_id)` - *Accept a proposal, then recompute the target's confidence in one transaction.*
   - Method `.find_conflicts(memory_ids, limit)` - *Deterministic contradiction candidates: shared terms plus opposite polarity.*
@@ -2930,7 +2935,7 @@
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `266` lines (`9729` bytes)
+**Size**: `271` lines (`9987` bytes)
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -2938,7 +2943,7 @@
   - Method `._ensure_storage_exists()` - *Ensure storage directory and metadata file exist.*
   - Method `._save_metadata(metadata)` - *Save skills metadata to JSON file.*
   - Method `._load_metadata()` - *Load skills metadata from JSON file.*
-  - Method `._get_skill_path(skill_id)` - *Get file path for a skill's markdown file.*
+  - Method `._get_skill_path(skill_id)` - *Get file path for a skill's markdown file; reject anything that can escape it.*
   - Method `._generate_skill_id(name)` - *Generate a URL-friendly skill ID from name.*
   - Method `.list_skills()` - *List all skills with their metadata.*
   - Method `.get_skill(skill_id)` - *Get a skill's metadata and content.*
@@ -3011,7 +3016,7 @@
 ### [`modules/skills/versions.py`](modules/skills/versions.py)
 > *Content-addressed versions for skill documents.*
 
-**Size**: `155` lines (`6385` bytes)
+**Size**: `158` lines (`6431` bytes)
 
 **Classes:**
 - `class SkillVersionStore` - *Per-skill version history rooted beside the skill storage.*
@@ -3451,13 +3456,14 @@
 ### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
 > *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
 
-**Size**: `90` lines (`3374` bytes)
+**Size**: `94` lines (`3530` bytes)
 
 **Functions:**
-- `def test_volatile_identifiers_do_not_make_a_call_unique()`
+- `def test_transport_identifiers_do_not_make_a_call_unique()`
+- `def test_domain_identifiers_remain_part_of_the_signature()`
 - `def test_three_identical_calls_warn_then_abort()`
 - `def test_alternating_calls_are_detected_as_oscillation()`
-- `def test_the_same_tool_with_different_arguments_is_stagnation()`
+- `def test_reading_many_records_does_not_trip_the_guard()`
 - `def test_distinct_calls_do_not_trip_the_guard()`
 - `def test_malformed_arguments_still_produce_a_stable_signature()`
 - `async def test_the_agent_loop_aborts_after_a_repeated_call()`
@@ -3687,7 +3693,7 @@
 ### [`tests/test_brain_guardrails.py`](tests/test_brain_guardrails.py)
 > *Deterministic guardrails: injection, secret redaction and prompt-leak detection.*
 
-**Size**: `143` lines (`4978` bytes)
+**Size**: `160` lines (`5772` bytes)
 
 **Functions:**
 - `def test_context_switch_and_override_attempts_are_flagged(text)`
@@ -3695,7 +3701,9 @@
 - `def test_benign_discussion_is_not_flagged()`
 - `def test_invisible_characters_cannot_split_an_override_phrase()`
 - `def test_a_very_long_input_is_scanned_within_a_fixed_cap()`
-- `def test_credentials_are_redacted_in_both_modes()`
+- `def test_input_credentials_are_flagged_but_never_rewritten()`
+- `def test_output_credentials_are_redacted_in_both_modes()`
+- `def test_source_code_is_not_mistaken_for_a_credential()`
 - `def test_redact_secrets_is_idempotent()`
 - `def test_a_leaked_system_prompt_is_flagged_and_blocked_in_enforce()`
 - `def test_short_shared_phrases_are_not_treated_as_a_leak()`
@@ -3741,7 +3749,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `241` lines (`9230` bytes)
+**Size**: `257` lines (`9875` bytes)
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -3752,6 +3760,7 @@
 - `def test_kernel_transitions_and_gates(tmp_path)`
 - `def test_safe_mode_hysteresis_and_kill_switch(tmp_path)`
 - `def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path)`
+- `def test_one_failing_subsystem_alone_can_degrade(tmp_path)`
 - `def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path)`
 - `def test_component_errors_require_a_name(tmp_path)`
 - `def test_blocked_action_window_is_bounded(tmp_path)`
@@ -3862,7 +3871,7 @@
 ### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
 > *Unified self-modification budget: caps, rollover, release and service wiring.*
 
-**Size**: `98` lines (`3631` bytes)
+**Size**: `105` lines (`3986` bytes)
 
 **Functions:**
 - `def make_budget(tmp_path, **caps)`
@@ -3874,6 +3883,7 @@
 - `def test_a_corrupt_ledger_starts_from_zero_and_is_replaced(tmp_path)`
 - `def test_the_service_bounds_learning_writes(tmp_path, monkeypatch)`
 - `def test_the_budget_route_reports_counts()`
+- `def test_malformed_cap_config_uses_defaults_instead_of_crashing(tmp_path)`
 
 ---
 
@@ -4439,7 +4449,7 @@
 ### [`tests/test_execution_budget.py`](tests/test_execution_budget.py)
 > *Per-run execution budget: caps, inheritance, flow overrides and executor spending.*
 
-**Size**: `137` lines (`5122` bytes)
+**Size**: `184` lines (`6649` bytes)
 
 **Classes:**
 - `class FakeSettings`
@@ -4456,6 +4466,8 @@
 - `def test_pressure_reports_the_fullest_dimension()`
 - `async def test_a_flow_cannot_run_more_nodes_than_its_budget()`
 - `async def test_the_llm_node_spends_a_call_and_the_reported_tokens()`
+- `async def test_timeout_zero_still_means_no_asyncio_deadline(monkeypatch)`
+- `async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch)`
 
 ---
 
@@ -4759,7 +4771,7 @@
 ### [`tests/test_flow_simulation.py`](tests/test_flow_simulation.py)
 > *Deterministic flow simulation: structure, effects, cycles and cost envelope.*
 
-**Size**: `120` lines (`4591` bytes)
+**Size**: `152` lines (`5746` bytes)
 
 **Functions:**
 - `def node(node_id, module, node_type, **extra)`
@@ -4773,6 +4785,9 @@
 - `def test_a_flow_that_cannot_fit_one_pass_is_blocking()`
 - `def test_simulation_route_returns_404_and_a_report()`
 - `def test_a_blocked_candidate_is_rejected_by_improvement(tmp_path, monkeypatch)`
+- `def test_the_catalogue_reads_provides_nodes_from_manifests()`
+- `def test_a_missing_provides_nodes_entry_blocks_the_flow()`
+- `def test_a_dangling_bridge_blocks_before_execution()`
 
 ---
 
@@ -5341,7 +5356,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `214` lines (`8192` bytes)
+**Size**: `255` lines (`9694` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -5359,6 +5374,10 @@
 - `def test_the_conflict_scan_never_calls_an_llm(store, monkeypatch)`
 - `def test_the_link_routes_round_trip(store, monkeypatch)`
 - `def test_the_scan_route_returns_new_proposals(store, monkeypatch)`
+- `def stored_confidence(store, memory_id)`
+- `def test_an_accepted_link_persists_confidence_immediately(store)`
+- `def test_deleting_a_link_restores_the_stored_confidence(store)`
+- `def test_deleting_an_evidence_memory_removes_its_links_and_confidence(store)`
 
 ---
 
@@ -5958,7 +5977,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `246` lines (`9134` bytes)
+**Size**: `280` lines (`10419` bytes)
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -5977,6 +5996,7 @@
 - `def test_bad_input_is_rejected_before_any_request(monkeypatch, tmp_path)`
 - `def test_persist_stores_articles_with_provenance(monkeypatch, tmp_path)`
 - `def test_the_routes_list_sources_and_map_errors(monkeypatch)`
+- `def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_path)`
 
 ---
 
@@ -6275,7 +6295,7 @@
 ### [`tests/test_skills_versions.py`](tests/test_skills_versions.py)
 > *Content-addressed skill versions: history, deduplication and auditable rollback.*
 
-**Size**: `100` lines (`4098` bytes)
+**Size**: `110` lines (`4460` bytes)
 
 **Functions:**
 - `def make_backend(tmp_path)`
@@ -6284,7 +6304,8 @@
 - `def test_a_rollback_restores_content_and_is_itself_recorded(tmp_path)`
 - `def test_a_missing_version_or_skill_is_not_a_crash(tmp_path)`
 - `def test_history_is_bounded_and_keeps_the_active_version(tmp_path, monkeypatch)`
-- `def test_an_unsafe_skill_id_stays_inside_the_root(tmp_path)`
+- `def test_an_unsafe_skill_id_is_rejected(tmp_path)`
+- `def test_the_backend_path_helper_rejects_traversal(tmp_path)`
 - `def test_a_corrupt_index_reads_as_empty_and_recovers(tmp_path)`
 - `def test_versions_survive_a_new_backend_instance(tmp_path)`
 

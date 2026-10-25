@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from modules.skills.backend import SkillBackend
 from modules.skills import versions as versions_module
 from modules.skills.versions import SkillVersionStore
@@ -67,12 +69,20 @@ def test_history_is_bounded_and_keeps_the_active_version(tmp_path, monkeypatch):
     assert store.read("s1", 6)["content"] == "content 5"
 
 
-def test_an_unsafe_skill_id_stays_inside_the_root(tmp_path):
+def test_an_unsafe_skill_id_is_rejected(tmp_path):
     store = SkillVersionStore(str(tmp_path / "skills"))
-    store.record("../../escape", "text")
-    root = Path(tmp_path / "skills" / "versions").resolve()
-    for path in root.rglob("index.json"):
-        assert root in path.resolve().parents
+    for skill_id in ("../../escape", "..", "a/b", "a.b", "a b", ""):
+        with pytest.raises(ValueError, match="skill_id"):
+            store.record(skill_id, "text")
+    assert not (tmp_path / "escape").exists()
+    assert not (tmp_path / "skills" / "index.json").exists()
+
+
+def test_the_backend_path_helper_rejects_traversal(tmp_path):
+    backend = make_backend(tmp_path)
+    with pytest.raises(ValueError, match="skill_id"):
+        backend._get_skill_path("../../escape")
+    assert backend.update_skill("../escape", content="x") is None
 
 
 def test_a_corrupt_index_reads_as_empty_and_recovers(tmp_path):

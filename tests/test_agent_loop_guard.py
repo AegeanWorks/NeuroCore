@@ -8,13 +8,20 @@ from modules.agent_loop.loop_guard import LoopGuard, call_signature, normalize_a
 from tests.test_agent_loop import make_executor, make_llm_response, make_tool_call
 
 
-def test_volatile_identifiers_do_not_make_a_call_unique():
-    first = normalize_arguments({"id": "abc123", "query": "status", "timestamp": 1})
-    second = normalize_arguments({"id": "def456", "query": "status", "timestamp": 2})
+def test_transport_identifiers_do_not_make_a_call_unique():
+    first = normalize_arguments({"request_id": "abc123", "query": "status", "timestamp": 1})
+    second = normalize_arguments({"request_id": "def456", "query": "status", "timestamp": 2})
     assert first == second
-    assert call_signature("Shell", {"id": "a", "cmd": "ls"}) == call_signature(
-        "Shell", {"id": "b", "cmd": "ls"})
     assert "abc123" not in first
+
+
+def test_domain_identifiers_remain_part_of_the_signature():
+    assert normalize_arguments({"id": 1}) != normalize_arguments({"id": 2})
+    assert call_signature("Shell", {"id": "a", "cmd": "ls"}) != call_signature(
+        "Shell", {"id": "b", "cmd": "ls"})
+    guard = LoopGuard()
+    for index in range(10):
+        assert guard.observe("get_user", {"id": index}) is None
 
 
 def test_three_identical_calls_warn_then_abort():
@@ -38,13 +45,10 @@ def test_alternating_calls_are_detected_as_oscillation():
     assert decisions[3]["code"] == "oscillation"
 
 
-def test_the_same_tool_with_different_arguments_is_stagnation():
-    guard = LoopGuard(topic_limit=4)
-    decisions = [
-        guard.observe("Search", {"query": f"q{index}"}) for index in range(4)
-    ]
-    assert decisions[:3] == [None, None, None]
-    assert decisions[3]["code"] == "stagnation"
+def test_reading_many_records_does_not_trip_the_guard():
+    guard = LoopGuard()
+    for index in range(10):
+        assert guard.observe("Read", {"path": f"file{index}.txt"}) is None
 
 
 def test_distinct_calls_do_not_trip_the_guard():

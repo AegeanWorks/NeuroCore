@@ -1,103 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "research-gateway",
+    "task_id": "post-push-review-fixes",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792956951.700682,
+    "updated_at": 1792963090.1876578,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792956951.9556835
+    "completed_at": 1792963090.4720852
   },
   "checkpoints": [
-    {
-      "task_id": "tif-integration-report",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'tif-integration-report' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792940076.6111393,
-      "timestamp_str": "2026-10-25 17:54:36",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "brain-governance-m1",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/4] M1 of the Tif plan: kernel error budget (ADR-039) and deterministic guardrails (ADR-040). [2/4] Goal-governed improvement and configuration (ADR-041). [3/4] Documentation and map refresh. [4/4] Gates, commit, push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792948380.7387965,
-      "timestamp_str": "2026-10-25 20:13:00",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The report's P0 items are the highest-value gaps: no decaying error pressure, no conversation-level injection/leak screen, and changes unrelated to a goal.",
-        "benefits": "Recoverable risk state, predictable prompt-injection defence in observe/enforce modes, and purposeful self-modification with a revalidated link.",
-        "risks": "contract: new optional API fields and a stricter default operator path; dependency: none beyond stdlib; concurrency: kernel windows under the existing ledger lock; state: additive JSON fields plus an optional goal_id in change ledgers.",
-        "mitigation": "Defaults preserve old behaviour for direct engine use, the guardrail default is observe, and every behaviour has a failing-first test."
-      }
-    },
-    {
-      "task_id": "brain-governance-m1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/4]-[4/4] done: kernel windows/decay/recovery/dwell (ADR-039), deterministic guardrails with observe/enforce, chat input/output integration, status and scan routes (ADR-040), goal linkage shared by improvement and configuration with promotion revalidation and an in-progress marker (ADR-041). README and module.json updated. Full suite 1803 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792948576.726697,
-      "timestamp_str": "2026-10-25 20:16:16",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "M1 complete and green",
-        "next": "commit and push",
-        "open": "P1 (budget, simulation, versioned prompts) not started"
-      }
-    },
-    {
-      "task_id": "brain-governance-m1",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'brain-governance-m1' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792948590.793073,
-      "timestamp_str": "2026-10-25 20:16:30",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "brain-execution-control",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] Per-run execution budget across nested flows, LLM and tool calls (ADR-042). [2/3] Deterministic flow simulation with a cost envelope and improvement gating (ADR-043). [3/3] Gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792950403.1602995,
-      "timestamp_str": "2026-10-25 20:46:43",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The P1 items from the Tif report: unbounded aggregate spend and no dry structural analysis before a run or promotion.",
-        "benefits": "Predictable cost ceilings with precise failures, and a stable pre-flight report shared by the editor and the improvement gate.",
-        "risks": "contract: a very large flow can now be blocked by its budget; dependency: none; concurrency: contextvar per task, no shared mutable state; state: candidates gain a simulation object.",
-        "mitigation": "Defaults are generous, flow metadata can only lower a limit, and one-pass versus cycle findings are separated so ordinary loops are not blocked."
-      }
-    },
-    {
-      "task_id": "brain-execution-control",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: execution budget (ADR-042), deterministic simulation and improvement gating (ADR-043), README and map refreshed. Full suite 1821 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792950564.5295577,
-      "timestamp_str": "2026-10-25 20:49:24",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "P1 budget and simulation complete and green",
-        "next": "commit and push",
-        "open": "P1-6 versioned prompts and P2 items not started"
-      }
-    },
     {
       "task_id": "brain-execution-control",
       "phase": "completed",
@@ -289,6 +203,91 @@
       "status": "completed",
       "timestamp": 1792956951.955686,
       "timestamp_str": "2026-10-25 22:35:51",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/5] Loop guard: drop same-tool stagnation, keep domain ids (ADR-050). [2/5] Guardrails: outputs-only redaction, narrower assignment rule. [3/5] Kernel: worst-component pressure up to 40 points. [4/5] Simulation manifest catalogue and dangling bridges; memory confidence recompute lifecycle; research persist/dedupe/cache cap; skill id validation; budget cap validation; timeout=0 and shared budget charges (ADR-051, ADR-052). [5/5] Tests, gates, commit and push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792961873.8508725,
+      "timestamp_str": "2026-10-25 23:57:53",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The last five pushes introduced controls with false positives and state drift; the review found ten concrete defects.",
+        "benefits": "Normal agent work is no longer aborted or rewritten, one failing subsystem can degrade the kernel, evidence confidence stays consistent, and research persistence is idempotent.",
+        "risks": "contract: timeout=0 semantics restored, guard behavior narrowed; dependency: none; concurrency: confidence recompute stays inside the write lock; state: links are removed on memory deletion.",
+        "mitigation": "Every correction has a failing-first test; no safety default was relaxed, only false-positive paths were removed."
+      }
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[5/5] done: all review corrections implemented with failing-first tests: loop guard false positives, guardrail input mutation and narrow secret rule, kernel worst-component pressure, simulation provides_nodes/dangling bridges, memory confidence recompute on every link mutation, research persist-on-hit/dedupe/cache cap/DNS offload, skill id validation, budget cap validation, timeout=0 semantics, shared budget charges across executors. ADR-050..052. Full suite 1895 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792962340.6861336,
+      "timestamp_str": "2026-10-26 00:05:40",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "review fixes complete and green",
+        "next": "commit and push",
+        "open": "repetition guard still covers only the standard agent loop, alternate executors rely on iteration caps and the shared budget"
+      }
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "checklists: passed; full suite 1896 passed 7 skipped, including a direct test that the shared LLM helper charges the run budget; aikit check 4/4.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792962710.8876193,
+      "timestamp_str": "2026-10-26 00:11:50",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "complete",
+        "next": "commit and push",
+        "open": "repetition guard still limited to the standard agent loop"
+      }
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'post-push-review-fixes' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792962711.076324,
+      "timestamp_str": "2026-10-26 00:11:51",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "checklists: passed after the secret-scan pragmas and ADR wording fix; full suite 1896 passed 7 skipped; aikit check 4/4.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792963090.1876578,
+      "timestamp_str": "2026-10-26 00:18:10",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "ready to commit",
+        "next": "commit and push",
+        "open": "repetition guard limited to the standard loop"
+      }
+    },
+    {
+      "task_id": "post-push-review-fixes",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'post-push-review-fixes' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792963090.4720874,
+      "timestamp_str": "2026-10-26 00:18:10",
       "agent": "kilo:main"
     }
   ]

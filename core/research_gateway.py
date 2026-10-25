@@ -7,6 +7,7 @@ retrieval time, licence and a content hash so a caller can cite them. Failures n
 to an unlisted service (ADR-049).
 """
 
+import asyncio
 import hashlib
 import ipaddress
 import json
@@ -33,6 +34,7 @@ REQUEST_TIMEOUT = 10.0
 CACHE_TTL_SECONDS = 24 * 3600
 MAX_REDIRECTS = 3
 MAX_QUERY_CHARS = 500
+MAX_CACHE_ENTRIES = 500
 MAX_LIMIT = 20
 USER_AGENT = "NeuroCore/1.0 (+https://github.com/AegeanWorks/NeuroCore)"
 
@@ -115,7 +117,8 @@ async def _safe_get(url: str, allowed_hosts: tuple) -> tuple:
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=False,
                                  headers=headers) as client:
         for _hop in range(MAX_REDIRECTS + 1):
-            _validate_url(current, allowed_hosts)
+            # DNS resolution is blocking; keep it off the event loop.
+            await asyncio.to_thread(_validate_url, current, allowed_hosts)
             async with client.stream("GET", current) as response:
                 if response.status_code in (301, 302, 303, 307, 308):
                     location = response.headers.get("location")
@@ -258,6 +261,10 @@ class _Cache:
         with self._lock:
             data = self._load()
             data[key] = payload
+            if len(data) > MAX_CACHE_ENTRIES:
+                oldest = sorted(data, key=lambda item: float(data[item].get("_stored_at", 0)))
+                for stale_key in oldest[:len(data) - MAX_CACHE_ENTRIES]:
+                    data.pop(stale_key, None)
             directory = os.path.dirname(os.path.abspath(self.path)) or "."
             try:
                 os.makedirs(directory, exist_ok=True)
@@ -286,8 +293,19 @@ def _persist_articles(source: str, query: str, items: List[Dict[str, Any]],
     from core.research_manager import get_research_manager_instance
 
     manager = get_research_manager_instance()
+    existing = {}
+    try:
+        for article in manager.get_articles(domain=source):
+            if article.get("url"):
+                existing[str(article["url"])] = article.get("id")
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.warning("Could not read existing research articles for deduplication: %s", exc)
     stored = []
     for item in items:
+        url = str(item.get("url") or "")
+        if url and url in existing:
+            stored.append(existing[url])
+            continue
         notes = {
             "query": query,
             "retrieved_at": retrieved_at,
@@ -309,6 +327,7 @@ def _persist_articles(source: str, query: str, items: List[Dict[str, Any]],
             "source": source,
             "notes": json.dumps(notes, sort_keys=True),
         })
+        existing[url] = article["id"]
         stored.append(article["id"])
     return stored
 
@@ -327,6 +346,11 @@ async def search(source: str, query: str, limit: int = 5, *,
     if cached and (time.time() - float(cached.get("_stored_at", 0))) < CACHE_TTL_SECONDS:
         result = dict(cached)
         result["cached"] = True
+        if persist:
+            result["article_ids"] = _persist_articles(
+                source, query, result.get("items") or [], result.get("retrieved_at", ""),
+                result.get("license", SOURCES[source]["license"]),
+            )
         result.pop("_stored_at", None)
         return result
 

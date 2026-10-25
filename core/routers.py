@@ -902,19 +902,13 @@ async def simulate_flow_route(flow_id: str, request: Request):
     flow = flow_manager.get_flow(flow_id)
     if not flow:
         raise HTTPException(status_code=404, detail="Flow not found")
-    from core.flow_simulation import simulate_flow
+    from core.flow_simulation import node_type_catalogue, simulate_flow
 
-    known = None
     try:
-        module_manager = request.app.state.module_manager
+        modules = getattr(request.app.state.module_manager, "modules", None)
+        known = node_type_catalogue(modules)
+    except (AttributeError, TypeError):
         known = set()
-        for module_id, module in (module_manager.modules or {}).items():
-            for node_type in module.get("node_types", []) or []:
-                node_type_id = node_type.get("id") if isinstance(node_type, dict) else node_type
-                if node_type_id:
-                    known.add((module_id, str(node_type_id)))
-    except (AttributeError, KeyError, TypeError):
-        known = None
     return simulate_flow(flow, known_node_types=known or None)
 
 

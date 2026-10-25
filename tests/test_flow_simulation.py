@@ -118,3 +118,35 @@ def test_a_blocked_candidate_is_rejected_by_improvement(tmp_path, monkeypatch):
         import asyncio
 
         asyncio.run(engine.propose("echo-flow", rename_ops(), "change"))
+
+
+def test_the_catalogue_reads_provides_nodes_from_manifests():
+    from core.flow_simulation import node_type_catalogue
+
+    catalogue = node_type_catalogue({
+        "chat": {"provides_nodes": [{"id": "chat_input"}, "chat_output"]},
+        "meta": {"node_types": [{"id": "subflow"}]},
+        "broken": "not a manifest",
+    })
+    assert catalogue == {("chat", "chat_input"), ("chat", "chat_output"),
+                         ("meta", "subflow")}
+
+
+def test_a_missing_provides_nodes_entry_blocks_the_flow():
+    from core.flow_simulation import node_type_catalogue
+
+    report = simulate_flow(
+        flow([node("a", "chat", "chat_input")]),
+        known_node_types=node_type_catalogue({"chat": {"provides_nodes": [{"id": "chat_output"}]}}),
+    )
+    assert report["blocking"]
+    assert any(finding["code"] == "unknown_node_type" for finding in report["findings"])
+
+
+def test_a_dangling_bridge_blocks_before_execution():
+    report = simulate_flow(flow(
+        [node("a")],
+        bridges=[{"from": "a", "to": "ghost"}],
+    ))
+    assert report["blocking"]
+    assert any(finding["code"] == "dangling_bridge" for finding in report["findings"])

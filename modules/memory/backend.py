@@ -795,7 +795,22 @@ class MemoryStore:
 
         with self.write_lock:
             with self._connect() as con:
+                # Links that pointed at this memory stop being evidence about their target; an
+                # orphan row would keep inflating confidence after the source is gone (ADR-054).
+                affected = [
+                    int(row[0]) for row in con.execute(
+                        "SELECT target_id FROM memory_links WHERE source_id=?",
+                        (memory_id,),
+                    ).fetchall()
+                ]
+                con.execute(
+                    "DELETE FROM memory_links WHERE source_id=? OR target_id=?",
+                    (memory_id, memory_id),
+                )
                 con.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+                for target_id in affected:
+                    if target_id != memory_id:
+                        self._recompute_confidence(target_id, con)
 
             if FAISS_AVAILABLE and self.faiss_index:
                 with self.faiss_lock:
@@ -941,6 +956,8 @@ class MemoryStore:
                      str(created_by)[:80], int(time.time())),
                 )
                 link_id = cursor.lastrowid
+                if status == "accepted":
+                    self._recompute_confidence(target_id, con)
             return self.get_link(link_id)
 
     def get_link(self, link_id: int) -> Optional[Dict]:
@@ -992,21 +1009,43 @@ class MemoryStore:
     def delete_link(self, link_id: int) -> bool:
         with self.write_lock:
             with self._connect() as con:
-                cursor = con.execute("DELETE FROM memory_links WHERE id=?", (int(link_id),))
-                return cursor.rowcount > 0
+                row = con.execute(
+                    "SELECT target_id FROM memory_links WHERE id=?", (int(link_id),)
+                ).fetchone()
+                if not row:
+                    return False
+                con.execute("DELETE FROM memory_links WHERE id=?", (int(link_id),))
+                self._recompute_confidence(int(row[0]), con)
+                return True
+
+    def _confidence_stats(self, memory_id: int, con) -> Tuple[int, int]:
+        """Accepted supports/contradictions from active memories about one memory."""
+        row = con.execute(
+            """SELECT
+                 SUM(CASE WHEN l.relation='supports' THEN 1 ELSE 0 END),
+                 SUM(CASE WHEN l.relation='contradicts' THEN 1 ELSE 0 END)
+               FROM memory_links l
+               JOIN memories s ON s.id = l.source_id AND s.deleted = 0
+               JOIN memories t ON t.id = l.target_id AND t.deleted = 0
+               WHERE l.target_id=? AND l.status='accepted'""",
+            (int(memory_id),),
+        ).fetchone()
+        return int(row[0] or 0), int(row[1] or 0)
+
+    def _recompute_confidence(self, memory_id: int, con) -> float:
+        """Persist the evidence-based confidence; callers already hold the write lock."""
+        supports, contradicts = self._confidence_stats(memory_id, con)
+        confidence = round((supports + 1) / (supports + contradicts + 2), 4)
+        con.execute(
+            "UPDATE memories SET confidence=? WHERE id=?",
+            (confidence, int(memory_id)),
+        )
+        return confidence
 
     def bayesian_confidence(self, memory_id: int) -> Dict:
         """Laplace-smoothed belief from accepted evidence: (s+1) / (s+c+2)."""
         with self._connect() as con:
-            row = con.execute(
-                """SELECT
-                     SUM(CASE WHEN relation='supports' THEN 1 ELSE 0 END),
-                     SUM(CASE WHEN relation='contradicts' THEN 1 ELSE 0 END)
-                   FROM memory_links WHERE target_id=? AND status='accepted'""",
-                (int(memory_id),),
-            ).fetchone()
-        supports = int(row[0] or 0)
-        contradicts = int(row[1] or 0)
+            supports, contradicts = self._confidence_stats(int(memory_id), con)
         return {
             "memory_id": int(memory_id),
             "supports": supports,
@@ -1024,21 +1063,7 @@ class MemoryStore:
                 if not link:
                     return None
                 con.execute("UPDATE memory_links SET status='accepted' WHERE id=?", (int(link_id),))
-                # Read the counts through the same connection: a second connection would not
-                # see the uncommitted acceptance and would compute stale evidence.
-                counts = con.execute(
-                    """SELECT
-                         SUM(CASE WHEN relation='supports' THEN 1 ELSE 0 END),
-                         SUM(CASE WHEN relation='contradicts' THEN 1 ELSE 0 END)
-                       FROM memory_links WHERE target_id=? AND status='accepted'""",
-                    (int(link[1]),),
-                ).fetchone()
-                supports, contradicts = int(counts[0] or 0), int(counts[1] or 0)
-                confidence = round((supports + 1) / (supports + contradicts + 2), 4)
-                con.execute(
-                    "UPDATE memories SET confidence=? WHERE id=?",
-                    (confidence, int(link[1])),
-                )
+                confidence = self._recompute_confidence(int(link[1]), con)
         result = self.get_link(link_id)
         if result is not None:
             result["confidence_after"] = confidence

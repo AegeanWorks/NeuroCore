@@ -620,10 +620,13 @@ class FlowRunner:
             token = push_budget(budget)
         try:
             remaining = budget.remaining("seconds")
-            if timeout is None or timeout <= 0:
+            if timeout is None:
                 timeout = remaining
-            else:
+            elif timeout > 0:
+                # An explicit timeout may shorten the wall clock, never extend it.
                 timeout = min(timeout, remaining)
+            # timeout == 0 keeps its documented meaning: no asyncio deadline. The budget still
+            # enforces max_seconds on every spend (ADR-055).
             result = await self._run(
                 initial_input, start_node_id=start_node_id, timeout=timeout,
                 raise_errors=raise_errors, episode_id=episode_id,

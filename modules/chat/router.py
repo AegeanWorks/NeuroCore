@@ -316,8 +316,7 @@ async def send_message(
             logger.warning("Guardrails blocked a chat input: %s", guard.to_dict()["findings"])
             return HTMLResponse("Error: this message was blocked by the input guardrail.",
                                 status_code=400)
-        if guard.redactions:
-            message = user_content = guard.text
+        # Detection never rewrites the user's message; only model output is redacted.
     if image and image.filename:
         contents = await image.read()
         encoded = base64.b64encode(contents).decode("utf-8")

@@ -135,3 +135,50 @@ async def test_the_llm_node_spends_a_call_and_the_reported_tokens():
     assert response["choices"][0]["message"]["content"] == "hi"
     assert budget.used["llm_calls"] == 1
     assert budget.used["tokens"] == 123
+
+
+@pytest.mark.asyncio
+async def test_timeout_zero_still_means_no_asyncio_deadline(monkeypatch):
+    runner = FlowRunner(
+        flow_id="timeout-flow",
+        flow_override={"id": "timeout-flow", "nodes": [], "connections": []},
+        capture_outcome=False,
+    )
+    captured = {}
+
+    async def fake_run(initial_input, **kwargs):
+        captured.update(kwargs)
+        return {}
+
+    monkeypatch.setattr(runner, "_run", fake_run)
+    await runner.run({}, timeout=0)
+    assert captured["timeout"] == 0
+
+    await runner.run({})
+    assert captured["timeout"] > 0, "no explicit timeout uses the budget's remaining seconds"
+
+
+@pytest.mark.asyncio
+async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch):
+    from core.execution_budget import ExecutionBudget, use_budget
+    from tests.test_agent_loop import make_executor
+
+    executor = make_executor()
+    monkeypatch.setattr(
+        executor.llm, "chat_completion",
+        AsyncMock(return_value={
+            "choices": [{"message": {"content": "ok"}}],
+            "usage": {"total_tokens": 42},
+        }),
+    )
+    budget = ExecutionBudget()
+    with use_budget(budget):
+        response = await executor._llm_with_retry(
+            messages=[{"role": "user", "content": "hi"}],
+            model="test", temperature=0, max_tokens=8, tools=None,
+            max_retries=0, retry_delay=0,
+        )
+
+    assert response["choices"][0]["message"]["content"] == "ok"
+    assert budget.used["llm_calls"] == 1
+    assert budget.used["tokens"] == 42

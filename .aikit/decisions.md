@@ -1095,3 +1095,65 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
   dependencies), PRINCIPLE-010 (bounded resources) and PRINCIPLE-019 (no credential-bearing
   network surface).
+
+### ADR-050: Review corrections to the loop guard, guardrails and kernel pressure
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: A post-push review found the new controls misbehaving in production-shaped cases:
+  the loop guard aborted multi-record work (four calls to one tool with different arguments), it
+  stripped domain `id` fields, guardrails turned an ordinary model-field declaration into
+  `[REDACTED]` while missing ordinary key/value secrets, one failing subsystem could never reach
+  the kernel degrade threshold, and `FlowRunner.run(timeout=0)` silently gained a 600-second
+  deadline.
+- **Decision**:
+  1. The loop guard detects only identical signatures and A-B-A-B oscillation; it removes
+     transport identifiers (`request_id`, `trace_id`, `session_id`, ...), never a domain `id`.
+  2. Credential-shaped text is flagged on input and never rewritten; model output is redacted in
+     both modes. The generic assignment rule requires a 12-character value and ignores common code
+     prefixes.
+  3. Kernel component pressure is the worst single component's share of the error window and can
+     contribute up to 40 risk, so ten errors in one subsystem degrade the brain on their own.
+  4. `timeout=0` keeps its documented meaning (no asyncio deadline); the execution budget still
+     enforces `max_seconds`. Budget charges for LLM and tool calls move into the shared helpers, so
+     every agent executor is covered.
+- **Consequences**: Normal multi-record work and code discussions are no longer blocked or
+  corrupted, a single failing subsystem can change the mode, and timeout semantics are stable.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (read before write),
+  PRINCIPLE-010 (resources) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-051: Evidence integrity and bounded research persistence
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Accepted links inserted directly left `memories.confidence` stale, deleting a link
+  or an evidence memory left the old value, and soft-deleted evidence still counted. Research
+  `persist=True` was ignored on a cache hit, duplicated articles on repeat fetches, and the cache
+  grew without a bound while DNS resolution blocked the event loop.
+- **Decision**:
+  1. One `_recompute_confidence` helper persists `(s+1)/(s+c+2)` on link insert (accepted),
+     acceptance, link deletion and hard deletion of an evidence memory. Counts only include links
+     between active memories; deleting a memory removes its links and recomputes affected targets.
+  2. `persist=True` is honoured on fresh cache hits, articles are deduplicated by URL, and the cache
+     is capped at 500 entries (oldest evicted). DNS validation runs in a worker thread.
+- **Consequences**: Stored confidence matches the evidence after every mutation and never counts a
+  deleted source. Repeated research persistence is idempotent, the cache is bounded, and the event
+  loop does not stall on DNS.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (transactional state)
+  and PRINCIPLE-014 (failing-first tests).
+
+### ADR-052: Manifest catalogue and configuration validation
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The simulation route read `node_types`, but manifests publish `provides_nodes`, so
+  the unknown-node check never ran. Dangling bridges were ignored. Skill version ids could escape
+  their root through `..`, and a malformed `self_budget_caps` value crashed service construction.
+- **Decision**:
+  1. `node_type_catalogue()` reads `provides_nodes` (with `node_types` as a fallback); the route
+     uses it, and a missing bridge endpoint is a blocking `dangling_bridge` finding.
+  2. Skill ids must match `[A-Za-z0-9_-]{1,128}` in both the version store and the content path
+     helper; anything else is rejected before a path is built.
+  3. `self_budget_caps` must be an object; non-integer or non-positive caps fall back to the
+     documented defaults with a warning.
+- **Consequences**: Simulation detects an uninstalled node type and a broken bridge, path traversal
+  is rejected at the boundary, and a bad configuration value degrades instead of blocking startup.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
+  dependencies), PRINCIPLE-011 (safe defaults) and PRINCIPLE-014 (failing-first tests).

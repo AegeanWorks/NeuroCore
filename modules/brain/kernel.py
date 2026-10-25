@@ -20,9 +20,8 @@ logger = logging.getLogger(__name__)
 ERROR_WINDOW_SECONDS = 3600.0
 # A component with this many fresh errors contributes its full share of the error pressure.
 ERRORS_FOR_FULL_PRESSURE = 10
-# Per-component error shards summed before normalisation; two failing components at the cap
-# reach full pressure together.
-ERROR_PRESSURE_SHARDS = 20
+# One subsystem failing on its own must be able to degrade the brain; pressure is the worst
+# single component's share, not a sum diluted by healthy components (ADR-052).
 # Once the brain leaves NORMAL it stays out of it at least this long, so a single good
 # snapshot cannot flap it back while the cause is still present (ADR-039).
 DWELL_SECONDS = 60.0
@@ -168,11 +167,13 @@ class BrainKernel:
         return self.state.mode == KernelMode.SAFE.value
 
     def _error_pressure(self) -> float:
-        shards = sum(
-            min(ERRORS_FOR_FULL_PRESSURE, int(record.get("count", 0)))
-            for record in self.state.component_errors.values()
-        )
-        return min(1.0, shards / ERROR_PRESSURE_SHARDS)
+        """The worst single component's share of the error window, 0..1."""
+        return min(1.0, max(
+            (min(ERRORS_FOR_FULL_PRESSURE, int(record.get("count", 0)))
+             / ERRORS_FOR_FULL_PRESSURE
+             for record in self.state.component_errors.values()),
+            default=0.0,
+        ))
 
     @property
     def risk_score(self) -> float:
@@ -180,7 +181,7 @@ class BrainKernel:
         evaluation_component = min(30.0, max(0.0, 1.0 - self._last_pass_rate) * 30.0)
         drift_component = min(30.0, max(0.0, self._drift) * 30.0)
         blocked_component = min(20.0, len(self.state.blocked_times) * 2.0)
-        component_component = min(20.0, self._error_pressure() * 20.0)
+        component_component = min(40.0, self._error_pressure() * 40.0)
         return round(min(100.0, error_component + evaluation_component + drift_component
                          + blocked_component + component_component), 2)
 
@@ -284,6 +285,11 @@ class BrainKernel:
                 # Hold the safer mode: one clean snapshot is not evidence of recovery.
                 target = mode
                 self.state.reason = f"{reason} (dwell)"
+                if persist:
+                    self.state.updated_at = (
+                        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    )
+                    self._save()
             else:
                 self.state.mode = target
                 self.state.mode_changed_at = now

@@ -7,6 +7,17 @@ from core.llm import LLMBridge
 from core.execution_budget import spend
 from core.settings import settings
 from modules.agent_loop.loop_guard import LoopGuard
+
+
+def _charge_llm_usage(response) -> None:
+    """Charge the run budget with the tokens the provider reported."""
+    usage = (response or {}).get("usage") or {}
+    try:
+        total = int(usage.get("total_tokens") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    if total > 0:
+        spend("tokens", total)
 from modules.tools.sandbox import ToolSandbox
 from core.session_manager import session_manager, get_session_manager, EpisodeState
 
@@ -176,11 +187,13 @@ class AgentBaseExecutor:
         ]
 
         try:
+            spend("llm_calls")
             result = await self.llm.chat_completion(
                 messages=summary_prompt,
                 max_tokens=summary_max_tokens,
                 temperature=0.3,
             )
+            _charge_llm_usage(result)
             summary_text = result["choices"][0]["message"]["content"].strip()
         except Exception as e:
             logger.warning(f"[AgentLoop] Context compaction LLM call failed: {e}")
@@ -269,6 +282,7 @@ class AgentBaseExecutor:
             if attempt > 0:
                 await asyncio.sleep(retry_delay * (2 ** (attempt - 1)))
             try:
+                spend("llm_calls")
                 response = await self.llm.chat_completion(
                     messages=messages,
                     model=model,
@@ -276,6 +290,7 @@ class AgentBaseExecutor:
                     max_tokens=max_tokens,
                     tools=tools if tools else None,
                 )
+                _charge_llm_usage(response)
                 if response and "choices" in response and not response.get("error"):
                     return response
                 last_error = (
@@ -473,11 +488,13 @@ class AgentBaseExecutor:
                 "success": False,
             }
         try:
+            spend("llm_calls")
             response = await self.llm.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 model=model,
                 max_tokens=max_tokens,
             )
+            _charge_llm_usage(response)
             repl_state["recursion_depth"] = old_depth
             if response and "choices" in response:
                 content = response["choices"][0]["message"].get("content", "")
@@ -559,6 +576,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
 
     async def _execute_tool(self, tool_call: dict, tool_library: dict) -> dict:
         """Execute a single tool call in the sandbox and return a tool result message."""
+        spend("tool_calls")
         func_name = tool_call["function"]["name"]
         try:
             args = json.loads(tool_call["function"]["arguments"])
@@ -655,7 +673,6 @@ class AgentLoopExecutor(AgentBaseExecutor):
                         _compacted_at_len = len(llm_messages)
 
             llm_start = self._log_llm_call(model)
-            spend("llm_calls")
             response = await self._llm_with_retry(
                 messages=llm_messages,
                 model=model,
@@ -666,7 +683,6 @@ class AgentLoopExecutor(AgentBaseExecutor):
                 retry_delay=retry_delay,
             )
             self._log_llm_result(model, llm_start, response)
-            spend("tokens", int(((response or {}).get("usage") or {}).get("total_tokens", 0) or 0))
 
             if not response or "choices" not in response:
                 error_msg = (
@@ -756,7 +772,6 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     })
 
                 iteration_trace["tool_calls"].append(tool_name)
-                spend("tool_calls")
                 tool_result = await self._execute_tool(tool_call, tool_library)
 
                 # Fix 1: truncate large tool outputs at the source
@@ -1399,6 +1414,7 @@ Call set_final() when complete."""
     async def _execute_tool(
         self, tool_call: dict, tool_library: dict, repl_state: dict
     ) -> dict:
+        spend("tool_calls")
         """Execute a tool call — SubCall is intercepted as an async built-in."""
         func_name = tool_call["function"]["name"]
         try:
@@ -2049,6 +2065,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         repl_state["variables"] and a compact stub is returned to the LLM instead.
         The LLM can retrieve the full content via GetVariable("<var_name>").
         """
+        spend("tool_calls")
         func_name = tool_call["function"]["name"]
         try:
             args = json.loads(tool_call["function"]["arguments"])
@@ -2869,6 +2886,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         large_output_threshold: int,
     ) -> dict:
         """Intercept AskUser and DecomposeGoal before delegating to parent."""
+        spend("tool_calls")
         func_name = tool_call.get("function", {}).get("name", "")
 
         if func_name == "AskUser":

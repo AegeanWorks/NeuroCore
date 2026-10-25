@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 MAX_VERSIONS_PER_SKILL = 50
+_SAFE_SKILL_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 def _now() -> str:
@@ -53,10 +55,11 @@ class SkillVersionStore:
         os.makedirs(self.root, exist_ok=True)
 
     def _skill_dir(self, skill_id: str) -> str:
-        safe = "".join(ch for ch in str(skill_id) if ch.isalnum() or ch in "-_. ")
-        safe = safe.strip().replace(" ", "_")
-        if not safe:
-            raise ValueError("skill_id must contain at least one safe character")
+        safe = str(skill_id)
+        if not _SAFE_SKILL_ID.fullmatch(safe):
+            raise ValueError(
+                "skill_id must be 1-128 characters of letters, digits, underscore or hyphen"
+            )
         return os.path.join(self.root, safe)
 
     def _index_path(self, skill_id: str) -> str:

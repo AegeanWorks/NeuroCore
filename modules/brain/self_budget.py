@@ -50,6 +50,14 @@ def _today() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+def _validated_cap(raw: Dict[str, Any], kind: str) -> int:
+    try:
+        return max(1, int(raw.get(kind, DEFAULT_CAPS[kind])))
+    except (TypeError, ValueError):
+        logger.warning("Invalid self_budget_caps[%r]; using the default", kind)
+        return DEFAULT_CAPS[kind]
+
+
 @dataclass
 class SelfBudget:
     path: Optional[str] = None
@@ -58,10 +66,10 @@ class SelfBudget:
     def __post_init__(self):
         self.path = self.path or data_path("brain_self_budget.json")
         self.lock = LedgerLock(self.path)
-        self.caps = {
-            kind: max(1, int(self.caps.get(kind, DEFAULT_CAPS[kind])))
-            for kind in KINDS
-        }
+        raw_caps = self.caps if isinstance(self.caps, dict) else {}
+        if not isinstance(self.caps, dict):
+            logger.warning("self_budget_caps must be an object; using defaults")
+        self.caps = {kind: _validated_cap(raw_caps, kind) for kind in KINDS}
         self._date = _today()
         self.counts: Dict[str, int] = {kind: 0 for kind in KINDS}
         self._load()

@@ -58,7 +58,8 @@ _SECRET_RULES: Tuple[Tuple[str, str], ...] = (
     ("private-key", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     ("bearer", r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]{20,}=*"),
     ("assignment",
-     r"(?i)\b(api[_-]?key|secret|password|passwd|token)\b\s*[:=]\s*['\"]?[^\s'\"]{8,}"),
+     r"(?i)\b(api[_-]?key|secret|password|passwd|token)\b\s*[:=]\s*['\"]?"
+     r"(?!get_|set_|os\.|environ|models\.|from_|to_)[A-Za-z0-9_\-+/=]{12,}['\"]?"),
 )
 
 _SECRET_SUBSTITUTE = "[REDACTED]"
@@ -205,7 +206,7 @@ def scan_text(text: Any, surface: str, mode: Optional[str] = None,
     verdict = GuardVerdict(
         surface=surface,
         mode=mode,
-        text=redacted if redactions else raw,
+        text=redacted if (redactions and surface == "output") else raw,
         findings=findings,
         redactions=redactions,
     )

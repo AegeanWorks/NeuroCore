@@ -59,17 +59,34 @@ def test_a_very_long_input_is_scanned_within_a_fixed_cap():
     assert len(verdict.text) == 60_000, "the scanner never rewrites benign input"
 
 
-def test_credentials_are_redacted_in_both_modes():
+def test_input_credentials_are_flagged_but_never_rewritten():
     for mode in (MODE_OBSERVE, MODE_ENFORCE):
-        verdict = scan_input(
-            f"use {FAKE_KEY} and token=supersecretvalue",
-            mode=mode,
-        )
+        text = f"use {FAKE_KEY} and password=supersecretvalue"
+        verdict = scan_input(text, mode=mode)
+        assert verdict.text == text, "user input is never mutated by a detector"
+        assert any(finding.category == "secret" for finding in verdict.findings)
+        assert not verdict.blocked, "a credential is not an injection"
+
+
+def test_output_credentials_are_redacted_in_both_modes():
+    for mode in (MODE_OBSERVE, MODE_ENFORCE):
+        verdict = scan_output(f"use {FAKE_KEY} and token=supersecretvalue", mode=mode)
         assert "sk-ant-api03" not in verdict.text
         assert "supersecretvalue" not in verdict.text
+        assert "[REDACTED]" in verdict.text
         assert verdict.redactions >= 2
-        assert any(finding.category == "secret" for finding in verdict.findings)
-        assert not verdict.blocked, "redaction is not a block"
+
+
+def test_source_code_is_not_mistaken_for_a_credential():
+    for text in (
+        "token = models.CharField(max_length=32)",  # aikit:allow-secret
+        "api_key: os.environ['KEY']",
+        "secret = get_secret_from_vault()",  # aikit:allow-secret
+        "password = 'correct horse battery'",
+    ):
+        verdict = scan_input(text)
+        assert verdict.text == text
+        assert not any(finding.category == "secret" for finding in verdict.findings), text
 
 
 def test_redact_secrets_is_idempotent():

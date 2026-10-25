@@ -150,6 +150,27 @@ def _settings_int(key: str, default: int) -> int:
         return default
 
 
+def node_type_catalogue(modules: Any) -> Set[Tuple[str, str]]:
+    """Installed (module_id, node_type_id) pairs from module manifests.
+
+    Manifests expose ``provides_nodes``; the older ``node_types`` key is accepted for callers with
+    a custom catalogue. Reading only one of them silently disabled the unknown-type check
+    (ADR-053).
+    """
+    catalogue: Set[Tuple[str, str]] = set()
+    if not isinstance(modules, dict):
+        return catalogue
+    for module_id, manifest in modules.items():
+        if not isinstance(manifest, dict):
+            continue
+        provided = manifest.get("provides_nodes") or manifest.get("node_types") or []
+        for node_type in provided:
+            node_id = node_type.get("id") if isinstance(node_type, dict) else node_type
+            if node_id:
+                catalogue.add((str(module_id), str(node_id)))
+    return catalogue
+
+
 def simulate_flow(flow: Dict[str, Any],
                   known_node_types: Optional[Set[Tuple[str, str]]] = None) -> Dict[str, Any]:
     """Analyse a flow without running it and return a JSON-safe report."""
@@ -189,6 +210,14 @@ def simulate_flow(flow: Dict[str, Any],
         source, target = str(bridge.get("from")), str(bridge.get("to"))
         if source in nodes and target in nodes:
             adjacency.setdefault(source, []).append(target)
+        else:
+            missing = source if source not in nodes else target
+            report.findings.append(Finding(
+                SEVERITY_BLOCKING, "dangling_bridge",
+                f"bridge {source!r} -> {target!r} names a missing node",
+                node_id=missing,
+                fix="remove the bridge or restore the node",
+            ))
 
     if known_node_types:
         for node_id, node in nodes.items():

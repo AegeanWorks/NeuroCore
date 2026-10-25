@@ -96,3 +96,10 @@ def test_the_budget_route_reports_counts():
     assert response.status_code == 200
     body = response.json()
     assert "counts" in body and "caps" in body and "remaining" in body
+
+
+def test_malformed_cap_config_uses_defaults_instead_of_crashing(tmp_path):
+    for caps in (["bad"], "bad", 5, {"candidate": "many"}, {"candidate": 0}):
+        budget = SelfBudget(path=str(tmp_path / "budget.json"), caps=caps)
+        assert budget.snapshot()["caps"]["candidate"] >= 1
+        assert budget.snapshot()["caps"]["learning_write"] == 500

@@ -155,10 +155,11 @@ change, up to `max_node_loops` (Settings, default 100), and enters each cycle at
 outside it. Set `"strict_cycle_mode": true` on a flow to reject cycles instead. Agent-proposed
 edits (below) must stay acyclic.
 
-The agent loop also carries a repetition guard: normalized tool-call signatures (volatile IDs
-removed) detect three identical calls, an A-B-A-B oscillation, or the same tool four times with
-different arguments. The first detection injects a `change approach` message; the second aborts
-the episode with `agent_loop_error` and `loop_detected` in the result and trace.
+The standard agent loop also carries a repetition guard: normalized tool-call signatures (only
+transport IDs such as `request_id` and `trace_id` are removed, never a domain `id`) detect three
+identical calls or an A-B-A-B oscillation. The first detection injects a `change approach`
+message; the second aborts the episode with `agent_loop_error` and `loop_detected` in the result
+and trace. Reading many different records with the same tool does not trip it.
 
 ### Self-Evolution
 
@@ -250,10 +251,11 @@ which a single clean snapshot cannot return the brain to NORMAL; a kill switch o
 bypasses it. `POST /brain/drift/baseline` records a measured baseline for drift comparison.
 
 Guardrails inspect untrusted text with local, deterministic rules (no network or LLM): context
-separators and instruction-override attempts on input, credential-shaped strings everywhere, and
-verbatim system-prompt echoes on output. Set `brain_guardrail_mode` to `observe` (default: report
-and count only) or `enforce` (block an injected chat message, replace a leaked response); secrets
-are redacted in both modes. `GET /brain/guardrails/status` reports counters and
+separators and instruction-override attempts on input, credential-shaped strings on every surface,
+and verbatim system-prompt echoes on output. Set `brain_guardrail_mode` to `observe` (default:
+report and count only) or `enforce` (block an injected chat message, replace a leaked response).
+A credential is flagged on input without rewriting the user's text, and redacted from model
+output in both modes. `GET /brain/guardrails/status` reports counters and
 `POST /brain/guardrails/scan` runs a scan without affecting anything.
 
 Reactivity turns events from the calendar, watched files, metric thresholds and the event API into

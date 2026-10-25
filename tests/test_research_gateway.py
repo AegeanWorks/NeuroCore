@@ -244,3 +244,37 @@ def test_the_routes_list_sources_and_map_errors(monkeypatch):
     assert ok.json()["limit"] == 2
     assert bad.status_code == 400
     assert down.status_code == 502
+
+
+def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_path):
+    use_tmp_cache(monkeypatch, tmp_path)
+
+    class FakeManager:
+        def __init__(self):
+            self.articles = []
+
+        def create_article(self, data):
+            article = {"id": f"a{len(self.articles) + 1}", "url": data.get("url")}
+            self.articles.append(article)
+            return article
+
+        def get_articles(self, domain=None):
+            return list(self.articles)
+
+    manager = FakeManager()
+    monkeypatch.setattr("core.research_manager.get_research_manager_instance",
+                        lambda: manager)
+
+    async def fake_fetch(source, query, limit):
+        return [{"title": "Paper", "summary": "", "url": "https://example.org/p",
+                 "authors": [], "published": None, "doi": None}]
+
+    monkeypatch.setattr(gateway, "_fetch", fake_fetch)
+    first = asyncio.run(search("arxiv", "cache persist", 1, persist=True))
+    second = asyncio.run(search("arxiv", "cache persist", 1, persist=True))
+
+    assert first["cached"] is False
+    assert second["cached"] is True
+    assert first["article_ids"] == ["a1"]
+    assert second["article_ids"] == ["a1"]
+    assert len(manager.articles) == 1, "a cache hit does not duplicate the article"
