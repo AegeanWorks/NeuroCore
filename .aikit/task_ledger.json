@@ -1,69 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-followups-v1",
+    "task_id": "tif-integration-report",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792931320.4545426,
-    "owner": "kilo:neurocore",
-    "started_by": "kilo:neurocore",
+    "updated_at": 1792940058.5272465,
+    "owner": "kilo:main",
+    "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792931970.2970173
+    "completed_at": 1792940076.611138
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[RBAC] Added BrainActorRegistry with salted PBKDF2 token hashes, viewer/operator/admin roles, create/list/rotate/disable/delete admin endpoints, and route-level role gates: viewer read-only; operator learning/eval/reactions/cycles; admin improvement/config/kernel/baselines/actors. Remote clients authenticate by registry token or NEUROCORE_BRAIN_TOKEN; local/test clients remain local admins. Audit routes use the authenticated actor instead of body approved_by. Added 5 registry/RBAC tests. Full suite 1669 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792850651.4607756,
-      "timestamp_str": "2026-10-24 17:04:11",
-      "handoff": {
-        "state": "brain substrate through RBAC are complete",
-        "next": "cross-process locks for brain ledgers, reaction delivery channel polish, optional auto-mode design",
-        "open": "40 modified/32 untracked, auto disabled",
-        "evidence": "pytest 1669 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] Shared brain ledger persistence: one LedgerLock (thread RLock + OS file lock) and shared atomic JSON write used by every brain store. [2/3] Learning, improvement, configuration, kernel, reactivity and actor ledgers reload and mutate under that lock so two processes cannot clobber each other. [3/3] Verification pass: two-instance regression tests, full suite, Phase 4 gates, ADR and codebase map.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792867812.6538815,
-      "timestamp_str": "2026-10-24 21:50:12",
-      "agent": "kilo:neurocore",
-      "impact_assessment": {
-        "why": "Brain ledgers are still process-local: each store caches state at startup and writes atomic files without a lock, so a second worker silently loses the first worker's outcomes, candidates, configuration changes, kernel blocks, reactions or actors.",
-        "benefits": "Every brain ledger survives concurrent writers; the last writer no longer overwrites unseen updates; one tested persistence helper replaces nine copies of the temp-file write.",
-        "risks": "contract: none; dependency: filelock is already declared; concurrency: mutating methods now hold a per-ledger OS lock, and a stuck holder makes a writer wait up to 10s then fail with Timeout; state: a .lock file appears beside each brain ledger.",
-        "mitigation": "Shared helper with failing-first two-instance tests for each ledger; lock scope kept to ledger mutation, not LLM or provider calls; full suite and Phase 4 gates before commit."
-      },
-      "handoff": {
-        "next": "milestone 1 modules/brain/persistence.py and store wiring",
-        "open": "40 modified/32 untracked, auto disabled"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[1/3]-[2/3] done: LedgerLock plus atomic_write_json replace nine copies of the temp-file write; learning, improvement, configuration, kernel, reactivity and actor ledgers now reload and mutate under the lock, and evaluation/drift/state stores lock their writes. New two-instance tests cover experiences, consolidation, kernel blocks, configuration changes, actors, mutes, candidates and mutual exclusion. 86 brain tests plus 8 new tests pass.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792869508.8038812,
-      "timestamp_str": "2026-10-24 22:18:28",
-      "agent": "kilo:neurocore",
-      "handoff": {
-        "next": "milestone 3 full-suite verification, aikit fix/check, ADR-034 already recorded",
-        "open": "40 modified/34 untracked, auto disabled"
-      }
-    },
     {
       "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
@@ -296,6 +244,49 @@
       "timestamp": 1792931970.2970185,
       "timestamp_str": "2026-10-25 15:39:30",
       "agent": "kilo:neurocore"
+    },
+    {
+      "task_id": "tif-integration-report",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/2] Record the Tif integration assessment: docs/TIF_INTEGRATION_REPORT.md, a read-only, code-grounded comparison of Tiferet with the brain, with prioritised recommendations, non-goals, a defect ledger, roadmap and metrics. [2/2] Phase 4 and delivery.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792939833.8423533,
+      "timestamp_str": "2026-10-25 17:50:33",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The user asked what could be implemented from the reference project; the analysis must outlive the session and guide future work.",
+        "benefits": "A durable, evidence-based plan instead of ad-hoc porting; explicit non-goals and licensing constraint.",
+        "risks": "contract: none (documentation); dependency: none; concurrency: none; state: one new tracked doc under docs/, README tree already lists docs/.",
+        "mitigation": "Read-only analysis with file:line citations; no reference code copied; run project gates before commit."
+      }
+    },
+    {
+      "task_id": "tif-integration-report",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[2/2] done: docs/TIF_INTEGRATION_REPORT.md (716 lines) records the Tif assessment with file:line evidence, 11 prioritised recommendations, explicit non-goals, 13 verified defects not to inherit, a five-milestone roadmap and metrics. checklists: passed (Track B; secret scan clean). aikit check neurocore 4/4.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792940058.5272465,
+      "timestamp_str": "2026-10-25 17:54:18",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "doc complete and green",
+        "next": "commit and push",
+        "open": "implementation of P0 items not started"
+      }
+    },
+    {
+      "task_id": "tif-integration-report",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'tif-integration-report' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792940076.6111393,
+      "timestamp_str": "2026-10-25 17:54:36",
+      "agent": "kilo:main"
     }
   ]
 }
