@@ -8,6 +8,8 @@ import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from .versions import SkillVersionStore
+
 
 class SkillBackend:
     """Handles file-based storage for skills."""
@@ -18,6 +20,7 @@ class SkillBackend:
             storage_path = os.path.join(os.path.dirname(__file__), "data")
         self.storage_path = storage_path
         self.metadata_file = os.path.join(storage_path, "skills_metadata.json")
+        self.versions = SkillVersionStore(storage_path)
         self._ensure_storage_exists()
     
     def _ensure_storage_exists(self):
@@ -130,6 +133,7 @@ class SkillBackend:
             "updated_at": datetime.utcnow().isoformat() + 'Z'
         }
         self._save_metadata(metadata)
+        self.versions.record(skill_id, content, note="created")
         
         return {
             "id": skill_id,
@@ -151,9 +155,12 @@ class SkillBackend:
         
         # Update content if provided
         if content is not None:
+            previous = self.get_skill_content_only(skill_id)
             skill_path = self._get_skill_path(skill_id)
             with open(skill_path, "w", encoding="utf-8") as f:
                 f.write(content)
+            if content != previous:
+                self.versions.record(skill_id, content, note="updated")
         
         # Update metadata
         meta = metadata[skill_id]
@@ -212,6 +219,7 @@ class SkillBackend:
             "imported": True
         }
         self._save_metadata(metadata)
+        self.versions.record(skill_id, content, note="imported")
         
         return {
             "id": skill_id,
@@ -237,3 +245,22 @@ class SkillBackend:
         metadata = self._load_metadata()
         skill_path = self._get_skill_path(skill_id)
         return skill_id in metadata and os.path.exists(skill_path)
+
+    def list_versions(self, skill_id: str) -> List[Dict[str, Any]]:
+        """Version history for one skill, oldest first."""
+        if not self.skill_exists(skill_id):
+            return []
+        return self.versions.versions(skill_id)
+
+    def get_version(self, skill_id: str, version: int) -> Optional[Dict[str, Any]]:
+        """One version, including its content."""
+        if not self.skill_exists(skill_id):
+            return None
+        return self.versions.read(skill_id, version)
+
+    def rollback(self, skill_id: str, version: int) -> Optional[Dict[str, Any]]:
+        """Restore a version's content; the restore is itself recorded as a new version."""
+        record = self.get_version(skill_id, version)
+        if record is None:
+            return None
+        return self.update_skill(skill_id, content=record["content"])

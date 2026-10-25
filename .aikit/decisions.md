@@ -983,3 +983,21 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   pre-flight, not a behavioural proof.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (read before write),
   PRINCIPLE-007 (no stub) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-044: Versioned skill documents with auditable rollback
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Skills are prompt material edited in place through the HTTP API and import path.
+  Overwriting the only copy removed the evidence of what the model was told before, and there was
+  no way to diff, restore or audit a change.
+- **Decision**: `modules/skills/versions.py` stores each version's exact content under its
+  SHA-256 in a per-skill directory, with an index holding version number, digest, parent, author,
+  note and active pointer. History is bounded at 50 versions. Create, import and a
+  material content change record a version; identical content does not. `SkillBackend.rollback`
+  reads an old version and writes it through `update_skill`, so restoring is recorded as a new
+  version. Routes expose list, read and rollback.
+- **Consequences**: Every prompt edit is reversible and attributable, and storage stays bounded.
+  The content file remains the runtime source of truth, so nothing else in the app needs to
+  change; a corrupt index degrades to empty history and is rebuilt on the next write.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (atomic generated
+  files), PRINCIPLE-016 (knowledge integrity) and PRINCIPLE-014 (failing-first tests).

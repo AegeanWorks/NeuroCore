@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `267`
-- **Total Classes**: `392`
-- **Total Top-Level Functions**: `1674`
-- **Total Class Methods**: `2095`
-- **Total Source Lines**: `74857`
+- **Total Python Modules**: `269`
+- **Total Classes**: `393`
+- **Total Top-Level Functions**: `1688`
+- **Total Class Methods**: `2109`
+- **Total Source Lines**: `75175`
 
 ---
 
@@ -2832,7 +2832,7 @@
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `239` lines (`8488` bytes)
+**Size**: `266` lines (`9729` bytes)
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -2850,13 +2850,16 @@
   - Method `.import_skill(skill_id, name, description, content, category, tags)` - *Import a skill with a specific ID (used for import/export).*
   - Method `.get_skill_content_only(skill_id)` - *Get only the content of a skill (for system prompt injection).*
   - Method `.skill_exists(skill_id)` - *Check if a skill exists.*
+  - Method `.list_versions(skill_id)` - *Version history for one skill, oldest first.*
+  - Method `.get_version(skill_id, version)` - *One version, including its content.*
+  - Method `.rollback(skill_id, version)` - *Restore a version's content; the restore is itself recorded as a new version.*
 
 ---
 
 ### [`modules/skills/router.py`](modules/skills/router.py)
 > *Router for Skills module - API endpoints for skill management.*
 
-**Size**: `208` lines (`6549` bytes)
+**Size**: `244` lines (`8086` bytes)
 
 **Functions:**
 - `async def skills_gui(request)` - *Returns the skills management GUI.*
@@ -2872,6 +2875,9 @@
 - `async def export_skill(skill_id, format)` - *Export a skill in various formats.*
 - `async def get_skill_content(skill_id)` - *Get only the content of a skill (for system prompt injection).*
 - `async def get_enabled_skills_content(request)` - *Get content for multiple skills (for system prompt injection).*
+- `async def list_skill_versions(skill_id)` - *Version history for one skill, newest last, with the active version.*
+- `async def get_skill_version(skill_id, version)` - *One skill version, including its exact content.*
+- `async def rollback_skill(skill_id, version)` - *Restore a version; the restore is recorded as a new version, never a rewrite.*
 
 ---
 
@@ -2901,6 +2907,31 @@
   - Method `._clean_file_name(file_name)` - *Clean file name to use as skill name.*
   - Method `._generate_import_id(name)` - *Generate a unique ID for imported skill.*
   - Method `._create_export_markdown(skill)` - *Create a formatted markdown export of a skill with YAML frontmatter.*
+
+---
+
+### [`modules/skills/versions.py`](modules/skills/versions.py)
+> *Content-addressed versions for skill documents.*
+
+**Size**: `155` lines (`6385` bytes)
+
+**Classes:**
+- `class SkillVersionStore` - *Per-skill version history rooted beside the skill storage.*
+  - Method `.__init__(root)`
+  - Method `._skill_dir(skill_id)`
+  - Method `._index_path(skill_id)`
+  - Method `._load_index(skill_id)`
+  - Method `._save_index(skill_id, index)`
+  - Method `.record(skill_id, content, author, note)` - *Store one version of the content and mark it active.*
+  - Method `._prune(skill_dir, index)`
+  - Method `.versions(skill_id)`
+  - Method `.active(skill_id)`
+  - Method `.read(skill_id, version)`
+  - Method `.activate(skill_id, version)` - *Point the active marker at an existing version without rewriting the file.*
+
+**Functions:**
+- `def _now()`
+- `def _atomic_write(path, content)`
 
 ---
 
@@ -6049,6 +6080,24 @@
 **Functions:**
 - `def test_example_skill_loads()` - *Test that the example skill file loads correctly.*
 - `def test_skill_content_sanitization()` - *Test that skill content is properly handled.*
+
+---
+
+### [`tests/test_skills_versions.py`](tests/test_skills_versions.py)
+> *Content-addressed skill versions: history, deduplication and auditable rollback.*
+
+**Size**: `100` lines (`4098` bytes)
+
+**Functions:**
+- `def make_backend(tmp_path)`
+- `def test_create_and_update_record_distinct_versions(tmp_path)`
+- `def test_updating_with_identical_content_does_not_add_a_version(tmp_path)`
+- `def test_a_rollback_restores_content_and_is_itself_recorded(tmp_path)`
+- `def test_a_missing_version_or_skill_is_not_a_crash(tmp_path)`
+- `def test_history_is_bounded_and_keeps_the_active_version(tmp_path, monkeypatch)`
+- `def test_an_unsafe_skill_id_stays_inside_the_root(tmp_path)`
+- `def test_a_corrupt_index_reads_as_empty_and_recovers(tmp_path)`
+- `def test_versions_survive_a_new_backend_instance(tmp_path)`
 
 ---
 

@@ -128,6 +128,12 @@ deterministic pre-flight analysis without running anything: dangling connections
 types, isolated nodes, cycles, external effects and a cost envelope against the budget. A single
 pass that cannot fit blocks; a cycle that may reach a cap is reported as a warning.
 
+Skill documents are versioned: every create, import and content change stores the exact text
+under its SHA-256 in a bounded per-skill history (50 versions). `GET /api/skills/{id}/versions`
+lists versions, `GET /api/skills/{id}/versions/{n}` returns one with its content, and
+`POST /api/skills/{id}/rollback/{n}` restores it as a new version, so a rollback is auditable
+rather than a silent rewrite.
+
 ### Meta-Flows
 
 Small flows are ganglia; a meta-flow joins them through pathways. Inline composition namespaces

@@ -206,3 +206,39 @@ async def get_enabled_skills_content(request: Request):
     contents = service.get_enabled_skills_content(skill_ids)
     
     return {"contents": contents}
+
+
+@router.get("/api/skills/{skill_id}/versions")
+async def list_skill_versions(skill_id: str):
+    """Version history for one skill, newest last, with the active version."""
+    service = SkillService()
+    if not service.backend.skill_exists(skill_id):
+        raise HTTPException(status_code=404, detail="Skill not found")
+    return {
+        "skill_id": skill_id,
+        "active": service.backend.versions.active(skill_id),
+        "versions": service.backend.list_versions(skill_id),
+    }
+
+
+@router.get("/api/skills/{skill_id}/versions/{version}")
+async def get_skill_version(skill_id: str, version: int):
+    """One skill version, including its exact content."""
+    service = SkillService()
+    record = service.backend.get_version(skill_id, version)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Skill version not found")
+    return record
+
+
+@router.post("/api/skills/{skill_id}/rollback/{version}")
+async def rollback_skill(skill_id: str, version: int):
+    """Restore a version; the restore is recorded as a new version, never a rewrite."""
+    service = SkillService()
+    if not service.backend.skill_exists(skill_id):
+        raise HTTPException(status_code=404, detail="Skill not found")
+    record = service.backend.get_version(skill_id, version)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Skill version not found")
+    restored = service.backend.rollback(skill_id, version)
+    return {"status": "rolled_back", "restored_from": version, "skill": restored}

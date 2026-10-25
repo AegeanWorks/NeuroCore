@@ -1,49 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "brain-execution-control",
+    "task_id": "skill-version-registry",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792950564.5295577,
+    "updated_at": 1792951712.38104,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792950564.8360553
+    "completed_at": 1792951712.7268372
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-audit-p0-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "Verified: aikit check 4/4 (full suite pass, hygiene, guidelines, secrets); two concurrent full suites left every module.json, settings.json and calendar_events.json byte-identical (data/memory.sqlite3 and data/reasoning_book.json still use project_path and are written by tests: open). checklists: passed except Docker image build unverified (daemon not running; CI docker job added). No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792882298.7449343,
-      "timestamp_str": "2026-10-25 01:51:38",
-      "agent": "claude-code:neurocore"
-    },
-    {
-      "task_id": "neurocore-audit-p0-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "Reviewed full uncommitted set vs e491655 and fixed: tools could call token-free loopback control plane (settings/module install) -> port-scoped path allowlist + loopback-resolution rejection; trusted origins normalized; chat store change detection by stat fingerprint (coarse-mtime lost writes); agent start on failed init + unhandled actions reported success; brain token locked out local dashboard contrary to ADR-031; .gitignore regression un-ignored modules/skills/data. Failing-first tests for each; aikit check 4/4. Open: default flow telegram nodes dead (pre-existing), PBKDF2 per actor per request, testclient host hook, Docker build unverified. checklists: passed. No commit.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792918177.1714308,
-      "timestamp_str": "2026-10-25 11:49:37",
-      "agent": "claude-code:neurocore"
-    },
-    {
-      "task_id": "neurocore-audit-p0-v1",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-audit-p0-v1' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792918758.619731,
-      "timestamp_str": "2026-10-25 11:59:18",
-      "agent": "claude-code:neurocore"
-    },
     {
       "task_id": "neurocore-followups-v1",
       "phase": "phase 2",
@@ -286,6 +254,49 @@
       "status": "completed",
       "timestamp": 1792950564.8360565,
       "timestamp_str": "2026-10-25 20:49:24",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "skill-version-registry",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/2] P1-6: content-addressed skill version history, bounded, recorded on create/import/update and auditable rollback (ADR-044). [2/2] Gates, commit, push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792951238.5659845,
+      "timestamp_str": "2026-10-25 21:00:38",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "Prompt edits were in place and unrecoverable; the Tif report's M2 requires versioned artifacts with rollback.",
+        "benefits": "Every skill edit is reversible and attributable; identical content adds no noise.",
+        "risks": "contract: new routes and a versions directory; dependency: stdlib only; concurrency: atomic file replace, last writer wins per version; state: bounded history under the skills storage root.",
+        "mitigation": "Versioning is additive, the content file stays the runtime source, and a corrupt index degrades to empty history."
+      }
+    },
+    {
+      "task_id": "skill-version-registry",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[2/2] done: skill version store, backend recording on create/import/update, list/read/rollback routes, ADR-044 and README. Full suite 1829 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792951712.38104,
+      "timestamp_str": "2026-10-25 21:08:32",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "P1-6 complete",
+        "next": "commit and push",
+        "open": "P2 items (avoidance, loop guard, research gateway, unified budget, epistemic links)"
+      }
+    },
+    {
+      "task_id": "skill-version-registry",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'skill-version-registry' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792951712.726839,
+      "timestamp_str": "2026-10-25 21:08:32",
       "agent": "kilo:main"
     }
   ]
