@@ -239,4 +239,3 @@ def test_last_used_is_written_at_most_once_a_minute(tmp_path, monkeypatch):
     registry.authenticate(token)
 
     assert len(saves) == 1
-
