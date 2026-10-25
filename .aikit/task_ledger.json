@@ -1,227 +1,319 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "task-neurocore-review-hardening",
+    "task_id": "neurocore-audit-p0-v1",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792591372.9095526,
-    "completed_at": 1792591383.7169418
+    "updated_at": 1792918177.1714308,
+    "owner": "claude-code:neurocore",
+    "started_by": "kilo:neurocore",
+    "continuations": [
+      {
+        "agent": "claude-code:neurocore",
+        "from": "kilo:neurocore",
+        "at": 1792880640.2661777
+      }
+    ],
+    "completed_at": 1792918758.6197298
   },
   "checkpoints": [
     {
-      "task_id": "task-neurocore-onboarding",
+      "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
       "phase_num": 4,
-      "description": "[5/5] Final verification: 4/4 gates pass on the exact tree (1343 passed, 7 skipped); diff whitespace clean; checklists: passed",
+      "description": "[4/6] M4 verification complete. Reviewed the brain diff and found/fixed: default ImprovementEngine lacked node/tool allowlists (now FlowEvolution is seeded with node_template_types plus configurable allowed_tools, with a policy test); brain snapshots embedded every candidate (now uses ImprovementEngine.summary, with a test); learning status inside a cycle was stale until after consolidation (refreshed); experiences_page(0) returned the whole ledger (fixed + test); non-object candidate operations surfaced as 500s (now validated + test); rollback silently succeeded when a snapshot was missing (now raises). Confirmed foreign-flow baselines and the 10ms latency floor block promotion correctly. 34 brain tests pass; full suite 1627 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792510174.5733795,
-      "timestamp_str": "2026-10-20 18:29:34"
+      "timestamp": 1792813501.9931898,
+      "timestamp_str": "2026-10-24 06:45:01",
+      "handoff": {
+        "state": "M1-M4 verified and green",
+        "next": "M5 policy-gated self-configuration (module/settings/tool changes with preview, snapshot, rollback)",
+        "open": "event bus is in-process, recall is lexical, eval suite is deterministic echo-only, auto mode remains disabled, promotion requires approval",
+        "evidence": "pytest 1627 passed 7 skipped, aikit check 4/4"
+      }
     },
     {
-      "task_id": "task-neurocore-onboarding",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'task-neurocore-onboarding' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792510180.0906641,
-      "timestamp_str": "2026-10-20 18:29:40"
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "Risk-fix verification pass: (1) baselines now require perfect pass rate, no failures, positive task count, same flow and recorded_by provenance; candidates must also be perfect; (2) evaluation rejects state-mutating/external-effect nodes via a read-only allowlist (tools, memory writes, messaging, calendar, subflows), enforced before execution with no HTTP opt-in; (3) promotion quota exhaustion marks the candidate blocked and persists its evaluation before raising; (4) promotion and baseline promotion require approved_by, stored on the record; (5) experience/skill/candidate ledgers are capped and mirrored memory rows pruned; (6) self-model providers run in asyncio.to_thread, event handlers time out, /state no longer writes on every request. Added tests for weak baselines, unsafe evaluation, approver identity, blocked quota, caps and event timeout. Brain suite 43 passed; full suite 1634 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792829369.7478027,
+      "timestamp_str": "2026-10-24 11:09:29",
+      "handoff": {
+        "state": "critical/high verification risks fixed and green",
+        "next": "M5 policy-gated self-configuration and M6 reactivity",
+        "open": "process-local brain ledgers, no chat/tool outcome hooks, lexical recall, self-asserted approver identity, auto mode disabled",
+        "evidence": "pytest 1634 passed 7 skipped, aikit check 4/4"
+      }
     },
     {
-      "task_id": "task-neurocore-security-hardening",
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 3",
+      "phase_num": 3,
+      "description": "[5/6] Policy-gated self-configuration implemented: ConfigurationEngine supports whitelisted settings, a configurable module allowlist, bounded brain options and narrowing-only allowed_tools; protected modules/secrets rejected; preview shows before/after; apply requires approved_by, writes an atomic ledger and runtime limits, supports rollback, and blocks older changes over newer ones; daily quota. Tests: 8 configuration tests; all 57 brain tests pass.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792835325.784776,
+      "timestamp_str": "2026-10-24 12:48:45",
+      "handoff": {
+        "state": "M5 complete",
+        "next": "M6 governance kernel and drift",
+        "evidence": "tests/test_brain_configuration.py 8 passed, brain suite 57 passed"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[6/6] Governance kernel and drift implemented: BrainKernel modes normal/degraded/safe with risk from provider errors, evaluation pass rate, drift and blocked actions; hysteresis and attributed kill switch/reset; SAFE blocks learning writes, consolidation, improvement and configuration while allowing evaluation/rollback; DriftMonitor compares provider/evaluation/memory/knowledge metrics to an attributed baseline; kernel/drift API and persistence. Tif reference was moved out of the scanned project tree to references/Tif (analysis-only, no code copied). Full suite 1648 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792835350.9753973,
+      "timestamp_str": "2026-10-24 12:49:10",
+      "handoff": {
+        "state": "M1-M6 complete and green",
+        "next": "external event sources/proactive reactivity and actor identity",
+        "open": "kernel state is process-local, reactivity event sources are not wired, Tif remains analysis-only in references/Tif",
+        "evidence": "pytest 1648 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[Reactivity] Event-driven proposal layer implemented: ReactivityEngine subscribes to the brain bus, polls calendar/upcoming events, watched-file changes and metric thresholds; reactions are deduplicated by key, muteable for a bounded time, capped per hour, persisted atomically and dismissable; kernel allows only health/metric alerts in SAFE mode and blocks normal reactions; /brain/reactions, /reactions/dismiss|mute|unmute and /react/start|stop|poll endpoints; reactivity_auto_start remains false. Tif reference moved to references/Tif (analysis-only; no code copied). Full suite 1654 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792837654.1178365,
+      "timestamp_str": "2026-10-24 13:27:34",
+      "handoff": {
+        "state": "AI-Brain substrate, evaluation, learning, improvement, configuration, kernel/drift and reactivity are complete",
+        "next": "actor identity/authentication and background delivery channels",
+        "open": "38 modified/27 untracked, auto mode disabled, ledgers process-local",
+        "evidence": "pytest 1654 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[Outcome capture] Ordinary chat/flow runs now emit one outcome through core/outcomes.py; the active brain records flow:<id> experiences while the kernel permits memory writes, and stop/reset unregister capture. Evaluation runners use FlowRunner(capture_outcome=False) to avoid double counting; capture_flow_outcomes config can disable it; tests clear the global listener after each test. Added 4 outcome-capture tests. Full suite 1658 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792840052.7233407,
+      "timestamp_str": "2026-10-24 14:07:32",
+      "handoff": {
+        "state": "brain substrate, evaluation, learning, improvement, configuration, kernel/drift, reactivity and automatic outcome capture are complete",
+        "next": "authenticated actor identity and reaction delivery/inbox UI",
+        "open": "39 modified/29 untracked, auto mode disabled, ledgers process-local",
+        "evidence": "pytest 1658 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[Actor auth] Brain approvals now use authenticated request actors: all /brain routes share get_brain_actor; loopback/test clients resolve as local (optional X-Brain-Actor), remote clients require NEUROCORE_BRAIN_TOKEN via X-Brain-Token with constant-time compare and receive 401/403; mutating routes use the actor name for promotion/config/kernel/drift audit instead of body approved_by; GET /brain/actor reports identity. Added 4 auth tests. Full suite 1662 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792841344.8070364,
+      "timestamp_str": "2026-10-24 14:29:04",
+      "handoff": {
+        "state": "brain substrate, evaluation, learning, improvement, configuration, kernel/drift, reactivity, outcome capture and actor auth are complete",
+        "next": "reaction delivery/inbox UI, per-user RBAC, process-local ledger locks",
+        "open": "39 modified/30 untracked, auto mode disabled",
+        "evidence": "pytest 1662 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[Brain UI] Added local-first /brain/ui dashboard linked from the navbar: kernel mode/risk, health, cycles, proposals, reactions with dismiss/mute, reactivity start/stop/poll, evaluation run/baseline and brain start/stop/cycle/kill/reset controls; values escaped via shared escapeHtml, 5s refresh, no framework/build step. Added 2 UI tests. Full suite 1664 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792843118.9676013,
+      "timestamp_str": "2026-10-24 14:58:38",
+      "handoff": {
+        "state": "brain substrate through UI are complete",
+        "next": "per-user RBAC, reaction delivery/inbox polish, process-local ledger locks",
+        "open": "40 modified/32 untracked, auto mode disabled",
+        "evidence": "pytest 1664 passed 7 skipped, aikit check 4/4, /brain/ui and navbar tests pass"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[RBAC] Added BrainActorRegistry with salted PBKDF2 token hashes, viewer/operator/admin roles, create/list/rotate/disable/delete admin endpoints, and route-level role gates: viewer read-only; operator learning/eval/reactions/cycles; admin improvement/config/kernel/baselines/actors. Remote clients authenticate by registry token or NEUROCORE_BRAIN_TOKEN; local/test clients remain local admins. Audit routes use the authenticated actor instead of body approved_by. Added 5 registry/RBAC tests. Full suite 1669 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792850651.4607756,
+      "timestamp_str": "2026-10-24 17:04:11",
+      "handoff": {
+        "state": "brain substrate through RBAC are complete",
+        "next": "cross-process locks for brain ledgers, reaction delivery channel polish, optional auto-mode design",
+        "open": "40 modified/32 untracked, auto disabled",
+        "evidence": "pytest 1669 passed 7 skipped, aikit check 4/4"
+      }
+    },
+    {
+      "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 2",
       "phase_num": 2,
-      "description": "[1/6] Phase 2 Planning: harden NeuroCore control-plane binding, ZIP extraction, sandbox escapes, secret exposure, XSS rendering, and auth/CSRF",
+      "description": "[1/3] Shared brain ledger persistence: one LedgerLock (thread RLock + OS file lock) and shared atomic JSON write used by every brain store. [2/3] Learning, improvement, configuration, kernel, reactivity and actor ledgers reload and mutate under that lock so two processes cannot clobber each other. [3/3] Verification pass: two-instance regression tests, full suite, Phase 4 gates, ADR and codebase map.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792511693.9590132,
-      "timestamp_str": "2026-10-20 18:54:53",
+      "timestamp": 1792867812.6538815,
+      "timestamp_str": "2026-10-24 21:50:12",
+      "agent": "kilo:neurocore",
       "impact_assessment": {
-        "why": "The audit found remote code execution, unauthenticated control-plane access, secret exposure, stored XSS, and data-loss defects that block safe operation beyond a trusted localhost",
-        "benefits": "Eliminates the highest-impact compromise paths, preserves existing local workflows, and adds regression tests for each security boundary",
-        "risks": "contract: web routes, test clients, Docker networking, and tool code may change behavior; dependency: no new runtime dependencies required; concurrency: middleware and archive extraction must be thread-safe; state: existing flows, settings, and module data must remain readable",
-        "mitigation": "Use backward-compatible defaults, environment opt-ins for remote/reload modes, failing-first regression tests, and run python aikit.py check neurocore after each milestone"
+        "why": "Brain ledgers are still process-local: each store caches state at startup and writes atomic files without a lock, so a second worker silently loses the first worker's outcomes, candidates, configuration changes, kernel blocks, reactions or actors.",
+        "benefits": "Every brain ledger survives concurrent writers; the last writer no longer overwrites unseen updates; one tested persistence helper replaces nine copies of the temp-file write.",
+        "risks": "contract: none; dependency: filelock is already declared; concurrency: mutating methods now hold a per-ledger OS lock, and a stuck holder makes a writer wait up to 10s then fail with Timeout; state: a .lock file appears beside each brain ledger.",
+        "mitigation": "Shared helper with failing-first two-instance tests for each ledger; lock scope kept to ledger mutation, not LLM or provider calls; full suite and Phase 4 gates before commit."
+      },
+      "handoff": {
+        "next": "milestone 1 modules/brain/persistence.py and store wiring",
+        "open": "40 modified/32 untracked, auto disabled"
       }
     },
     {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[1/6] Entering M1: loopback-by-default server binding, reload opt-in, trusted-host guard, and loopback Docker publish",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792511741.9467926,
-      "timestamp_str": "2026-10-20 18:55:41"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[milestone 1/6] M1 loopback-by-default binding, reload opt-in, trusted-host guard, loopback Docker publish; 8 tests; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792522720.179015,
-      "timestamp_str": "2026-10-20 21:58:40"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[milestone 2/6] M2 path-confined ZIP extraction via core/archive.py; 7 tests; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792522720.3430924,
-      "timestamp_str": "2026-10-20 21:58:40"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[milestone 3/6] M3 sandbox first-party import allowlist and dunder-traversal blocks; 10 tests; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792522720.5101354,
-      "timestamp_str": "2026-10-20 21:58:40"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[milestone 4/6] M4 secret stripping and log-boundary redaction; 6 tests; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792522720.672422,
-      "timestamp_str": "2026-10-20 21:58:40"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[milestone 5/6] M5 escaping of stored content in server HTML and marketplace sinks; 3 tests; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792522720.8393276,
-      "timestamp_str": "2026-10-20 21:58:40"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
+      "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
       "phase_num": 4,
-      "description": "[milestone 6/6] M6 CSRF origin check and opt-in API token; ADR-001..006, README, codebase map; 1384 passed/7 skipped, 4/4 Phase 4 gates; checklists: passed",
+      "description": "[1/3]-[2/3] done: LedgerLock plus atomic_write_json replace nine copies of the temp-file write; learning, improvement, configuration, kernel, reactivity and actor ledgers now reload and mutate under the lock, and evaluation/drift/state stores lock their writes. New two-instance tests cover experiences, consolidation, kernel blocks, configuration changes, actors, mutes, candidates and mutual exclusion. 86 brain tests plus 8 new tests pass.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792522721.0057526,
-      "timestamp_str": "2026-10-20 21:58:41"
-    },
-    {
-      "task_id": "task-neurocore-security-hardening",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'task-neurocore-security-hardening' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792522792.9173214,
-      "timestamp_str": "2026-10-20 21:59:52"
-    },
-    {
-      "task_id": "task-neurocore-inflight-completion",
-      "phase": "phase 1",
-      "phase_num": 1,
-      "description": "[1/3] Plan: finish the four in-flight neurocore changes - autonomous agent runtime, skills tests/metadata hygiene, marketplace template includes, and the lattice integration design as a Proposed ADR",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792588239.5302122,
-      "timestamp_str": "2026-10-21 16:10:39",
-      "impact_assessment": {
-        "why": "The working tree carries an unreviewed 120 KB agent prototype, a polluted skills metadata file, broken marketplace includes, and an undocumented lattice design proposal. Leaving them uncommitted hides real bugs (NameError on handle_user_message, phantom enabled module, dropped chat replies) and blocks the Phase 4 gates.",
-        "benefits": "Preserves the work, makes the agent runtime importable and testable, restores metadata hygiene, keeps the design reviewable, and returns all four gates to green without adding runtime dependencies.",
-        "risks": "Contract: new optional AgentConfig.persistence field and module.json enabled=false; no existing public API changes. Dependency: stdlib only. Concurrency: shutdown persistence is single-writer with temp-file replace. State: a corrupt snapshot is quarantined rather than trusted. Design doc is committed as Proposed, not implemented.",
-        "mitigation": "Add tests/test_autonomous_agent.py for lifecycle, memory roundtrip, sandbox limits, flow adoption and node wiring; restore skills_metadata.json from HEAD; run the full pytest suite and python aikit.py check neurocore before committing."
+      "timestamp": 1792869508.8038812,
+      "timestamp_str": "2026-10-24 22:18:28",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "next": "milestone 3 full-suite verification, aikit fix/check, ADR-034 already recorded",
+        "open": "40 modified/34 untracked, auto disabled"
       }
     },
     {
-      "task_id": "task-neurocore-inflight-completion",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[2/3] Milestone 1 completed: fixed the autonomous agent runtime (IncomingMessage import, plain node class, perception recording, flow adoption, atomic memory/state persistence, chat outbox, configurable sandbox limits), marked it disabled with ADR-008, added 9 tests, restored skills metadata, wrapped the marketplace includes in script tags, removed the redundant Windows event-loop policy, and added start.bat plus README notes.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792588639.5430834,
-      "timestamp_str": "2026-10-21 16:17:19"
-    },
-    {
-      "task_id": "task-neurocore-inflight-completion",
+      "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
       "phase_num": 4,
-      "description": "[3/3] Phase 4 verification: python aikit.py check neurocore passed 4/4 (test, hygiene, guidelines, secrets); checklists: passed; full pytest suite green, including 9 autonomous-agent tests and 36 skills-module tests; skills_metadata.json restored to HEAD after verifying it stays clean.",
+      "description": "[3/3] Verified: full suite 1677 passed, 7 skipped; aikit fix regenerated the codebase map; Phase 4 gates 4/4; checklists: passed (freshness, call sites, declared filelock dependency, platform paths, no stubs, secret scan). ADR-034 and README updated. No commit (delivery not authorized).",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792588643.012649,
-      "timestamp_str": "2026-10-21 16:17:23"
-    },
-    {
-      "task_id": "task-neurocore-inflight-completion",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'task-neurocore-inflight-completion' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792588692.9413302,
-      "timestamp_str": "2026-10-21 16:18:12"
-    },
-    {
-      "task_id": "task-neurocore-review-hardening",
-      "phase": "phase 1",
-      "phase_num": 1,
-      "description": "[1/2] Plan: harden autonomous-agent persistence loading so valid JSON with the wrong shape is quarantined and malformed flow metadata is skipped, with regression tests",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792590947.6287768,
-      "timestamp_str": "2026-10-21 16:55:47",
-      "impact_assessment": {
-        "why": "Review found that a state file containing [] makes initialize() return False without quarantining, and a flow whose metadata is not a dict aborts initialization. Both are corruption paths the loader is supposed to survive.",
-        "benefits": "Keeps the experimental runtime loadable in the presence of a semantically corrupt snapshot or flow store, preserves the quarantine contract, and adds regression coverage for both.",
-        "risks": "Contract: no public API change. Dependency: stdlib only. Concurrency: single-writer shutdown path unchanged. State: stricter validation may quarantine a file that a looser loader previously accepted; that is the intended behavior.",
-        "mitigation": "Validate snapshot, memory, owned_flows and errors shapes before use; skip non-dict flow metadata; add tests for [] and malformed metadata; run the full neurocore gate before committing."
+      "timestamp": 1792870041.8521626,
+      "timestamp_str": "2026-10-24 22:27:21",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "state": "brain substrate through RBAC plus cross-process ledger locks complete",
+        "next": "commit approval for the AI-brain work, then reaction delivery polish and optional auto-mode design",
+        "open": "40 modified/33 untracked, auto disabled, brain state file is last-writer-wins",
+        "evidence": "pytest 1677 passed 7 skipped, aikit check 4/4"
       }
     },
     {
-      "task_id": "task-neurocore-review-hardening",
+      "task_id": "neurocore-audit-p0-v1",
       "phase": "phase 2",
       "phase_num": 2,
-      "description": "[1/2] Regression coverage added for a valid-JSON [] snapshot and non-dict flow metadata; both loader failures were reproduced before the fix; checklists: passed",
+      "description": "[1/6] Remote auth fails closed: non-loopback binds refuse to start without NEUROCORE_API_TOKEN unless NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE is explicit, and middleware rejects unauthenticated non-loopback clients even when the token is unset. [2/6] CSRF compares normalized origin (scheme, host, effective port). [3/6] Sandbox fails closed on worker-start failure, exposes only explicitly permitted environment values, and its network policy rejects mixed DNS answers, validates every redirect, streams within a byte cap and honours an empty allowlist. [4/6] Retire the unused broken worker pool; add the missing scheduled-task pattern and pattern contract tests. [5/6] Memory search filters before truncation and fetches expiry in one query. [6/6] Align packaging/Docker with runtime deps, commit CI, then full verification and ADR.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792591368.1610122,
-      "timestamp_str": "2026-10-21 17:02:48"
+      "timestamp": 1792871549.065351,
+      "timestamp_str": "2026-10-24 22:52:29",
+      "agent": "kilo:neurocore",
+      "impact_assessment": {
+        "why": "External audit of e491655 reports remote auth bypass when the token is unset, in-process sandbox fallback, unrestricted tool environment, weak network/CSRF policy, a broken unused worker pool, an invalid scheduled flow pattern and memory search underfill.",
+        "benefits": "Remote deployments cannot silently run unauthenticated; sandbox isolation never degrades silently; tools see only authorized secrets; redirects and oversized responses obey policy; dead execution code stops masquerading as a supported path; autonomous patterns build valid flows; semantic search returns a full page of eligible memories.",
+        "risks": "contract: non-loopback startup without a token now fails; ToolSandbox no longer exposes the process environment by default; allowed_domains=set() disables network; worker-pool module is removed; dependency: filelock already declared, no new runtime deps; concurrency: none added; state: none.",
+        "mitigation": "Failing-first tests for each finding, updated tests for the intentional contract changes, full suite, aikit check, and an ADR recording every behavior change."
+      },
+      "handoff": {
+        "next": "core/security.py validation and origin comparison",
+        "open": "brain ledgers work from neurocore-ai-brain-v1 remains uncommitted"
+      }
     },
     {
-      "task_id": "task-neurocore-review-hardening",
+      "task_id": "neurocore-ai-brain-v1",
+      "phase": "superseded",
+      "phase_num": 4,
+      "description": "Superseded by 'neurocore-audit-p0-v1' without --complete or --reset",
+      "status": "superseded",
+      "timestamp": 1792871549.065351,
+      "timestamp_str": "2026-10-24 22:52:29",
+      "agent": "kilo:neurocore"
+    },
+    {
+      "task_id": "neurocore-audit-p0-v1",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/6] Remote auth fails closed (verified done in tree). [2/6] CSRF normalized origin (verified done). [3/6] Sandbox fail-closed, permitted env, network policy (verified done). [4/6] Retire unused broken worker pool; add scheduled-task pattern; fix agent templates telegram_output->messaging_output and kb_query->query_knowledge that no module dispatches; contract test resolves every template through the real get_executor_class. [5/6] Memory search filters before truncation and fetches expiry in one query. [6/6] Align pyproject with runtime deps (scipy, websockets), runtime-only Docker image as non-root user, compose sets the explicit unauthenticated-remote opt-out its loopback publish justifies, CI installs from metadata; full verification and ADR.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792880640.2661777,
+      "timestamp_str": "2026-10-25 01:24:00",
+      "agent": "claude-code:neurocore",
+      "continued_from": "kilo:neurocore"
+    },
+    {
+      "task_id": "neurocore-audit-p0-v1",
       "phase": "phase 3",
       "phase_num": 3,
-      "description": "[2/2] Validated snapshot, memory, owned_flows and errors shapes; skipped non-dict flow metadata; regenerated codebase map and added start.bat to README tree; checklists: passed",
+      "description": "[4/6]-[5/6] done: worker pool removed (no consumers); scheduled_task pattern added; templates now dispatch to messaging_output/query_knowledge; contract tests resolve every template via FlowRunner. Memory search filters in SQL before truncation, single query incl. expiry, FAISS ranks all vectors. Extra: atomic module.json writes (three manifests were found truncated to 0 bytes during concurrent test runs, restored from HEAD); cross-host redirects drop Authorization/Cookie; S2/S4 regression tests added; test_os_getenv_works replaced by permitted-env contract tests.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792591370.557136,
-      "timestamp_str": "2026-10-21 17:02:50"
+      "timestamp": 1792881127.242122,
+      "timestamp_str": "2026-10-25 01:32:07",
+      "agent": "claude-code:neurocore"
     },
     {
-      "task_id": "task-neurocore-review-hardening",
+      "task_id": "neurocore-audit-p0-v1",
       "phase": "phase 4",
       "phase_num": 4,
-      "description": "Final verification: 4/4 gates pass on the exact tree (full pytest and guidelines after regeneration); checklists: passed",
+      "description": "[6/6] Packaging aligned (scipy core; requirements.txt = runtime+extras; requirements-dev.txt; test_packaging enforces), Docker runtime-only non-root image, compose opt-out + UID mapping, data/.gitkeep, CI Linux+Windows+docker job, README/TOOL_GUIDE updated, ADR-035. Root cause of truncated manifests: conftest protect_module_files snapshotted per test and restored by truncate-write, so concurrent runs captured empty content and re-imposed it forever; root ai_flows.json (gitignored, 0 bytes, unrecoverable) hit too. Fixed: per-run NEUROCORE_STATE_DIR temp dir, session snapshot validated as JSON, atomic restore on change. Full suite 1726 passed before conftest change; Docker build unverified (daemon not running).",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1792591372.9095526,
-      "timestamp_str": "2026-10-21 17:02:52"
+      "timestamp": 1792881713.515018,
+      "timestamp_str": "2026-10-25 01:41:53",
+      "agent": "claude-code:neurocore",
+      "handoff": {
+        "next": "confirm concurrent-suite chaos check leaves manifests and root state byte-identical, then aikit check neurocore",
+        "open": "delivery not authorized, no commit"
+      }
     },
     {
-      "task_id": "task-neurocore-review-hardening",
+      "task_id": "neurocore-audit-p0-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "Verified: aikit check 4/4 (full suite pass, hygiene, guidelines, secrets); two concurrent full suites left every module.json, settings.json and calendar_events.json byte-identical (data/memory.sqlite3 and data/reasoning_book.json still use project_path and are written by tests: open). checklists: passed except Docker image build unverified (daemon not running; CI docker job added). No commit (delivery not authorized).",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792882298.7449343,
+      "timestamp_str": "2026-10-25 01:51:38",
+      "agent": "claude-code:neurocore"
+    },
+    {
+      "task_id": "neurocore-audit-p0-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "Reviewed full uncommitted set vs e491655 and fixed: tools could call token-free loopback control plane (settings/module install) -> port-scoped path allowlist + loopback-resolution rejection; trusted origins normalized; chat store change detection by stat fingerprint (coarse-mtime lost writes); agent start on failed init + unhandled actions reported success; brain token locked out local dashboard contrary to ADR-031; .gitignore regression un-ignored modules/skills/data. Failing-first tests for each; aikit check 4/4. Open: default flow telegram nodes dead (pre-existing), PBKDF2 per actor per request, testclient host hook, Docker build unverified. checklists: passed. No commit.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792918177.1714308,
+      "timestamp_str": "2026-10-25 11:49:37",
+      "agent": "claude-code:neurocore"
+    },
+    {
+      "task_id": "neurocore-audit-p0-v1",
       "phase": "completed",
       "phase_num": 5,
-      "description": "Task 'task-neurocore-review-hardening' completed successfully.",
+      "description": "Task 'neurocore-audit-p0-v1' completed successfully.",
       "status": "completed",
-      "timestamp": 1792591383.716943,
-      "timestamp_str": "2026-10-21 17:03:03"
+      "timestamp": 1792918758.619731,
+      "timestamp_str": "2026-10-25 11:59:18",
+      "agent": "claude-code:neurocore"
     }
   ]
 }
