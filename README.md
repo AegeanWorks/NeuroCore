@@ -84,6 +84,7 @@ neurocore/
 ├── .github/
 ├── .gitignore
 ├── CLAUDE.md
+├── COMMERCIAL.md             <- commercial licence terms (AECL) and dual licensing
 ├── Dockerfile
 ├── LICENSE
 ├── README.md

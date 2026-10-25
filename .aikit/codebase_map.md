@@ -1369,7 +1369,7 @@
 ### [`modules/brain/auth.py`](modules/brain/auth.py)
 > *Brain actor identity, token registry and role gates.*
 
-**Size**: `279` lines (`10098` bytes)
+**Size**: `279` lines (`10120` bytes)
 
 **Classes:**
 - `class BrainActor`
