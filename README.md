@@ -95,6 +95,7 @@ neurocore/
 ├── requirements.txt          <- runtime + optional capabilities (mirrors pyproject.toml)
 ├── requirements-dev.txt      <- adds the test tools
 ├── core/                     <- engine, flow manager, runner, observability
+├── data/                     <- runtime state (ignored; only the directory is tracked)
 ├── docs/                     <- architectural guides & module docs
 ├── modules/                  <- hot-swappable functional modules
 ├── screenshots/              <- UI and feature captures
