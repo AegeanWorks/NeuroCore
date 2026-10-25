@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `274`
-- **Total Classes**: `396`
-- **Total Top-Level Functions**: `1738`
-- **Total Class Methods**: `2138`
-- **Total Source Lines**: `76464`
+- **Total Python Modules**: `276`
+- **Total Classes**: `399`
+- **Total Top-Level Functions**: `1769`
+- **Total Class Methods**: `2142`
+- **Total Source Lines**: `77113`
 
 ---
 
@@ -536,6 +536,37 @@
 
 ---
 
+### [`core/research_gateway.py`](core/research_gateway.py)
+> *Allowlisted research sources with SSRF protection, caching and provenance.*
+
+**Size**: `370` lines (`13919` bytes)
+
+**Classes:**
+- `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
+- `class SourceUnavailableError` - *The upstream source failed and no cached result can be served.*
+- `class _Cache`
+  - Method `.__init__(path)`
+  - Method `._load()`
+  - Method `.get(key)`
+  - Method `.put(key, payload)`
+
+**Functions:**
+- `def sources()`
+- `def _now()`
+- `def _strip_markup(text)`
+- `def _validate_url(url, allowed_hosts, resolver)` - *Require HTTPS, an allowlisted host and a public address for every hop.*
+- `async def _safe_get(url, allowed_hosts)` - *Fetch one page, validating the start URL and every redirect hop.*
+- `def build_request(source, query, limit)`
+- `def parse_wikipedia(payload, limit)`
+- `def parse_arxiv(payload, limit)`
+- `def parse_pubmed(payload, limit)`
+- `async def _fetch(source, query, limit)`
+- `def _cache_key(source, query, limit)`
+- `def _persist_articles(source, query, items, retrieved_at, license_text)` - *Store fetched items as research articles, carrying provenance in notes.*
+- `async def search(source, query, limit, *, persist)` - *Search one allowlisted source and return items with provenance.*
+
+---
+
 ### [`core/research_manager.py`](core/research_manager.py)
 > *Research Manager*
 
@@ -592,7 +623,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3331` lines (`146066` bytes)
+**Size**: `3364` lines (`147190` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -692,6 +723,8 @@
 - `async def clear_debug_logs(request, _)`
 - `async def goals_page(request, module_manager, settings_man)`
 - `async def get_default_config(module_id, module_manager)` - *Returns the default configuration for modules that support loading defaults (e.g., agent_loop).*
+- `async def research_source_list()` - *Allowlisted literature sources and their licence terms.*
+- `async def research_source_fetch(request)` - *Search one allowlisted source; provenance is returned with every item.*
 - `async def get_research(request, settings_man, module_manager)`
 - `async def get_research_stats(request, rm)`
 - `async def list_hypotheses(request, status, domain, rm)`
@@ -5919,6 +5952,31 @@
 
 **Functions:**
 - `def rm(tmp_path)` - *Fresh ResearchManager backed by a temp SQLite file.*
+
+---
+
+### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
+> *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
+
+**Size**: `246` lines (`9134` bytes)
+
+**Functions:**
+- `def public_resolver(host, port, **kwargs)`
+- `def private_resolver(host, port, **kwargs)`
+- `def test_the_source_list_is_fixed_and_explains_its_licence()`
+- `def test_request_urls_are_built_from_the_allowlisted_endpoint()`
+- `def test_urls_must_be_https_allowlisted_and_public(monkeypatch)`
+- `def test_private_and_special_addresses_are_rejected(address)`
+- `def test_wikipedia_results_are_parsed_and_markup_removed()`
+- `def test_arxiv_results_are_parsed_from_atom()`
+- `def test_pubmed_results_carry_a_doi_and_a_stable_url()`
+- `def use_tmp_cache(monkeypatch, tmp_path)`
+- `def test_a_fresh_cache_hit_skips_the_network(monkeypatch, tmp_path)`
+- `def test_an_expired_cache_serves_stale_results_with_a_warning(monkeypatch, tmp_path)`
+- `def test_an_unavailable_source_without_cache_raises(monkeypatch, tmp_path)`
+- `def test_bad_input_is_rejected_before_any_request(monkeypatch, tmp_path)`
+- `def test_persist_stores_articles_with_provenance(monkeypatch, tmp_path)`
+- `def test_the_routes_list_sources_and_map_errors(monkeypatch)`
 
 ---
 

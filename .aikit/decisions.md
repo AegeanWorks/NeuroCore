@@ -1074,3 +1074,24 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   must not replace the deterministic gate or apply changes automatically.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
   dependencies), PRINCIPLE-013 (transactional state) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-049: Allowlisted research gateway with provenance
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Research data could be fetched through a generic URL tool with no provenance
+  record, and the reference implementation for this idea fell back to scraping search engines
+  with spoofed user agents. Results that reach memory or a knowledge base must be citable and
+  the fetch surface must be bounded.
+- **Decision**: `core/research_gateway.py` exposes three fixed adapters (Wikipedia, arXiv,
+  PubMed). Every start URL and redirect hop must use HTTPS, an allowlisted host and a public
+  resolved address; responses are limited to 2 MB and 10 seconds, cached for 24 hours, and
+  returned with source, retrieval time, licence, source URL and content hash. `persist` stores
+  items as research articles with provenance in notes. The route maps policy violations to 400
+  and upstream failures to 502. There is no generic web source and no user-agent spoofing.
+- **Consequences**: Research ingestion is offline-testable, attributable and cannot be pointed at
+  an internal service. DNS can still change between validation and connection (a rebinding
+  window), which is documented rather than hidden; a future hardened build could pin the
+  resolved address. Source outages serve a stale cached result with an explicit warning.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
+  dependencies), PRINCIPLE-010 (bounded resources) and PRINCIPLE-019 (no credential-bearing
+  network surface).

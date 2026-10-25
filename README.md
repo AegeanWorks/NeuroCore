@@ -359,6 +359,13 @@ with allowlisted imports, only the environment values listed in the tools module
 `env_allowlist`, and a network allowlist that re-checks every redirect and caps response size.
 On NeuroCore's own port a tool may call only `/memory/goals` and `/browser_automation/api/`, so
 tool code cannot change settings or install modules through the token-free loopback API.
+
+Literature search is restricted to three allowlisted adapters (Wikipedia, arXiv, PubMed) in
+`core/research_gateway.py`. Each request, and each redirect hop, must stay on that source's hosts
+and resolve to a public address; responses are capped at 2 MB and 10 seconds, cached for a day,
+and returned with the source, retrieval time, licence and a content hash. `GET /research/sources`
+lists the adapters and `POST /research/fetch {"source","query","limit","persist"}` performs a
+search; there is no fallback to an unlisted search engine or a spoofed user agent.
 These are defense-in-depth Python restrictions, not an OS isolation boundary: do not run
 untrusted community tools on a machine whose files or credentials you cannot afford to expose.
 

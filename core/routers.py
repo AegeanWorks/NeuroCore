@@ -2727,6 +2727,39 @@ async def get_default_config(module_id: str, module_manager: ModuleManager = Dep
 
 # --- Research ---
 
+@router.get("/research/sources")
+async def research_source_list():
+    """Allowlisted literature sources and their licence terms."""
+    from core.research_gateway import sources
+
+    return {"sources": sources()}
+
+
+@router.post("/research/fetch")
+async def research_source_fetch(request: Request):
+    """Search one allowlisted source; provenance is returned with every item."""
+    from core.research_gateway import SourcePolicyError, SourceUnavailableError, search
+
+    try:
+        body = await request.json()
+    except (ValueError, TypeError):
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    try:
+        limit = int(body.get("limit", 5))
+    except (TypeError, ValueError):
+        limit = 5
+    try:
+        return await search(
+            str(body.get("source", "")), str(body.get("query", "")), limit,
+            persist=bool(body.get("persist", False)),
+        )
+    except SourcePolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SourceUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/research", response_class=HTMLResponse)
 async def get_research(request: Request, settings_man: SettingsManager = Depends(get_settings_manager), module_manager: ModuleManager = Depends(get_module_manager)):
     modules = module_manager.get_all_modules()
