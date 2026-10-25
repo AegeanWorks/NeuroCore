@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `276`
 - **Total Classes**: `399`
-- **Total Top-Level Functions**: `1794`
-- **Total Class Methods**: `2144`
-- **Total Source Lines**: `77636`
+- **Total Top-Level Functions**: `1801`
+- **Total Class Methods**: `2145`
+- **Total Source Lines**: `77803`
 
 ---
 
@@ -2486,7 +2486,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1340` lines (`60223` bytes)
+**Size**: `1413` lines (`63467` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -2503,8 +2503,9 @@
   - Method `.has_memories()`
   - Method `.add_entry(text, embedding, confidence, subject, created_at, mem_type, source, verified, expires_at)`
   - Method `.set_parent(child_id, parent_id)` - *Links a memory to a parent, effectively archiving the child as an older version.*
-  - Method `.search(query_embedding, limit, source_filter, access_weight)`
-  - Method `.keyword_search(query, limit)` - *Text-based fallback search used when no embedding model is configured.*
+  - Method `.search(query_embedding, limit, source_filter, access_weight, link_boost)`
+  - Method `.keyword_search(query, limit, link_boost)` - *Text-based fallback search used when no embedding model is configured.*
+  - Method `._expand_with_links(results, limit, link_boost)` - *Promote one hop of accepted supporting evidence; zero disables the feature.*
   - Method `.get_recent(limit)`
   - Method `.browse(limit, offset, search_text, filter_date, mem_type, source, sort_field, sort_dir)` - *Retrieves memories with optional filtering for the Memory Browser UI.*
   - Method `.find_similar(embedding, threshold, limit, exclude_source)` - *Find memories with cosine similarity above threshold.*
@@ -2565,7 +2566,7 @@
 ---
 
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `395` lines (`17185` bytes)
+**Size**: `400` lines (`17465` bytes)
 
 **Classes:**
 - `class ConfigLoader`
@@ -5359,7 +5360,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `269` lines (`10243` bytes)
+**Size**: `358` lines (`13883` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -5382,6 +5383,13 @@
 - `def test_deleting_a_link_restores_the_stored_confidence(store)`
 - `def test_deleting_an_evidence_memory_removes_its_links_and_confidence(store)`
 - `def test_merging_archives_sources_and_recomputes_confidence(store)`
+- `def keyword(store, query, **kwargs)`
+- `def test_keyword_recall_boosts_accepted_supporting_evidence(store)`
+- `def test_link_boost_zero_keeps_the_original_ranking(store)`
+- `def test_only_accepted_supporting_or_derived_links_boost(store)`
+- `def test_deleted_archived_and_expired_neighbours_do_not_boost(store)`
+- `def test_an_existing_neighbour_is_merged_and_keeps_the_higher_score(store)`
+- `def test_link_boost_respects_the_limit(store)`
 
 ---
 

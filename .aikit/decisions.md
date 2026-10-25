@@ -1207,3 +1207,23 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   and merged evidence cannot silently inflate confidence.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (resource accounting),
   PRINCIPLE-013 (state integrity) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-055: Link-aware recall promotes supporting evidence
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The evidence graph was write-only from the recall path: `search` and
+  `keyword_search` ranked by vector/text score and ignored accepted `supports`/`derived_from`
+  links, so a fact could be retrieved without the corroborating memory next to it. Tif's
+  spreading-activation idea pointed at the same gap, but its implementation is coupled to its
+  store and graph.
+- **Decision**: Add `link_boost` (default `0`; the memory node uses `recall_link_boost`, default
+  `0.5`) to both recall paths. `_expand_with_links` takes the top five seed results, follows one
+  hop of accepted `supports` or `derived_from` links, and scores a neighbour
+  `seed_score * link_confidence * link_boost`. Only active, unarchived, unexpired neighbours
+  count; a neighbour already present keeps the higher score, records a `via_links` provenance
+  entry, and never duplicates. Results are capped at the requested limit; `0` is a pure no-op.
+- **Consequences**: Corroborating memories surface with the hit that justifies them, with an
+  auditable link in each result. The boost is bounded and local, cannot cross a contradiction, and
+  costs one indexed query per recall. It changes ranking only, never stored confidence.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work) and
+  PRINCIPLE-014 (failing-first tests).

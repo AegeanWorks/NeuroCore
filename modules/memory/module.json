@@ -17,6 +17,7 @@
         "auto_consolidation_hours": 24,
         "belief_ttl_days": 30,
         "recall_access_weight": 0.1,
+        "recall_link_boost": 0.5,
         "arbiter_model": "",
         "arbiter_prompt": "Extract facts from the conversation below. Each fact must be self-contained and fully understandable when viewed in isolation.\nSubject: {subject}\nRules:\n1. Return ONLY a JSON list of objects. Example: [{\"fact\": \"John lives in Paris and works as a developer\", \"type\": \"FACT\"}]\n2. ALWAYS include WHO the fact is about (use names, not pronouns like he/she/they). Facts must be understandable without any context.\n3. Avoid vague statements like \"likes coffee\" - instead say \"John prefers coffee over tea\"\n4. Include relevant details: \"John goes to gym every Monday and Wednesday morning\"\n5. Ignore greetings, questions, generic small talk, and general world knowledge.\n6. Focus on personal details, preferences, specific events, or instructions.\n7. If no useful facts found, return [].\n8. Choose type from: BELIEF, FACT, RULE, EXPERIENCE, PREFERENCE, IDENTITY.\n   - IDENTITY: Facts about identity (user's name, background, personality, or assistant's own identity)\n\nConversation:\n\"{text}\"\n\nJSON:"
     },

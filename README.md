@@ -301,7 +301,8 @@ from the navbar when the `brain` module is enabled and refreshes every five seco
 - **`memory`**: Semantic memory storage and hybrid vector recall with FAISS. Memory evidence links
   (`supports`, `contradicts`, `derived_from`, `supersedes`) carry a Laplace-smoothed confidence;
   contradiction candidates are found by a deterministic prefilter and stored as reviewable
-  proposals, never applied automatically.
+  proposals, never applied automatically. Recall promotes one hop of accepted `supports` or
+  `derived_from` evidence; `recall_link_boost` (default 0.5, 0 disables) bounds it.
 - **`knowledge_base`**: Document RAG with hybrid search (FAISS + SQLite FTS5) and Reciprocal Rank Fusion.
 - **`messaging_bridge`**: Unified multi-platform bridge supporting Telegram, Discord, Signal, and WhatsApp.
 - **`tools`**: 23 built-in tools executed in an isolated process sandbox with network policy controls.

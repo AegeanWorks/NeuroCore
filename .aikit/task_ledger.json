@@ -1,60 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "close-review-gaps",
+    "task_id": "link-aware-recall",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792967029.9201255,
+    "updated_at": 1792968570.5077353,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792967030.3165932
+    "completed_at": 1792968570.9463196
   },
   "checkpoints": [
-    {
-      "task_id": "brain-p2-controls",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'brain-p2-controls' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792954644.2046041,
-      "timestamp_str": "2026-10-25 21:57:24",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "memory-evidence-links",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] ADR-048 memory evidence links, Bayesian confidence and deterministic contradiction proposals. [2/3] Replace the unbounded per-pair LLM conflict scan, add routes and tests. [3/3] Gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792955738.4444659,
-      "timestamp_str": "2026-10-25 22:15:38",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The last P2 item in the Tif report with a concrete safety payoff: the existing conflict scan made one blocking LLM call per pair with no cap or review.",
-        "benefits": "Evidence-based confidence, bounded offline contradiction candidates and reviewable proposals instead of side effects in a GET.",
-        "risks": "contract: find_conflicts semantics change from LLM verdicts to deterministic candidates; dependency: none beyond stdlib; concurrency: writes under the memory write lock; state: an additive memory_links table.",
-        "mitigation": "Candidates require same subject, opposite polarity and 0.8 overlap; proposals never change confidence until accepted."
-      }
-    },
-    {
-      "task_id": "memory-evidence-links",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: memory_links schema with migration, link CRUD, acceptance recomputes confidence transactionally, deterministic contradiction prefilter (same subject, opposite polarity, 0.8 Jaccard) replaces the O(n^2) LLM scan, routes and README updated. ADR-048. Full suite 1865 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792955946.1351056,
-      "timestamp_str": "2026-10-25 22:19:06",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "P2-7 complete and green",
-        "next": "commit and push",
-        "open": "P2-10 research source gateway (last report item)"
-      }
-    },
     {
       "task_id": "memory-evidence-links",
       "phase": "completed",
@@ -288,6 +245,49 @@
       "status": "completed",
       "timestamp": 1792967030.3165946,
       "timestamp_str": "2026-10-26 01:23:50",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "link-aware-recall",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/3] Link-aware recall: one-hop accepted supports/derived_from promotion in vector and keyword search, provenance in via_links, active/unarchived/unexpired guard, configurable recall_link_boost (ADR-055). [2/3] Tests and README. [3/3] Gates, commit and push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792968187.133352,
+      "timestamp_str": "2026-10-26 01:43:07",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The evidence graph was not used at recall time; corroborating memories were invisible unless their text matched.",
+        "benefits": "Recall surfaces supported facts with provenance, bounded and local, without changing stored confidence.",
+        "risks": "contract: ranking changes when recall_link_boost > 0; dependency: none; concurrency: one read query per recall; state: none written.",
+        "mitigation": "Default 0.5 is bounded, 0 is a no-op, and only accepted supporting links from active records count."
+      }
+    },
+    {
+      "task_id": "link-aware-recall",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done: link-aware recall in vector and keyword paths with via_links provenance, one-hop accepted supports/derived_from only, active/unarchived/unexpired guards, configurable recall_link_boost (default 0.5). README kept within its budget. ADR-055. Full suite 1907 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792968570.5077353,
+      "timestamp_str": "2026-10-26 01:49:30",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "link-aware recall complete and green",
+        "next": "commit and push",
+        "open": "none"
+      }
+    },
+    {
+      "task_id": "link-aware-recall",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'link-aware-recall' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792968570.9463212,
+      "timestamp_str": "2026-10-26 01:49:30",
       "agent": "kilo:main"
     }
   ]

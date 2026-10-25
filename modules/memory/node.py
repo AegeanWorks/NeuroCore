@@ -104,12 +104,17 @@ class MemoryRecallExecutor:
 
         source_filter = config.get("source_filter") or None
         access_weight = float(config.get("recall_access_weight", 0.0))
+        try:
+            link_boost = float(config.get("link_boost", self.config.get("recall_link_boost", 0.5)))
+        except (TypeError, ValueError):
+            link_boost = 0.0
+        link_boost = max(0.0, min(1.0, link_boost))
 
         loop = asyncio.get_running_loop()
         if embedding:
             results = await loop.run_in_executor(
                 memory_store.executor,
-                partial(memory_store.search, embedding, limit=limit, source_filter=source_filter, access_weight=access_weight)
+                partial(memory_store.search, embedding, limit=limit, source_filter=source_filter, access_weight=access_weight, link_boost=link_boost)
             )
             results = [r for r in results if r.get('score', 0) >= min_score]
         else:
@@ -117,7 +122,7 @@ class MemoryRecallExecutor:
             # memories saved without vectors are still retrievable.
             results = await loop.run_in_executor(
                 memory_store.executor,
-                partial(memory_store.keyword_search, query_text, limit)
+                partial(memory_store.keyword_search, query_text, limit, link_boost=link_boost)
             )
 
         if not results:

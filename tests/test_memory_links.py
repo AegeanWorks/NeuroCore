@@ -1,5 +1,7 @@
 """Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions."""
 
+import time
+
 import pytest
 
 import modules.memory.backend as memory_backend
@@ -267,3 +269,90 @@ def test_merging_archives_sources_and_recomputes_confidence(store):
     assert merged is not None
     assert stored_confidence(store, target) == 0.5, "archived evidence stops counting"
     assert store.get_links(target) == []
+
+
+def keyword(store, query, **kwargs):
+    return store.keyword_search(query, limit=kwargs.pop("limit", 5), **kwargs)
+
+
+def test_keyword_recall_boosts_accepted_supporting_evidence(store):
+    seed = add(store, "alpha launch notes")
+    support = add(store, "beta supporting detail")
+    store.add_link(seed, support, relation="supports", status="accepted")
+
+    plain = keyword(store, "alpha", link_boost=0.0)
+    boosted = keyword(store, "alpha", link_boost=0.5)
+
+    assert [item["id"] for item in plain] == [seed]
+    by_id = {item["id"]: item for item in boosted}
+    assert support in by_id
+    assert by_id[support]["score"] > 0
+    assert by_id[support]["via_links"] == [{"source_id": seed, "relation": "supports"}]
+
+
+def test_link_boost_zero_keeps_the_original_ranking(store):
+    seed = add(store, "alpha launch notes")
+    support = add(store, "beta supporting detail")
+    store.add_link(seed, support, relation="supports", status="accepted")
+
+    assert keyword(store, "alpha", link_boost=0.0) == keyword(store, "alpha")
+
+
+def test_only_accepted_supporting_or_derived_links_boost(store):
+    seed = add(store, "alpha launch notes")
+    proposed = add(store, "proposed neighbour")
+    contradicting = add(store, "contradicting neighbour")
+    derived = add(store, "derived neighbour")
+    store.add_link(seed, proposed, relation="supports", status="proposed")
+    store.add_link(seed, contradicting, relation="contradicts", status="accepted")
+    store.add_link(seed, derived, relation="derived_from", status="accepted")
+
+    boosted = {item["id"] for item in keyword(store, "alpha", link_boost=0.5)}
+
+    assert proposed not in boosted
+    assert contradicting not in boosted
+    assert derived in boosted
+
+
+def test_deleted_archived_and_expired_neighbours_do_not_boost(store):
+    seed = add(store, "alpha launch notes")
+    deleted = add(store, "deleted neighbour")
+    archived = add(store, "archived neighbour")
+    archived_peer = add(store, "peer for archiving")
+    expired = store.add_entry("expired neighbour", subject="User", mem_type="FACT",
+                              source="chat", verified=True, expires_at=int(time.time()) - 10)
+    store.add_link(seed, deleted, relation="supports", status="accepted")
+    store.add_link(seed, archived, relation="supports", status="accepted")
+    store.add_link(seed, expired, relation="supports", status="accepted")
+    store.delete_entry(deleted, reason="test")
+    store.merge_memories([archived, archived_peer], "archived merged")
+
+    boosted = {item["id"] for item in keyword(store, "alpha", link_boost=0.5)}
+
+    assert deleted not in boosted
+    assert archived not in boosted
+    assert expired not in boosted
+
+
+def test_an_existing_neighbour_is_merged_and_keeps_the_higher_score(store):
+    seed = add(store, "alpha launch notes")
+    support = add(store, "alpha supporting detail")
+    store.add_link(seed, support, relation="supports", status="accepted")
+
+    results = keyword(store, "alpha", link_boost=1.0)
+
+    ids = [item["id"] for item in results]
+    assert ids.count(support) == 1
+    assert ids.count(seed) == 1
+    merged = next(item for item in results if item["id"] == support)
+    assert merged["score"] == 0.5, "the direct hit outranks a boosted neighbour"
+    assert merged["via_links"][0]["source_id"] == seed
+
+
+def test_link_boost_respects_the_limit(store):
+    seed = add(store, "alpha launch notes")
+    for index in range(5):
+        neighbour = add(store, f"neighbour {index}")
+        store.add_link(seed, neighbour, relation="supports", status="accepted")
+
+    assert len(keyword(store, "alpha", limit=3, link_boost=0.5)) == 3

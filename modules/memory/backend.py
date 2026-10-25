@@ -341,7 +341,7 @@ class MemoryStore:
                     self.faiss_index.remove_ids(np.array([child_id]).astype('int64'))
                     self._save_faiss_index()
 
-    def search(self, query_embedding: List[float], limit: int = 5, source_filter: str = None, access_weight: float = 0.0) -> List[Dict]:
+    def search(self, query_embedding: List[float], limit: int = 5, source_filter: str = None, access_weight: float = 0.0, link_boost: float = 0.0) -> List[Dict]:
         if not query_embedding: return []
         
         q_emb_np = np.array(query_embedding, dtype='float32')
@@ -444,11 +444,10 @@ class MemoryStore:
                     con.execute(f"UPDATE memories SET access_count = access_count + 1 WHERE id IN ({placeholders})", valid_ids)
             
             results.sort(key=lambda x: x['score'], reverse=True)
-            return results
-        
-        return []
 
-    def keyword_search(self, query: str, limit: int = 5) -> List[Dict]:
+        return self._expand_with_links(results, limit, link_boost)
+
+    def keyword_search(self, query: str, limit: int = 5, link_boost: float = 0.0) -> List[Dict]:
         """Text-based fallback search used when no embedding model is configured."""
         current_time = int(time.time())
         words = [w.strip() for w in query.split() if len(w.strip()) > 2]
@@ -461,7 +460,11 @@ class MemoryStore:
                     AND (expires_at IS NULL OR expires_at > ?)
                     ORDER BY created_at DESC LIMIT ?
                 """, (current_time, limit)).fetchall()
-            return [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5} for r in rows]
+            return self._expand_with_links(
+                [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5}
+                 for r in rows],
+                limit, link_boost,
+            )
 
         like_clauses = " AND ".join(["m.text LIKE ?" for _ in words])
         params = [f"%{w}%" for w in words] + [current_time, limit]
@@ -473,7 +476,77 @@ class MemoryStore:
                 AND (m.expires_at IS NULL OR m.expires_at > ?)
                 ORDER BY m.created_at DESC LIMIT ?
             """, params).fetchall()
-        return [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5} for r in rows]
+        return self._expand_with_links(
+            [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5}
+             for r in rows],
+            limit, link_boost,
+        )
+
+    def _expand_with_links(self, results: List[Dict], limit: int,
+                           link_boost: float) -> List[Dict]:
+        """Promote one hop of accepted supporting evidence; zero disables the feature.
+
+        Only ``supports`` and ``derived_from`` links boost, the source must be a seed result, and
+        the neighbour must be active, unarchived and unexpired. A neighbour already present keeps
+        the higher score and records why it was promoted (ADR-055).
+        """
+        try:
+            strength = float(link_boost)
+        except (TypeError, ValueError):
+            strength = 0.0
+        if strength <= 0 or not results:
+            return results
+        seeds = {
+            int(item["id"]): float(item.get("score", 0.0))
+            for item in results[:min(5, len(results))]
+        }
+        if not seeds:
+            return results
+        placeholders = ','.join(['?'] * len(seeds))
+        now = int(time.time())
+        with self._connect() as con:
+            rows = con.execute(f"""
+                SELECT l.source_id, l.target_id, l.relation, l.confidence,
+                       m.id, m.text, m.created_at, m.type
+                FROM memory_links l
+                JOIN memories m ON m.id = l.target_id
+                WHERE l.source_id IN ({placeholders})
+                  AND l.status = 'accepted'
+                  AND l.relation IN ('supports', 'derived_from')
+                  AND m.deleted = 0 AND m.parent_id IS NULL
+                  AND (m.expires_at IS NULL OR m.expires_at > ?)
+            """, [*seeds.keys(), now]).fetchall()
+
+        by_id = {int(item["id"]): item for item in results}
+        for source_id, target_id, relation, confidence, memory_id, text, created, mem_type in rows:
+            seed_score = seeds.get(int(source_id), 0.0)
+            try:
+                link_confidence = max(0.0, min(1.0, float(confidence)))
+            except (TypeError, ValueError):
+                link_confidence = 0.0
+            boost = round(seed_score * link_confidence * strength, 4)
+            if boost <= 0:
+                continue
+            target_id = int(memory_id)
+            existing = by_id.get(target_id)
+            if existing is not None:
+                via = existing.setdefault("via_links", [])
+                via.append({"source_id": int(source_id), "relation": str(relation)})
+                if boost > float(existing.get("score", 0.0)):
+                    existing["score"] = boost
+                continue
+            entry = {
+                "id": target_id,
+                "text": text,
+                "created_at": created,
+                "type": mem_type,
+                "score": boost,
+                "via_links": [{"source_id": int(source_id), "relation": str(relation)}],
+            }
+            by_id[target_id] = entry
+            results.append(entry)
+        results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+        return results[:max(1, int(limit))]
 
     def get_recent(self, limit: int = 20) -> List[Dict]:
         with self._connect() as con:
