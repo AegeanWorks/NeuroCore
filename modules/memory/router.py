@@ -287,3 +287,75 @@ async def complete_goal(request: Request, goal_id: int):
         # FIX: Use JSONResponse instead of tuple return
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
+
+@router.get("/links/{memory_id}")
+async def list_memory_links(memory_id: int, relation: str = None, status: str = None):
+    loop = asyncio.get_running_loop()
+    links = await loop.run_in_executor(
+        memory_store.executor,
+        lambda: memory_store.get_links(memory_id, relation=relation, status=status),
+    )
+    confidence = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.bayesian_confidence(memory_id)
+    )
+    return {"memory_id": memory_id, "links": links, "evidence": confidence}
+
+
+@router.post("/links")
+async def add_memory_link(request: Request):
+    data = await request.json()
+    try:
+        link = memory_store.add_link(
+            int(data["source_id"]), int(data["target_id"]),
+            relation=str(data.get("relation", "supports")),
+            evidence=str(data.get("evidence", "")),
+            status=str(data.get("status", "accepted")),
+            created_by=str(data.get("created_by", "operator")),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return JSONResponse(status_code=400, content={"detail": str(exc)})
+    return link
+
+
+@router.post("/links/{link_id}/accept")
+async def accept_memory_link(link_id: int):
+    loop = asyncio.get_running_loop()
+    link = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.accept_link(link_id)
+    )
+    if link is None:
+        return JSONResponse(status_code=404, content={"detail": "Link not found"})
+    return link
+
+
+@router.delete("/links/{link_id}")
+async def delete_memory_link(link_id: int):
+    loop = asyncio.get_running_loop()
+    deleted = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.delete_link(link_id)
+    )
+    return {"deleted": bool(deleted)}
+
+
+@router.get("/contradictions")
+async def contradiction_candidates(limit: int = 50):
+    loop = asyncio.get_running_loop()
+    candidates = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.find_conflicts(limit=limit)
+    )
+    return {"candidates": candidates}
+
+
+@router.post("/contradictions/scan")
+async def scan_contradictions(request: Request):
+    try:
+        data = await request.json()
+    except (TypeError, ValueError):
+        data = {}
+    limit = max(1, min(int((data or {}).get("limit", 20)), 100))
+    loop = asyncio.get_running_loop()
+    proposals = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.suggest_contradictions(limit=limit)
+    )
+    return {"created": len(proposals), "proposals": proposals}

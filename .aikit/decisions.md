@@ -1054,3 +1054,23 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   the memory store stays bounded. Avoidances advise verification; they never block a tool call.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded state) and
   PRINCIPLE-014 (failing-first tests).
+
+### ADR-048: Memory evidence links and review-gated contradiction proposals
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Memories had confidence values but no relationships, so the system could not answer
+  what supported or contradicted a belief. `find_conflicts` used one blocking LLM call per memory
+  pair with no cap, no persistence and no review step; its side effects were invisible to the UI.
+- **Decision**: Add a `memory_links` table (source, target, relation, evidence, status, creator,
+  timestamp; unique per triple) with `supports`, `contradicts`, `derived_from` and `supersedes`.
+  Confidence is evidence-based: `(supports + 1) / (supports + contradictions + 2)` over accepted
+  links targeting a memory; accepting a proposal recomputes it in the same transaction. The
+  contradiction scan is deterministic: same subject, opposite negation polarity, and at least
+  0.8 Jaccard overlap after removing negation words; it creates `proposed` links and never edits
+  confidence. The old LLM scanner is removed; `/memory/conflicts` now returns candidates and
+  `/memory/contradictions/scan` persists proposals.
+- **Consequences**: Contradiction review is bounded, offline, reproducible and attributable.
+  Recall quality is lower than an LLM judge's; a future optional LLM pass may rank proposals but
+  must not replace the deterministic gate or apply changes automatically.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
+  dependencies), PRINCIPLE-013 (transactional state) and PRINCIPLE-014 (failing-first tests).

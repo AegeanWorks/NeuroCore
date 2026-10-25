@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -153,6 +154,24 @@ class MemoryStore:
         """)
         con.execute("CREATE INDEX IF NOT EXISTS idx_msr_memory_id ON memory_session_refs(memory_id);")
         con.execute("CREATE INDEX IF NOT EXISTS idx_msr_session_id ON memory_session_refs(session_id);")
+
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS memory_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_id INTEGER NOT NULL,
+                target_id INTEGER NOT NULL,
+                relation TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                evidence TEXT,
+                status TEXT DEFAULT 'accepted',
+                created_by TEXT DEFAULT 'system',
+                created_at INTEGER NOT NULL,
+                UNIQUE(source_id, target_id, relation)
+            )
+        """)
+        con.execute("CREATE INDEX IF NOT EXISTS idx_links_source ON memory_links(source_id);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_links_target ON memory_links(target_id);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_links_status ON memory_links(status);")
 
     def _parse_embedding(self, blob) -> Optional[np.ndarray]:
         if blob is None: return None
@@ -853,80 +872,256 @@ class MemoryStore:
                 
                 return new_id
 
-    def find_conflicts(self, memory_ids: List[int] = None) -> List[Dict]:
+    LINK_RELATIONS = ("supports", "contradicts", "derived_from", "supersedes")
+    LINK_STATUSES = ("proposed", "accepted")
+    _LINK_STOPWORDS = frozenset({
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "to", "of", "and", "or",
+        "in", "on", "at", "for", "with", "that", "this", "it", "as", "by", "from", "user",
+        "i", "you", "we", "they", "he", "she", "my", "your", "our", "their",
+    })
+    _NEGATIONS = frozenset({
+        "not", "no", "never", "none", "cannot", "cant", "dont", "doesnt", "isnt", "arent",
+        "wasnt", "werent", "without", "unable", "neither", "nor",
+    })
+
+    @classmethod
+    def _content_tokens(cls, text: str) -> set:
+        return {
+            token for token in re.findall(r"[a-z0-9_]+", str(text or "").lower())
+            if token not in cls._LINK_STOPWORDS
+        }
+
+    @classmethod
+    def _negated(cls, text: str) -> bool:
+        return bool(cls._content_tokens(text) & cls._NEGATIONS)
+
+    def _link_row(self, row) -> Dict:
+        return {
+            "id": row[0],
+            "source_id": row[1],
+            "target_id": row[2],
+            "relation": row[3],
+            "confidence": float(row[4]),
+            "evidence": row[5] or "",
+            "status": row[6],
+            "created_by": row[7] or "system",
+            "created_at": row[8],
+        }
+
+    def add_link(self, source_id: int, target_id: int, relation: str = "supports",
+                 evidence: str = "", status: str = "accepted",
+                 created_by: str = "system") -> Dict:
+        """Record evidence between two memories; duplicates return the existing link."""
+        if relation not in self.LINK_RELATIONS:
+            raise ValueError(f"relation must be one of {', '.join(self.LINK_RELATIONS)}")
+        if status not in self.LINK_STATUSES:
+            raise ValueError(f"status must be one of {', '.join(self.LINK_STATUSES)}")
+        source_id, target_id = int(source_id), int(target_id)
+        if source_id == target_id:
+            raise ValueError("a memory cannot link to itself")
+        with self.write_lock:
+            with self._connect() as con:
+                rows = con.execute(
+                    "SELECT id, deleted FROM memories WHERE id IN (?, ?)", (source_id, target_id)
+                ).fetchall()
+                if len(rows) != 2 or any(row[1] for row in rows):
+                    raise ValueError("both memories must exist and be active")
+                existing = con.execute(
+                    "SELECT id FROM memory_links WHERE source_id=? AND target_id=? AND relation=?",
+                    (source_id, target_id, relation),
+                ).fetchone()
+                if existing:
+                    return self.get_link(existing[0])
+                cursor = con.execute(
+                    """INSERT INTO memory_links
+                       (source_id, target_id, relation, confidence, evidence, status,
+                        created_by, created_at)
+                       VALUES (?, ?, ?, 0.5, ?, ?, ?, ?)""",
+                    (source_id, target_id, relation, str(evidence)[:500], status,
+                     str(created_by)[:80], int(time.time())),
+                )
+                link_id = cursor.lastrowid
+            return self.get_link(link_id)
+
+    def get_link(self, link_id: int) -> Optional[Dict]:
+        with self._connect() as con:
+            row = con.execute(
+                """SELECT id, source_id, target_id, relation, confidence, evidence, status,
+                          created_by, created_at FROM memory_links WHERE id=?""",
+                (int(link_id),),
+            ).fetchone()
+        return self._link_row(row) if row else None
+
+    def get_links(self, memory_id: int, relation: str = None,
+                  status: str = None) -> List[Dict]:
+        """Links touching one memory, with the neighbour's text for display."""
+        query = """
+            SELECT l.id, l.source_id, l.target_id, l.relation, l.confidence, l.evidence,
+                   l.status, l.created_by, l.created_at,
+                   s.text, t.text
+            FROM memory_links l
+            JOIN memories s ON s.id = l.source_id
+            JOIN memories t ON t.id = l.target_id
+            WHERE (l.source_id=? OR l.target_id=?)
+              AND s.deleted=0 AND t.deleted=0
         """
-        Finds contradictory memories using LLM.
-        If memory_ids provided, checks only those. Otherwise checks all active memories.
-        Returns list of dicts with conflicting memory pairs and LLM reason.
+        params: List = [int(memory_id), int(memory_id)]
+        if relation:
+            query += " AND l.relation=?"
+            params.append(relation)
+        if status:
+            query += " AND l.status=?"
+            params.append(status)
+        query += " ORDER BY l.id DESC"
+        with self._connect() as con:
+            rows = con.execute(query, params).fetchall()
+        links = []
+        for row in rows:
+            link = self._link_row(row)
+            outgoing = link["source_id"] == int(memory_id)
+            neighbour_id = link["target_id"] if outgoing else link["source_id"]
+            neighbour_text = row[10] if outgoing else row[9]
+            links.append({
+                **link,
+                "direction": "outgoing" if outgoing else "incoming",
+                "neighbour_id": neighbour_id,
+                "neighbour_text": str(neighbour_text or "")[:200],
+            })
+        return links
+
+    def delete_link(self, link_id: int) -> bool:
+        with self.write_lock:
+            with self._connect() as con:
+                cursor = con.execute("DELETE FROM memory_links WHERE id=?", (int(link_id),))
+                return cursor.rowcount > 0
+
+    def bayesian_confidence(self, memory_id: int) -> Dict:
+        """Laplace-smoothed belief from accepted evidence: (s+1) / (s+c+2)."""
+        with self._connect() as con:
+            row = con.execute(
+                """SELECT
+                     SUM(CASE WHEN relation='supports' THEN 1 ELSE 0 END),
+                     SUM(CASE WHEN relation='contradicts' THEN 1 ELSE 0 END)
+                   FROM memory_links WHERE target_id=? AND status='accepted'""",
+                (int(memory_id),),
+            ).fetchone()
+        supports = int(row[0] or 0)
+        contradicts = int(row[1] or 0)
+        return {
+            "memory_id": int(memory_id),
+            "supports": supports,
+            "contradicts": contradicts,
+            "confidence": round((supports + 1) / (supports + contradicts + 2), 4),
+        }
+
+    def accept_link(self, link_id: int) -> Optional[Dict]:
+        """Accept a proposal, then recompute the target's confidence in one transaction."""
+        with self.write_lock:
+            with self._connect() as con:
+                link = con.execute(
+                    "SELECT id, target_id FROM memory_links WHERE id=?", (int(link_id),)
+                ).fetchone()
+                if not link:
+                    return None
+                con.execute("UPDATE memory_links SET status='accepted' WHERE id=?", (int(link_id),))
+                # Read the counts through the same connection: a second connection would not
+                # see the uncommitted acceptance and would compute stale evidence.
+                counts = con.execute(
+                    """SELECT
+                         SUM(CASE WHEN relation='supports' THEN 1 ELSE 0 END),
+                         SUM(CASE WHEN relation='contradicts' THEN 1 ELSE 0 END)
+                       FROM memory_links WHERE target_id=? AND status='accepted'""",
+                    (int(link[1]),),
+                ).fetchone()
+                supports, contradicts = int(counts[0] or 0), int(counts[1] or 0)
+                confidence = round((supports + 1) / (supports + contradicts + 2), 4)
+                con.execute(
+                    "UPDATE memories SET confidence=? WHERE id=?",
+                    (confidence, int(link[1])),
+                )
+        result = self.get_link(link_id)
+        if result is not None:
+            result["confidence_after"] = confidence
+        return result
+
+    def find_conflicts(self, memory_ids: List[int] = None, limit: int = 500) -> List[Dict]:
+        """Deterministic contradiction candidates: shared terms plus opposite polarity.
+
+        This replaces the previous all-pairs LLM scan, which made one blocking model call per
+        pair with no cap. It is a prefilter for human review, not a verdict (ADR-048).
         """
-        from core.llm import LLMBridge
-        from core.settings import settings
-        
         with self._connect() as con:
             if memory_ids:
                 placeholders = ','.join(['?'] * len(memory_ids))
                 rows = con.execute(f"""
-                    SELECT id, text, type FROM memories 
+                    SELECT id, text, type, subject FROM memories
                     WHERE id IN ({placeholders}) AND deleted = 0 AND parent_id IS NULL
-                """, memory_ids).fetchall()
+                    LIMIT ?
+                """, [int(mid) for mid in memory_ids] + [max(2, int(limit))]).fetchall()
             else:
                 rows = con.execute("""
-                    SELECT id, text, type FROM memories 
+                    SELECT id, text, type, subject FROM memories
                     WHERE deleted = 0 AND parent_id IS NULL
-                """).fetchall()
-        
-        memories = [{"id": r[0], "text": r[1], "type": r[2]} for r in rows]
-        
-        if len(memories) < 2:
-            return []
-        
-        conflicts = []
-        client = LLMBridge(
-            base_url=settings.get("llm_api_url"),
-            api_key=settings.get("llm_api_key"),
-            timeout=30.0
-        )
-        
-        for i in range(len(memories)):
-            for j in range(i + 1, len(memories)):
-                mem1 = memories[i]
-                mem2 = memories[j]
-                
-                prompt = f"""Do these two memories contradict each other?
-Memory A (id={mem1['id']}): {mem1['text']}
-Memory B (id={mem2['id']}): {mem2['text']}
+                    ORDER BY id DESC LIMIT ?
+                """, (max(2, int(limit)),)).fetchall()
 
-Answer in this exact format:
-CONFLICT: YES or NO
-REASON: Brief explanation (1-2 sentences)"""
-                
-                try:
-                    import asyncio
-                    # Use asyncio.run() instead of creating a new event loop
-                    response = asyncio.run(client.chat_completion(
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0,
-                        max_tokens=100
-                    ))
-                    result_text = response.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                    
-                    if result_text.startswith("CONFLICT: YES"):
-                        reason_start = result_text.find("REASON:") + 7
-                        reason = result_text[reason_start:].strip() if reason_start > 6 else "Contradictory content"
-                        
-                        conflicts.append({
-                            "memory_1": mem1,
-                            "memory_2": mem2,
-                            "reason": reason
-                        })
-                        
-                        self.log_meta_memory("conflict", [mem1['id'], mem2['id']], None, f"Conflict detected: #{mem1['id']} contradicts #{mem2['id']}: {reason}")
-                        
-                except Exception as e:
-                    logger.warning(f"Conflict check failed for {mem1['id']} vs {mem2['id']}: {e}")
-        
-        return conflicts
+        memories = [
+            {"id": row[0], "text": row[1], "type": row[2], "subject": row[3], "tokens":
+             self._content_tokens(row[1])}
+            for row in rows
+        ]
+        existing = set()
+        with self._connect() as con:
+            for row in con.execute(
+                "SELECT source_id, target_id FROM memory_links WHERE relation='contradicts'"
+            ).fetchall():
+                existing.add((row[0], row[1]))
+                existing.add((row[1], row[0]))
 
+        candidates = []
+        for index, first in enumerate(memories):
+            if not first["tokens"]:
+                continue
+            for second in memories[index + 1:]:
+                if not second["tokens"]:
+                    continue
+                if (first["id"], second["id"]) in existing:
+                    continue
+                if str(first["subject"] or "") != str(second["subject"] or ""):
+                    continue
+                if self._negated(first["text"]) == self._negated(second["text"]):
+                    continue
+                # Compare the content with negation words removed: a candidate should differ
+                # mainly in polarity, not in subject matter.
+                first_core = first["tokens"] - self._NEGATIONS
+                second_core = second["tokens"] - self._NEGATIONS
+                shared = first_core & second_core
+                union = first_core | second_core
+                overlap = len(shared) / len(union) if union else 0.0
+                if overlap < 0.8:
+                    continue
+                candidates.append({
+                    "memory_1": {"id": first["id"], "text": first["text"], "type": first["type"]},
+                    "memory_2": {"id": second["id"], "text": second["text"], "type": second["type"]},
+                    "reason": (
+                        f"shared terms ({', '.join(sorted(shared))}) with opposite polarity; "
+                        "review before accepting"
+                    ),
+                    "overlap": round(overlap, 3),
+                })
+        return candidates
+
+    def suggest_contradictions(self, limit: int = 20) -> List[Dict]:
+        """Persist contradiction candidates as reviewable proposals; never edits confidence."""
+        created = []
+        for candidate in self.find_conflicts(limit=500)[:max(1, int(limit))]:
+            link = self.add_link(
+                candidate["memory_1"]["id"], candidate["memory_2"]["id"],
+                relation="contradicts", evidence=candidate["reason"],
+                status="proposed", created_by="scan",
+            )
+            created.append(link)
+        return created
     def get_meta_memories(self, limit: int = 50, offset: int = 0) -> List[Dict]:
         """Retrieves meta-memory audit logs."""
         with self._connect() as con:

@@ -201,7 +201,10 @@ Consolidation also distils repeated training failures into bounded `[avoid]` kno
 success does not erase it, because one success is not evidence against two failures.
 `POST /brain/learn/suggest {"query": "..."}` returns the skills worth reusing and the past
 failures to verify before retrying.
-`GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger. Evaluation runs
+`GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger. Evidence links are exposed by
+`GET /memory/links/{id}`, `POST /memory/links` and `POST /memory/links/{id}/accept`; a
+contradiction scan (`GET /memory/contradictions`, `POST /memory/contradictions/scan`) is a
+deterministic prefilter that only creates proposals for review. Evaluation runs
 also record their per-task outcomes, so the scorecard feeds the same learning loop.
 
 While the brain service is active, ordinary chat/flow executions emit an outcome through
@@ -292,7 +295,10 @@ from the navbar when the `brain` module is enabled and refreshes every five seco
 
 - **`agent_loop`**: Autonomous goal pursuit with RLM reasoning and tool calls.
 - **`brain`**: Observe/suggest self-model, event bus, cognitive scheduler and evaluation scorecard.
-- **`memory`**: Semantic memory storage and hybrid vector recall with FAISS.
+- **`memory`**: Semantic memory storage and hybrid vector recall with FAISS. Memory evidence links
+  (`supports`, `contradicts`, `derived_from`, `supersedes`) carry a Laplace-smoothed confidence;
+  contradiction candidates are found by a deterministic prefilter and stored as reviewable
+  proposals, never applied automatically.
 - **`knowledge_base`**: Document RAG with hybrid search (FAISS + SQLite FTS5) and Reciprocal Rank Fusion.
 - **`messaging_bridge`**: Unified multi-platform bridge supporting Telegram, Discord, Signal, and WhatsApp.
 - **`tools`**: 23 built-in tools executed in an isolated process sandbox with network policy controls.

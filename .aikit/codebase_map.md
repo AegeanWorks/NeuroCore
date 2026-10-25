@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `273`
+- **Total Python Modules**: `274`
 - **Total Classes**: `396`
-- **Total Top-Level Functions**: `1717`
-- **Total Class Methods**: `2128`
-- **Total Source Lines**: `75983`
+- **Total Top-Level Functions**: `1738`
+- **Total Class Methods**: `2138`
+- **Total Source Lines**: `76464`
 
 ---
 
@@ -2449,7 +2449,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1102` lines (`48834` bytes)
+**Size**: `1297` lines (`58226` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -2481,7 +2481,17 @@
   - Method `.update_entry(memory_id, text, mem_type, verified)` - *Updates a memory entry. Archives the old version via parent_id.*
   - Method `.delete_entry(memory_id, reason)` - *Hard deletes a memory entry. Logs to meta_memories.*
   - Method `.merge_memories(memory_ids, new_text, new_type, new_verified)` - *Merges multiple memories into one. Archives originals via parent_id.*
-  - Method `.find_conflicts(memory_ids)` - *Finds contradictory memories using LLM.*
+  - Method `._content_tokens(text)`
+  - Method `._negated(text)`
+  - Method `._link_row(row)`
+  - Method `.add_link(source_id, target_id, relation, evidence, status, created_by)` - *Record evidence between two memories; duplicates return the existing link.*
+  - Method `.get_link(link_id)`
+  - Method `.get_links(memory_id, relation, status)` - *Links touching one memory, with the neighbour's text for display.*
+  - Method `.delete_link(link_id)`
+  - Method `.bayesian_confidence(memory_id)` - *Laplace-smoothed belief from accepted evidence: (s+1) / (s+c+2).*
+  - Method `.accept_link(link_id)` - *Accept a proposal, then recompute the target's confidence in one transaction.*
+  - Method `.find_conflicts(memory_ids, limit)` - *Deterministic contradiction candidates: shared terms plus opposite polarity.*
+  - Method `.suggest_contradictions(limit)` - *Persist contradiction candidates as reviewable proposals; never edits confidence.*
   - Method `.get_meta_memories(limit, offset)` - *Retrieves meta-memory audit logs.*
   - Method `.create_goal(description, priority, deadline, context)` - *Create a new goal. Returns goal ID.*
   - Method `.get_goals(status, limit, offset)` - *Get goals, optionally filtered by status.*
@@ -2542,7 +2552,7 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `289` lines (`14520` bytes)
+**Size**: `361` lines (`17071` bytes)
 
 **Functions:**
 - `async def get_stats(request)`
@@ -2563,6 +2573,12 @@
 - `async def update_goal(request, goal_id, description, priority, status, context, deadline)`
 - `async def delete_goal(request, goal_id)`
 - `async def complete_goal(request, goal_id)`
+- `async def list_memory_links(memory_id, relation, status)`
+- `async def add_memory_link(request)`
+- `async def accept_memory_link(link_id)`
+- `async def delete_memory_link(link_id)`
+- `async def contradiction_candidates(limit)`
+- `async def scan_contradictions(request)`
 
 ---
 
@@ -5286,6 +5302,30 @@
 - `async def test_run_updates_state_on_success(mock_store, mock_llm)`
 - `async def test_run_updates_state_on_error(mock_store, mock_llm)`
 - `async def test_run_accumulates_consolidated_count(mock_store, mock_llm)`
+
+---
+
+### [`tests/test_memory_links.py`](tests/test_memory_links.py)
+> *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
+
+**Size**: `214` lines (`8192` bytes)
+
+**Functions:**
+- `def store(tmp_path, monkeypatch)`
+- `def add(store, text, subject, mem_type, verified)`
+- `def test_a_link_round_trips_and_cannot_target_itself(store)`
+- `def test_invalid_relations_statuses_and_missing_memories_are_rejected(store)`
+- `def test_a_duplicate_link_returns_the_existing_row(store)`
+- `def test_links_report_direction_and_neighbour_text(store)`
+- `def test_bayesian_confidence_uses_laplace_smoothing(store)`
+- `def test_a_proposal_does_not_change_confidence_until_accepted(store)`
+- `def test_accept_and_delete_report_missing_rows(store)`
+- `def test_deleting_a_link_removes_it_from_both_sides(store)`
+- `def test_deterministic_conflicts_need_shared_terms_and_opposite_polarity(store)`
+- `def test_conflict_scan_persists_proposals_and_is_idempotent(store)`
+- `def test_the_conflict_scan_never_calls_an_llm(store, monkeypatch)`
+- `def test_the_link_routes_round_trip(store, monkeypatch)`
+- `def test_the_scan_route_returns_new_proposals(store, monkeypatch)`
 
 ---
 
