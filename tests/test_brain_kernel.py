@@ -45,7 +45,9 @@ def test_kernel_transitions_and_gates(tmp_path):
 
 
 def test_safe_mode_hysteresis_and_kill_switch(tmp_path):
-    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")))
+    now = [1000.0]
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0], dwell_seconds=60.0)
     kernel.observe(snapshot(provider_errors=1, pass_rate=0.0, drift=1.0))
     assert kernel.mode == "safe"
 
@@ -53,6 +55,12 @@ def test_safe_mode_hysteresis_and_kill_switch(tmp_path):
     kernel.observe(snapshot(provider_errors=1, pass_rate=0.5, drift=1.0))
     assert kernel.mode == "safe"
 
+    # A clean snapshot during the dwell holds the safer mode (ADR-039).
+    kernel.observe(snapshot(provider_errors=0, pass_rate=1.0, drift=0.0))
+    assert kernel.mode == "safe"
+    assert kernel.to_dict()["dwell_remaining"] > 0
+
+    now[0] += 61
     kernel.observe(snapshot(provider_errors=0, pass_rate=1.0, drift=0.0))
     assert kernel.mode == "normal"
 
@@ -63,6 +71,67 @@ def test_safe_mode_hysteresis_and_kill_switch(tmp_path):
     assert kernel.mode == "safe"
     kernel.reset("tester")
     assert kernel.mode == "normal"
+
+
+def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path):
+    now = [5000.0]
+    kernel = BrainKernel(degrade_threshold=5.5, safe_threshold=90.0,
+                         store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0], dwell_seconds=0.0)
+
+    for _ in range(6):
+        kernel.record_component_error("flows", "flow failed")
+
+    state = kernel.to_dict()
+    assert state["windows"]["components"]["flows"]["count"] == 6
+    assert kernel.risk_score == 6.0
+    assert kernel.mode == "degraded"
+
+    # A success cancels one fresh error rather than resetting the whole window.
+    kernel.record_component_recovery("flows")
+    assert kernel.to_dict()["windows"]["components"]["flows"]["count"] == 5
+    assert kernel.risk_score == 5.0
+    assert kernel.mode == "normal"
+
+
+def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path):
+    now = [1000.0]
+    kernel = BrainKernel(degrade_threshold=4.0, safe_threshold=90.0,
+                         store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0], dwell_seconds=0.0)
+    kernel.record_component_error("flows", "failed 1")
+    kernel.record_component_error("flows", "failed 2")
+    kernel.record_blocked_action("blocked")
+    assert kernel.mode == "degraded"
+
+    now[0] += 3601
+    kernel.observe(snapshot())
+    assert kernel.risk_score == 0.0
+    assert kernel.mode == "normal"
+    assert kernel.to_dict()["windows"] == {
+        "blocked_actions": 0, "error_pressure": 0.0,
+        "window_seconds": 3600.0, "components": {},
+    }
+    # The lifetime audit counter survives the window so operators still see the history.
+    assert kernel.to_dict()["blocked_actions"] == 1
+
+
+def test_component_errors_require_a_name(tmp_path):
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")))
+    with pytest.raises(ValueError, match="component name"):
+        kernel.record_component_error("  ")
+
+
+def test_blocked_action_window_is_bounded(tmp_path):
+    now = [10.0]
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0], dwell_seconds=0.0)
+    for _ in range(12):
+        kernel.record_blocked_action("attempt")
+    assert kernel.risk_score == 20.0, "the blocked component is capped at 20 points"
+    now[0] += 3601
+    kernel.assess()
+    assert kernel.risk_score == 0.0
 
 
 def test_drift_compares_against_baseline(tmp_path):

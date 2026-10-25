@@ -23,6 +23,7 @@
         "configurable_modules": ["annotations", "planner", "reflection", "reasoning_book"],
         "reactivity_auto_start": false,
         "capture_flow_outcomes": true,
+        "require_goal_link": true,
         "poll_interval_seconds": 60,
         "min_salience": 0.5,
         "dedupe_window_seconds": 900,

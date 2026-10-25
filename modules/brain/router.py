@@ -269,6 +269,8 @@ async def brain_improve_candidate(body: dict = Body(...),
             str(flow_id), operations,
             description=str(body.get("description", "")),
             source=f"actor:{actor.name}",
+            goal_id=body.get("goal_id"),
+            goal_kind=str(body.get("goal_kind", "goal")),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
@@ -287,7 +289,9 @@ async def brain_improve_generate(body: dict = Body(...),
         raise HTTPException(status_code=400, detail="flow_id and instruction are required")
     try:
         return await get_brain_service().generate_improvement(
-            str(flow_id), str(instruction)
+            str(flow_id), str(instruction),
+            goal_id=body.get("goal_id"),
+            goal_kind=str(body.get("goal_kind", "goal")),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
@@ -356,6 +360,30 @@ async def brain_kernel_reset(actor: BrainActor = Depends(require_role("admin")))
         return get_brain_service().reset_kernel(actor.name)
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+
+
+@router.get("/guardrails/status")
+async def brain_guardrails_status():
+    from .guardrails import guardrail_stats
+
+    return guardrail_stats().snapshot()
+
+
+@router.post("/guardrails/scan")
+async def brain_guardrails_scan(body: dict = Body(...),
+                                _actor: BrainActor = Depends(require_role("operator"))):
+    from .guardrails import MODE_ENFORCE, scan_text
+
+    text = body.get("text")
+    if not isinstance(text, str):
+        raise HTTPException(status_code=400, detail="text is required")
+    surface = str(body.get("surface") or "input")
+    if surface not in {"input", "output"}:
+        raise HTTPException(status_code=400, detail="surface must be input or output")
+    mode = MODE_ENFORCE if body.get("enforce") is True else None
+    verdict = scan_text(text, surface, mode=mode,
+                        system_prompt=body.get("system_prompt") if surface == "output" else None)
+    return verdict.to_dict()
 
 
 @router.post("/drift/baseline")
@@ -439,6 +467,10 @@ async def brain_config_apply(body: dict = Body(...),
     operation = body.get("operation")
     if not isinstance(operation, dict):
         raise HTTPException(status_code=400, detail="operation object is required")
+    operation = dict(operation)
+    for key in ("goal_id", "goal_kind", "reason"):
+        if body.get(key) is not None and key not in operation:
+            operation[key] = body[key]
     try:
         return get_brain_service().apply_configuration(
             operation,

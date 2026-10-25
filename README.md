@@ -192,7 +192,11 @@ caller is an authenticated admin (recorded as the approver), a **perfect same-fl
 provenance exists, the candidate itself is perfect, and there is no latency regression.
 `/improve/rollback` restores the
 pre-promotion snapshot; `/improve/status` reports candidates and daily quotas. Candidate,
-evaluation, promotion and ledger caps are configured in `modules/brain/module.json`.
+evaluation, promotion and ledger caps are configured in `modules/brain/module.json`. Every
+candidate must name an active memory goal (`goal_id`) or declare `goal_kind: "self_repair"` with a
+description; the link is revalidated at promotion and the goal becomes `in_progress` once promoted.
+`require_goal_link` (default true) controls the operator path, while direct engine construction
+leaves it off for embedding.
 
 Evaluation is read-only by construction: flows containing state-mutating or external-effect
 nodes (tools, memory writes, messaging, calendar, subflows) are rejected with
@@ -205,14 +209,25 @@ the snapshot (newer changes for the same target must be rolled back first). Only
 settings, allowlisted modules, and bounded brain options are editable; protected modules and
 API keys/secrets are rejected, and `allowed_tools` can only be narrowed. Changes are recorded in the
 configuration ledger and broadcast through `GET /brain/config/status`; the daily quota is
-configurable in `modules/brain/module.json`.
+configurable in `modules/brain/module.json`. A configuration operation follows the same goal rule:
+pass `goal_id`, or `goal_kind: "self_repair"` with a `reason`.
 
-The governance kernel derives a risk score from provider errors, evaluation pass rate, drift and
-blocked actions, then runs in `normal`, `degraded` or `safe` mode. SAFE blocks learning writes,
-improvement and configuration; rollback remains available. `GET /brain/kernel` reports the mode,
-risk inputs and gates; `POST /brain/kernel/kill` and `/kernel/reset` require an authenticated admin.
-`POST /brain/drift/baseline` records a measured baseline for drift comparison. Recovery from SAFE
-uses hysteresis rather than a single noisy sample.
+The governance kernel derives a risk score from provider errors, evaluation pass rate, drift, a
+one-hour window of blocked actions and a one-hour per-component error window, then runs in
+`normal`, `degraded` or `safe` mode. Failed flow runs and failed evaluations feed the component
+window, and a later success cancels one entry, so a transient outage cannot hold the brain down.
+SAFE blocks learning writes, improvement and configuration; rollback remains available.
+`GET /brain/kernel` reports the mode, risk inputs, error windows and gates; `POST /brain/kernel/kill`
+and `/kernel/reset` require an authenticated admin. Leaving NORMAL starts a 60-second dwell during
+which a single clean snapshot cannot return the brain to NORMAL; a kill switch or manual reset
+bypasses it. `POST /brain/drift/baseline` records a measured baseline for drift comparison.
+
+Guardrails inspect untrusted text with local, deterministic rules (no network or LLM): context
+separators and instruction-override attempts on input, credential-shaped strings everywhere, and
+verbatim system-prompt echoes on output. Set `brain_guardrail_mode` to `observe` (default: report
+and count only) or `enforce` (block an injected chat message, replace a leaked response); secrets
+are redacted in both modes. `GET /brain/guardrails/status` reports counters and
+`POST /brain/guardrails/scan` runs a scan without affecting anything.
 
 Reactivity turns events from the calendar, watched files, metric thresholds and the event API into
 proposal-only reactions. `GET /brain/reactions`, `/reactions/dismiss`, `/reactions/mute` and

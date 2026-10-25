@@ -890,3 +890,59 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   - *Positive*: Manual node triggers actually execute; the documented approval flow matches the
     routes; declarations and the verified environment agree.
   - *Trade-offs*: None for runtime behaviour; CI still installs the newest 9.x from the range.
+
+### ADR-039: Kernel error budget, recovery and dwell
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The kernel raised risk from `blocked_actions`, a lifetime counter that only a
+  manual reset cleared, and had no per-subsystem error signal. A transient provider or flow
+  outage could therefore not accumulate pressure, while a single recovered sample could return
+  the brain to NORMAL even though the cause was still present.
+- **Decision**: Keep two bounded windows: blocked actions and per-component errors, both pruned
+  after 3,600 s. A failed flow or evaluation records one component error; a later success cancels
+  one entry. Risk adds at most 20 points from each window. Leaving NORMAL starts a 60-second
+  dwell that only a kill switch or an authenticated reset bypasses. Lifetime counters remain for
+  audit but never drive risk.
+- **Consequences**: A recovered subsystem stops holding the brain down without a manual reset;
+  a single clean snapshot cannot flap the mode back. The kernel accepts an injectable clock so the
+  behaviour is deterministic in tests.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (evidence and
+  call-site review), PRINCIPLE-007 (bounded, no stub) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-040: Deterministic guardrails for untrusted text
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The tool sandbox protects code execution, but user text, tool output and model
+  output had no conversation-level screening: a context-switch injection or a leaked system
+  prompt or credential could enter a session, a document or memory unchecked.
+- **Decision**: Add `modules/brain/guardrails.py`, a local, deterministic scanner (regex and
+  string checks only; no network, no LLM, no embeddings). It flags context separators and
+  instruction overrides on input, credential-shaped strings on every surface, and verbatim
+  long system-prompt echoes on output; it normalises zero-width characters and caps scans at
+  20,000 characters. `brain_guardrail_mode` selects `observe` (default; count and report) or
+  `enforce` (block injected chat input, replace a leaked response); secrets are redacted in both
+  modes. Chat input/output use it, and `GET /brain/guardrails/status` plus
+  `POST /brain/guardrails/scan` expose it without side effects.
+- **Consequences**: A deployment upgrades safely in observe mode and can tighten to enforce
+  without a code change. Heuristic rules can produce false positives, which stay visible in the
+  counters and can be allowlisted per rule.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
+  dependencies), PRINCIPLE-007 (bounded scope) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-041: Goal-governed self-modification
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Improvement candidates and configuration changes could be promoted with no link
+  to a user goal; quotas, a perfect baseline and an approver did not make a change purposeful.
+- **Decision**: `modules/brain/goal_link.py` resolves a link before any ledger entry: an active
+  `pending`/`in_progress` goal from the shared memory store, or `goal_kind="self_repair"` with a
+  non-empty reason. Improvement candidates store `goal_id`, `goal_kind` and a bounded title, are
+  revalidated at promotion, and mark the goal in progress once promoted. Configuration changes
+  use the same resolver and record it in the change ledger. `require_goal_link` defaults to true
+  in `modules/brain/module.json`; direct engine construction keeps it false for embedding and
+  tests, while `BrainService` enforces it.
+- **Consequences**: Every operator-facing change names why it exists, and a goal completed while
+  a candidate waits blocks the promotion. The API gains `goal_id`/`goal_kind`/`description`
+  fields; missing links return 400 before anything is written.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-000 (purposeful change),
+  PRINCIPLE-007 (plan and impact) and PRINCIPLE-014 (failing-first tests).

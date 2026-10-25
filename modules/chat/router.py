@@ -6,6 +6,7 @@ from core.settings import settings
 from core.dependencies import get_llm_bridge
 from core.llm import LLMBridge
 from modules.chat.sessions import session_manager, _estimate_tokens
+from modules.brain.guardrails import scan_input, scan_output
 from fastapi.templating import Jinja2Templates
 from core.flow_runner import FlowRunner
 from core.flow_manager import flow_manager
@@ -22,6 +23,16 @@ templates = Jinja2Templates(directory="web/templates")
 active_streams = {}
 # Last background failure per session, so a late reader still sees the reason
 last_stream_errors = {}
+
+
+def _flow_system_prompt(flow: dict) -> str:
+    """Concatenated system prompts configured in a flow, bounded for leak detection."""
+    parts = []
+    for node in (flow or {}).get("nodes", []) or []:
+        config = node.get("config") if isinstance(node, dict) else None
+        if isinstance(config, dict) and isinstance(config.get("system_prompt"), str):
+            parts.append(config["system_prompt"])
+    return "\n".join(parts)[:8000]
 
 
 def _extract_thinking_steps(flow_result: dict) -> list:
@@ -299,6 +310,14 @@ async def send_message(
 
     # Prepare user content (Text or Multimodal)
     user_content = message
+    if isinstance(message, str) and message:
+        guard = scan_input(message)
+        if guard.blocked:
+            logger.warning("Guardrails blocked a chat input: %s", guard.to_dict()["findings"])
+            return HTMLResponse("Error: this message was blocked by the input guardrail.",
+                                status_code=400)
+        if guard.redactions:
+            message = user_content = guard.text
     if image and image.filename:
         contents = await image.read()
         encoded = base64.b64encode(contents).decode("utf-8")
@@ -384,6 +403,17 @@ async def send_message(
                 thinking_steps = _extract_thinking_steps(flow_result)
                 if thinking_steps:
                     await queue.put({"type": "thinking", "content": thinking_steps})
+
+                # Guardrails: never persist or stream a leaked prompt or a live credential.
+                if ai_response:
+                    guard = scan_output(ai_response, system_prompt=_flow_system_prompt(active_flow))
+                    if guard.blocked:
+                        logger.warning("Guardrails replaced a chat output: %s",
+                                       guard.to_dict()["findings"])
+                        ai_response = ("I can't return that response because it would repeat "
+                                       "internal instructions.")
+                    elif guard.redactions:
+                        ai_response = guard.text
 
                 if ai_response:
                     await asyncio.to_thread(

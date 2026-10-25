@@ -14,6 +14,15 @@ from core.flow_evolution import FlowEvolution, FlowEvolutionError
 from core.paths import data_path
 
 from .evaluation import EvalStore, EvaluationRunner, compare_results
+from .goal_link import (
+    GOAL_KINDS,
+    GoalLookup,
+    GoalMarker,
+    default_goal_lookup,
+    default_goal_marker,
+    resolve_goal_link,
+    revalidate_goal_link,
+)
 from .persistence import LedgerLock, atomic_write_json, engine_transaction_async
 from .state import utc_now
 
@@ -36,6 +45,9 @@ class Candidate:
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
+    goal_id: Optional[str] = None
+    goal_kind: str = "goal"
+    goal_title: str = ""
     pre_version: Optional[int] = None
     promotion_version: Optional[int] = None
     promoted_at: Optional[str] = None
@@ -102,7 +114,10 @@ class ImprovementEngine:
                  max_evaluations_per_day: int = 20,
                  max_promotions_per_day: int = 5,
                  max_candidates: int = 200,
-                 generator: Optional[CandidateGenerator] = None):
+                 generator: Optional[CandidateGenerator] = None,
+                 require_goal_link: bool = False,
+                 goal_lookup: Optional[GoalLookup] = None,
+                 goal_marker: Optional[GoalMarker] = None):
         self.flow_manager = flow_manager
         self.evolution = evolution or FlowEvolution(flow_manager)
         self.evaluation_runner = evaluation_runner or EvaluationRunner()
@@ -113,6 +128,9 @@ class ImprovementEngine:
         self.max_promotions_per_day = max(1, int(max_promotions_per_day))
         self.max_candidates = max(10, int(max_candidates))
         self.generator = generator
+        self.require_goal_link = bool(require_goal_link)
+        self.goal_lookup = goal_lookup or default_goal_lookup
+        self.goal_marker = goal_marker or default_goal_marker
 
         data = self.store.load()
         self.candidates: Dict[str, Dict[str, Any]] = data.get("candidates", {})
@@ -129,9 +147,25 @@ class ImprovementEngine:
         self.promotion_times = data.get("promotion_times", [])
         self.flow_latest_promotion = data.get("flow_latest_promotion", {})
 
+    def _resolve_goal(self, goal_id: Optional[str], goal_kind: str,
+                      reason: str) -> Dict[str, Any]:
+        """Bind a change to an active goal, or to an explicit self-repair reason (ADR-041)."""
+        return resolve_goal_link(
+            goal_id, goal_kind, reason,
+            require=self.require_goal_link, goal_lookup=self.goal_lookup,
+        )
+
+    def _revalidate_goal(self, candidate: Dict[str, Any]) -> None:
+        """A promotion must still be justified: the goal may have completed since proposal."""
+        revalidate_goal_link(
+            candidate, require=self.require_goal_link, goal_lookup=self.goal_lookup,
+        )
+
     @engine_transaction_async
     async def propose(self, flow_id: str, operations: List[Dict[str, Any]],
-                      description: str = "", source: str = "api") -> Dict[str, Any]:
+                      description: str = "", source: str = "api", *,
+                      goal_id: Optional[str] = None,
+                      goal_kind: str = "goal") -> Dict[str, Any]:
         self._prune_quotas()
         self._prune_candidates()
         if len(self.candidates) >= self.max_candidates:
@@ -144,6 +178,7 @@ class ImprovementEngine:
             raise ValueError("every operation must be an object")
         if self.flow_manager.get_flow(flow_id) is None:
             raise ValueError(f"flow '{flow_id}' does not exist")
+        goal = self._resolve_goal(goal_id, goal_kind, description)
         try:
             self.evolution.preview(flow_id, operations)
         except FlowEvolutionError as exc:
@@ -154,13 +189,18 @@ class ImprovementEngine:
             operations=copy.deepcopy(operations),
             description=description or "flow candidate",
             source=source,
+            goal_id=goal["goal_id"],
+            goal_kind=goal["goal_kind"],
+            goal_title=goal["goal_title"],
         )
         self.candidates[candidate.id] = candidate.to_dict()
         self.candidate_times.append(candidate.created_at)
         self._save()
         return candidate.to_dict()
 
-    async def generate(self, flow_id: str, instruction: str) -> Dict[str, Any]:
+    async def generate(self, flow_id: str, instruction: str, *,
+                       goal_id: Optional[str] = None,
+                       goal_kind: str = "goal") -> Dict[str, Any]:
         if self.generator is None:
             raise ValueError("no candidate generator is configured")
         result = self.generator(flow_id, instruction)
@@ -175,6 +215,8 @@ class ImprovementEngine:
             flow_id, operations,
             description=str(result.get("rationale") or instruction),
             source="generator",
+            goal_id=goal_id,
+            goal_kind=goal_kind,
         )
 
     @engine_transaction_async
@@ -244,6 +286,7 @@ class ImprovementEngine:
         }
 
         if approve and promotable:
+            self._revalidate_goal(candidate)
             if len(self.promotion_times) >= self.max_promotions_per_day:
                 candidate.update({
                     "status": "blocked",
@@ -271,6 +314,8 @@ class ImprovementEngine:
             })
             self.promotion_times.append(candidate["promoted_at"])
             self.flow_latest_promotion[flow_id] = candidate_id
+            if candidate.get("goal_id"):
+                self.goal_marker(str(candidate["goal_id"]))
         else:
             reasons = list(comparison.get("reasons", [])) + baseline_reasons
             if candidate_rate < 1.0:

@@ -111,6 +111,7 @@ class BrainService:
                 max_promotions_per_day=int(merged.get("max_promotions_per_day", 5)),
                 max_candidates=int(merged.get("max_candidates", 200)),
                 generator=self._generate_flow_candidate,
+                require_goal_link=bool(merged.get("require_goal_link", True)),
             )
         if configuration is not None:
             self.configuration = configuration
@@ -123,6 +124,7 @@ class BrainService:
                 configurable_modules=(
                     set(configurable) if isinstance(configurable, list) else None
                 ),
+                require_goal_link=bool(merged.get("require_goal_link", True)),
             )
         self.capture_flow_outcomes = bool(merged.get("capture_flow_outcomes", True))
         self._outcome_listener = self._on_flow_outcome
@@ -233,9 +235,18 @@ class BrainService:
         """Capture ordinary flow/chat outcomes for learning, unless SAFE or disabled."""
         if not self.capture_flow_outcomes:
             return
+        flow_id = str(outcome.get("flow_id") or "unknown")
+        # The kernel counts failures per subsystem inside a rolling window; a later success
+        # cancels one of them, so a transient outage does not keep the brain degraded.
+        try:
+            if bool(outcome.get("success")):
+                self.kernel.record_component_recovery("flows")
+            else:
+                self.kernel.record_component_error("flows", f"flow {flow_id} failed")
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not record the flow outcome in the kernel: %s", exc)
         if not self.kernel.can_write_memory():
             return
-        flow_id = str(outcome.get("flow_id") or "unknown")
         try:
             self.learning.record_outcome(
                 action=f"flow:{flow_id}",
@@ -307,10 +318,13 @@ class BrainService:
 
     async def propose_improvement(self, flow_id: str, operations: List[Dict[str, Any]],
                                   description: str = "",
-                                  source: str = "api") -> Dict[str, Any]:
+                                  source: str = "api",
+                                  goal_id: Optional[str] = None,
+                                  goal_kind: str = "goal") -> Dict[str, Any]:
         self.kernel.require_autonomy("improvement proposal")
         return await self.improvement.propose(
-            flow_id, operations, description=description, source=source
+            flow_id, operations, description=description, source=source,
+            goal_id=goal_id, goal_kind=goal_kind,
         )
 
     async def evaluate_improvement(self, candidate_id: str, approve: bool = False,
@@ -324,9 +338,13 @@ class BrainService:
         return await self.improvement.rollback(candidate_id)
 
     async def generate_improvement(self, flow_id: str,
-                                   instruction: str) -> Dict[str, Any]:
+                                   instruction: str,
+                                   goal_id: Optional[str] = None,
+                                   goal_kind: str = "goal") -> Dict[str, Any]:
         self.kernel.require_autonomy("improvement generation")
-        return await self.improvement.generate(flow_id, instruction)
+        return await self.improvement.generate(
+            flow_id, instruction, goal_id=goal_id, goal_kind=goal_kind
+        )
 
     def improvement_status(self) -> Dict[str, Any]:
         return self.improvement.status()
@@ -460,6 +478,13 @@ class BrainService:
     async def run_evaluation(self, flow_id: Optional[str] = None) -> Dict[str, Any]:
         result = await self.evaluation_runner.run(flow_id=flow_id)
         self.kernel.record_evaluation(result)
+        try:
+            if float(result.get("pass_rate", 0.0)) < 1.0:
+                self.kernel.record_component_error("evaluation", "evaluation below 100%")
+            else:
+                self.kernel.record_component_recovery("evaluation")
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not record the evaluation in the kernel: %s", exc)
         if self.kernel.can_write_memory():
             for task in result.get("tasks", []):
                 self.learning.record_outcome(

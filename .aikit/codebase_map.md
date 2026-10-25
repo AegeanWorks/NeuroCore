@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `259`
-- **Total Classes**: `384`
-- **Total Top-Level Functions**: `1594`
-- **Total Class Methods**: `2067`
-- **Total Source Lines**: `73066`
+- **Total Python Modules**: `263`
+- **Total Classes**: `387`
+- **Total Top-Level Functions**: `1641`
+- **Total Class Methods**: `2083`
+- **Total Source Lines**: `74080`
 
 ---
 
@@ -1402,7 +1402,7 @@
 ### [`modules/brain/configuration.py`](modules/brain/configuration.py)
 > *Policy-gated self-configuration for settings, modules and brain options.*
 
-**Size**: `411` lines (`17709` bytes)
+**Size**: `428` lines (`18533` bytes)
 
 **Classes:**
 - `class ConfigurationPolicyError` - *Raised when a requested change violates the configuration policy.*
@@ -1413,7 +1413,7 @@
   - Method `._quarantine()`
   - Method `.save(data)`
 - `class ConfigurationEngine` - *Preview, apply and roll back bounded configuration changes.*
-  - Method `.__init__(settings_manager, module_manager, store, runtime_apply, config_path, allowed_settings, configurable_modules, max_changes_per_day, max_changes)`
+  - Method `.__init__(settings_manager, module_manager, store, runtime_apply, config_path, allowed_settings, configurable_modules, max_changes_per_day, max_changes, require_goal_link, goal_lookup)`
   - Method `._reload_from_store()`
   - Method `.attach_module_manager(module_manager)`
   - Method `.preview(operation, module_manager)`
@@ -1506,10 +1506,54 @@
 
 ---
 
+### [`modules/brain/goal_link.py`](modules/brain/goal_link.py)
+> *Goal linkage shared by the brain's self-modification engines.*
+
+**Size**: `86` lines (`3600` bytes)
+
+**Functions:**
+- `def default_goal_lookup(goal_id)` - *Read one goal from the shared memory store; a missing table is not an error.*
+- `def default_goal_marker(goal_id)` - *Mark an accepted goal as in progress when work under it starts.*
+- `def resolve_goal_link(goal_id, goal_kind, reason, *, require, goal_lookup)` - *Return the goal fields for a ledger entry, or raise ``ValueError`` with the remedy.*
+- `def revalidate_goal_link(entry, *, require, goal_lookup)` - *A promotion or apply must still be justified; the goal may have completed.*
+
+---
+
+### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
+> *Deterministic guardrails for untrusted text entering or leaving the platform.*
+
+**Size**: `257` lines (`8947` bytes)
+
+**Classes:**
+- `class Finding` - *One matched rule, with the surface and the action the mode applied.*
+  - Method `.to_dict()`
+- `class GuardVerdict` - *The decision for one piece of text; ``text`` is the content to use downstream.*
+  - Property `.blocked`
+  - Property `.safe`
+  - Method `.to_dict()`
+- `class GuardrailStats` - *Process-local counters for operators; the ledger stays out of the hot path.*
+  - Method `.__init__()`
+  - Method `.record(verdict)`
+  - Method `.snapshot()`
+  - Method `.reset()`
+
+**Functions:**
+- `def guardrail_mode()` - *The configured policy; an unknown value falls back to ``observe`` and logs once.*
+- `def _normalize(text)`
+- `def _scan_rules(text)`
+- `def redact_secrets(text)` - *Replace credential-shaped runs; returns the text and how many replacements were made.*
+- `def _system_prompt_leaks(text, system_prompt)` - *Verbatim long sentences of the system prompt found in model output.*
+- `def scan_text(text, surface, mode, system_prompt)` - *Scan one piece of text for a surface; never raises on odd input.*
+- `def guardrail_stats()`
+- `def scan_input(text, **kwargs)`
+- `def scan_output(text, **kwargs)`
+
+---
+
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `421` lines (`17876` bytes)
+**Size**: `466` lines (`19754` bytes)
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -1521,10 +1565,12 @@
   - Method `._quarantine()`
   - Method `.save(data)`
 - `class ImprovementEngine` - *Propose, evaluate and promote flow edits without leaving failed edits behind.*
-  - Method `.__init__(flow_manager, evolution, evaluation_runner, eval_store, store, max_candidates_per_day, max_evaluations_per_day, max_promotions_per_day, max_candidates, generator)`
+  - Method `.__init__(flow_manager, evolution, evaluation_runner, eval_store, store, max_candidates_per_day, max_evaluations_per_day, max_promotions_per_day, max_candidates, generator, require_goal_link, goal_lookup, goal_marker)`
   - Method `._reload_from_store()`
-  - Method `async def .propose(flow_id, operations, description, source)`
-  - Method `async def .generate(flow_id, instruction)`
+  - Method `._resolve_goal(goal_id, goal_kind, reason)` - *Bind a change to an active goal, or to an explicit self-repair reason (ADR-041).*
+  - Method `._revalidate_goal(candidate)` - *A promotion must still be justified: the goal may have completed since proposal.*
+  - Method `async def .propose(flow_id, operations, description, source, *, goal_id, goal_kind)`
+  - Method `async def .generate(flow_id, instruction, *, goal_id, goal_kind)`
   - Method `async def .evaluate(candidate_id, approve, approved_by)`
   - Method `async def .rollback(candidate_id)`
   - Method `._baseline_quality_reasons(baseline, flow_id)`
@@ -1540,7 +1586,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `274` lines (`10725` bytes)
+**Size**: `406` lines (`16818` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -1552,16 +1598,22 @@
   - Method `.load()`
   - Method `.save(state)`
 - `class BrainKernel` - *Risk-driven mode gate. It never executes actions; it only allows or blocks them.*
-  - Method `.__init__(degrade_threshold, safe_threshold, safe_exit_threshold, store)`
+  - Method `.__init__(degrade_threshold, safe_threshold, safe_exit_threshold, store, clock, dwell_seconds)`
+  - Method `._state_from(restored)`
   - Method `._reload_from_store()`
+  - Method `._prune(now)` - *Drop window entries that aged out; callers hold the ledger lock.*
   - Property `.mode`
   - Property `.is_safe`
+  - Method `._error_pressure()`
   - Property `.risk_score`
   - Method `.observe(snapshot)` - *Update risk inputs from one self-model snapshot and reassess the mode.*
   - Method `.record_evaluation(result)`
   - Method `.record_drift(score)`
   - Method `.record_blocked_action(reason)`
+  - Method `.record_component_error(component, reason)` - *Count one failure of a named subsystem inside the rolling error window.*
+  - Method `.record_component_recovery(component)` - *Cancel one fresh error from a subsystem that succeeded again.*
   - Method `.assess(reason, persist)`
+  - Method `._in_dwell(now)`
   - Method `.kill_switch(reason, approved_by)`
   - Method `.reset(approved_by)`
   - Method `.can_run_autonomy()`
@@ -1687,7 +1739,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `470` lines (`16809` bytes)
+**Size**: `502` lines (`18140` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -1725,6 +1777,8 @@
 - `async def brain_kernel_status()`
 - `async def brain_kernel_kill(body, actor)`
 - `async def brain_kernel_reset(actor)`
+- `async def brain_guardrails_status()`
+- `async def brain_guardrails_scan(body, _actor)`
 - `async def brain_drift_baseline(actor)`
 - `async def brain_reactions()`
 - `async def brain_reaction_dismiss(body, _actor)`
@@ -1762,7 +1816,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `674` lines (`29251` bytes)
+**Size**: `699` lines (`30705` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -1778,10 +1832,10 @@
   - Method `async def .consolidate_learning()`
   - Method `async def .evaluate_learning_recall(top_k)`
   - Method `.learning_status()`
-  - Method `async def .propose_improvement(flow_id, operations, description, source)`
+  - Method `async def .propose_improvement(flow_id, operations, description, source, goal_id, goal_kind)`
   - Method `async def .evaluate_improvement(candidate_id, approve, approved_by)`
   - Method `async def .rollback_improvement(candidate_id)`
-  - Method `async def .generate_improvement(flow_id, instruction)`
+  - Method `async def .generate_improvement(flow_id, instruction, goal_id, goal_kind)`
   - Method `.improvement_status()`
   - Method `.preview_configuration(operation, module_manager)`
   - Method `.apply_configuration(operation, approved_by, module_manager)`
@@ -1950,9 +2004,10 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `542` lines (`24319` bytes)
+**Size**: `572` lines (`25908` bytes)
 
 **Functions:**
+- `def _flow_system_prompt(flow)` - *Concatenated system prompts configured in a flow, bounded for leak detection.*
 - `def _extract_thinking_steps(flow_result)` - *Extract intermediate agent thinking steps from a flow result.*
 - `async def chat_page(request)`
 - `async def chat_gui(request, session_id)`
@@ -3411,6 +3466,51 @@
 
 ---
 
+### [`tests/test_brain_goal_governance.py`](tests/test_brain_goal_governance.py)
+> *Goal-governed improvement: a promotion names an active goal or a self-repair reason.*
+
+**Size**: `178` lines (`6576` bytes)
+
+**Functions:**
+- `def linked_engine(tmp_path, goal_map, marked)`
+- `async def test_a_candidate_without_a_goal_or_repair_reason_is_rejected(tmp_path)`
+- `async def test_an_unknown_goal_is_rejected(tmp_path)`
+- `async def test_a_completed_goal_cannot_justify_a_change(tmp_path)`
+- `async def test_an_active_goal_is_recorded_on_the_candidate(tmp_path)`
+- `async def test_a_self_repair_candidate_needs_a_reason(tmp_path)`
+- `async def test_an_unknown_goal_kind_is_rejected(tmp_path)`
+- `async def test_an_unknown_active_goal_is_rejected(tmp_path)`
+- `async def test_promotion_revalidates_the_goal_and_marks_it_in_progress(tmp_path)`
+- `async def test_unlinked_mode_keeps_the_engine_usable_for_direct_embedding(tmp_path)`
+- `def configuration_engine(tmp_path, goals)`
+- `def test_configuration_apply_requires_a_goal_or_repair_reason(tmp_path)`
+- `def test_configuration_apply_records_an_active_goal(tmp_path)`
+- `def test_configuration_apply_accepts_an_explicit_self_repair(tmp_path)`
+- `def test_configuration_apply_rejects_a_completed_goal(tmp_path)`
+
+---
+
+### [`tests/test_brain_guardrails.py`](tests/test_brain_guardrails.py)
+> *Deterministic guardrails: injection, secret redaction and prompt-leak detection.*
+
+**Size**: `143` lines (`4978` bytes)
+
+**Functions:**
+- `def test_context_switch_and_override_attempts_are_flagged(text)`
+- `def test_enforce_blocks_an_injected_input()`
+- `def test_benign_discussion_is_not_flagged()`
+- `def test_invisible_characters_cannot_split_an_override_phrase()`
+- `def test_a_very_long_input_is_scanned_within_a_fixed_cap()`
+- `def test_credentials_are_redacted_in_both_modes()`
+- `def test_redact_secrets_is_idempotent()`
+- `def test_a_leaked_system_prompt_is_flagged_and_blocked_in_enforce()`
+- `def test_short_shared_phrases_are_not_treated_as_a_leak()`
+- `def test_stats_count_findings_and_blocks()`
+- `def test_an_unknown_mode_falls_back_to_observe(monkeypatch)`
+- `def test_guardrail_routes_report_and_scan()`
+
+---
+
 ### [`tests/test_brain_improvement.py`](tests/test_brain_improvement.py)
 > *Eval-gated flow improvement: preview, quotas, promotion and rollback.*
 
@@ -3447,7 +3547,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `172` lines (`6464` bytes)
+**Size**: `241` lines (`9230` bytes)
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -3457,6 +3557,10 @@
 - `def snapshot(provider_errors, pass_rate, drift, memory, documents)`
 - `def test_kernel_transitions_and_gates(tmp_path)`
 - `def test_safe_mode_hysteresis_and_kill_switch(tmp_path)`
+- `def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path)`
+- `def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path)`
+- `def test_component_errors_require_a_name(tmp_path)`
+- `def test_blocked_action_window_is_bounded(tmp_path)`
 - `def test_drift_compares_against_baseline(tmp_path)`
 - `async def test_safe_mode_blocks_memory_improvement_and_configuration(tmp_path)`
 - `def test_kernel_routes(tmp_path, monkeypatch)`

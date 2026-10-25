@@ -1,65 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "tif-integration-report",
+    "task_id": "brain-governance-m1",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792940058.5272465,
+    "updated_at": 1792948576.726697,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792940076.611138
+    "completed_at": 1792948590.793072
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] Verified: full suite 1677 passed, 7 skipped; aikit fix regenerated the codebase map; Phase 4 gates 4/4; checklists: passed (freshness, call sites, declared filelock dependency, platform paths, no stubs, secret scan). ADR-034 and README updated. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792870041.8521626,
-      "timestamp_str": "2026-10-24 22:27:21",
-      "agent": "kilo:neurocore",
-      "handoff": {
-        "state": "brain substrate through RBAC plus cross-process ledger locks complete",
-        "next": "commit approval for the AI-brain work, then reaction delivery polish and optional auto-mode design",
-        "open": "40 modified/33 untracked, auto disabled, brain state file is last-writer-wins",
-        "evidence": "pytest 1677 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-audit-p0-v1",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/6] Remote auth fails closed: non-loopback binds refuse to start without NEUROCORE_API_TOKEN unless NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE is explicit, and middleware rejects unauthenticated non-loopback clients even when the token is unset. [2/6] CSRF compares normalized origin (scheme, host, effective port). [3/6] Sandbox fails closed on worker-start failure, exposes only explicitly permitted environment values, and its network policy rejects mixed DNS answers, validates every redirect, streams within a byte cap and honours an empty allowlist. [4/6] Retire the unused broken worker pool; add the missing scheduled-task pattern and pattern contract tests. [5/6] Memory search filters before truncation and fetches expiry in one query. [6/6] Align packaging/Docker with runtime deps, commit CI, then full verification and ADR.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792871549.065351,
-      "timestamp_str": "2026-10-24 22:52:29",
-      "agent": "kilo:neurocore",
-      "impact_assessment": {
-        "why": "External audit of e491655 reports remote auth bypass when the token is unset, in-process sandbox fallback, unrestricted tool environment, weak network/CSRF policy, a broken unused worker pool, an invalid scheduled flow pattern and memory search underfill.",
-        "benefits": "Remote deployments cannot silently run unauthenticated; sandbox isolation never degrades silently; tools see only authorized secrets; redirects and oversized responses obey policy; dead execution code stops masquerading as a supported path; autonomous patterns build valid flows; semantic search returns a full page of eligible memories.",
-        "risks": "contract: non-loopback startup without a token now fails; ToolSandbox no longer exposes the process environment by default; allowed_domains=set() disables network; worker-pool module is removed; dependency: filelock already declared, no new runtime deps; concurrency: none added; state: none.",
-        "mitigation": "Failing-first tests for each finding, updated tests for the intentional contract changes, full suite, aikit check, and an ADR recording every behavior change."
-      },
-      "handoff": {
-        "next": "core/security.py validation and origin comparison",
-        "open": "brain ledgers work from neurocore-ai-brain-v1 remains uncommitted"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "superseded",
-      "phase_num": 4,
-      "description": "Superseded by 'neurocore-audit-p0-v1' without --complete or --reset",
-      "status": "superseded",
-      "timestamp": 1792871549.065351,
-      "timestamp_str": "2026-10-24 22:52:29",
-      "agent": "kilo:neurocore"
-    },
     {
       "task_id": "neurocore-audit-p0-v1",
       "phase": "phase 2",
@@ -286,6 +238,49 @@
       "status": "completed",
       "timestamp": 1792940076.6111393,
       "timestamp_str": "2026-10-25 17:54:36",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "brain-governance-m1",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/4] M1 of the Tif plan: kernel error budget (ADR-039) and deterministic guardrails (ADR-040). [2/4] Goal-governed improvement and configuration (ADR-041). [3/4] Documentation and map refresh. [4/4] Gates, commit, push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792948380.7387965,
+      "timestamp_str": "2026-10-25 20:13:00",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The report's P0 items are the highest-value gaps: no decaying error pressure, no conversation-level injection/leak screen, and changes unrelated to a goal.",
+        "benefits": "Recoverable risk state, predictable prompt-injection defence in observe/enforce modes, and purposeful self-modification with a revalidated link.",
+        "risks": "contract: new optional API fields and a stricter default operator path; dependency: none beyond stdlib; concurrency: kernel windows under the existing ledger lock; state: additive JSON fields plus an optional goal_id in change ledgers.",
+        "mitigation": "Defaults preserve old behaviour for direct engine use, the guardrail default is observe, and every behaviour has a failing-first test."
+      }
+    },
+    {
+      "task_id": "brain-governance-m1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/4]-[4/4] done: kernel windows/decay/recovery/dwell (ADR-039), deterministic guardrails with observe/enforce, chat input/output integration, status and scan routes (ADR-040), goal linkage shared by improvement and configuration with promotion revalidation and an in-progress marker (ADR-041). README and module.json updated. Full suite 1803 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792948576.726697,
+      "timestamp_str": "2026-10-25 20:16:16",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "M1 complete and green",
+        "next": "commit and push",
+        "open": "P1 (budget, simulation, versioned prompts) not started"
+      }
+    },
+    {
+      "task_id": "brain-governance-m1",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'brain-governance-m1' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792948590.793073,
+      "timestamp_str": "2026-10-25 20:16:30",
       "agent": "kilo:main"
     }
   ]

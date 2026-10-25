@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core.paths import data_path
 
+from .goal_link import GoalLookup, default_goal_lookup, resolve_goal_link
 from .persistence import LedgerLock, atomic_write_json, engine_transaction
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,9 @@ class ConfigurationEngine:
                  allowed_settings: Optional[set] = None,
                  configurable_modules: Optional[set] = None,
                  max_changes_per_day: int = 20,
-                 max_changes: int = 200):
+                 max_changes: int = 200,
+                 require_goal_link: bool = False,
+                 goal_lookup: Optional[GoalLookup] = None):
         if settings_manager is None:
             from core.settings import settings as settings_manager
 
@@ -119,6 +122,8 @@ class ConfigurationEngine:
         )
         self.max_changes_per_day = max(1, int(max_changes_per_day))
         self.max_changes = max(10, int(max_changes))
+        self.require_goal_link = bool(require_goal_link)
+        self.goal_lookup = goal_lookup or default_goal_lookup
 
         data = self.store.load()
         self.changes: List[Dict[str, Any]] = data.get("changes", [])[-self.max_changes:]
@@ -186,6 +191,15 @@ class ConfigurationEngine:
         if not (isinstance(approved_by, str) and approved_by.strip()):
             raise ConfigurationPolicyError("approved_by is required")
         manager = module_manager or self.module_manager
+        link = None
+        try:
+            link = resolve_goal_link(
+                operation.get("goal_id"), str(operation.get("goal_kind", "goal")),
+                str(operation.get("reason", "")),
+                require=self.require_goal_link, goal_lookup=self.goal_lookup,
+            )
+        except ValueError as exc:
+            raise ConfigurationPolicyError(str(exc)) from exc
         preview = self.preview(operation, module_manager=manager)
         self._prune_quotas()
         if len(self.change_times) >= self.max_changes_per_day:
@@ -198,6 +212,9 @@ class ConfigurationEngine:
             "before": preview["before"],
             "after": preview["after"],
             "approved_by": approved_by.strip(),
+            "goal_id": link["goal_id"],
+            "goal_kind": link["goal_kind"],
+            "goal_title": link["goal_title"],
             "status": "applied",
             "applied_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         }
