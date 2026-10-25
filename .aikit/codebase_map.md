@@ -7,10 +7,10 @@
 
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `259`
-- **Total Classes**: `383`
-- **Total Top-Level Functions**: `1592`
-- **Total Class Methods**: `2065`
-- **Total Source Lines**: `73023`
+- **Total Classes**: `384`
+- **Total Top-Level Functions**: `1594`
+- **Total Class Methods**: `2067`
+- **Total Source Lines**: `73066`
 
 ---
 
@@ -234,7 +234,7 @@
 ### [`core/flow_evolution.py`](core/flow_evolution.py)
 > *Validated, versioned self-editing for NeuroCore flows.*
 
-**Size**: `369` lines (`17269` bytes)
+**Size**: `358` lines (`16841` bytes)
 
 **Classes:**
 - `class FlowEvolutionError` - *Raised when an evolution proposal would produce an invalid flow.*
@@ -545,7 +545,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3306` lines (`144896` bytes)
+**Size**: `3309` lines (`145084` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -876,7 +876,7 @@
 ### [`core/structured_output.py`](core/structured_output.py)
 > *Structured Output Enforcement Module*
 
-**Size**: `344` lines (`13597` bytes)
+**Size**: `342` lines (`13463` bytes)
 
 **Classes:**
 - `class StructuredOutputError` - *Exception raised when structured output cannot be obtained*
@@ -4879,7 +4879,7 @@
 ### [`tests/test_marketplace_flow_import.py`](tests/test_marketplace_flow_import.py)
 > *Marketplace flow imports go through the validated flow store, not a direct file write.*
 
-**Size**: `84` lines (`2623` bytes)
+**Size**: `101` lines (`3226` bytes)
 
 **Classes:**
 - `class FakeSettings`
@@ -4892,6 +4892,7 @@
 - `def package(state, item_id, flow, filename)`
 - `async def test_imported_flow_is_saved_and_visible_without_restart(marketplace)`
 - `async def test_invalid_import_changes_nothing(marketplace)`
+- `async def test_a_name_of_only_punctuation_still_imports(marketplace)`
 
 ---
 
@@ -5581,18 +5582,22 @@
 ### [`tests/test_runtime_regressions.py`](tests/test_runtime_regressions.py)
 > *Runtime regressions: state directory, raise_errors, debug trigger, hardware id.*
 
-**Size**: `114` lines (`3329` bytes)
+**Size**: `150` lines (`4416` bytes)
 
 **Classes:**
 - `class BoomExecutor`
   - Method `async def .receive(input_data, config)`
   - Method `async def .send(processed_data)`
+- `class _CapturedTasks`
+  - Method `.__init__()`
+  - Method `.add_task(fn, *args, **kwargs)`
 
 **Functions:**
 - `def test_state_path_honours_state_directory(monkeypatch, tmp_path)`
 - `async def test_flow_runner_raise_errors_reraises_node_failure(monkeypatch)`
 - `async def test_debug_fire_flow_fires_every_active_flow(monkeypatch)`
 - `def test_hardware_id_differs_when_os_probes_are_empty(monkeypatch, tmp_path)`
+- `def test_run_node_route_executes_through_the_flow_runner(monkeypatch)`
 
 ---
 

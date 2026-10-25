@@ -191,8 +191,6 @@ async def structured_completion(
                         raise
                     logger.debug(f"Successfully parsed structured output on attempt {attempt + 1}")
                     return parsed
-                    logger.debug(f"Successfully parsed structured output on attempt {attempt + 1}")
-                    return parsed
                 except ValidationError as e:
                     validation_errors = e.errors()
                     error_summary = "; ".join([

@@ -285,17 +285,6 @@ class FlowEvolution:
                 reverted_nodes=copy.deepcopy(flow.get("reverted_nodes")),
                 validate=False,
             )
-            if errors:
-                raise FlowEvolutionError("flow validation failed", errors)
-            return self.flow_manager.save_flow(
-                name,
-                nodes,
-                connections,
-                bridges,
-                flow_id=flow_id,
-                metadata=copy.deepcopy(flow.get("metadata")),
-                reverted_nodes=copy.deepcopy(flow.get("reverted_nodes")),
-            )
 
     def _apply_operation(self, name: str, nodes: List[Dict[str, Any]],
                          connections: List[Dict[str, Any]],

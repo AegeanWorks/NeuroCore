@@ -82,3 +82,20 @@ async def test_invalid_import_changes_nothing(marketplace):
 
     assert response.status_code == 400
     assert manager.get_all_flows_dict() == before
+
+@pytest.mark.asyncio
+async def test_a_name_of_only_punctuation_still_imports(marketplace):
+    state, manager = marketplace
+    package(state, "item-3", {
+        "name": "!!!",
+        "nodes": [{"id": "n1", "moduleId": "chat", "nodeTypeId": "chat_output"}],
+        "connections": [],
+    })
+
+    response = await routers.import_marketplace_item_to_neurocore(
+        "item-3", module_manager=None, settings_man=FakeSettings()
+    )
+
+    assert response.status_code == 200
+    imported = [flow for flow in manager.get_all_flows_dict().values() if flow["name"] == "!!!"]
+    assert len(imported) == 1

@@ -187,19 +187,20 @@ config can turn this off entirely.
 
 Self-improvement is explicit and eval-gated: `POST /brain/improve/candidates` accepts a flow
 operation list (or `/improve/generate` drafts one with the configured LLM), `/improve/evaluate`
-runs the candidate against an in-memory copy and only promotes it when `approve` is true, an
-`approved_by` identity is supplied, a **perfect same-flow baseline** with provenance exists, the
-candidate itself is perfect, and there is no latency regression. `/improve/rollback` restores the
+runs the candidate against an in-memory copy and only promotes it when `approve` is true, the
+caller is an authenticated admin (recorded as the approver), a **perfect same-flow baseline** with
+provenance exists, the candidate itself is perfect, and there is no latency regression.
+`/improve/rollback` restores the
 pre-promotion snapshot; `/improve/status` reports candidates and daily quotas. Candidate,
 evaluation, promotion and ledger caps are configured in `modules/brain/module.json`.
 
 Evaluation is read-only by construction: flows containing state-mutating or external-effect
 nodes (tools, memory writes, messaging, calendar, subflows) are rejected with
 `UnsafeEvaluationError` before execution. Promote a baseline with
-`POST /brain/eval/baseline {"approved_by": "..."}`; only a perfect run is accepted.
+`POST /brain/eval/baseline` (admin); only a perfect run is accepted.
 
 Self-configuration is separately policy-gated: `POST /brain/config/preview` shows a before/after
-diff, `POST /brain/config/apply` requires `approved_by`, and `POST /brain/config/rollback` restores
+diff, `POST /brain/config/apply` requires an authenticated admin, and `POST /brain/config/rollback` restores
 the snapshot (newer changes for the same target must be rolled back first). Only whitelisted
 settings, allowlisted modules, and bounded brain options are editable; protected modules and
 API keys/secrets are rejected, and `allowed_tools` can only be narrowed. Changes are recorded in the
@@ -209,7 +210,7 @@ configurable in `modules/brain/module.json`.
 The governance kernel derives a risk score from provider errors, evaluation pass rate, drift and
 blocked actions, then runs in `normal`, `degraded` or `safe` mode. SAFE blocks learning writes,
 improvement and configuration; rollback remains available. `GET /brain/kernel` reports the mode,
-risk inputs and gates; `POST /brain/kernel/kill` and `/kernel/reset` require `approved_by`.
+risk inputs and gates; `POST /brain/kernel/kill` and `/kernel/reset` require an authenticated admin.
 `POST /brain/drift/baseline` records a measured baseline for drift comparison. Recovery from SAFE
 uses hysteresis rather than a single noisy sample.
 

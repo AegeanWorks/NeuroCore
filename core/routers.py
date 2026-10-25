@@ -1072,6 +1072,8 @@ async def run_flow_node(flow_id: str, node_id: str, request: Request, background
 
 
     async def _run():
+        from core.flow_runner import FlowRunner
+
         try:
             runner = FlowRunner(flow_id, flow_override=flow_override)
             # Inject some default data so nodes that expect input don't fail immediately
@@ -2032,7 +2034,8 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         # Validate every flow before adding any, so a bad package changes nothing.
         pending = []
         for fid, fdata in entries:
-            target_id = str(fid)
+            # A name of only punctuation sanitizes to an empty id, which the store rejects.
+            target_id = str(fid).strip() or f"imported_{_uuid.uuid4().hex[:8]}"
             if target_id in flow_manager.flows:
                 target_id = f"{target_id}_{_uuid.uuid4().hex[:6]}"
             errors = flow_manager.validate_flow(target_id, fdata)

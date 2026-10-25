@@ -866,3 +866,27 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   - *Trade-offs*: Marketplace flow packages that fail validation now return 400 instead of being
     written unvalidated; the legacy hardware id file is copied, not moved, so both files remain
     until the operator removes the nested one.
+
+### ADR-038: Node triggers run through the real runner; approvals are identified by the actor
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Review of the pushed runtime changes found that the `POST /ai-flow/{id}/run-node/{node}`
+  endpoint referenced `FlowRunner` without importing it, so its background task raised `NameError`
+  while the response reported "Node triggered". `FlowEvolution.mutate` and the structured-output
+  retry loop also carried unreachable duplicate statements left by an earlier edit. The README
+  still told operators to send `approved_by` in request bodies after ADR-031/actor auth moved
+  approval identity to the authenticated request actor. The dev dependency pin excluded pytest 9,
+  although the project is verified on pytest 9.1.1.
+- **Decision**:
+  1. The run-node background task imports `FlowRunner` at call time and a regression test executes
+     the captured task against a fake runner.
+  2. Unreachable duplicate code is removed from `core/flow_evolution.py` and
+     `core/structured_output.py`.
+  3. README approval examples name the required role; the approver recorded in ledgers is the
+     authenticated actor, never a body field.
+  4. `pytest>=8.0.0,<10` in the dev extra and `requirements-dev.txt`, so the declared range covers
+     the version the suite is verified against.
+- **Consequences**:
+  - *Positive*: Manual node triggers actually execute; the documented approval flow matches the
+    routes; declarations and the verified environment agree.
+  - *Trade-offs*: None for runtime behaviour; CI still installs the newest 9.x from the range.

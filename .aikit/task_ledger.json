@@ -3,53 +3,14 @@
   "active_task": {
     "task_id": "neurocore-followups-v1",
     "last_phase": "phase 4",
-    "active_phase": 5,
-    "status": "completed",
-    "updated_at": 1792928584.2233706,
+    "active_phase": 4,
+    "status": "in_progress",
+    "updated_at": 1792931320.4545426,
     "owner": "kilo:neurocore",
-    "started_by": "claude-code:neurocore",
-    "continuations": [
-      {
-        "agent": "kilo:neurocore",
-        "from": "claude-code:neurocore",
-        "at": 1792927290.6451702
-      }
-    ],
-    "completed_at": 1792928900.7779856
+    "started_by": "kilo:neurocore",
+    "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[Outcome capture] Ordinary chat/flow runs now emit one outcome through core/outcomes.py; the active brain records flow:<id> experiences while the kernel permits memory writes, and stop/reset unregister capture. Evaluation runners use FlowRunner(capture_outcome=False) to avoid double counting; capture_flow_outcomes config can disable it; tests clear the global listener after each test. Added 4 outcome-capture tests. Full suite 1658 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792840052.7233407,
-      "timestamp_str": "2026-10-24 14:07:32",
-      "handoff": {
-        "state": "brain substrate, evaluation, learning, improvement, configuration, kernel/drift, reactivity and automatic outcome capture are complete",
-        "next": "authenticated actor identity and reaction delivery/inbox UI",
-        "open": "39 modified/29 untracked, auto mode disabled, ledgers process-local",
-        "evidence": "pytest 1658 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[Actor auth] Brain approvals now use authenticated request actors: all /brain routes share get_brain_actor; loopback/test clients resolve as local (optional X-Brain-Actor), remote clients require NEUROCORE_BRAIN_TOKEN via X-Brain-Token with constant-time compare and receive 401/403; mutating routes use the actor name for promotion/config/kernel/drift audit instead of body approved_by; GET /brain/actor reports identity. Added 4 auth tests. Full suite 1662 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792841344.8070364,
-      "timestamp_str": "2026-10-24 14:29:04",
-      "handoff": {
-        "state": "brain substrate, evaluation, learning, improvement, configuration, kernel/drift, reactivity, outcome capture and actor auth are complete",
-        "next": "reaction delivery/inbox UI, per-user RBAC, process-local ledger locks",
-        "open": "39 modified/30 untracked, auto mode disabled",
-        "evidence": "pytest 1662 passed 7 skipped, aikit check 4/4"
-      }
-    },
     {
       "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
@@ -308,6 +269,38 @@
       "timestamp": 1792928900.7779865,
       "timestamp_str": "2026-10-25 14:48:20",
       "agent": "kilo:neurocore"
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[Review] Post-push review of 3f76ace..a07be8e found and fixed: /ai-flow/{id}/run-node/{node} referenced FlowRunner without importing it, so the background task raised NameError while the UI reported success (local import at call time + regression test); unreachable duplicate statements in FlowEvolution.mutate and the structured-output retry loop removed; marketplace flow import no longer 500s on a name that sanitizes to an empty id; README approval examples now name the required role instead of a body approved_by field; pytest dev pin widened to <10 to cover the verified 9.1.1. ADR-038. Full suite 1769 passed 7 skipped. GitHub Actions run for a07be8e failed before any step with an account billing lock, not a code failure; Docker build still unverified locally. No commit yet.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792931123.4272459,
+      "timestamp_str": "2026-10-25 15:25:23",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "state": "post-push review fixes green",
+        "next": "commit and push",
+        "open": "Actions blocked by account billing, Docker image build unverified, reaction delivery/inbox polish and optional auto-mode design remain",
+        "evidence": "pytest 1769 passed 7 skipped"
+      }
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "checklists: passed (freshness, call sites, declared deps incl. pytest range, platform paths, no stubs/unreachable duplicates, secret scan). aikit check neurocore 4/4; full suite 1769 passed 7 skipped.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792931320.4545426,
+      "timestamp_str": "2026-10-25 15:28:40",
+      "agent": "kilo:neurocore",
+      "handoff": {
+        "next": "commit and push the review fixes",
+        "open": "Actions blocked by account billing, Docker build unverified"
+      }
     }
   ]
 }

@@ -112,3 +112,39 @@ def test_hardware_id_differs_when_os_probes_are_empty(monkeypatch, tmp_path):
     second = routers.get_hardware_id()
 
     assert first != second
+
+
+class _CapturedTasks:
+    def __init__(self):
+        self.tasks = []
+
+    def add_task(self, fn, *args, **kwargs):
+        self.tasks.append(fn)
+
+
+def test_run_node_route_executes_through_the_flow_runner(monkeypatch):
+    # The endpoint runs in a background task, so a missing import surfaced only as a logged
+    # NameError while the UI reported success.
+    import asyncio
+    from types import SimpleNamespace
+
+    import core.flow_runner as flow_runner_module
+
+    calls = []
+
+    class FakeRunner:
+        def __init__(self, flow_id, flow_override=None):
+            calls.append(("init", flow_id))
+
+        async def run(self, payload, start_node_id=None):
+            calls.append(("run", start_node_id, payload["manual"]))
+
+    monkeypatch.setattr(flow_runner_module, "FlowRunner", FakeRunner)
+    tasks = _CapturedTasks()
+    request = SimpleNamespace(headers={})
+
+    asyncio.run(routers.run_flow_node("flow-1", "node-1", request, tasks))
+    assert len(tasks.tasks) == 1
+    asyncio.run(tasks.tasks[0]())
+
+    assert calls == [("init", "flow-1"), ("run", "node-1", True)]
