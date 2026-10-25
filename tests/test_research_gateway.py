@@ -278,3 +278,22 @@ def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_
     assert first["article_ids"] == ["a1"]
     assert second["article_ids"] == ["a1"]
     assert len(manager.articles) == 1, "a cache hit does not duplicate the article"
+
+
+def test_the_cache_is_bounded_and_evicts_the_oldest(monkeypatch, tmp_path):
+    monkeypatch.setattr(gateway, "MAX_CACHE_ENTRIES", 2)
+    cache = gateway._Cache(str(tmp_path / "cache.json"))
+    for index in range(3):
+        cache.put(f"k{index}", {"_stored_at": float(index)})
+
+    assert cache.get("k0") is None
+    assert cache.get("k1") is not None
+    assert cache.get("k2") is not None
+
+    # A hand-edited corrupt entry must not crash the next write.
+    from pathlib import Path
+
+    Path(cache.path).write_text('{"bad": "not an object"}', encoding="utf-8")
+    cache.put("k3", {"_stored_at": 3.0})
+    assert cache.get("bad") is None
+    assert cache.get("k3") is not None

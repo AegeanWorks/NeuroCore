@@ -164,6 +164,10 @@ def node_type_catalogue(modules: Any) -> Set[Tuple[str, str]]:
         if not isinstance(manifest, dict):
             continue
         provided = manifest.get("provides_nodes") or manifest.get("node_types") or []
+        if manifest.get("is_flow_node"):
+            # Single-node modules (llm_module, system_prompt) declare no provides_nodes and use
+            # their own id as the node type; omitting them made every real flow look unknown.
+            catalogue.add((str(module_id), str(module_id)))
         for node_type in provided:
             node_id = node_type.get("id") if isinstance(node_type, dict) else node_type
             if node_id:

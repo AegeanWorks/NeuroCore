@@ -1,60 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "post-push-review-fixes",
+    "task_id": "second-review-fixes",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792963090.1876578,
+    "updated_at": 1792964735.0498135,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792963090.4720852
+    "completed_at": 1792964735.3627825
   },
   "checkpoints": [
-    {
-      "task_id": "brain-execution-control",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'brain-execution-control' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792950564.8360565,
-      "timestamp_str": "2026-10-25 20:49:24",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "skill-version-registry",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/2] P1-6: content-addressed skill version history, bounded, recorded on create/import/update and auditable rollback (ADR-044). [2/2] Gates, commit, push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792951238.5659845,
-      "timestamp_str": "2026-10-25 21:00:38",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "Prompt edits were in place and unrecoverable; the Tif report's M2 requires versioned artifacts with rollback.",
-        "benefits": "Every skill edit is reversible and attributable; identical content adds no noise.",
-        "risks": "contract: new routes and a versions directory; dependency: stdlib only; concurrency: atomic file replace, last writer wins per version; state: bounded history under the skills storage root.",
-        "mitigation": "Versioning is additive, the content file stays the runtime source, and a corrupt index degrades to empty history."
-      }
-    },
-    {
-      "task_id": "skill-version-registry",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[2/2] done: skill version store, backend recording on create/import/update, list/read/rollback routes, ADR-044 and README. Full suite 1829 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792951712.38104,
-      "timestamp_str": "2026-10-25 21:08:32",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "P1-6 complete",
-        "next": "commit and push",
-        "open": "P2 items (avoidance, loop guard, research gateway, unified budget, epistemic links)"
-      }
-    },
     {
       "task_id": "skill-version-registry",
       "phase": "completed",
@@ -288,6 +245,49 @@
       "status": "completed",
       "timestamp": 1792963090.4720874,
       "timestamp_str": "2026-10-26 00:18:10",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "second-review-fixes",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/3] Fix the single-node module catalogue so real flows (llm_module, system_prompt) are not falsely blocked (ADR-053). [2/3] Charge goal-pursuit tool calls once and harden cache eviction; add regression tests. [3/3] Gates, commit and push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792964346.3706915,
+      "timestamp_str": "2026-10-26 00:39:06",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The second review found regressions in the review-fix commit: the default flow block and a double tool charge.",
+        "benefits": "A truthful simulation for real flows, correct budget accounting and a resilient cache.",
+        "risks": "contract: catalogue now includes self-node modules; dependency: none; concurrency: unchanged; state: cache corrupt entries are dropped.",
+        "mitigation": "Focused tests for the catalogue, cache bound and goal-pursuit suite; full gates before commit."
+      }
+    },
+    {
+      "task_id": "second-review-fixes",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done: catalogue includes is_flow_node self-nodes (default flow simulates as runnable), goal pursuit charges locally handled tools once and delegates normal tools to the hybrid charge, cache eviction drops corrupt entries, helper/docstring ordering fixed. ADR-053. Full suite 1898 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792964735.0498135,
+      "timestamp_str": "2026-10-26 00:45:35",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "second-review fixes complete and green",
+        "next": "commit and push",
+        "open": "none"
+      }
+    },
+    {
+      "task_id": "second-review-fixes",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'second-review-fixes' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792964735.3627837,
+      "timestamp_str": "2026-10-26 00:45:35",
       "agent": "kilo:main"
     }
   ]

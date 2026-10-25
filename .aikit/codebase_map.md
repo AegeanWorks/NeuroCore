@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `276`
 - **Total Classes**: `399`
-- **Total Top-Level Functions**: `1788`
+- **Total Top-Level Functions**: `1790`
 - **Total Class Methods**: `2144`
-- **Total Source Lines**: `77427`
+- **Total Source Lines**: `77467`
 
 ---
 
@@ -344,7 +344,7 @@
 ### [`core/flow_simulation.py`](core/flow_simulation.py)
 > *Deterministic pre-flight flow analysis: structure, effects and a cost envelope.*
 
-**Size**: `313` lines (`12304` bytes)
+**Size**: `317` lines (`12595` bytes)
 
 **Classes:**
 - `class Finding`
@@ -540,7 +540,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `394` lines (`15087` bytes)
+**Size**: `397` lines (`15265` bytes)
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -1003,7 +1003,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5721` lines (`263991` bytes)
+**Size**: `5722` lines (`264027` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1040,7 +1040,7 @@
   - Method `._resolve_tool_name(func_name, tool_library)` - *Resolve tool name with case-insensitive and camelCase↔snake_case matching.*
   - Method `._build_repl_system_prompt(metadata)`
   - Method `._init_repl_state(messages)` - *Initialize REPL state from messages.*
-  - Method `async def ._execute_tool(tool_call, tool_library, repl_state)`
+  - Method `async def ._execute_tool(tool_call, tool_library, repl_state)` - *Execute a tool call — SubCall is intercepted as an async built-in.*
   - Method `async def ._run_rlm_loop(initial_messages, repl_state, tools_list, tool_library, model, config, trace, stream_queue, thinking_steps)` - *Core RLM loop: LLM generates code → executes tools → only metadata goes back.*
   - Method `async def .receive(input_data, config)` - *RLM Agent Loop: processes arbitrarily long inputs via REPL environment.*
   - Method `async def .send(processed_data)`
@@ -4771,7 +4771,7 @@
 ### [`tests/test_flow_simulation.py`](tests/test_flow_simulation.py)
 > *Deterministic flow simulation: structure, effects, cycles and cost envelope.*
 
-**Size**: `152` lines (`5746` bytes)
+**Size**: `165` lines (`6242` bytes)
 
 **Functions:**
 - `def node(node_id, module, node_type, **extra)`
@@ -4788,6 +4788,7 @@
 - `def test_the_catalogue_reads_provides_nodes_from_manifests()`
 - `def test_a_missing_provides_nodes_entry_blocks_the_flow()`
 - `def test_a_dangling_bridge_blocks_before_execution()`
+- `def test_the_catalogue_includes_single_node_modules()`
 
 ---
 
@@ -5977,7 +5978,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `280` lines (`10419` bytes)
+**Size**: `299` lines (`11103` bytes)
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -5997,6 +5998,7 @@
 - `def test_persist_stores_articles_with_provenance(monkeypatch, tmp_path)`
 - `def test_the_routes_list_sources_and_map_errors(monkeypatch)`
 - `def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_path)`
+- `def test_the_cache_is_bounded_and_evicts_the_oldest(monkeypatch, tmp_path)`
 
 ---
 

@@ -261,6 +261,9 @@ class _Cache:
         with self._lock:
             data = self._load()
             data[key] = payload
+            for corrupt_key in [name for name, value in data.items()
+                                if not isinstance(value, dict)]:
+                data.pop(corrupt_key, None)
             if len(data) > MAX_CACHE_ENTRIES:
                 oldest = sorted(data, key=lambda item: float(data[item].get("_stored_at", 0)))
                 for stale_key in oldest[:len(data) - MAX_CACHE_ENTRIES]:

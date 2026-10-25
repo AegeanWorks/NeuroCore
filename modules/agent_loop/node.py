@@ -7,6 +7,8 @@ from core.llm import LLMBridge
 from core.execution_budget import spend
 from core.settings import settings
 from modules.agent_loop.loop_guard import LoopGuard
+from modules.tools.sandbox import ToolSandbox
+from core.session_manager import session_manager, get_session_manager, EpisodeState
 
 
 def _charge_llm_usage(response) -> None:
@@ -18,8 +20,6 @@ def _charge_llm_usage(response) -> None:
         total = 0
     if total > 0:
         spend("tokens", total)
-from modules.tools.sandbox import ToolSandbox
-from core.session_manager import session_manager, get_session_manager, EpisodeState
 
 
 logger = logging.getLogger(__name__)
@@ -1414,8 +1414,8 @@ Call set_final() when complete."""
     async def _execute_tool(
         self, tool_call: dict, tool_library: dict, repl_state: dict
     ) -> dict:
-        spend("tool_calls")
         """Execute a tool call — SubCall is intercepted as an async built-in."""
+        spend("tool_calls")
         func_name = tool_call["function"]["name"]
         try:
             args = json.loads(tool_call["function"]["arguments"])
@@ -2886,10 +2886,10 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         large_output_threshold: int,
     ) -> dict:
         """Intercept AskUser and DecomposeGoal before delegating to parent."""
-        spend("tool_calls")
         func_name = tool_call.get("function", {}).get("name", "")
 
         if func_name == "AskUser":
+            spend("tool_calls")
             try:
                 args = json.loads(tool_call["function"].get("arguments", "{}"))
             except Exception:
@@ -2934,6 +2934,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             }
 
         if func_name == "DecomposeGoal":
+            spend("tool_calls")
             # Guard against the LLM hallucinating this tool call when sub-goals
             # are disabled via config (enable_subgoals=False).
             if not repl_state.get("_subgoal_config", {}).get("enable_subgoals", True):

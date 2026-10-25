@@ -1157,3 +1157,25 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   is rejected at the boundary, and a bad configuration value degrades instead of blocking startup.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (no invented
   dependencies), PRINCIPLE-011 (safe defaults) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-053: Single-node catalogue, one tool charge and cache hardening
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The second review of the review-fix commit found three regressions. The new
+  catalogue read only `provides_nodes`, but `llm_module` and `system_prompt` declare
+  `is_flow_node: true` without that list, so the default flow was reported as blocking with two
+  unknown nodes. `GoalPursuitExecutor` charged a tool call and then delegated to
+  `HybridAgentExecutor`, which charged again. Research cache eviction assumed every stored value
+  was an object, so one hand-edited entry could crash a write.
+- **Decision**:
+  1. `node_type_catalogue` adds `(module_id, module_id)` for every `is_flow_node` manifest and
+     keeps reading `provides_nodes`/`node_types`. A regression test covers a single-node module.
+  2. The goal-pursuit executor charges only its locally handled tools (`AskUser`,
+     `DecomposeGoal`); normal tools are charged once by the parent hybrid executor.
+  3. Cache eviction removes non-object entries before sorting, and the cache remains capped.
+  4. The shared LLM usage helper sits below the imports, and the RLM tool executor keeps its
+     docstring before its budget charge.
+- **Consequences**: The default flow simulates as runnable, a goal-pursuit tool call costs one
+  unit, and a corrupt cache file degrades instead of breaking a search.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (verify before a
+  change), PRINCIPLE-010 (resource accounting) and PRINCIPLE-014 (failing-first tests).

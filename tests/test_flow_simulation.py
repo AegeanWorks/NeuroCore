@@ -150,3 +150,16 @@ def test_a_dangling_bridge_blocks_before_execution():
     ))
     assert report["blocking"]
     assert any(finding["code"] == "dangling_bridge" for finding in report["findings"])
+
+
+def test_the_catalogue_includes_single_node_modules():
+    from core.flow_simulation import node_type_catalogue
+
+    catalogue = node_type_catalogue({
+        "llm_module": {"is_flow_node": True},
+        "system_prompt": {"is_flow_node": True, "provides_nodes": []},
+        "chat": {"provides_nodes": [{"id": "chat_input"}]},
+    })
+    assert ("llm_module", "llm_module") in catalogue
+    assert ("system_prompt", "system_prompt") in catalogue
+    assert ("chat", "chat_input") in catalogue
