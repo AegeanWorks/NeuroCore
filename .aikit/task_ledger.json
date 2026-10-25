@@ -3,30 +3,15 @@
   "active_task": {
     "task_id": "neurocore-followups-v1",
     "last_phase": "phase 4",
-    "active_phase": 4,
-    "status": "in_progress",
+    "active_phase": 5,
+    "status": "completed",
     "updated_at": 1792931320.4545426,
     "owner": "kilo:neurocore",
     "started_by": "kilo:neurocore",
-    "continuations": []
+    "continuations": [],
+    "completed_at": 1792931970.2970173
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-ai-brain-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[Brain UI] Added local-first /brain/ui dashboard linked from the navbar: kernel mode/risk, health, cycles, proposals, reactions with dismiss/mute, reactivity start/stop/poll, evaluation run/baseline and brain start/stop/cycle/kill/reset controls; values escaped via shared escapeHtml, 5s refresh, no framework/build step. Added 2 UI tests. Full suite 1664 passed, 7 skipped; Phase 4 gates 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792843118.9676013,
-      "timestamp_str": "2026-10-24 14:58:38",
-      "handoff": {
-        "state": "brain substrate through UI are complete",
-        "next": "per-user RBAC, reaction delivery/inbox polish, process-local ledger locks",
-        "open": "40 modified/32 untracked, auto mode disabled",
-        "evidence": "pytest 1664 passed 7 skipped, aikit check 4/4, /brain/ui and navbar tests pass"
-      }
-    },
     {
       "task_id": "neurocore-ai-brain-v1",
       "phase": "phase 4",
@@ -301,6 +286,16 @@
         "next": "commit and push the review fixes",
         "open": "Actions blocked by account billing, Docker build unverified"
       }
+    },
+    {
+      "task_id": "neurocore-followups-v1",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-followups-v1' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792931970.2970185,
+      "timestamp_str": "2026-10-25 15:39:30",
+      "agent": "kilo:neurocore"
     }
   ]
 }
