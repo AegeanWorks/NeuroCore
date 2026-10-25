@@ -91,21 +91,30 @@ def descriptive_stats(data: List[float]) -> Dict[str, Any]:
     """Compute comprehensive descriptive statistics for one dataset."""
     a = np.array(data, dtype=float)
     n = len(a)
+    if n == 0:
+        raise ValueError("descriptive_stats requires at least one value.")
     q1, q3 = float(np.percentile(a, 25)), float(np.percentile(a, 75))
-    skew = float(sp_stats.skew(a))
-    kurt = float(sp_stats.kurtosis(a))  # excess kurtosis
 
-    skew_interp = (
-        "approximately symmetric" if abs(skew) < 0.5
-        else ("moderately skewed right" if 0.5 <= skew < 1 else
-              "highly skewed right" if skew >= 1 else
-              "moderately skewed left" if -1 < skew <= -0.5 else
-              "highly skewed left")
-    )
-    kurt_interp = (
-        "mesokurtic (normal-like)" if abs(kurt) < 0.5
-        else ("leptokurtic (heavy tails)" if kurt > 0 else "platykurtic (light tails)")
-    )
+    if n >= 2:
+        std = float(np.std(a, ddof=1))
+        variance = float(np.var(a, ddof=1))
+        se = float(sp_stats.sem(a))
+        skew = float(sp_stats.skew(a))
+        kurt = float(sp_stats.kurtosis(a))  # excess kurtosis
+        skew_interp = (
+            "approximately symmetric" if abs(skew) < 0.5
+            else ("moderately skewed right" if 0.5 <= skew < 1 else
+                  "highly skewed right" if skew >= 1 else
+                  "moderately skewed left" if -1 < skew <= -0.5 else
+                  "highly skewed left")
+        )
+        kurt_interp = (
+            "mesokurtic (normal-like)" if abs(kurt) < 0.5
+            else ("leptokurtic (heavy tails)" if kurt > 0 else "platykurtic (light tails)")
+        )
+    else:
+        std = variance = se = skew = kurt = None
+        skew_interp = kurt_interp = "undefined (n < 2)"
 
     # Normality test (Shapiro-Wilk, best for n < 5000)
     if n >= 3:
@@ -129,17 +138,17 @@ def descriptive_stats(data: List[float]) -> Dict[str, Any]:
         "mean": round(float(np.mean(a)), 4),
         "median": round(float(np.median(a)), 4),
         "mode": round(float(sp_stats.mode(a, keepdims=True).mode[0]), 4),
-        "std": round(float(np.std(a, ddof=1)), 4),
-        "variance": round(float(np.var(a, ddof=1)), 4),
-        "se": round(float(sp_stats.sem(a)), 4),
+        "std": round(std, 4) if std is not None else None,
+        "variance": round(variance, 4) if variance is not None else None,
+        "se": round(se, 4) if se is not None else None,
         "min": round(float(np.min(a)), 4),
         "max": round(float(np.max(a)), 4),
         "range": round(float(np.max(a) - np.min(a)), 4),
         "q1": round(q1, 4),
         "q3": round(q3, 4),
         "iqr": round(q3 - q1, 4),
-        "skewness": round(skew, 4),
-        "kurtosis": round(kurt, 4),
+        "skewness": round(skew, 4) if skew is not None else None,
+        "kurtosis": round(kurt, 4) if kurt is not None else None,
         "skewness_interpretation": skew_interp,
         "kurtosis_interpretation": kurt_interp,
         "normality": normality,
@@ -155,6 +164,8 @@ def confidence_interval(data: List[float], confidence: float = 0.95) -> Dict[str
     """Compute the confidence interval for the mean."""
     a = np.array(data, dtype=float)
     n = len(a)
+    if n < 2:
+        raise ValueError("Confidence interval requires at least two values.")
     mean = float(np.mean(a))
     se = float(sp_stats.sem(a))
     t_crit = float(sp_stats.t.ppf((1 + confidence) / 2, df=n - 1))
@@ -182,12 +193,15 @@ def confidence_interval(data: List[float], confidence: float = 0.95) -> Dict[str
 def one_sample_ttest(data: List[float], mu: float = 0.0, alpha: float = 0.05) -> Dict[str, Any]:
     """Test whether the sample mean differs from a hypothesized value mu."""
     a = np.array(data, dtype=float)
+    n = len(a)
+    if n < 2:
+        raise ValueError("One-sample t-test requires at least two values.")
     t_stat, p_val = sp_stats.ttest_1samp(a, popmean=mu)
     t_stat, p_val = float(t_stat), float(p_val)
-    n = len(a)
     df = n - 1
     mean = float(np.mean(a))
-    d = (mean - mu) / float(np.std(a, ddof=1))
+    std = float(np.std(a, ddof=1))
+    d = (mean - mu) / std if std > 0 else 0.0
     reject = p_val < alpha
     ci = confidence_interval(data, 1 - alpha)
 
@@ -225,6 +239,8 @@ def two_sample_ttest(
 ) -> Dict[str, Any]:
     """Welch's (or Student's) t-test for two independent samples."""
     a, b = np.array(data1, dtype=float), np.array(data2, dtype=float)
+    if len(a) < 2 or len(b) < 2:
+        raise ValueError("Two-sample t-test requires at least two values per group.")
     t_stat, p_val = sp_stats.ttest_ind(a, b, equal_var=equal_var)
     t_stat, p_val = float(t_stat), float(p_val)
 
@@ -284,11 +300,14 @@ def paired_ttest(
     a, b = np.array(data1, dtype=float), np.array(data2, dtype=float)
     if len(a) != len(b):
         raise ValueError("Paired t-test requires equal-length datasets.")
+    if len(a) < 2:
+        raise ValueError("Paired t-test requires at least two pairs.")
     diffs = a - b
     t_stat, p_val = sp_stats.ttest_rel(a, b)
     t_stat, p_val = float(t_stat), float(p_val)
     df = len(a) - 1
-    d = float(np.mean(diffs)) / float(np.std(diffs, ddof=1))
+    diff_std = float(np.std(diffs, ddof=1))
+    d = float(np.mean(diffs)) / diff_std if diff_std > 0 else 0.0
     reject = p_val < alpha
 
     return {
@@ -322,6 +341,24 @@ def pearson_correlation(data1: List[float], data2: List[float], alpha: float = 0
     a, b = np.array(data1, dtype=float), np.array(data2, dtype=float)
     if len(a) != len(b):
         raise ValueError("Correlation requires equal-length datasets.")
+    if len(a) < 2:
+        raise ValueError("Correlation requires at least two values.")
+    if float(np.std(a)) == 0.0 or float(np.std(b)) == 0.0:
+        return {
+            "test": "Pearson Correlation",
+            "n": len(a),
+            "r": None,
+            "r_squared": None,
+            "p_value": None,
+            "alpha": alpha,
+            "significant": False,
+            "significance_stars": "",
+            "effect_interpretation": "undefined (zero variance)",
+            "direction": "none",
+            "interpretation": (
+                "Correlation is undefined because at least one series has zero variance."
+            ),
+        }
     r, p_val = sp_stats.pearsonr(a, b)
     r, p_val = float(r), float(p_val)
     r_sq = r ** 2
@@ -356,6 +393,23 @@ def spearman_correlation(data1: List[float], data2: List[float], alpha: float = 
     a, b = np.array(data1, dtype=float), np.array(data2, dtype=float)
     if len(a) != len(b):
         raise ValueError("Correlation requires equal-length datasets.")
+    if len(a) < 2:
+        raise ValueError("Correlation requires at least two values.")
+    if float(np.std(a)) == 0.0 or float(np.std(b)) == 0.0:
+        return {
+            "test": "Spearman Correlation",
+            "n": len(a),
+            "rho": None,
+            "p_value": None,
+            "alpha": alpha,
+            "significant": False,
+            "significance_stars": "",
+            "effect_interpretation": "undefined (zero variance)",
+            "direction": "none",
+            "interpretation": (
+                "Correlation is undefined because at least one series has zero variance."
+            ),
+        }
     rho, p_val = sp_stats.spearmanr(a, b)
     rho, p_val = float(rho), float(p_val)
     reject = p_val < alpha
@@ -648,6 +702,11 @@ def intervention_analysis(
     """
     warnings = []
     MIN_RECOMMENDED = 7
+
+    if len(baseline) < 2 or len(intervention) < 2:
+        raise ValueError(
+            "Intervention analysis requires at least two values per group."
+        )
 
     if len(baseline) < MIN_RECOMMENDED:
         warnings.append(f"Baseline has only {len(baseline)} data points (recommended ≥ {MIN_RECOMMENDED}).")

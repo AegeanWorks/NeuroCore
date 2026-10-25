@@ -1,18 +1,25 @@
-version: '3.8'
-
 services:
   neurocore:
     build: .
+    # Match the host owner of ./data and ./modules (e.g. NEUROCORE_UID=$(id -u)).
+    user: "${NEUROCORE_UID:-1000}:${NEUROCORE_GID:-1000}"
     # Publish on the host loopback only: the container binds 0.0.0.0 but is not
     # reachable from other machines unless the user deliberately changes this mapping.
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
+      # All mutable state (settings, flows, chats, calendar, databases, uploads) lives here.
       - ./data:/app/data
-      - ./settings.json:/app/settings.json
+      # Module manifests are writable state stored beside module code.
+      - ./modules:/app/modules
     environment:
       - PYTHONUNBUFFERED=1
+      - NEUROCORE_STATE_DIR=/app/data
       # Bind all interfaces inside the container so the published port works; exposure is
       # bounded by the loopback publish above.
       - NEUROCORE_HOST=0.0.0.0
+      # The loopback-only publish above is the outer layer that keeps this local, so the
+      # container may start without a token. Remove this and set NEUROCORE_API_TOKEN before
+      # publishing on any other interface.
+      - NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE=1
     restart: unless-stopped

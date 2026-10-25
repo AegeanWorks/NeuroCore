@@ -6,11 +6,11 @@ import threading
 import uuid
 from datetime import datetime
 
-from core.paths import project_path
+from core.paths import state_path
 
 logger = logging.getLogger(__name__)
 
-EVENTS_FILE = project_path("calendar_events.json")
+EVENTS_FILE = state_path("calendar_events.json")
 
 class EventManager:
     def __init__(self, storage_file=EVENTS_FILE):

@@ -526,12 +526,20 @@ data = resp.json()
 
 ### `os` — Environment Variables Only
 
-`os` inside the sandbox is a `SafeEnv` mock. Only two things work:
+`os` inside the sandbox is a `SafeEnv` mock. It sees **only** the variables named in the
+`env_allowlist` list of `config` in `modules/tools/module.json`; everything else in the host
+environment (API keys, bot tokens, cloud credentials) is invisible to tools. For example:
+
+```json
+"config": { "env_allowlist": ["MY_API_KEY"] }
+```
+
+Only two things work:
 
 ```python
 import os
 
-# Read an environment variable (returns None or default if not set)
+# Read a permitted environment variable (returns None or default if not set or not permitted)
 api_key = os.getenv("MY_API_KEY", "default")
 
 # Read via environ
@@ -640,7 +648,7 @@ if not isinstance(items, list):
 #### Reading Configuration from Environment
 ```python
 import os
-# Reads from the host environment — set these before starting NeuroCore
+# Set it before starting NeuroCore and list it in env_allowlist (modules/tools/module.json)
 api_key = os.getenv("MY_SERVICE_API_KEY")
 if not api_key:
     result = "Error: MY_SERVICE_API_KEY environment variable is not set."
@@ -859,7 +867,7 @@ The import button changes to **Imported** after a successful import and shows **
 | `Import of module 'X' is not permitted` | Module not in sandbox allowlist | Add it to `SAFE_MODULES` in `sandbox.py`, or use an HTTP API via `httpx` instead |
 | `Import of module 'X' is not allowed` | Module is in the danger blocklist | Use a safe alternative; blocked modules cannot be enabled |
 | HTTP request blocked (domain not whitelisted) | `SafeHttpxClient` domain check | Add the domain to `SafeHttpxClient.DEFAULT_ALLOWED_DOMAINS` in `sandbox.py` |
-| `os.X is not permitted` | Accessing a blocked `os` attribute | Only `os.getenv()` and `os.environ.get()` are available; use env vars for config |
+| `os.X is not permitted` | Accessing a blocked `os` attribute | Only `os.getenv()` and `os.environ.get()` are available, for variables listed in `env_allowlist` |
 | Tool times out | Slow external API or infinite loop | Add timeouts to HTTP calls; check for logic errors |
 
 ### Debugging Steps

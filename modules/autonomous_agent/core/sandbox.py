@@ -63,6 +63,9 @@ class AgentSandbox:
         ActionType.UPDATE_FLOW: ActionPolicy(
             allowed=True, own_flows_only=True
         ),
+        ActionType.COMPOSE_FLOW: ActionPolicy(
+            allowed=True, own_flows_only=True
+        ),
         ActionType.DELETE_FLOW: ActionPolicy(
             allowed=True, own_flows_only=True
         ),
@@ -196,6 +199,10 @@ class AgentSandbox:
     def register_flow_ownership(self, flow_id: str) -> None:
         """Register that agent owns this flow."""
         self.owned_flows.add(flow_id)
+
+    def unregister_flow_ownership(self, flow_id: str) -> None:
+        """Forget ownership after the agent deletes a flow."""
+        self.owned_flows.discard(flow_id)
     
     def check_flow_ownership(self, flow_id: str) -> bool:
         """Check if agent owns this flow."""
@@ -248,6 +255,7 @@ class AgentSandbox:
         handlers = {
             ActionType.CREATE_FLOW: self._handle_create_flow,
             ActionType.UPDATE_FLOW: self._handle_update_flow,
+            ActionType.COMPOSE_FLOW: self._handle_compose_flow,
             ActionType.DELETE_FLOW: self._handle_delete_flow,
             ActionType.EXECUTE_FLOW: self._handle_execute_flow,
             ActionType.REMEMBER: self._handle_remember,
@@ -279,6 +287,20 @@ class AgentSandbox:
             raise SandboxViolation("Cannot modify flow not owned by agent")
         return {"status": "delegated", "action": "update_flow", "params": action.parameters}
     
+    async def _handle_compose_flow(self, action: AgentAction,
+                                   policy: ActionPolicy) -> Dict[str, Any]:
+        members = action.parameters.get("member_flows")
+        if not isinstance(members, list) or not members:
+            raise SandboxViolation("compose_flow needs member_flows")
+        for flow_id in members:
+            if policy.own_flows_only and not self.check_flow_ownership(flow_id):
+                raise SandboxViolation("Cannot compose a flow not owned by agent")
+        return {
+            "status": "delegated",
+            "action": "compose_flow",
+            "params": action.parameters,
+        }
+
     async def _handle_delete_flow(self, action: AgentAction, policy: ActionPolicy) -> Dict[str, Any]:
         flow_id = action.parameters.get("flow_id")
         if policy.own_flows_only and not self.check_flow_ownership(flow_id):

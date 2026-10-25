@@ -19,6 +19,7 @@ from core.flow_manager import flow_manager
 from core.llm import LLMBridge
 from core.debug import debug_logger
 from core.research_manager import ResearchManager
+from core.paths import state_path
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def get_hardware_id():
     import subprocess
     import os
 
-    id_file = os.path.join("data", "hardware_id.txt")
+    id_file = state_path("data", "hardware_id.txt")
 
     # Return persisted ID so hardware changes never alter it
     if os.path.exists(id_file):
@@ -80,7 +81,13 @@ def get_hardware_id():
         disk_sn = get_cmd("wmic diskdrive where index=0 get SerialNumber")
         os_name = f"{platform.system()} {platform.release()} {platform.version()}"
 
-        combined = f"{cpu_id}|{cpu_name}|{cpu_mhz}|{board_sn}|{board_mfr}|{board_product}|{ram}|{disk_sn}|{os_name}"
+        probes = [cpu_id, cpu_name, cpu_mhz, board_sn, board_mfr, board_product, ram, disk_sn]
+        probe_text = "".join(probes).strip()
+        combined = f"{'|'.join(probes)}|{os_name}"
+        if not probe_text:
+            # wmic is absent on current Windows and Linux; without a per-host signal every
+            # machine with the same OS version would receive the same hardware id.
+            combined = f"{combined}|{uuid.getnode()}"
         useful = combined.replace("|", "").replace(" ", "").strip()
         if len(useful) < 10:
             raise ValueError("Specs too short")
@@ -95,7 +102,7 @@ def get_hardware_id():
 
     # Persist so future calls never recompute
     try:
-        os.makedirs("data", exist_ok=True)
+        os.makedirs(os.path.dirname(id_file) or ".", exist_ok=True)
         with open(id_file, "w", encoding="utf-8") as f:
             f.write(hardware_id)
     except Exception as _exc:
@@ -850,9 +857,11 @@ async def save_ai_flow(request: Request, name: str = Form(...), nodes: str = For
         flow_id = None
     
     try:
-        flow_manager.save_flow(name=name, nodes=json.loads(nodes), connections=json.loads(connections), bridges=json.loads(bridges), flow_id=flow_id)
+        flow_manager.save_flow(name=name, nodes=json.loads(nodes), connections=json.loads(connections), bridges=json.loads(bridges), flow_id=flow_id, validate=True)
     except json.JSONDecodeError:
         return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Invalid JSON in flow data"}})})
+    except (TypeError, ValueError) as exc:
+        return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Invalid flow: {exc}"}})})
     
     return templates.TemplateResponse(request, "ai_flow_list.html", {
         "flows": flow_manager.list_flows(),
@@ -2458,7 +2467,10 @@ async def import_flows(request: Request, file: UploadFile = File(...)):
         if not isinstance(flows_data, dict):
              return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Invalid format: Root must be a dictionary"}})})
         
-        flow_manager.import_flows(flows_data)
+        result = flow_manager.import_flows(flows_data)
+        if not result.get("success"):
+            errors = "; ".join(str(item) for item in result.get("errors", []))[:300]
+            return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Import failed: {errors}"}})})
         return Response(status_code=200, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "success", "message": "Flows imported successfully"}})})
     except json.JSONDecodeError:
         return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Invalid JSON file"}})})

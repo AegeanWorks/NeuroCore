@@ -335,6 +335,7 @@ class FaissDocumentStore(QueryExpansionMixin):
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     file_hash TEXT NOT NULL UNIQUE,
                     filename TEXT NOT NULL,
+                    stored_filename TEXT,
                     file_type TEXT NOT NULL,
                     file_size INTEGER NOT NULL,
                     page_count INTEGER,
@@ -358,6 +359,12 @@ class FaissDocumentStore(QueryExpansionMixin):
                     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
                 )
             """)
+
+            # Migration: remember the on-disk name so deletion/integrity checks can find it.
+            try:
+                con.execute("ALTER TABLE documents ADD COLUMN stored_filename TEXT")
+            except sqlite3.OperationalError as _exc:
+                logger.debug("ignored exception: %s", _exc)
 
             # Create indexes
             con.execute("CREATE INDEX IF NOT EXISTS idx_file_hash ON documents(file_hash)")
@@ -547,8 +554,9 @@ class FaissDocumentStore(QueryExpansionMixin):
 
     def _sync_faiss_index(self):
         """Ensure FAISS index is in sync with SQLite chunks.
-        
-        Uses tolerance threshold to avoid full rebuilds for small mismatches.
+
+        Any count mismatch is repaired; tolerating small differences left stale vectors that
+        could never be found or removed.
         """
         try:
             with self._connect() as con:
@@ -560,12 +568,9 @@ class FaissDocumentStore(QueryExpansionMixin):
                 index_count = self.faiss_index.ntotal if self.faiss_index is not None else 0
             
             if count > 0:
-                # Use tolerance threshold to avoid rebuilding for small differences
-                # A single chunk added while server was offline shouldn't trigger full rebuild
                 diff = abs(count - index_count)
-                tolerance = 10  # Rebuild only if difference > 10
-                
-                if index_count == 0 or diff > tolerance:
+
+                if index_count == 0 or diff > 0:
                     logging.warning(f"⚠️ FAISS index out of sync (Index: {index_count}, DB: {count}, Diff: {diff}). Rebuilding...")
                     self._rebuild_index()
         except Exception as e:
@@ -579,8 +584,11 @@ class FaissDocumentStore(QueryExpansionMixin):
                 fts_count = con.execute("SELECT COUNT(*) FROM chunks_fts").fetchone()[0]
                 chunks_count = con.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
                 
-                if chunks_count > 0 and fts_count == 0:
-                    logging.info("🔧 Populating FTS5 index...")
+                if chunks_count > 0 and fts_count != chunks_count:
+                    logging.info(
+                        "🔧 Rebuilding FTS5 index (fts=%s, chunks=%s)...",
+                        fts_count, chunks_count,
+                    )
                     con.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
                     con.commit()
         except Exception as e:
@@ -673,7 +681,8 @@ class FaissDocumentStore(QueryExpansionMixin):
         """Return document metadata for the first document with the given filename, or None."""
         with self._connect() as con:
             row = con.execute(
-                "SELECT id, file_hash, filename, file_type, file_size, page_count, chunk_count, created_at "
+                "SELECT id, file_hash, filename, file_type, file_size, page_count, "
+                "chunk_count, created_at, stored_filename "
                 "FROM documents WHERE filename = ? ORDER BY created_at DESC LIMIT 1",
                 (filename,),
             ).fetchone()
@@ -681,7 +690,7 @@ class FaissDocumentStore(QueryExpansionMixin):
             return {
                 "id": row[0], "file_hash": row[1], "filename": row[2],
                 "file_type": row[3], "file_size": row[4], "page_count": row[5],
-                "chunk_count": row[6], "created_at": row[7],
+                "chunk_count": row[6], "created_at": row[7], "stored_filename": row[8],
             }
         return None
 
@@ -692,6 +701,7 @@ class FaissDocumentStore(QueryExpansionMixin):
         new_file_size: int,
         new_page_count: Optional[int],
         new_chunks: List[Dict],
+        stored_filename: Optional[str] = None,
     ) -> Dict:
         """Delta re-index a document: preserve unchanged chunks, remove stale ones, add new ones.
 
@@ -780,12 +790,24 @@ class FaissDocumentStore(QueryExpansionMixin):
 
         # -- 6. Update document metadata ------------------------------------
         with self._connect() as con:
-            con.execute(
-                """UPDATE documents
-                   SET file_hash = ?, file_size = ?, page_count = ?, chunk_count = ?
-                   WHERE id = ?""",
-                (new_file_hash, new_file_size, new_page_count, len(new_chunks), document_id),
-            )
+            if stored_filename is not None:
+                con.execute(
+                    """UPDATE documents
+                       SET file_hash = ?, file_size = ?, page_count = ?, chunk_count = ?,
+                           stored_filename = ?
+                       WHERE id = ?""",
+                    (
+                        new_file_hash, new_file_size, new_page_count, len(new_chunks),
+                        stored_filename, document_id,
+                    ),
+                )
+            else:
+                con.execute(
+                    """UPDATE documents
+                       SET file_hash = ?, file_size = ?, page_count = ?, chunk_count = ?
+                       WHERE id = ?""",
+                    (new_file_hash, new_file_size, new_page_count, len(new_chunks), document_id),
+                )
 
         self._save_faiss_index()
 
@@ -800,7 +822,8 @@ class FaissDocumentStore(QueryExpansionMixin):
         file_size: int,
         page_count: Optional[int],
         chunks: List[Dict],  # [{'text': str, 'embedding': np.ndarray, 'page_number': int}, ...]
-        upload_source: str = "web_ui"
+        upload_source: str = "web_ui",
+        stored_filename: Optional[str] = None,
     ) -> int:
         """
         Add document and its chunks to database with FAISS indexing.
@@ -813,13 +836,14 @@ class FaissDocumentStore(QueryExpansionMixin):
             # Insert document metadata
             cur = con.execute("""
                 INSERT INTO documents (
-                    file_hash, filename, file_type, file_size, 
+                    file_hash, filename, stored_filename, file_type, file_size,
                     page_count, chunk_count, upload_source, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 file_hash,
                 filename,
+                stored_filename,
                 file_type,
                 file_size,
                 page_count,
@@ -890,7 +914,8 @@ class FaissDocumentStore(QueryExpansionMixin):
         """List all documents."""
         with self._connect() as con:
             rows = con.execute("""
-                SELECT id, filename, file_type, page_count, chunk_count, created_at, file_size
+                SELECT id, filename, file_type, page_count, chunk_count, created_at,
+                       file_size, stored_filename
                 FROM documents
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -905,6 +930,7 @@ class FaissDocumentStore(QueryExpansionMixin):
                 "chunk_count": r[4],
                 "created_at": r[5],
                 "file_size": r[6],
+                "stored_filename": r[7],
             }
             for r in rows
         ]
@@ -913,11 +939,16 @@ class FaissDocumentStore(QueryExpansionMixin):
         """Retrieve a single document's metadata by ID."""
         with self._connect() as con:
             row = con.execute("""
-                SELECT id, filename, file_type, page_count, chunk_count, created_at
+                SELECT id, filename, file_type, page_count, chunk_count, created_at,
+                       stored_filename
                 FROM documents WHERE id = ?
             """, (document_id,)).fetchone()
             if row:
-                return {"id": row[0], "filename": row[1], "file_type": row[2], "page_count": row[3], "chunk_count": row[4], "created_at": row[5]}
+                return {
+                    "id": row[0], "filename": row[1], "file_type": row[2],
+                    "page_count": row[3], "chunk_count": row[4], "created_at": row[5],
+                    "stored_filename": row[6],
+                }
         return None
 
     def get_document_chunks(self, document_id: int) -> List[Dict]:

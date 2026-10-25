@@ -2,16 +2,17 @@ import copy
 import json
 import logging
 import os
+import tempfile
 import threading
 import uuid
 from datetime import datetime
 
-from core.paths import project_path
+from core.paths import state_path
 from core.settings import settings
 
 logger = logging.getLogger(__name__)
 
-FLOWS_FILE = project_path("ai_flows.json")
+FLOWS_FILE = state_path("ai_flows.json")
 
 # Validation constants
 REQUIRED_FLOW_KEYS = {"id", "nodes", "connections"}
@@ -33,96 +34,201 @@ class FlowManager:
         self.flows = self._load_flows()
         self.versions = self._load_versions()
 
-    def _load_flows(self):
-        # Note: lock is already created in __init__ before this is called
-        # This method may acquire the lock for writing default flows
-        if not os.path.exists(self.storage_file):
-            default_flows = self._create_default_flows()
-            self._ensure_default_active()
-            # Save without holding lock - file doesn't exist yet so no race
-            self._save_flows_to_disk_no_lock_required(default_flows)
-            return default_flows
-        
-        with open(self.storage_file, "r", encoding="utf-8") as f:
+    @staticmethod
+    def _fsync_directory(directory: str) -> None:
+        """Best-effort directory fsync so a rename survives a power loss."""
+        try:
+            fd = os.open(directory, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(fd)
+        except OSError as exc:
+            logger.debug("Directory fsync unavailable: %s", exc)
+        finally:
+            os.close(fd)
+
+    def _write_json_atomic(self, path: str, data, indent: int = 4) -> None:
+        """Write JSON through a fsynced temp file, keeping the previous file as .bak."""
+        directory = os.path.dirname(os.path.abspath(path)) or "."
+        os.makedirs(directory, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(
+            prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(data, handle, indent=indent)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            if os.path.exists(path):
+                backup_path = path + ".bak"
+                backup_tmp = backup_path + ".tmp"
+                try:
+                    with open(path, "rb") as source, open(backup_tmp, "wb") as sink:
+                        sink.write(source.read())
+                        sink.flush()
+                        os.fsync(sink.fileno())
+                    os.replace(backup_tmp, backup_path)
+                except OSError as exc:
+                    logger.warning("Could not refresh flow backup %s: %s", backup_path, exc)
+
+            os.replace(temp_path, path)
+            self._fsync_directory(directory)
+        except Exception:
             try:
-                flows = json.load(f)
-                if not flows:
-                    default_flows = self._create_default_flows()
-                    self._ensure_default_active()
-                    # Save without holding lock - file is empty so no race
-                    self._save_flows_to_disk_no_lock_required(default_flows)
-                    return default_flows
-                # Validate loaded flows - if invalid, reset to defaults
-                validation_result = self._validate_flows(flows)
-                if not validation_result["valid"]:
-                    logger.warning(f"Flow validation failed: {validation_result['errors']}. Resetting to defaults.")
-                    default_flows = self._create_default_flows()
-                    self._ensure_default_active()
-                    # Save without holding lock - we're replacing invalid data
-                    self._save_flows_to_disk_no_lock_required(default_flows)
-                    return default_flows
-                return flows
-            except json.JSONDecodeError:
-                default_flows = self._create_default_flows()
-                self._ensure_default_active()
-                # Save without holding lock - file is corrupt so no race
-                self._save_flows_to_disk_no_lock_required(default_flows)
-                return default_flows
+                os.remove(temp_path)
+            except OSError as exc:
+                logger.debug("Could not remove temp file %s: %s", temp_path, exc)
+            raise
+
+    def _quarantine_file(self, path: str) -> str:
+        """Move a corrupt state file aside instead of overwriting it."""
+        stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
+        target = f"{path}.corrupt-{stamp}"
+        try:
+            os.replace(path, target)
+            logger.error("Quarantined invalid flow store as %s", target)
+        except OSError as exc:
+            logger.error("Could not quarantine invalid flow store %s: %s", path, exc)
+        return target
+
+    @staticmethod
+    def _read_flow_file(path: str):
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def _load_backup_flows(self):
+        """Return validated flows from the .bak file, or None when unusable."""
+        backup_path = self.storage_file + ".bak"
+        if not os.path.exists(backup_path):
+            return None
+        try:
+            flows = self._read_flow_file(backup_path)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if not isinstance(flows, dict) or not flows:
+            return None
+        if not self._validate_flows(flows)["valid"]:
+            return None
+        logger.warning("Recovered flows from backup %s", backup_path)
+        return flows
+
+    def _restore_default_flows(self):
+        """Create and persist the default flow set after an unrecoverable store."""
+        default_flows = self._create_default_flows()
+        self._ensure_default_active()
+        try:
+            self._save_flows_to_disk_no_lock_required(default_flows)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.error("Could not persist default flows: %s", exc)
+        return default_flows
+
+    def _load_flows(self):
+        # Note: lock is already created in __init__ before this is called.
+        if not os.path.exists(self.storage_file):
+            return self._restore_default_flows()
+
+        try:
+            flows = self._read_flow_file(self.storage_file)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read flow store %s: %s", self.storage_file, exc)
+            self._quarantine_file(self.storage_file)
+            recovered = self._load_backup_flows()
+            return recovered if recovered is not None else self._restore_default_flows()
+
+        if not flows:
+            return self._restore_default_flows()
+
+        validation_result = self._validate_flows(flows)
+        if not validation_result["valid"]:
+            logger.warning(
+                "Flow validation failed: %s. Quarantining the store.",
+                validation_result["errors"],
+            )
+            self._quarantine_file(self.storage_file)
+            recovered = self._load_backup_flows()
+            return recovered if recovered is not None else self._restore_default_flows()
+        return flows
 
     def _validate_flows(self, flows: dict) -> dict:
         """Validate flows structure and integrity. Returns {valid: bool, errors: list}."""
-        errors = []
-        
         if not isinstance(flows, dict):
             return {"valid": False, "errors": ["flows_data must be a dictionary"]}
-        
+
         # Empty dict is valid - represents "no flows" state
         if not flows:
             return {"valid": True, "errors": []}
-        
+
+        errors = []
         for flow_id, flow in flows.items():
-            # Check required keys
-            missing_keys = REQUIRED_FLOW_KEYS - set(flow.keys())
-            if missing_keys:
-                errors.append(f"Flow '{flow_id}' missing required keys: {missing_keys}")
-                continue
-            
-            # Initialize node_ids to empty set - this ensures it's always defined
-            # even if nodes validation fails
-            node_ids = set()
-            
-            # Validate nodes
-            if not isinstance(flow.get("nodes"), list):
-                errors.append(f"Flow '{flow_id}' nodes must be a list")
-            else:
-                for node in flow["nodes"]:
-                    if not isinstance(node, dict):
-                        errors.append(f"Flow '{flow_id}' node must be a dictionary")
-                        continue
-                    missing_node_keys = REQUIRED_NODE_KEYS - set(node.keys())
-                    if missing_node_keys:
-                        errors.append(f"Flow '{flow_id}' node missing keys: {missing_node_keys}")
-                    if "id" in node:
-                        node_ids.add(node["id"])
-            
-            # Validate connections
-            if not isinstance(flow.get("connections"), list):
-                errors.append(f"Flow '{flow_id}' connections must be a list")
-            else:
-                for conn in flow["connections"]:
-                    if not isinstance(conn, dict):
-                        errors.append(f"Flow '{flow_id}' connection must be a dictionary")
-                        continue
-                    if "from" not in conn or "to" not in conn:
-                        errors.append(f"Flow '{flow_id}' connection missing 'from' or 'to'")
-                    else:
-                        # Validate node references - node_ids is now always defined
-                        if conn["from"] not in node_ids:
-                            errors.append(f"Flow '{flow_id}' connection references non-existent node: {conn['from']}")
-                        if conn["to"] not in node_ids:
-                            errors.append(f"Flow '{flow_id}' connection references non-existent node: {conn['to']}")
-        
+            errors.extend(self._validate_flow_structure(flow_id, flow))
         return {"valid": len(errors) == 0, "errors": errors}
+
+    def _validate_flow_structure(self, flow_id, flow) -> list:
+        """Structural checks shared by load and opt-in validated saves."""
+        if not isinstance(flow, dict):
+            return [f"Flow '{flow_id}' must be a dictionary"]
+
+        errors = []
+        missing_keys = REQUIRED_FLOW_KEYS - set(flow.keys())
+        if missing_keys:
+            errors.append(f"Flow '{flow_id}' missing required keys: {missing_keys}")
+            return errors
+
+        node_ids = set()
+        nodes = flow.get("nodes")
+        if not isinstance(nodes, list):
+            errors.append(f"Flow '{flow_id}' nodes must be a list")
+        else:
+            for index, node in enumerate(nodes):
+                if not isinstance(node, dict):
+                    errors.append(f"Flow '{flow_id}' node {index} must be a dictionary")
+                    continue
+                missing_node_keys = REQUIRED_NODE_KEYS - set(node.keys())
+                if missing_node_keys:
+                    errors.append(
+                        f"Flow '{flow_id}' node {index} missing keys: {missing_node_keys}"
+                    )
+                node_id = node.get("id")
+                if not isinstance(node_id, str) or not node_id:
+                    errors.append(
+                        f"Flow '{flow_id}' node {index} needs a non-empty string id"
+                    )
+                elif node_id in node_ids:
+                    errors.append(
+                        f"Flow '{flow_id}' has duplicate node id '{node_id}'"
+                    )
+                else:
+                    node_ids.add(node_id)
+
+        for label, key in (("connection", "connections"), ("bridge", "bridges")):
+            edges = flow.get(key, [])
+            if edges is None:
+                edges = []
+            if not isinstance(edges, list):
+                errors.append(f"Flow '{flow_id}' {key} must be a list")
+                continue
+            for index, edge in enumerate(edges):
+                if not isinstance(edge, dict):
+                    errors.append(
+                        f"Flow '{flow_id}' {label} {index} must be a dictionary"
+                    )
+                    continue
+                source = edge.get("from")
+                target = edge.get("to")
+                for endpoint_name, endpoint in (("from", source), ("to", target)):
+                    if not isinstance(endpoint, str) or not endpoint:
+                        errors.append(
+                            f"Flow '{flow_id}' {label} {index} needs a non-empty "
+                            f"'{endpoint_name}'"
+                        )
+                    elif endpoint not in node_ids:
+                        errors.append(
+                            f"Flow '{flow_id}' {label} {index} references unknown "
+                            f"node '{endpoint}'"
+                        )
+        return errors
 
     def _create_default_flows(self):
         flow_id = "default-flow-001"
@@ -188,7 +294,8 @@ class FlowManager:
                     {"from": "node-12", "to": "node-11"}
                 ],
                 "bridges": [],
-                "created_at": datetime.utcnow().isoformat() + 'Z'
+                "created_at": datetime.utcnow().isoformat() + 'Z',
+                "updated_at": datetime.utcnow().isoformat() + 'Z'
             }
         }
 
@@ -222,14 +329,12 @@ class FlowManager:
         Args:
             flows: The flows dictionary to save to disk.
         """
-        with open(self.storage_file, "w", encoding="utf-8") as f:
-            json.dump(flows, f, indent=4)
+        self._write_json_atomic(self.storage_file, flows)
 
     def _save_flows_to_disk(self, flows):
         """Save flows to disk. Acquires lock before writing."""
         with self.lock:
-            with open(self.storage_file, "w", encoding="utf-8") as f:
-                json.dump(flows, f, indent=4)
+            self._write_json_atomic(self.storage_file, flows)
 
     def _save_flows(self):
         self._save_flows_to_disk(self.flows)
@@ -252,16 +357,15 @@ class FlowManager:
     def _save_versions_to_disk(self):
         """Persist the versions dict to disk (must be called while holding self.lock)."""
         try:
-            with open(self.versions_file, "w", encoding="utf-8") as f:
-                json.dump(self.versions, f, indent=2)
-        except OSError as e:
+            self._write_json_atomic(self.versions_file, self.versions, indent=2)
+        except (OSError, TypeError, ValueError) as e:
             logger.error(f"Failed to save flow versions: {e}")
 
-    def _save_version(self, flow_id: str):
-        """Snapshot the current state of *flow_id* before it is overwritten.
+    def _save_version(self, flow_id: str, persist: bool = True):
+        """Snapshot the current state of *flow_id*.
 
-        Called from save_flow() only when the flow already exists, so the
-        caller always holds self.lock.
+        Used before overwrite, rename, delete, import and rollback. The caller must hold
+        self.lock. Set ``persist=False`` when snapshotting several flows before one write.
         """
         current = self.flows.get(flow_id)
         if current is None:
@@ -277,7 +381,12 @@ class FlowManager:
             "nodes": copy.deepcopy(current.get("nodes", [])),
             "connections": copy.deepcopy(current.get("connections", [])),
             "bridges": copy.deepcopy(current.get("bridges", [])),
+            "created_at": current.get("created_at"),
         }
+        if "metadata" in current:
+            snapshot["metadata"] = copy.deepcopy(current["metadata"])
+        if "reverted_nodes" in current:
+            snapshot["reverted_nodes"] = copy.deepcopy(current["reverted_nodes"])
         flow_versions.append(snapshot)
 
         # Prune oldest entries when over the limit
@@ -285,7 +394,8 @@ class FlowManager:
             flow_versions.sort(key=lambda v: v["version"])
             self.versions[flow_id] = flow_versions[-MAX_VERSIONS_PER_FLOW:]
 
-        self._save_versions_to_disk()
+        if persist:
+            self._save_versions_to_disk()
 
     def get_versions(self, flow_id: str) -> list:
         """Return lightweight version metadata for *flow_id*, newest first.
@@ -310,49 +420,82 @@ class FlowManager:
     def rollback_version(self, flow_id: str, version_num: int) -> dict | None:
         """Restore *flow_id* to the snapshot identified by *version_num*.
 
-        The current state is snapshotted first (so the rollback is reversible).
-        Returns the restored flow dict, or None if flow/version not found.
+        A redo snapshot of the current state is recorded first, so a rollback can itself
+        be undone. Deleted flows are restored from their retained history. Returns the
+        restored flow dict, or None if no matching version exists.
         """
         with self.lock:
-            if flow_id not in self.flows:
-                return None
             flow_versions = self.versions.get(flow_id, [])
             snapshot = next((v for v in flow_versions if v["version"] == version_num), None)
             if snapshot is None:
                 return None
 
-            self.flows[flow_id] = {
+            if flow_id in self.flows:
+                self._save_version(flow_id)
+
+            restored = {
                 "id": flow_id,
                 "name": snapshot["name"],
                 "nodes": copy.deepcopy(snapshot["nodes"]),
                 "connections": copy.deepcopy(snapshot["connections"]),
                 "bridges": copy.deepcopy(snapshot["bridges"]),
-                "created_at": datetime.utcnow().isoformat() + "Z",
+                "created_at": snapshot.get("created_at") or
+                datetime.utcnow().isoformat() + "Z",
+                "updated_at": datetime.utcnow().isoformat() + "Z",
             }
+            if "metadata" in snapshot:
+                restored["metadata"] = copy.deepcopy(snapshot["metadata"])
+            if "reverted_nodes" in snapshot:
+                restored["reverted_nodes"] = copy.deepcopy(snapshot["reverted_nodes"])
+            self.flows[flow_id] = restored
             self._save_flows()
-            return self.flows[flow_id]
+            return copy.deepcopy(self.flows[flow_id])
 
     # ------------------------------------------------------------------
 
-    def save_flow(self, name, nodes, connections, bridges=None, flow_id=None):
+    def save_flow(self, name, nodes, connections, bridges=None, flow_id=None,
+                  metadata=None, reverted_nodes=None, validate=False):
         with self.lock:
             if flow_id is None:
                 flow_id = str(uuid.uuid4())
+            if validate:
+                candidate = {
+                    "id": flow_id,
+                    "name": name,
+                    "nodes": nodes,
+                    "connections": connections,
+                    "bridges": bridges or [],
+                }
+                errors = self._validate_flow_structure(flow_id, candidate)
+                if errors:
+                    raise ValueError("flow validation failed: " + "; ".join(errors))
+            existing = self.flows.get(flow_id)
 
             # Snapshot the existing flow before overwriting (for version history)
-            if flow_id in self.flows:
+            if existing is not None:
                 self._save_version(flow_id)
 
-            self.flows[flow_id] = {
+            now = datetime.utcnow().isoformat() + 'Z'
+            saved = {
                 "id": flow_id,
                 "name": name,
-                "nodes": nodes,
-                "connections": connections,
-                "bridges": bridges or [],
-                "created_at": datetime.utcnow().isoformat() + 'Z'
+                "nodes": copy.deepcopy(nodes),
+                "connections": copy.deepcopy(connections),
+                "bridges": copy.deepcopy(bridges or []),
+                "created_at": existing.get("created_at") if existing else now,
+                "updated_at": now
             }
+            if metadata is not None:
+                saved["metadata"] = copy.deepcopy(metadata)
+            elif existing is not None and "metadata" in existing:
+                saved["metadata"] = copy.deepcopy(existing["metadata"])
+            if reverted_nodes is not None:
+                saved["reverted_nodes"] = copy.deepcopy(reverted_nodes)
+            elif existing is not None and "reverted_nodes" in existing:
+                saved["reverted_nodes"] = copy.deepcopy(existing["reverted_nodes"])
+            self.flows[flow_id] = saved
             self._save_flows()
-            return self.flows[flow_id]
+            return copy.deepcopy(self.flows[flow_id])
 
     def import_flows(self, flows_data: dict):
         """Replaces all flows with the provided dictionary after validation."""
@@ -363,7 +506,10 @@ class FlowManager:
                 logger.error(f"Flow import validation failed: {validation_result['errors']}")
                 return {"success": False, "errors": validation_result["errors"]}
             
-            self.flows = flows_data
+            for existing_id in list(self.flows):
+                self._save_version(existing_id, persist=False)
+            self._save_versions_to_disk()
+            self.flows = copy.deepcopy(flows_data)
             self._save_flows()
             self._ensure_default_active()
             return {"success": True}
@@ -371,18 +517,26 @@ class FlowManager:
     def rename_flow(self, flow_id, new_name):
         with self.lock:
             if flow_id in self.flows:
+                self._save_version(flow_id)
                 self.flows[flow_id]["name"] = new_name
+                self.flows[flow_id]["updated_at"] = (
+                    datetime.utcnow().isoformat() + "Z"
+                )
                 self._save_flows()
                 return True
             return False
 
     def get_flow(self, flow_id):
         with self.lock:
-            return self.flows.get(flow_id)
+            return copy.deepcopy(self.flows.get(flow_id))
 
     def list_flows(self):
         with self.lock:
-            return sorted(self.flows.values(), key=lambda x: x.get('created_at', ''), reverse=True)
+            return copy.deepcopy(
+                sorted(self.flows.values(),
+                       key=lambda x: x.get('updated_at') or x.get('created_at', ''),
+                       reverse=True)
+            )
 
     def get_all_flows_dict(self):
         """Get a copy of all flows as a dictionary (thread-safe)."""
@@ -392,8 +546,22 @@ class FlowManager:
     def delete_flow(self, flow_id):
         with self.lock:
             if flow_id in self.flows:
+                self._save_version(flow_id)
                 del self.flows[flow_id]
                 self._save_flows()
+                active = settings.get("active_ai_flows", []) or []
+                if flow_id in active:
+                    try:
+                        settings.save_settings({
+                            "active_ai_flows": [
+                                item for item in active if item != flow_id
+                            ]
+                        })
+                    except Exception as exc:
+                        logger.error(
+                            "Flow %s deleted but active_ai_flows could not be pruned: %s",
+                            flow_id, exc,
+                        )
                 return True
             return False
 
@@ -428,6 +596,7 @@ class FlowManager:
             active_flow["id"] = default_id
             active_flow["name"] = "Default Chat Flow"
             active_flow["created_at"] = datetime.utcnow().isoformat() + 'Z'
+            active_flow["updated_at"] = datetime.utcnow().isoformat() + 'Z'
             
             self.flows[default_id] = active_flow
             self._save_flows()

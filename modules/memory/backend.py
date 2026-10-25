@@ -68,19 +68,9 @@ class MemoryStore:
 
     def _init_db(self) -> None:
         with self._connect() as con:
-            # _connect handles base table initialization via self-healing.
-            # Also ensure the session-refs table exists for existing databases.
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS memory_session_refs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    memory_id INTEGER NOT NULL,
-                    session_id TEXT NOT NULL,
-                    recalled_at INTEGER NOT NULL,
-                    score REAL DEFAULT 0.0
-                )
-            """)
-            con.execute("CREATE INDEX IF NOT EXISTS idx_msr_memory_id ON memory_session_refs(memory_id);")
-            con.execute("CREATE INDEX IF NOT EXISTS idx_msr_session_id ON memory_session_refs(session_id);")
+            # Migrations must run for every database, not only when the memories table is
+            # absent; otherwise an upgraded install never receives new columns or tables.
+            self._execute_init(con)
 
     def _execute_init(self, con) -> None:
         con.execute("""
@@ -103,8 +93,7 @@ class MemoryStore:
         """)
         con.execute("CREATE INDEX IF NOT EXISTS idx_identity ON memories(identity);")
         con.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON memories(created_at);")
-        con.execute("CREATE INDEX IF NOT EXISTS idx_source ON memories(source);")
-        
+
         # Migration logic
         try: con.execute("ALTER TABLE memories ADD COLUMN subject TEXT DEFAULT 'User'")
         except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
@@ -120,6 +109,9 @@ class MemoryStore:
         except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
         try: con.execute("ALTER TABLE memories ADD COLUMN importance_boost INTEGER DEFAULT 0")
         except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
+
+        # Indexes on migrated columns must be created after the ALTER TABLE statements.
+        con.execute("CREATE INDEX IF NOT EXISTS idx_source ON memories(source);")
 
         con.execute("""
             CREATE TABLE IF NOT EXISTS meta_memories (
@@ -346,8 +338,10 @@ class MemoryStore:
             with self.faiss_lock:
                 q_emb_2d = q_emb_np.reshape(1, -1)
                 faiss.normalize_L2(q_emb_2d)
-                scores, indices = self.faiss_index.search(q_emb_2d, limit * 2)
-                
+                # Rank every indexed vector: filters run afterwards, so a fixed over-fetch
+                # would still return a short page when the top hits are ineligible.
+                scores, indices = self.faiss_index.search(q_emb_2d, self.faiss_index.ntotal)
+
                 for i, idx in enumerate(indices[0]):
                     if idx != -1:
                         candidate_ids.append(int(idx))
@@ -385,36 +379,33 @@ class MemoryStore:
         # 3. Fetch Details
         results = []
         if candidate_ids:
-            # Sort by score descending and take top K to minimize DB fetch
+            # Sort by score, then fetch eligible rows in score-ordered batches until the page
+            # is full; filtering before truncation keeps ineligible top hits from underfilling it.
             candidate_ids.sort(key=lambda x: candidate_scores.get(x, 0), reverse=True)
-            top_ids = candidate_ids[:limit]
-            
-            placeholders = ','.join(['?'] * len(top_ids))
-            query = f"SELECT id, text, created_at, type, access_count FROM memories WHERE id IN ({placeholders}) AND deleted = 0 AND parent_id IS NULL"
-            params = list(top_ids)
-            
-            if source_filter:
-                query += " AND source = ?"
-                params.append(source_filter)
-            
+            batch_size = max(limit * 4, 50)
+
             with self._connect() as con:
-                rows = con.execute(query, params).fetchall()
-                
                 valid_ids = []
-                for r in rows:
-                    mid = r[0]
-                    mem_expires_at = r[2]
-                    access_count = r[4] if len(r) > 4 else 0
-                    importance_boost = 0
-                    
-                    # Get expires_at for this memory
-                    expires_at = con.execute("SELECT expires_at FROM memories WHERE id = ?", (mid,)).fetchone()
-                    if expires_at and expires_at[0] and expires_at[0] < current_time:
-                        continue  # Skip expired memories
-                    
-                    if mid in candidate_scores:
-                        base_score = candidate_scores[mid]
-                        boosted_score = base_score * (1 + access_count * access_weight) * (1 + importance_boost * 0.5)
+                for start in range(0, len(candidate_ids), batch_size):
+                    batch = candidate_ids[start:start + batch_size]
+                    placeholders = ','.join(['?'] * len(batch))
+                    query = (
+                        f"SELECT id, text, created_at, type, access_count FROM memories "
+                        f"WHERE id IN ({placeholders}) AND deleted = 0 AND parent_id IS NULL "
+                        f"AND (expires_at IS NULL OR expires_at = 0 OR expires_at >= ?)"
+                    )
+                    params = list(batch) + [current_time]
+                    if source_filter:
+                        query += " AND source = ?"
+                        params.append(source_filter)
+                    rows = {r[0]: r for r in con.execute(query, params).fetchall()}
+
+                    for mid in batch:
+                        r = rows.get(mid)
+                        if r is None:
+                            continue
+                        access_count = r[4] or 0
+                        boosted_score = candidate_scores[mid] * (1 + access_count * access_weight)
                         results.append({
                             "id": mid,
                             "text": r[1],
@@ -423,7 +414,11 @@ class MemoryStore:
                             "score": boosted_score
                         })
                         valid_ids.append(mid)
-                
+                        if len(valid_ids) >= limit:
+                            break
+                    if len(valid_ids) >= limit:
+                        break
+
                 # Increment access_count for returned memories
                 if valid_ids:
                     placeholders = ','.join(['?'] * len(valid_ids))
@@ -719,13 +714,15 @@ class MemoryStore:
         with self.write_lock:
             with self._connect() as con:
                 current = con.execute("""
-                    SELECT text, type, verified FROM memories WHERE id = ? AND deleted = 0 AND parent_id IS NULL
+                    SELECT text, type, verified, embedding FROM memories
+                    WHERE id = ? AND deleted = 0 AND parent_id IS NULL
                 """, (memory_id,)).fetchone()
 
                 if not current:
                     return None
 
                 old_text, old_type, old_verified = current[0], current[1], current[2]
+                old_embedding = current[3]
 
                 new_text = text if text is not None else old_text
                 new_type = mem_type if mem_type is not None else old_type
@@ -753,6 +750,13 @@ class MemoryStore:
             if FAISS_AVAILABLE and self.faiss_index:
                 with self.faiss_lock:
                     self.faiss_index.remove_ids(np.array([memory_id]).astype('int64'))
+                    new_embedding = self._parse_embedding(old_embedding)
+                    if new_embedding is not None and new_id is not None:
+                        vector = new_embedding.reshape(1, -1).astype('float32')
+                        faiss.normalize_L2(vector)
+                        self.faiss_index.add_with_ids(
+                            vector, np.array([new_id]).astype('int64')
+                        )
                     self._save_faiss_index()
 
         # Log AFTER releasing write_lock — log_meta_memory acquires write_lock itself,

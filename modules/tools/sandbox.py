@@ -47,6 +47,15 @@ DANGEROUS_BUILTINS: Set[str] = {
     'reload', 'file', 'execfile',
 }
 
+# Reflection helpers expose the interpreter object graph even when the target attribute is
+# computed (e.g. getattr((), "__cla" + "ss__")), so they are unavailable in the sandbox.
+SANDBOX_BLOCKED_BUILTINS: Set[str] = {
+    'getattr', 'setattr', 'delattr', 'hasattr', 'vars', 'globals', 'locals',
+}
+
+# Callable attributes that can retrieve an attribute by a string without calling getattr.
+SANDBOX_BLOCKED_ATTRIBUTES: Set[str] = {'attrgetter', 'methodcaller'}
+
 # Dangerous modules that should not be importable
 DANGEROUS_MODULES: Set[str] = {
     'os', 'sys', 'subprocess', 'socket', 'multiprocessing',
@@ -96,6 +105,8 @@ DANGEROUS_ATTRIBUTES: Set[str] = {
     '__class__', '__bases__', '__base__', '__mro__', '__subclasses__',
     '__globals__', '__code__', '__closure__', '__builtins__', '__loader__',
     '__spec__', '__reduce__', '__reduce_ex__', '__getattribute__', '__subclasshook__',
+    '__dict__', '__module__', '__func__', '__self__', '__wrapped__',
+    '__defaults__', '__kwdefaults__', '__annotations__', '__getattr__', '__setattr__',
 }
 
 
@@ -111,6 +122,15 @@ class ResourceLimitError(Exception):
 
 class TimeoutError(Exception):
     """Raised when tool execution exceeds time limit."""
+    pass
+
+
+class SandboxStartupError(RuntimeError):
+    """Raised when the isolated worker cannot start.
+
+    The sandbox never downgrades to in-process execution: a worker that cannot start is a
+    failed execution, not a licence to run untrusted code inside the application process.
+    """
     pass
 
 
@@ -250,6 +270,14 @@ class SafeHttpxClient:
     
     # Allowed URL schemes
     ALLOWED_SCHEMES: Set[str] = {'http', 'https'}
+
+    # Names that may resolve to loopback. Any other name resolving there is DNS rebinding.
+    LOOPBACK_NAMES: Set[str] = {'127.0.0.1', 'localhost'}
+
+    # The only NeuroCore routes tools may call on the local control plane. Loopback clients need
+    # no API token, so any other route (settings, module install, marketplace) would let tool
+    # code reconfigure the app or load code into its process.
+    TOOL_API_PREFIXES = ('/memory/goals', '/browser_automation/api/')
     
     # Blocked IP ranges (IPv4)
     BLOCKED_IPV4_RANGES: List[str] = [
@@ -273,10 +301,16 @@ class SafeHttpxClient:
     
     def __init__(self, allowed_domains: Optional[Set[str]] = None, 
                  timeout: float = 30.0,
-                 max_response_size: int = 10 * 1024 * 1024):  # 10MB
-        self.allowed_domains = allowed_domains or self.DEFAULT_ALLOWED_DOMAINS
+                 max_response_size: int = 10 * 1024 * 1024,  # 10MB
+                 max_redirects: int = 5):
+        # None means "use the default allowlist"; an explicit empty set means no network.
+        self.allowed_domains = (
+            set(self.DEFAULT_ALLOWED_DOMAINS)
+            if allowed_domains is None else set(allowed_domains)
+        )
         self.timeout = timeout
         self.max_response_size = max_response_size
+        self.max_redirects = max(0, int(max_redirects))
         
         # Import ipaddress for proper CIDR-based IP validation
         import ipaddress
@@ -301,6 +335,9 @@ class SafeHttpxClient:
     def _is_domain_allowed(self, url: str) -> bool:
         """Check if a URL's domain is in the allowed list."""
         from urllib.parse import urlparse
+
+        if not self.allowed_domains:
+            return False
         
         try:
             parsed = urlparse(url)
@@ -344,15 +381,17 @@ class SafeHttpxClient:
     
     def _resolve_and_validate_ip(self, hostname: str) -> str:
         """
-        Resolve hostname and validate the resulting IP(s).
+        Resolve hostname and validate every resulting IP.
         
         Uses getaddrinfo for IPv4/IPv6 support instead of gethostbyname.
         
         Returns:
-            The first valid IP address that is not blocked
+            The first resolved IP address (all answers were validated)
             
         Raises:
-            SecurityError: If IP is blocked or resolution fails
+            SecurityError: If any answer is blocked or resolution fails. A host that returns
+                both public and private addresses is rejected as a whole: accepting the public
+                answer would leave the client free to connect to the private one.
         """
         import socket
         
@@ -364,76 +403,162 @@ class SafeHttpxClient:
             if not results:
                 raise SecurityError(f"Could not resolve domain '{hostname}' - no DNS results")
             
-            # Check each resolved IP
-            for result in results:
-                family, _, _, _, sockaddr = result
-                ip_addr = sockaddr[0]
-                
-                # Check if this IP is blocked
-                if self._is_ip_blocked(ip_addr):
-                    continue  # Try next IP
-                
-                # Found a valid non-blocked IP
-                return ip_addr
-            
-            # All resolved IPs were blocked
             resolved_ips = [sockaddr[0] for _, _, _, _, sockaddr in results]
-            raise SecurityError(f"Domain '{hostname}' resolves to blocked IP addresses: {resolved_ips}")
+            blocked = [ip_addr for ip_addr in resolved_ips if self._is_ip_blocked(ip_addr)]
+            if blocked:
+                raise SecurityError(
+                    f"Domain '{hostname}' resolves to blocked IP addresses: {blocked}"
+                )
+            if hostname not in self.LOOPBACK_NAMES:
+                loopback = [ip_addr for ip_addr in resolved_ips if self._is_loopback(ip_addr)]
+                if loopback:
+                    raise SecurityError(
+                        f"Domain '{hostname}' resolves to loopback addresses: {loopback}"
+                    )
+            return resolved_ips[0]
             
         except socket.gaierror:
             raise SecurityError(f"Could not resolve domain '{hostname}' - DNS lookup failed")
         except socket.herror:
             raise SecurityError(f"Could not resolve domain '{hostname}' - host not found")
     
-    def request(self, method: str, url: str, **kwargs):
-        """Make a restricted HTTP request."""
-        import httpx
+    def _is_loopback(self, host: str) -> bool:
+        try:
+            return self._ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
+
+    def _validate_control_plane_path(self, parsed) -> None:
+        """Allow only the tool APIs when the target is NeuroCore's own port on loopback."""
+        from core.security import bind_port
+
+        port = parsed.port or (443 if parsed.scheme.lower() == 'https' else 80)
+        if port != bind_port():
+            return
+        path = parsed.path or '/'
+        if '..' in path or '%' in path or not path.startswith(self.TOOL_API_PREFIXES):
+            raise SecurityError(
+                f"Tools may not call '{path}' on the NeuroCore control plane; only "
+                f"{', '.join(self.TOOL_API_PREFIXES)} are available."
+            )
+
+    def _validate_target(self, url: str) -> None:
+        """Validate scheme, allowlist and every DNS answer for one request target."""
         from urllib.parse import urlparse
-        
-        # Issue 2.3: Parse URL and validate scheme
+
         parsed = urlparse(url)
-        
-        # Check scheme whitelist - reject file://, ftp://, etc.
         if parsed.scheme.lower() not in self.ALLOWED_SCHEMES:
             raise SecurityError(
                 f"URL scheme '{parsed.scheme}' is not allowed. "
                 f"Only {', '.join(self.ALLOWED_SCHEMES)} are permitted."
             )
-        
-        # Get hostname from parsed.hostname (more reliable than netloc)
         hostname = parsed.hostname
         if not hostname:
             raise SecurityError(f"Invalid URL '{url}': no hostname found")
-        
         hostname = hostname.lower()
-        
-        # Check domain whitelist
         if not self._is_domain_allowed(url):
-            raise SecurityError(f"HTTP requests to '{url}' are not permitted. Domain not in whitelist.")
-        
-        # Issue 2.3: Resolve and validate IP using getaddrinfo (IPv4/IPv6)
-        # This replaces the old socket.gethostbyname() which only handled IPv4
-        validated_ip = self._resolve_and_validate_ip(hostname)
-        if validated_ip:
-            import logging
-            logging.getLogger(__name__).debug(f"Domain '{hostname}' validated, resolved to IP: {validated_ip}")
-        
-        # Enforce timeout
-        kwargs['timeout'] = min(kwargs.get('timeout', self.timeout), self.timeout)
-        
-        # Make the request with size limits
-        with httpx.Client() as client:
-            response = client.request(method, url, **kwargs)
-            
-            # Check response size
-            content_length = len(response.content)
-            if content_length > self.max_response_size:
-                raise ResourceLimitError(
-                    f"Response size ({content_length} bytes) exceeds maximum allowed ({self.max_response_size} bytes)"
-                )
-            
-            return response
-    
+            raise SecurityError(
+                f"HTTP requests to '{url}' are not permitted. Domain not in whitelist."
+            )
+        resolved = self._resolve_and_validate_ip(hostname)
+        if hostname in self.LOOPBACK_NAMES or self._is_loopback(resolved):
+            self._validate_control_plane_path(parsed)
+
+    def request(self, method: str, url: str, **kwargs):
+        """Make a restricted HTTP request.
+
+        Redirects are followed manually so every destination is re-validated against the
+        scheme, hostname and DNS policy. The body is streamed into a bounded buffer instead of
+        being buffered by httpx first, so an oversized response cannot exhaust memory.
+
+        Note: DNS is validated immediately before the request, but Python's HTTP stack resolves
+        the name again while connecting. Pinning the validated address to that connection needs
+        transport-level support; until then this is defense in depth, not a complete SSRF
+        boundary.
+        """
+        import httpx
+        from urllib.parse import urljoin
+
+        kwargs = dict(kwargs)
+        kwargs.pop("follow_redirects", None)
+        supplied_timeout = kwargs.get("timeout", self.timeout)
+        try:
+            timeout = min(float(supplied_timeout), float(self.timeout))
+        except (TypeError, ValueError):
+            timeout = self.timeout
+        kwargs["timeout"] = timeout
+
+        current_url = url
+        current_method = str(method).upper()
+        current_kwargs = kwargs
+        with httpx.Client(follow_redirects=False, timeout=timeout, trust_env=False) as client:
+            for hop in range(self.max_redirects + 1):
+                self._validate_target(current_url)
+                request = client.build_request(current_method, current_url, **current_kwargs)
+                response = client.send(request, stream=True)
+                try:
+                    if response.is_redirect:
+                        location = response.headers.get("location")
+                        if not location:
+                            raise SecurityError(f"Redirect from '{current_url}' has no location")
+                        if hop >= self.max_redirects:
+                            raise SecurityError(
+                                f"Too many redirects while requesting '{url}'"
+                            )
+                        next_url = httpx.URL(urljoin(str(response.url), location))
+                        if (next_url.scheme, next_url.host, next_url.port) != (
+                                response.url.scheme, response.url.host, response.url.port):
+                            current_kwargs = self._without_credentials(current_kwargs)
+                        current_url = str(next_url)
+                        if response.status_code in (301, 302, 303) \
+                                and current_method not in ("GET", "HEAD"):
+                            current_method = "GET"
+                            current_kwargs = {
+                                key: value for key, value in current_kwargs.items()
+                                if key not in ("json", "data", "content", "files")
+                            }
+                        continue
+
+                    chunks = []
+                    total = 0
+                    for chunk in response.iter_bytes():
+                        total += len(chunk)
+                        if total > self.max_response_size:
+                            raise ResourceLimitError(
+                                f"Response size exceeds maximum allowed "
+                                f"({self.max_response_size} bytes)"
+                            )
+                        chunks.append(chunk)
+                    headers = [
+                        (key, value) for key, value in response.headers.multi_items()
+                        if key.lower() not in (
+                            "content-encoding", "content-length", "transfer-encoding",
+                        )
+                    ]
+                    return httpx.Response(
+                        response.status_code,
+                        headers=headers,
+                        content=b"".join(chunks),
+                        request=response.request,
+                    )
+                finally:
+                    response.close()
+        raise SecurityError(f"Too many redirects while requesting '{url}'")
+
+    CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie"})
+
+    def _without_credentials(self, kwargs: dict) -> dict:
+        """Request options with credentials removed, for a redirect to another origin."""
+        cleaned = {key: value for key, value in kwargs.items() if key not in ("auth", "cookies")}
+        headers = kwargs.get("headers")
+        if headers:
+            items = headers.items() if hasattr(headers, "items") else headers
+            cleaned["headers"] = [
+                (key, value) for key, value in items
+                if str(key).lower() not in self.CREDENTIAL_HEADERS
+            ]
+        return cleaned
+
     def get(self, url: str, **kwargs):
         return self.request('GET', url, **kwargs)
     
@@ -452,43 +577,64 @@ class SafeHttpxClient:
 
 class SafeEnv:
     """
-    Restricted mock for the ``os`` module, exposing only environment-variable
-    access (``os.getenv`` / ``os.environ.get``).  All other ``os`` attributes
-    raise SecurityError so sandboxed tools cannot use filesystem or process APIs.
+    Restricted mock for the ``os`` module.
+
+    Only environment variables the caller explicitly permits are visible. Tools never receive
+    the worker process environment as a whole, so an API key or bot token cannot be read just
+    because the host process happens to hold it. All other ``os`` attributes raise
+    SecurityError.
     """
 
     class _ReadOnlyEnviron:
-        """A read-only view of os.environ."""
+        """A read-only view over the permitted environment values."""
+
+        def __init__(self, permitted: Dict[str, str]):
+            self._permitted = dict(permitted)
+
         def get(self, key: str, default=None):
-            import os as _os
-            return _os.environ.get(key, default)
+            return self._permitted.get(key, default)
 
         def __getitem__(self, key: str):
-            import os as _os
-            return _os.environ[key]
+            try:
+                return self._permitted[key]
+            except KeyError:
+                raise KeyError(key) from None
 
         def __contains__(self, key: str):
-            import os as _os
-            return key in _os.environ
+            return key in self._permitted
 
-    def __init__(self):
-        self.environ = self._ReadOnlyEnviron()
+        def __iter__(self):
+            return iter(self._permitted)
+
+        def keys(self):
+            return self._permitted.keys()
+
+        def items(self):
+            return self._permitted.items()
+
+    def __init__(self, permitted: Optional[Dict[str, str]] = None):
+        self._permitted = {
+            str(key): str(value)
+            for key, value in (permitted or {}).items()
+            if isinstance(value, (str, int, float, bool))
+        }
+        self.environ = self._ReadOnlyEnviron(self._permitted)
 
     def getenv(self, key: str, default=None):
-        import os as _os
-        return _os.environ.get(key, default)
+        return self._permitted.get(key, default)
 
     def __getattr__(self, name: str):
         raise SecurityError(
             f"os.{name} is not permitted in sandboxed environment. "
-            "Only os.getenv() and os.environ are available."
+            "Only permitted environment variables are available."
         )
 
 
 def _execute_in_process(code: str, local_vars: Dict[str, Any], result_file: str,
                         allowed_file_dirs: List[str], read_only_files: bool,
                         allowed_domains: Optional[Set[str]], timeout: float,
-                        max_output_size: int, max_memory_mb: int):
+                        max_output_size: int, max_memory_mb: int,
+                        permitted_environment: Optional[Dict[str, str]] = None):
     """Execute code in a separate process with restricted environment.
 
     Results are written to *result_file* as JSON rather than through a
@@ -520,7 +666,8 @@ def _execute_in_process(code: str, local_vars: Dict[str, Any], result_file: str,
             allowed_domains=allowed_domains,
             read_only_files=read_only_files,
             max_output_size=max_output_size,
-            max_memory_mb=max_memory_mb
+            max_memory_mb=max_memory_mb,
+            permitted_environment=permitted_environment,
         )
 
         result = sandbox._execute_internal(code, local_vars)
@@ -572,13 +719,18 @@ class ToolSandbox:
                  allowed_file_dirs: Optional[List[str]] = None,
                  allowed_domains: Optional[Set[str]] = None,
                  read_only_files: bool = True,
-                 max_memory_mb: Optional[int] = None):
+                 max_memory_mb: Optional[int] = None,
+                 permitted_environment: Optional[Dict[str, str]] = None):
         self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.max_output_size = max_output_size or self.DEFAULT_MAX_OUTPUT_SIZE
         self.max_memory_mb = max_memory_mb or self.DEFAULT_MAX_MEMORY_MB
         self.allowed_file_dirs = allowed_file_dirs or []
         self.allowed_domains = allowed_domains
         self.read_only_files = read_only_files
+        self.permitted_environment = {
+            str(key): str(value)
+            for key, value in (permitted_environment or {}).items()
+        }
         
         # Build restricted globals
         self._globals = self._build_restricted_globals()
@@ -591,7 +743,9 @@ class ToolSandbox:
         # Start with safe builtins
         safe_builtins = {}
         for name in dir(builtins):
-            if name not in DANGEROUS_BUILTINS and not name.startswith('_'):
+            if (name not in DANGEROUS_BUILTINS
+                    and name not in SANDBOX_BLOCKED_BUILTINS
+                    and not name.startswith('_')):
                 safe_builtins[name] = getattr(builtins, name)
         
         # Build safe substitutes for modules that are mocked rather than blocked
@@ -599,7 +753,7 @@ class ToolSandbox:
             allowed_domains=self.allowed_domains,
             timeout=self.timeout
         )
-        safe_env = SafeEnv()
+        safe_env = SafeEnv(self.permitted_environment)
 
         # Add our restricted import with:
         #   - mock_modules: substitute objects returned for specific import names
@@ -674,10 +828,21 @@ class ToolSandbox:
             tree = ast.parse(code)
             dangerous_funcs = {'exec', 'eval', 'compile', 'breakpoint', 'open', '__import__'}
             for node in ast.walk(tree):
+                # Even a reference to a reflection builtin is dangerous: it can be passed to a
+                # helper such as functools.reduce and invoked with a computed attribute name.
+                if isinstance(node, ast.Name) and node.id in SANDBOX_BLOCKED_BUILTINS:
+                    raise SecurityError(
+                        f"Reflective builtin '{node.id}' is not permitted in sandboxed code"
+                    )
                 # Dunder traversal (attribute, subscript key or getattr string) reaches the real
                 # interpreter objects and escapes the sandbox.
                 if isinstance(node, ast.Attribute) and node.attr in DANGEROUS_ATTRIBUTES:
                     raise SecurityError(f"Dangerous attribute access detected: .{node.attr}")
+                if isinstance(node, ast.Attribute) \
+                        and node.attr in SANDBOX_BLOCKED_ATTRIBUTES:
+                    raise SecurityError(
+                        f"Dangerous attribute helper detected: .{node.attr}"
+                    )
                 if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant) \
                         and isinstance(node.slice.value, str) \
                         and node.slice.value in DANGEROUS_ATTRIBUTES:
@@ -773,10 +938,10 @@ class ToolSandbox:
         #      the event-loop thread (avoids WinError 6 handle-duplication error).
         #   3. IPC via temp JSON file instead of multiprocessing.Queue (Queue
         #      pipe handles also conflict with IOCP).
-        #   4. If the subprocess approach still raises a pickle error (e.g. the
-        #      Popen/Connection object holds an asyncio.Future in some environments),
-        #      fall back to in-process execution.  Static analysis (_check_code_safety)
-        #      already ran, so the security invariants are still enforced.
+        #   4. If the worker still cannot start (e.g. a pickle error because the
+        #      Popen/Connection object holds an asyncio.Future), fail closed with
+        #      SandboxStartupError.  Static analysis is not process isolation, so tool
+        #      code never runs inside the application process.
         import os as _os
 
         # --- Step 1: sanitise local_vars before pickling ---
@@ -802,7 +967,8 @@ class ToolSandbox:
                     args=(code, _local_vars_for_proc, result_file,
                           self.allowed_file_dirs, self.read_only_files,
                           self.allowed_domains, self.timeout,
-                          self.max_output_size, self.max_memory_mb)
+                          self.max_output_size, self.max_memory_mb,
+                          self.permitted_environment)
                 )
                 p.start()
                 p.join(timeout=self.timeout)
@@ -848,15 +1014,12 @@ class ToolSandbox:
                     result = json.load(_f)
             except Exception:
                 raise Exception("Tool execution failed to return result")
-        except (TypeError, AttributeError) as _pickle_like_err:
-            # Catch pickle-related errors (TypeError: cannot pickle '...',
-            # AttributeError on reduction) and fall through to in-process fallback.
-            _subprocess_err = _pickle_like_err
-            logger.warning(
-                f"[Sandbox] Subprocess spawn failed ({_pickle_like_err}); "
-                "falling back to in-process execution (static analysis still active)"
-            )
-            return self._execute_internal(code, local_vars)
+        except (TypeError, AttributeError) as _spawn_err:
+            # Never execute untrusted code inside the application process. A worker that cannot
+            # start is reported as a failed execution so the caller can fix the environment.
+            raise SandboxStartupError(
+                f"Sandbox worker could not start; refusing in-process execution: {_spawn_err}"
+            ) from _spawn_err
         finally:
             try:
                 _os.unlink(result_file)

@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `210`
-- **Total Classes**: `326`
-- **Total Top-Level Functions**: `1176`
-- **Total Class Methods**: `1728`
-- **Total Source Lines**: `61137`
+- **Total Python Modules**: `256`
+- **Total Classes**: `381`
+- **Total Top-Level Functions**: `1559`
+- **Total Class Methods**: `2054`
+- **Total Source Lines**: `72482`
 
 ---
 
@@ -19,7 +19,7 @@
 ### [`core/archive.py`](core/archive.py)
 > *Safe ZIP extraction for attacker-controlled marketplace packages.*
 
-**Size**: `83` lines (`3772` bytes)
+**Size**: `118` lines (`5251` bytes)
 
 **Classes:**
 - `class ArchiveSecurityError` - *Raised when a ZIP member would escape the destination directory.*
@@ -28,7 +28,7 @@
 - `def _is_symlink(info)` - *Whether the member records a symbolic link in its Unix mode bits.*
 - `def _safe_member_path(dest_dir, member)` - *The absolute write path for `member`, or raise when it escapes `dest_dir`.*
 - `def _common_root(infos)` - *The single shared top-level directory of the archive as ``dir/``, or ``''``.*
-- `def extract_zip_safely(archive_path, dest_dir, strip_root)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
+- `def extract_zip_safely(archive_path, dest_dir, strip_root, max_member_bytes, max_total_bytes)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
 
 ---
 
@@ -231,14 +231,44 @@
 
 ---
 
+### [`core/flow_evolution.py`](core/flow_evolution.py)
+> *Validated, versioned self-editing for NeuroCore flows.*
+
+**Size**: `369` lines (`17269` bytes)
+
+**Classes:**
+- `class FlowEvolutionError` - *Raised when an evolution proposal would produce an invalid flow.*
+  - Method `.__init__(message, errors)`
+- `class FlowEvolution` - *Apply validated, versioned mutations to NeuroCore flows.*
+  - Method `.__init__(flow_manager, max_nodes, max_connections, allowed_node_types, allowed_tools)`
+  - Method `.validate(name, nodes, connections, bridges, allowed_node_types, allow_cycles)` - *Return every reason the proposed flow must not be saved.*
+  - Method `._validate_edges(label, edges, node_ids)`
+  - Method `._find_cycle(node_ids, edges)`
+  - Method `.create(name, nodes, connections, bridges, metadata, flow_id, allow_cycles)` - *Validate and persist a new flow.*
+  - Method `.preview(flow_id, operations)` - *Apply operations to a copy and validate without touching the saved flow.*
+  - Method `._prepare_mutation(flow, operations)`
+  - Method `.mutate(flow_id, operations)` - *Apply operations atomically; the previous state becomes a version snapshot.*
+  - Method `._apply_operation(name, nodes, connections, bridges, operation)`
+  - Method `.history(flow_id)` - *Version snapshots for a flow, newest first.*
+  - Method `.rollback(flow_id, version)` - *Restore a snapshot; raises when the flow or version is missing.*
+
+---
+
 ### [`core/flow_manager.py`](core/flow_manager.py)
-**Size**: `436` lines (`22479` bytes)
+**Size**: `605` lines (`29398` bytes)
 
 **Classes:**
 - `class FlowManager`
   - Method `.__init__(storage_file, versions_file)`
+  - Method `._fsync_directory(directory)` - *Best-effort directory fsync so a rename survives a power loss.*
+  - Method `._write_json_atomic(path, data, indent)` - *Write JSON through a fsynced temp file, keeping the previous file as .bak.*
+  - Method `._quarantine_file(path)` - *Move a corrupt state file aside instead of overwriting it.*
+  - Method `._read_flow_file(path)`
+  - Method `._load_backup_flows()` - *Return validated flows from the .bak file, or None when unusable.*
+  - Method `._restore_default_flows()` - *Create and persist the default flow set after an unrecoverable store.*
   - Method `._load_flows()`
   - Method `._validate_flows(flows)` - *Validate flows structure and integrity. Returns {valid: bool, errors: list}.*
+  - Method `._validate_flow_structure(flow_id, flow)` - *Structural checks shared by load and opt-in validated saves.*
   - Method `._create_default_flows()`
   - Method `._ensure_default_active(flows)` - *Ensure a default flow is active if one exists.*
   - Method `._save_flows_to_disk_no_lock_required(flows)` - *Internal method to save flows to disk WITHOUT acquiring lock.*
@@ -246,10 +276,10 @@
   - Method `._save_flows()`
   - Method `._load_versions()` - *Load the per-flow version store from disk. Returns {} on missing/corrupt file.*
   - Method `._save_versions_to_disk()` - *Persist the versions dict to disk (must be called while holding self.lock).*
-  - Method `._save_version(flow_id)` - *Snapshot the current state of *flow_id* before it is overwritten.*
+  - Method `._save_version(flow_id, persist)` - *Snapshot the current state of *flow_id*.*
   - Method `.get_versions(flow_id)` - *Return lightweight version metadata for *flow_id*, newest first.*
   - Method `.rollback_version(flow_id, version_num)` - *Restore *flow_id* to the snapshot identified by *version_num*.*
-  - Method `.save_flow(name, nodes, connections, bridges, flow_id)`
+  - Method `.save_flow(name, nodes, connections, bridges, flow_id, metadata, reverted_nodes, validate)`
   - Method `.import_flows(flows_data)` - *Replaces all flows with the provided dictionary after validation.*
   - Method `.rename_flow(flow_id, new_name)`
   - Method `.get_flow(flow_id)`
@@ -261,7 +291,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1022` lines (`49620` bytes)
+**Size**: `1069` lines (`51614` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -269,7 +299,7 @@
   - Method `._get_cache_lock()` - *Return an asyncio.Lock scoped to the currently running event loop.*
   - Method `async def ._get_executor_class(module_id, node_type_id)` - *Thread-safe method to get or create an executor class from the cache.*
   - Method `._manage_cache_size()` - *Ensure cache doesn't grow indefinitely by removing oldest entries when limit reached.*
-  - Method `.__init__(flow_id, flow_override)`
+  - Method `.__init__(flow_id, flow_override, flow_manager_override, capture_outcome)`
   - Method `._build_bridge_groups()` - *Identifies groups of bridged nodes using BFS to find connected components.*
   - Method `._get_bridge_order(node_id)` - *Get bridge chain nodes in execution order (upstream to downstream).*
   - Method `._get_bridge_levels(node_id)` - *Group bridge-group nodes into parallel execution levels using Kahn's algorithm.*
@@ -277,7 +307,8 @@
   - Method `._compute_execution_order()` - *Performs a topological sort (Kahn's algorithm) to find the execution order.*
   - Method `._identify_cycle_nodes(adj, sorted_order, remaining_nodes)` - *Identify the nodes that form the cycle in the flow graph.*
   - Method `.validate(module_manager)` - *Validates the flow for potential issues before execution.*
-  - Method `async def .run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Executes the flow in order, passing data between nodes.*
+  - Method `async def .run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Run a flow and emit one outcome record (unless capture is disabled).*
+  - Method `async def ._run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Executes the flow in order, passing data between nodes.*
 
 ---
 
@@ -300,8 +331,28 @@
 
 ---
 
+### [`core/meta_flow.py`](core/meta_flow.py)
+> *Compose small flows into meta-flows.*
+
+**Size**: `292` lines (`12328` bytes)
+
+**Classes:**
+- `class MetaFlowError` - *Raised when member flows or pathways cannot form a valid meta-flow.*
+- `class MetaFlowComposer` - *Merge member flows (ganglia) into one validated flow with pathways.*
+  - Method `.__init__(flow_manager, evolution)`
+  - Method `.compose(name, member_flow_ids, pathways, metadata, flow_id)` - *Compose members into a meta-flow; the result is a normal saved flow.*
+  - Method `.compose_live(name, member_flow_ids, pathways, metadata, flow_id)` - *Compose live references: one meta:subflow node per ganglion.*
+  - Method `._assert_acyclic_pathways(pathways, member_count)` - *Members may loop internally, but pathways between ganglia must stay acyclic.*
+  - Method `._rewrite_config(value, member_index, member_map)` - *Namespace node ids referenced from node configuration.*
+  - Method `._rewrite_reference(value, member_map)`
+  - Method `._rewire(member_index, edge, node_map, label)`
+  - Method `._auto_pathways(members)`
+  - Method `._boundaries(flow)`
+
+---
+
 ### [`core/module_manager.py`](core/module_manager.py)
-**Size**: `282` lines (`13626` bytes)
+**Size**: `302` lines (`14254` bytes)
 
 **Classes:**
 - `class ModuleManager`
@@ -317,6 +368,9 @@
   - Method `.enable_module(module_id)`
   - Method `.disable_module(module_id)`
   - Method `.update_module_config(module_id, new_config)` - *Updates the configuration for a specific module.*
+
+**Functions:**
+- `def _write_manifest(meta_path, meta)` - *Replace a module.json atomically so readers never see a truncated manifest.*
 
 ---
 
@@ -394,13 +448,26 @@
 
 ---
 
+### [`core/outcomes.py`](core/outcomes.py)
+> *Small, dependency-free outcome hook used by FlowRunner and the brain.*
+
+**Size**: `30` lines (`818` bytes)
+
+**Functions:**
+- `def set_outcome_listener(listener)`
+- `def clear_outcome_listener(listener)`
+- `def emit_outcome(outcome)`
+
+---
+
 ### [`core/paths.py`](core/paths.py)
 > *Absolute locations for NeuroCore runtime files.*
 
-**Size**: `14` lines (`462` bytes)
+**Size**: `25` lines (`886` bytes)
 
 **Functions:**
 - `def project_path(*parts)` - *Return an absolute path inside the NeuroCore project root.*
+- `def state_path(*parts)` - *Return a path for mutable state, honouring NEUROCORE_STATE_DIR.*
 
 ---
 
@@ -475,7 +542,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3260` lines (`142932` bytes)
+**Size**: `3272` lines (`143814` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -658,7 +725,7 @@
 ### [`core/security.py`](core/security.py)
 > *Control-plane security policy for NeuroCore.*
 
-**Size**: `225` lines (`9263` bytes)
+**Size**: `302` lines (`12475` bytes)
 
 **Classes:**
 - `class ControlPlaneGuard` - *CSRF origin check plus an opt-in API token for non-loopback clients.*
@@ -675,9 +742,13 @@
 - `def _is_sensitive_key(key)` - *Whether a mapping key names a secret (its value must be masked or dropped).*
 - `def redact_secrets(values)` - *Return `values` with every sensitive entry replaced by REDACTED, recursively.*
 - `def strip_secrets(values)` - *Return `values` with every sensitive key removed, recursively.*
-- `def api_token()` - *The optional control-plane API token; empty keeps the local no-token workflow.*
+- `def api_token()` - *The control-plane API token; empty means non-loopback clients are rejected.*
+- `def unauthenticated_remote_allowed()` - *Whether the operator explicitly accepted a non-loopback bind without a token.*
+- `def deployment_is_remote()` - *Whether the configured bind interface is reachable from another machine.*
+- `def validate_deployment_security()` - *Refuse a non-loopback bind that has no credential and no explicit opt-out.*
 - `def trusted_origins()` - *Extra origins accepted for state-changing requests (NEUROCORE_TRUSTED_ORIGINS).*
 - `def _is_loopback_host(host)` - *Whether `host` names this machine (loopback or the test client).*
+- `def _origin_tuple(scheme, hostname, port)` - *A normalized (scheme, host, effective-port) origin triple.*
 - `def _origin_allowed(origin, request)` - *Whether a browser `Origin` header may make a state-changing request to `request`.*
 - `def _client_is_loopback(request)` - *Whether the connecting peer is this machine (so the API token is not required).*
 - `def _token_matches(request, expected)` - *Constant-time check of the X-API-Token header or an Authorization: Bearer token.*
@@ -753,7 +824,7 @@
 ---
 
 ### [`core/settings.py`](core/settings.py)
-**Size**: `213` lines (`9289` bytes)
+**Size**: `213` lines (`9285` bytes)
 
 **Classes:**
 - `class SettingsManager`
@@ -769,7 +840,7 @@
 ### [`core/statistics_engine.py`](core/statistics_engine.py)
 > *Statistics Engine*
 
-**Size**: `712` lines (`26172` bytes)
+**Size**: `771` lines (`28591` bytes)
 
 **Functions:**
 - `def parse_data(raw)` - *Parse a user-supplied string of numbers into a float list.*
@@ -813,7 +884,7 @@
 ---
 
 ### [`main.py`](main.py)
-**Size**: `184` lines (`7889` bytes)
+**Size**: `193` lines (`8029` bytes)
 
 **Functions:**
 - `async def verify_debug_key(x_debug_key)` - *Verify debug API key for protected debug endpoints.*
@@ -986,21 +1057,40 @@
 ### [`modules/autonomous_agent/core/flow_creator.py`](modules/autonomous_agent/core/flow_creator.py)
 > *Flow Creator - Agent creates and manages its own flows dynamically.*
 
-**Size**: `334` lines (`12390` bytes)
+**Size**: `417` lines (`15671` bytes)
 
 **Classes:**
 - `class FlowCreator` - *Agent creates and manages its own flows dynamically.*
-  - Method `.__init__(agent_id, sandbox, memory, config)`
+  - Method `.__init__(agent_id, sandbox, memory, config, flow_manager)`
   - Method `async def .create_flow(specification)` - *Create a new flow from specification.*
   - Method `async def ._generate_flow(spec)` - *Generate flow JSON from specification.*
   - Method `._match_pattern(spec)` - *Match specification to a known flow pattern.*
   - Method `async def ._build_from_pattern(pattern_name, spec)` - *Build flow from predefined pattern.*
   - Method `async def ._build_custom_flow(spec)` - *Build custom flow using LLM (delegated to sandbox).*
-  - Method `async def ._validate_flow(flow_json)` - *Validate flow structure.*
   - Method `async def .update_flow(flow_id, updates)` - *Update an existing flow.*
   - Method `async def .delete_flow(flow_id)` - *Delete a flow.*
   - Method `.get_owned_flows()` - *Get list of flows owned by this agent.*
   - Method `.get_flow(flow_id)` - *Get a specific flow.*
+
+**Functions:**
+- `def node_template_types()` - *The (moduleId, nodeTypeId) pairs the agent's flow builder may use.*
+
+---
+
+### [`modules/autonomous_agent/core/flow_proposer.py`](modules/autonomous_agent/core/flow_proposer.py)
+> *Structured self-evolution proposals generated by an LLM.*
+
+**Size**: `161` lines (`7411` bytes)
+
+**Classes:**
+- `class FlowProposerError` - *Raised when the model does not return a usable operation list.*
+- `class FlowProposer` - *Turn a goal into validated-shape flow operations without applying them.*
+  - Method `.__init__(llm, allowed_node_types, allowed_tools, max_operations)`
+  - Method `async def .propose(flow, goal)` - *Ask the model for operations; return them for FlowEvolution to validate.*
+  - Method `._build_prompt(flow, goal)`
+  - Method `._parse_response(response)`
+  - Method `._validate_operation(index, operation)`
+  - Method `._check_node(index, node)`
 
 ---
 
@@ -1054,7 +1144,7 @@
 ### [`modules/autonomous_agent/core/sandbox.py`](modules/autonomous_agent/core/sandbox.py)
 > *Sandbox for the Autonomous Agent - Restricted execution environment.*
 
-**Size**: `374` lines (`16458` bytes)
+**Size**: `396` lines (`17454` bytes)
 
 **Classes:**
 - `class SandboxViolation` - *Raised when agent attempts unauthorized action.*
@@ -1071,12 +1161,14 @@
   - Method `.validate_config_key(key)` - *Check if config key can be modified.*
   - Method `.validate_inspect_field(field)` - *Check if self-inspection field is allowed.*
   - Method `.register_flow_ownership(flow_id)` - *Register that agent owns this flow.*
+  - Method `.unregister_flow_ownership(flow_id)` - *Forget ownership after the agent deletes a flow.*
   - Method `.check_flow_ownership(flow_id)` - *Check if agent owns this flow.*
   - Method `.check_resource_limits(action_type, **kwargs)` - *Check if action would exceed resource limits.*
   - Method `async def .execute_action(action)` - *Execute an action with full sandbox protection.*
   - Method `async def ._dispatch_action(action, policy)` - *Dispatch action to appropriate handler.*
   - Method `async def ._handle_create_flow(action, policy)` - *Handle flow creation.*
   - Method `async def ._handle_update_flow(action, policy)`
+  - Method `async def ._handle_compose_flow(action, policy)`
   - Method `async def ._handle_delete_flow(action, policy)`
   - Method `async def ._handle_execute_flow(action, policy)`
   - Method `async def ._handle_remember(action, policy)`
@@ -1133,12 +1225,12 @@
 ### [`modules/autonomous_agent/core/service.py`](modules/autonomous_agent/core/service.py)
 > *Main Agent Service - Ties all components together and runs the cognitive loop.*
 
-**Size**: `673` lines (`27346` bytes)
+**Size**: `1043` lines (`44609` bytes)
 
 **Classes:**
 - `class AgentState` - *Current state of the agent.*
 - `class AgentService` - *Main service running the autonomous agent.*
-  - Method `.__init__(config)`
+  - Method `.__init__(config, flow_manager, llm)`
   - Method `async def .initialize()` - *Initialize the agent and all components.*
   - Method `async def .start()` - *Start the agent's cognitive loop.*
   - Method `async def .stop()` - *Stop the agent gracefully.*
@@ -1148,9 +1240,21 @@
   - Method `async def ._plan_for_user_message(perception)` - *Plan actions for a user message.*
   - Method `async def ._extract_flow_spec(content)` - *Extract flow specification from user message.*
   - Method `._extract_flow_id(content)` - *Extract flow ID from user message.*
+  - Method `._extract_flow_ids(content)` - *Extract unique flow IDs in appearance order.*
   - Method `async def ._execute_action(action)` - *Execute an action through the sandbox.*
   - Method `async def ._execute_create_flow(action, sandbox_result)` - *Execute flow creation.*
-  - Method `async def ._execute_flow(action, sandbox_result)` - *Execute a flow.*
+  - Method `async def ._execute_compose_flow(action, sandbox_result)` - *Compose owned member flows into a meta-flow.*
+  - Method `async def ._execute_update_flow(action, sandbox_result)` - *Apply a self-evolution proposal to a flow the agent owns.*
+  - Method `async def .evolve_flow(flow_id, operations)` - *Validated, versioned self-edit of an owned flow.*
+  - Method `._evaluation_succeeded(result)`
+  - Method `async def .evolve_and_evaluate(flow_id, operations, evaluation_input, auto_revert, evaluator)` - *Apply an edit, run it, and revert when the evaluation fails.*
+  - Method `._get_proposer()`
+  - Method `async def .propose_evolution(flow_id, goal)` - *Ask the model for a validated-shape edit proposal (no write).*
+  - Method `async def .propose_and_evolve(flow_id, instruction, evaluation_input, auto_revert)` - *Generate operations, then apply them (with evaluation when provided).*
+  - Method `async def .compose_meta_flow(name, member_flow_ids, pathways, metadata, live)` - *Combine owned flows (ganglia) into one saved meta-flow.*
+  - Method `async def .rollback_flow(flow_id, version)` - *Restore an owned flow to a version and refresh the agent cache.*
+  - Method `._resolve_active_flow()` - *First active flow that still exists, else the default chat flow.*
+  - Method `async def ._execute_flow(action, sandbox_result)` - *Execute the requested flow, falling back to the active chat flow.*
   - Method `async def ._execute_remember(action, sandbox_result)` - *Execute memory storage.*
   - Method `async def ._execute_recall(action, sandbox_result)` - *Execute memory recall.*
   - Method `async def ._execute_inspect_self(action, sandbox_result)` - *Execute self-inspection.*
@@ -1161,11 +1265,13 @@
   - Method `async def ._periodic_consolidation()` - *Periodic memory consolidation.*
   - Method `async def ._on_perception(perception)` - *Record a perception so the next cycle can inspect it.*
   - Method `._state_path()` - *Resolve the configured persistence path, if persistence is enabled.*
-  - Method `async def ._load_existing_flows()` - *Adopt flows this agent created from NeuroCore's flow store.*
+  - Method `async def ._load_existing_flows()` - *Adopt flows this agent created from the shared flow store.*
   - Method `async def ._load_memory()` - *Restore memory and aggregate counters from the persistence file.*
   - Method `async def ._save_state()` - *Persist memory and cycle statistics atomically.*
   - Method `async def .create_flow(spec)` - *Public API to create a flow.*
-  - Method `async def .execute_flow(flow_id, input_data)` - *Public API to execute a flow.*
+  - Method `async def .execute_flow(flow_id, input_data, timeout)` - *Execute an owned flow through the real FlowRunner.*
+  - Method `async def ._run_flow(flow_id, input_data, timeout)` - *Run any stored flow; ownership is enforced by the public/caller path.*
+  - Method `.activate_flow(flow_id)` - *Make an owned flow the first active flow for the app chat gateway.*
   - Method `async def .send_message(message)` - *Public API to send a message.*
   - Method `async def .notify_user(content, channel, priority)` - *Public API to notify user.*
   - Method `async def .get_self_status()` - *Get comprehensive agent status.*
@@ -1179,7 +1285,7 @@
 ### [`modules/autonomous_agent/core/types.py`](modules/autonomous_agent/core/types.py)
 > *Core types and data structures for the Autonomous Agent.*
 
-**Size**: `191` lines (`6330` bytes)
+**Size**: `192` lines (`6364` bytes)
 
 **Classes:**
 - `class ActionType` - *Types of actions the agent can take.*
@@ -1220,7 +1326,7 @@
 ### [`modules/autonomous_agent/nodes/agent_node.py`](modules/autonomous_agent/nodes/agent_node.py)
 > *Autonomous Agent Node - Flow node that executes the agent's cognitive loop.*
 
-**Size**: `180` lines (`6613` bytes)
+**Size**: `188` lines (`6956` bytes)
 
 **Classes:**
 - `class AgentNodeConfig` - *Configuration for the autonomous agent node.*
@@ -1242,6 +1348,482 @@
 
 **Functions:**
 - `async def create_service(config)` - *Create and initialize the agent service.*
+
+---
+
+### [`modules/brain/__init__.py`](modules/brain/__init__.py)
+> *AI-Brain module: self-model, event bus, cognitive cycles and evaluations.*
+
+**Size**: `5` lines (`130` bytes)
+
+---
+
+### [`modules/brain/auth.py`](modules/brain/auth.py)
+> *Brain actor identity, token registry and role gates.*
+
+**Size**: `246` lines (`8385` bytes)
+
+**Classes:**
+- `class BrainActor`
+- `class BrainActorRegistry` - *Persistent actor credentials; only salted hashes are stored.*
+  - Method `.__init__(path, iterations)`
+  - Method `.load()`
+  - Method `.save(data)`
+  - Method `._hash(token, salt)`
+  - Method `.create(name, role, token)`
+  - Method `.authenticate(token)`
+  - Method `.list()`
+  - Method `.rotate(name)`
+  - Method `.disable(name)`
+  - Method `.delete(name)`
+  - Method `._public(record)`
+
+**Functions:**
+- `def get_actor_registry()`
+- `def reset_actor_registry()`
+- `def _is_local(host)`
+- `def _set_request_actor(request, actor)`
+- `def get_brain_actor(request)`
+- `def require_role(minimum)`
+
+---
+
+### [`modules/brain/configuration.py`](modules/brain/configuration.py)
+> *Policy-gated self-configuration for settings, modules and brain options.*
+
+**Size**: `411` lines (`17719` bytes)
+
+**Classes:**
+- `class ConfigurationPolicyError` - *Raised when a requested change violates the configuration policy.*
+- `class ConfigurationQuotaError` - *Raised when the daily configuration-change quota is exhausted (HTTP 429).*
+- `class ConfigurationStore` - *Atomic ledger for applied changes and their rollback snapshots.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `._quarantine()`
+  - Method `.save(data)`
+- `class ConfigurationEngine` - *Preview, apply and roll back bounded configuration changes.*
+  - Method `.__init__(settings_manager, module_manager, store, runtime_apply, config_path, allowed_settings, configurable_modules, max_changes_per_day, max_changes)`
+  - Method `._reload_from_store()`
+  - Method `.attach_module_manager(module_manager)`
+  - Method `.preview(operation, module_manager)`
+  - Method `.apply(operation, approved_by, module_manager)`
+  - Method `.rollback(change_id, approved_by, module_manager)`
+  - Method `._target(op)`
+  - Method `._apply_value(op, value, manager)`
+  - Method `.status()`
+  - Method `.summary()` - *Compact status for brain snapshots (never embeds the change list).*
+  - Method `._normalize(operation)`
+  - Method `._require_manager(manager)`
+  - Method `._validate_setting(key, value)`
+  - Method `._validate_brain_option(key, value)`
+  - Method `._validate_allowed_tools(value, config)`
+  - Method `._read_brain_config()`
+  - Method `._write_brain_config(config)`
+  - Method `._prune_quotas()`
+  - Method `._prune_changes()`
+  - Method `._save()`
+
+---
+
+### [`modules/brain/drift.py`](modules/brain/drift.py)
+> *Drift detection against a measured healthy baseline.*
+
+**Size**: `136` lines (`4931` bytes)
+
+**Classes:**
+- `class DriftMonitor` - *Compare live self-model metrics with a baseline and score divergence.*
+  - Method `.__init__(path)`
+  - Method `._load()`
+  - Method `._save()`
+  - Method `._metrics(snapshot)`
+  - Method `.set_baseline(snapshot, recorded_by)`
+  - Method `.observe(snapshot)`
+  - Method `.status()`
+
+**Functions:**
+- `def _now()`
+
+---
+
+### [`modules/brain/evaluation.py`](modules/brain/evaluation.py)
+> *Deterministic evaluation harness used as the brain's scorecard.*
+
+**Size**: `362` lines (`13717` bytes)
+
+**Classes:**
+- `class UnsafeEvaluationError` - *Raised when a flow contains nodes that must not run during evaluation.*
+- `class EvalTask`
+- `class FlowEvalExecutor` - *Run an inline or stored flow for one evaluation task.*
+  - Method `.__init__(flow_id, flow_override, timeout, manager, allow_unsafe)`
+  - Method `async def .__call__(input_data)`
+- `class EvaluationRunner` - *Execute a deterministic suite and produce a comparable result document.*
+  - Method `.__init__(manager, allow_unsafe)`
+  - Method `async def .run(tasks, executor, flow_id, flow_override, default_timeout)`
+- `class EvalStore` - *Persist last and baseline results under the configured state directory.*
+  - Method `.__init__(last_path, baseline_path)`
+  - Method `._lock_for(path)`
+  - Method `._write(path, data)`
+  - Method `._read(path)`
+  - Method `.save_last(result)`
+  - Method `.load_last()`
+  - Method `.save_baseline(result)`
+  - Method `.load_baseline()`
+
+**Functions:**
+- `def validate_evaluation_flow(flow, allow_unsafe)` - *Reject flows with external-effect or state-mutating nodes.*
+- `def _field_value(output, field)`
+- `def _evaluate_check(check, output, latency_ms)`
+- `def compare_results(current, baseline, max_pass_drop, max_latency_increase_pct, min_latency_increase_ms)` - *Compare a current run to a baseline; promotion requires no regression.*
+
+---
+
+### [`modules/brain/events.py`](modules/brain/events.py)
+> *Bounded, async event bus for brain perceptions.*
+
+**Size**: `88` lines (`3238` bytes)
+
+**Classes:**
+- `class BrainEvent`
+  - Method `.to_dict()`
+- `class EventBus` - *In-process pub/sub with a bounded history and optional deduplication.*
+  - Method `.__init__(max_history, handler_timeout)`
+  - Method `.subscribe(event_type, handler)`
+  - Method `.unsubscribe(event_type, handler)`
+  - Method `async def .publish(event_type, source, payload, salience, dedupe_key)`
+  - Method `.recent(limit)`
+  - Method `.clear()`
+
+---
+
+### [`modules/brain/improvement.py`](modules/brain/improvement.py)
+> *Evaluation-gated flow improvement with quotas, promotion and rollback.*
+
+**Size**: `421` lines (`17886` bytes)
+
+**Classes:**
+- `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
+- `class Candidate`
+  - Method `.to_dict()`
+- `class ImprovementStore` - *Atomic candidate ledger under the configured state directory.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `._quarantine()`
+  - Method `.save(data)`
+- `class ImprovementEngine` - *Propose, evaluate and promote flow edits without leaving failed edits behind.*
+  - Method `.__init__(flow_manager, evolution, evaluation_runner, eval_store, store, max_candidates_per_day, max_evaluations_per_day, max_promotions_per_day, max_candidates, generator)`
+  - Method `._reload_from_store()`
+  - Method `async def .propose(flow_id, operations, description, source)`
+  - Method `async def .generate(flow_id, instruction)`
+  - Method `async def .evaluate(candidate_id, approve, approved_by)`
+  - Method `async def .rollback(candidate_id)`
+  - Method `._baseline_quality_reasons(baseline, flow_id)`
+  - Method `._prune_candidates()`
+  - Method `.summary()` - *Compact status for self-model snapshots (never embeds every candidate).*
+  - Method `.status()`
+  - Method `._quota()`
+  - Method `._prune_quotas()`
+  - Method `._save()`
+
+---
+
+### [`modules/brain/kernel.py`](modules/brain/kernel.py)
+> *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
+
+**Size**: `274` lines (`10735` bytes)
+
+**Classes:**
+- `class KernelMode`
+- `class KernelBlockedError` - *Raised when the kernel forbids an action in the current mode.*
+- `class KernelState`
+  - Method `.to_dict()`
+- `class KernelStore`
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `.save(state)`
+- `class BrainKernel` - *Risk-driven mode gate. It never executes actions; it only allows or blocks them.*
+  - Method `.__init__(degrade_threshold, safe_threshold, safe_exit_threshold, store)`
+  - Method `._reload_from_store()`
+  - Property `.mode`
+  - Property `.is_safe`
+  - Property `.risk_score`
+  - Method `.observe(snapshot)` - *Update risk inputs from one self-model snapshot and reassess the mode.*
+  - Method `.record_evaluation(result)`
+  - Method `.record_drift(score)`
+  - Method `.record_blocked_action(reason)`
+  - Method `.assess(reason, persist)`
+  - Method `.kill_switch(reason, approved_by)`
+  - Method `.reset(approved_by)`
+  - Method `.can_run_autonomy()`
+  - Method `.can_write_memory()`
+  - Method `.can_promote()`
+  - Method `.can_configure()`
+  - Method `.require_autonomy(action)`
+  - Method `.require_memory_write(action)`
+  - Method `.require_promotion(action)`
+  - Method `.require_configuration(action)`
+  - Method `.to_dict()`
+  - Method `._save()`
+
+---
+
+### [`modules/brain/learning.py`](modules/brain/learning.py)
+> *Outcome-driven learning: experiences, consolidation and held-out recall.*
+
+**Size**: `517` lines (`19568` bytes)
+
+**Classes:**
+- `class Outcome`
+  - Method `.signature()`
+  - Method `.to_dict()`
+- `class Skill`
+  - Method `.to_dict()`
+- `class MemoryBridge`
+  - Method `.add_entry(text, **kwargs)`
+  - Method `.update_entry(memory_id, text, **kwargs)`
+  - Method `.delete_entry(memory_id, reason)`
+  - Method `.browse(limit, search_text, mem_type, source, **kwargs)`
+- `class GlobalMemoryBridge` - *Adapter over the shared MemoryStore; imported lazily to avoid startup cost.*
+  - Method `.add_entry(text, **kwargs)`
+  - Method `.update_entry(memory_id, text, **kwargs)`
+  - Method `.delete_entry(memory_id, reason)`
+  - Method `.browse(limit, search_text, mem_type, source, **kwargs)`
+- `class LearningStore` - *Bounded local learning ledger with atomic persistence.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `._quarantine()`
+  - Method `.save(data)`
+- `class LearningLoop` - *Record outcomes, consolidate repeated successes into rules, measure recall.*
+  - Method `.__init__(memory, store, max_experiences, min_occurrences, holdout_ratio, max_skills, mirror_experiences)`
+  - Method `._reload_from_store()`
+  - Method `._split_for(outcome)`
+  - Method `.record_outcome(action, input_data, output, success, error, latency_ms, tags, trace_id)`
+  - Method `._delete_mirrored_experience(record)`
+  - Method `._mirror_experience(record)`
+  - Method `.consolidate()`
+  - Method `._best_approach(experiences)`
+  - Method `._add_memory(text)`
+  - Method `._update_memory(memory_id, text)`
+  - Method `.retrieve_skills(query, limit)` - *Retrieve candidate skills from global memory, then rank lexically.*
+  - Method `.evaluate_recall(top_k)`
+  - Method `.status()`
+  - Method `.experiences_page(limit)`
+  - Method `._save()`
+
+**Functions:**
+- `def _now()`
+- `def _signature(input_data)`
+- `def _tokens(text)`
+- `def _token_overlap(query, text)`
+
+---
+
+### [`modules/brain/persistence.py`](modules/brain/persistence.py)
+> *Cross-process locking and atomic JSON persistence shared by brain ledgers.*
+
+**Size**: `123` lines (`4009` bytes)
+
+**Classes:**
+- `class LedgerLock` - *Serialize access to one ledger across threads and processes.*
+  - Method `.__init__(path, timeout)`
+  - Property `.reentrant` - *Whether this thread already holds the lock (a nested engine call).*
+  - Method `.held()`
+
+**Functions:**
+- `def atomic_write_json(path, data, *, default)` - *Write JSON through a fsynced temp file and atomic replace; the caller holds the lock.*
+- `def ledger_transaction(method)` - *Run a store method under its own ledger lock.*
+- `def engine_transaction(method)` - *Run a synchronous engine mutation under its store lock, refreshing state once.*
+- `def engine_transaction_async(method)` - *Async variant of :func:`engine_transaction`.*
+- `def _refresh(instance)`
+
+---
+
+### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
+> *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
+
+**Size**: `392` lines (`15492` bytes)
+
+**Classes:**
+- `class ReactionStore`
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `.save(data)`
+- `class ReactivityEngine` - *Consume events into deduplicated, mute-able proposals. Never executes actions.*
+  - Method `.__init__(bus, store, config, calendar_provider, metrics_provider, can_react)`
+  - Method `._reload_from_store()`
+  - Method `async def .start()`
+  - Method `async def .stop()`
+  - Method `async def ._on_event(event)`
+  - Method `async def .process_event(event)`
+  - Method `.dismiss(reaction_id)`
+  - Method `.mute(key, minutes)`
+  - Method `.unmute(key)`
+  - Method `async def .poll_once()`
+  - Method `async def ._emit(event)`
+  - Method `._calendar_events()`
+  - Method `._metric_events()`
+  - Method `._file_events()`
+  - Method `async def ._poll_loop()`
+  - Method `._dedupe_key(event)`
+  - Method `._prune(now)`
+  - Method `.summary()`
+  - Method `.status()`
+  - Method `._save()`
+  - Method `._default_calendar()`
+  - Method `._default_metrics()`
+
+---
+
+### [`modules/brain/router.py`](modules/brain/router.py)
+> *HTTP surface for the AI-Brain substrate and evaluation harness.*
+
+**Size**: `470` lines (`16809` bytes)
+
+**Functions:**
+- `async def brain_startup()`
+- `async def brain_shutdown()`
+- `async def brain_ui(request)`
+- `async def brain_actor(actor)`
+- `async def brain_actors(_actor)`
+- `async def brain_actor_create(body, _actor)`
+- `async def brain_actor_rotate(name, _actor)`
+- `async def brain_actor_disable(name, _actor)`
+- `async def brain_actor_delete(name, _actor)`
+- `async def brain_state()`
+- `async def brain_events(limit)`
+- `async def brain_publish_event(body, actor)`
+- `async def brain_start(_actor)`
+- `async def brain_stop(_actor)`
+- `async def brain_cycle(_actor)`
+- `async def brain_mode(body, _actor)`
+- `async def brain_proposals()`
+- `async def brain_eval_suite()`
+- `async def brain_eval_run(body, _actor)`
+- `async def brain_eval_baseline(actor)`
+- `async def brain_eval_status()`
+- `async def brain_learn_status()`
+- `async def brain_learn_experiences(limit)`
+- `async def brain_learn(body, actor)`
+- `async def brain_learn_consolidate(_actor)`
+- `async def brain_learn_recall(body)`
+- `async def brain_improve_status()`
+- `async def brain_improve_candidate(body, actor)`
+- `async def brain_improve_generate(body, _actor)`
+- `async def brain_improve_evaluate(body, actor)`
+- `async def brain_improve_rollback(body, _actor)`
+- `async def brain_config_status()`
+- `async def brain_kernel_status()`
+- `async def brain_kernel_kill(body, actor)`
+- `async def brain_kernel_reset(actor)`
+- `async def brain_drift_baseline(actor)`
+- `async def brain_reactions()`
+- `async def brain_reaction_dismiss(body, _actor)`
+- `async def brain_reaction_mute(body, _actor)`
+- `async def brain_reaction_unmute(body, _actor)`
+- `async def brain_react_start(_actor)`
+- `async def brain_react_stop(_actor)`
+- `async def brain_react_poll(_actor)`
+- `async def brain_config_preview(body, module_manager)`
+- `async def brain_config_apply(body, module_manager, actor)`
+- `async def brain_config_rollback(body, module_manager, actor)`
+
+---
+
+### [`modules/brain/self_model.py`](modules/brain/self_model.py)
+> *Real self-model for the brain.*
+
+**Size**: `204` lines (`7462` bytes)
+
+**Classes:**
+- `class BrainSelfModel` - *Compose live subsystem snapshots into the brain's model of itself.*
+  - Method `.__init__(providers)`
+  - Method `async def .snapshot(mode)`
+  - Method `._flows()`
+  - Method `._modules()`
+  - Method `._memory()`
+  - Method `._knowledge()`
+  - Method `._metrics()`
+  - Method `._tools()`
+  - Method `._learning()`
+  - Method `._evaluation()`
+
+---
+
+### [`modules/brain/service.py`](modules/brain/service.py)
+> *AI-Brain control service: observe/suggest cycles, state and evaluation.*
+
+**Size**: `674` lines (`29251` bytes)
+
+**Classes:**
+- `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
+  - Method `.__init__(config, self_model, event_bus, state_store, evaluation_runner, eval_store, learning, improvement, configuration, kernel, drift, reactivity)`
+  - Method `async def .start()`
+  - Method `async def .stop()`
+  - Method `async def .set_mode(mode)`
+  - Method `async def .run_cycle(trigger)`
+  - Method `._on_flow_outcome(outcome)` - *Capture ordinary flow/chat outcomes for learning, unless SAFE or disabled.*
+  - Method `._observe_self(snapshot)`
+  - Method `async def .snapshot()`
+  - Method `async def .record_outcome(action, input_data, output, success, error, latency_ms, tags, trace_id)`
+  - Method `async def .consolidate_learning()`
+  - Method `async def .evaluate_learning_recall(top_k)`
+  - Method `.learning_status()`
+  - Method `async def .propose_improvement(flow_id, operations, description, source)`
+  - Method `async def .evaluate_improvement(candidate_id, approve, approved_by)`
+  - Method `async def .rollback_improvement(candidate_id)`
+  - Method `async def .generate_improvement(flow_id, instruction)`
+  - Method `.improvement_status()`
+  - Method `.preview_configuration(operation, module_manager)`
+  - Method `.apply_configuration(operation, approved_by, module_manager)`
+  - Method `.rollback_configuration(change_id, approved_by, module_manager)`
+  - Method `.configuration_status()`
+  - Method `.kernel_status()`
+  - Method `.reactivity_status()`
+  - Method `async def .start_reactivity()`
+  - Method `async def .stop_reactivity()`
+  - Method `async def .poll_reactivity()`
+  - Method `.dismiss_reaction(reaction_id)`
+  - Method `.mute_reaction(key, minutes)`
+  - Method `.unmute_reaction(key)`
+  - Method `.engage_kill_switch(reason, approved_by)`
+  - Method `.reset_kernel(approved_by)`
+  - Method `async def .set_drift_baseline(approved_by)`
+  - Method `._apply_brain_option(key, value)`
+  - Method `async def ._generate_flow_candidate(flow_id, instruction)` - *Use the configured LLM to draft a bounded flow operation list.*
+  - Method `.events(limit)`
+  - Method `async def .publish_event(event_type, source, payload, salience, dedupe_key)`
+  - Method `async def .run_evaluation(flow_id)`
+  - Method `async def .promote_baseline(approved_by)`
+  - Method `.evaluation_status()`
+  - Method `async def ._loop()`
+  - Method `._propose(snapshot)`
+  - Method `._proposal(kind, title, rationale, confidence)`
+  - Method `._save()`
+
+**Functions:**
+- `def _load_module_config()`
+- `def get_brain_service()`
+- `def get_existing_brain_service()` - *Return the service only if something already created it (e.g. /brain/start).*
+- `def brain_auto_start_enabled()`
+- `def reset_brain_service()`
+
+---
+
+### [`modules/brain/state.py`](modules/brain/state.py)
+> *Persistent brain state and mode definitions.*
+
+**Size**: `81` lines (`2556` bytes)
+
+**Classes:**
+- `class BrainState` - *Observable state of the brain control plane.*
+  - Method `.to_dict()`
+  - Method `.from_dict(data)`
+- `class BrainStateStore` - *Atomic JSON persistence for brain state under the configured state dir.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `.save(state)`
+
+**Functions:**
+- `def utc_now()`
 
 ---
 
@@ -1288,7 +1870,7 @@
 ---
 
 ### [`modules/calendar/events.py`](modules/calendar/events.py)
-**Size**: `163` lines (`6199` bytes)
+**Size**: `163` lines (`6195` bytes)
 
 **Classes:**
 - `class EventManager`
@@ -1357,7 +1939,7 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `536` lines (`24058` bytes)
+**Size**: `542` lines (`24319` bytes)
 
 **Functions:**
 - `def _extract_thinking_steps(flow_result)` - *Extract intermediate agent thinking steps from a flow result.*
@@ -1375,13 +1957,21 @@
 ---
 
 ### [`modules/chat/sessions.py`](modules/chat/sessions.py)
-**Size**: `228` lines (`8870` bytes)
+**Size**: `345` lines (`13418` bytes)
 
 **Classes:**
 - `class SessionManager`
-  - Method `.__init__(storage_file)`
+  - Method `.__init__(storage_file, max_sessions, max_messages, lock_timeout)`
+  - Method `._file_mtime()` - *A change fingerprint of the store: mtime alone misses writes within a coarse clock tick.*
+  - Method `._quarantine_unlocked()`
+  - Method `._load_sessions_unlocked()`
   - Method `._load_sessions()`
-  - Method `._save_sessions()` - *Save sessions to disk using atomic temp-file-and-rename pattern.*
+  - Method `._refresh_sessions_locked()` - *Reload when another process changed the file since our last read/write.*
+  - Method `._save_sessions_locked()` - *Write sessions through a fsynced unique temp file and atomic replace.*
+  - Method `._save_sessions()` - *Persist the current sessions. Callers must hold the in-process and file locks.*
+  - Method `._mutate(callback)` - *Serialise a read-modify-write across threads and processes.*
+  - Method `._prune_sessions_locked()`
+  - Method `._trim_history_locked(session)`
   - Method `.create_session(name)`
   - Method `.add_tokens(session_id, usage)` - *Accumulate token usage for a session from an LLM usage dict.*
   - Method `.get_session(session_id)`
@@ -1394,6 +1984,7 @@
   - Method `async def .compact_session(session_id, llm_bridge, keep_last)` - *Summarize old messages and replace them with a compact summary system message.*
 
 **Functions:**
+- `def _now_iso()`
 - `def _estimate_tokens(messages)` - *Rough token estimate using the ~4 chars/token approximation.*
 
 ---
@@ -1505,7 +2096,7 @@
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1232` lines (`49335` bytes)
+**Size**: `1263` lines (`50565` bytes)
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -1530,8 +2121,8 @@
   - Method `.compute_file_hash(file_path)` - *Compute SHA256 hash of file for deduplication.*
   - Method `.document_exists(file_hash)` - *Check if document already exists in database.*
   - Method `.get_document_by_filename(filename)` - *Return document metadata for the first document with the given filename, or None.*
-  - Method `.reindex_document(document_id, new_file_hash, new_file_size, new_page_count, new_chunks)` - *Delta re-index a document: preserve unchanged chunks, remove stale ones, add new ones.*
-  - Method `.add_document(file_hash, filename, file_type, file_size, page_count, chunks, upload_source)` - *Add document and its chunks to database with FAISS indexing.*
+  - Method `.reindex_document(document_id, new_file_hash, new_file_size, new_page_count, new_chunks, stored_filename)` - *Delta re-index a document: preserve unchanged chunks, remove stale ones, add new ones.*
+  - Method `.add_document(file_hash, filename, file_type, file_size, page_count, chunks, upload_source, stored_filename)` - *Add document and its chunks to database with FAISS indexing.*
   - Method `.list_documents(limit)` - *List all documents.*
   - Method `.get_document(document_id)` - *Retrieve a single document's metadata by ID.*
   - Method `.get_document_chunks(document_id)` - *Return all chunks for a document as {id, chunk_index, text} dicts.*
@@ -1586,10 +2177,12 @@
 ---
 
 ### [`modules/knowledge_base/router.py`](modules/knowledge_base/router.py)
-**Size**: `497` lines (`20588` bytes)
+**Size**: `544` lines (`22274` bytes)
 
 **Functions:**
 - `def _format_size(size_bytes)` - *Return a human-readable file size string.*
+- `def _resolve_stored_path(document, upload_dir)` - *Return the on-disk path for a document, including legacy UUID-prefixed uploads.*
+- `def _document_storage_names(documents, disk_files)` - *Map document rows to the filenames that should exist in the upload directory.*
 - `def validate_upload(file)` - *Validate file upload for security.*
 - `def _cleanup_stale_uploads()` - *Remove stale entries from upload_progress that exceed TTL.*
 - `async def process_and_save_document(tracking_id, file_path, original_filename, stored_filename, llm)` - *Background task to process document and update progress.*
@@ -1692,7 +2285,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1098` lines (`48498` bytes)
+**Size**: `1102` lines (`48848` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -1738,7 +2331,7 @@
 ---
 
 ### [`modules/memory/consolidation.py`](modules/memory/consolidation.py)
-**Size**: `280` lines (`10464` bytes)
+**Size**: `305` lines (`11409` bytes)
 
 **Classes:**
 - `class ConsolidationState` - *Tracks the state of the memory consolidation background task.*
@@ -1748,6 +2341,7 @@
   - Method `.__init__(config)`
   - Method `._fetch_candidates_with_timestamps()` - *Fetch candidate memories with timestamps for consolidation.*
   - Method `._find_similar_pairs_faiss(threshold)` - *Use FAISS to find similar memory pairs above threshold.*
+  - Method `._find_similar_pairs_linear(matrix, ids, threshold)` - *Cosine-similarity fallback used when the FAISS index is unavailable.*
   - Method `._get_processed_pairs()` - *Get already-processed consolidation pairs from meta_memories for idempotency.*
   - Method `._log_consolidation(child_id, parent_id, text_a, text_b)` - *Log consolidation to meta_memories for idempotency tracking.*
   - Method `async def .run()` - *Run consolidation process. Returns number of memories consolidated.*
@@ -1758,7 +2352,7 @@
 ---
 
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `398` lines (`17754` bytes)
+**Size**: `395` lines (`17185` bytes)
 
 **Classes:**
 - `class ConfigLoader`
@@ -1778,6 +2372,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _consolidation_done(task)`
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -1989,6 +2584,28 @@
 **Functions:**
 - `def _to_jid(phone)` - *Normalise a phone number or JID to a WhatsApp JID string.*
 - `def _from_jid(jid)` - *Extract the plain phone number from a WhatsApp JID.*
+
+---
+
+### [`modules/meta/__init__.py`](modules/meta/__init__.py)
+> *Meta-flow module: runs a stored flow as one ganglion node.*
+
+**Size**: `1` lines (`65` bytes)
+
+---
+
+### [`modules/meta/node.py`](modules/meta/node.py)
+> *Subflow executor: a ganglion is a reference to another stored flow.*
+
+**Size**: `47` lines (`1677` bytes)
+
+**Classes:**
+- `class SubflowExecutor` - *Run the flow named by ``config['flow_id']`` and pass its output through.*
+  - Method `async def .receive(input_data, config)`
+  - Method `async def .send(processed_data)`
+
+**Functions:**
+- `async def get_executor_class(node_type_id)`
 
 ---
 
@@ -2309,11 +2926,12 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `150` lines (`6263` bytes)
+**Size**: `166` lines (`7060` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
   - Method `.__init__()`
+  - Method `._permitted_environment()` - *Only environment values the tools manifest explicitly authorizes reach a tool.*
   - Method `._load_tools()`
   - Method `async def .receive(input_data, config)`
   - Method `async def .send(processed_data)`
@@ -2387,12 +3005,13 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `909` lines (`37932` bytes)
+**Size**: `1072` lines (`46161` bytes)
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
 - `class ResourceLimitError` - *Raised when resource limits are exceeded.*
 - `class TimeoutError` - *Raised when tool execution exceeds time limit.*
+- `class SandboxStartupError` - *Raised when the isolated worker cannot start.*
 - `class RestrictedImport` - *Import hook that blocks dangerous modules and only allows safe ones.*
   - Method `.__init__(allowed_modules, mock_modules, passthrough_modules)`
   - Method `._is_passthrough(name)` - *Whether `name` is exactly, or a submodule of, an allowlisted first-party module.*
@@ -2402,71 +3021,41 @@
   - Method `._is_path_allowed(path)` - *Check if a path is within allowed directories.*
   - Method `.__call__(file, mode, *args, **kwargs)`
 - `class SafeHttpxClient` - *Restricted HTTP client that enforces network security policies.*
-  - Method `.__init__(allowed_domains, timeout, max_response_size)`
+  - Method `.__init__(allowed_domains, timeout, max_response_size, max_redirects)`
   - Method `._is_domain_allowed(url)` - *Check if a URL's domain is in the allowed list.*
   - Method `._is_ip_blocked(host)` - *Check if a host/IP is in blocked ranges using CIDR notation.*
-  - Method `._resolve_and_validate_ip(hostname)` - *Resolve hostname and validate the resulting IP(s).*
+  - Method `._resolve_and_validate_ip(hostname)` - *Resolve hostname and validate every resulting IP.*
+  - Method `._is_loopback(host)`
+  - Method `._validate_control_plane_path(parsed)` - *Allow only the tool APIs when the target is NeuroCore's own port on loopback.*
+  - Method `._validate_target(url)` - *Validate scheme, allowlist and every DNS answer for one request target.*
   - Method `.request(method, url, **kwargs)` - *Make a restricted HTTP request.*
+  - Method `._without_credentials(kwargs)` - *Request options with credentials removed, for a redirect to another origin.*
   - Method `.get(url, **kwargs)`
   - Method `.post(url, **kwargs)`
   - Method `.delete(url, **kwargs)`
   - Method `.put(url, **kwargs)`
   - Method `.patch(url, **kwargs)`
-- `class SafeEnv` - *Restricted mock for the ``os`` module, exposing only environment-variable*
-  - Method `.__init__()`
+- `class SafeEnv` - *Restricted mock for the ``os`` module.*
+  - Method `.__init__(permitted)`
   - Method `.getenv(key, default)`
   - Method `.__getattr__(name)`
 - `class ToolSandbox` - *Main sandbox class for executing tool code securely.*
-  - Method `.__init__(timeout, max_output_size, allowed_file_dirs, allowed_domains, read_only_files, max_memory_mb)`
+  - Method `.__init__(timeout, max_output_size, allowed_file_dirs, allowed_domains, read_only_files, max_memory_mb, permitted_environment)`
   - Method `._build_restricted_globals()` - *Build a dictionary of restricted globals for sandboxed execution.*
   - Method `._check_code_safety(code)` - *Static analysis to check for dangerous code patterns.*
   - Method `._execute_internal(code, local_vars)` - *Internal execution without multiprocessing - used by child process.*
   - Method `.execute(code, local_vars)` - *Execute code in the sandboxed environment using multiprocessing for true isolation.*
 
 **Functions:**
-- `def _execute_in_process(code, local_vars, result_file, allowed_file_dirs, read_only_files, allowed_domains, timeout, max_output_size, max_memory_mb)` - *Execute code in a separate process with restricted environment.*
+- `def _execute_in_process(code, local_vars, result_file, allowed_file_dirs, read_only_files, allowed_domains, timeout, max_output_size, max_memory_mb, permitted_environment)` - *Execute code in a separate process with restricted environment.*
 - `def execute_sandboxed(code, args, timeout, allowed_domains)` - *Execute tool code in a sandbox with the given arguments.*
-
----
-
-### [`modules/tools/sandbox_manager.py`](modules/tools/sandbox_manager.py)
-> *Sandbox Manager for NeuroCore - Worker Pool for Isolated Tool Execution*
-
-**Size**: `636` lines (`21093` bytes)
-
-**Classes:**
-- `class WorkerType` - *Types of sandbox workers with different configurations.*
-- `class WorkerConfig` - *Configuration for a sandbox worker.*
-- `class ExecutionResult` - *Result of sandboxed execution.*
-  - Method `.to_dict()` - *Convert to dictionary.*
-- `class WorkerPool` - *Pool of sandbox workers for parallel execution.*
-  - Method `.__init__(pool_size, default_worker_type)`
-  - Method `._initialize_workers()` - *Initialize worker processes.*
-  - Method `._worker_loop(worker_id, result_queue)` - *Worker process loop.*
-  - Method `._register_worker_queue(worker_id, queue)` - *Register a worker's request queue.*
-  - Method `._get_worker_queue(worker_id)` - *Get a worker's request queue.*
-  - Method `.execute(code, args, worker_type, timeout)` - *Execute code in a worker from the pool.*
-  - Method `.shutdown()` - *Shutdown all workers.*
-- `class SandboxManager` - *Main sandbox manager for NeuroCore.*
-  - Method `.__init__(pool_size, default_worker_type)`
-  - Method `async def .execute(code, args, worker_type, timeout, trace_id)` - *Execute code in sandbox.*
-  - Method `.execute_sync(code, args, worker_type, timeout, trace_id)` - *Synchronous execute (for non-async contexts).*
-  - Method `._add_to_history(result)` - *Add result to execution history.*
-  - Method `.get_statistics()` - *Get execution statistics.*
-  - Method `.get_recent_results(count)` - *Get recent execution results.*
-  - Method `.shutdown()` - *Shutdown the sandbox manager.*
-
-**Functions:**
-- `async def execute_in_sandbox(code, args, worker_type, timeout)` - *Convenience function for executing code in sandbox.*
-- `def execute_in_sandbox_sync(code, args, worker_type, timeout)` - *Synchronous version of execute_in_sandbox.*
-- `def create_sandbox_for_worker_type(worker_type)` - *Create a ToolSandbox configured for a specific worker type.*
 
 ---
 
 ### [`tests/conftest.py`](tests/conftest.py)
 > *Pytest configuration and fixtures for test isolation.*
 
-**Size**: `417` lines (`14864` bytes)
+**Size**: `474` lines (`16805` bytes)
 
 **Classes:**
 - `class FileBackupManager` - *Manages backup and restore operations for files during tests.*
@@ -2476,11 +3065,15 @@
   - Method `.cleanup()` - *Clean up any temporary files.*
 
 **Functions:**
+- `def pytest_sessionfinish(session, exitstatus)`
 - `def reset_shared_async_state()` - *Reset module-level async singletons between tests.*
 - `def disable_debug_mode_for_tests()` - *Force debug_mode=False during every test.*
 - `def restore_real_faiss_module(request)` - *Restore sys.modules['faiss'] to the real FAISS library for tests that need it.*
 - `def backup_manager()` - *Session-scoped fixture to manage file backups across tests.*
-- `def protect_module_files()` - *Auto-use fixture that backs up module.json files before each test*
+- `def clear_flow_outcome_listener()` - *Never let a test brain capture flow outcomes from later tests.*
+- `def _snapshot_protected_file(filepath)` - *The file's bytes, refusing to start from a JSON file that is already corrupt.*
+- `def _restore_protected_file(filepath, content)` - *Replace the file atomically so no reader ever sees it truncated.*
+- `def protect_module_files()` - *Restore module.json files (and legacy root state files) that a test modified.*
 - `def temp_module_dir(tmp_path)` - *Provides a temporary directory for creating test module structures.*
 - `def sample_module_json()` - *Provides a sample module.json structure for testing.*
 - `def backup_specific_file()` - *Fixture to backup a specific file before a test and restore it after.*
@@ -2667,7 +3260,12 @@
 ### [`tests/test_autonomous_agent.py`](tests/test_autonomous_agent.py)
 > *Tests for the experimental autonomous agent runtime.*
 
-**Size**: `237` lines (`7461` bytes)
+**Size**: `1175` lines (`38639` bytes)
+
+**Classes:**
+- `class FakeProposer`
+  - Method `.__init__(operations)`
+  - Method `async def .propose(flow, goal)`
 
 **Functions:**
 - `def make_agent(tmp_path, **overrides)` - *Build an agent whose runtime files live under ``tmp_path``.*
@@ -2677,11 +3275,300 @@
 - `async def test_valid_json_state_with_wrong_shape_is_quarantined(tmp_path)`
 - `async def test_persistence_can_be_disabled(tmp_path)`
 - `async def test_flow_creation_registers_ownership(tmp_path)`
+- `async def test_created_flow_persists_and_is_adopted(tmp_path)`
+- `async def test_flow_update_creates_version_and_delete_removes(tmp_path)`
+- `def test_agent_defaults_to_the_shared_flow_manager()`
+- `async def test_agent_rejects_unallowed_node_types(tmp_path)`
+- `async def test_agent_rollback_restores_and_syncs_the_cache(tmp_path)`
+- `async def test_execute_flow_runs_the_engine(tmp_path, monkeypatch)`
+- `async def test_evolution_activation_and_execution_end_to_end(tmp_path, monkeypatch)`
+- `def test_autonomous_agent_module_remains_disabled()`
+- `async def test_evolve_and_evaluate_keeps_a_successful_edit(tmp_path, monkeypatch)`
+- `async def test_evolve_and_evaluate_reverts_a_failed_result(tmp_path, monkeypatch)`
+- `async def test_evolve_and_evaluate_reverts_on_an_exception(tmp_path, monkeypatch)`
+- `async def test_update_flow_action_forwards_evaluation_input(tmp_path, monkeypatch)`
+- `async def test_planner_emits_update_flow_from_metadata(tmp_path)`
+- `async def test_agent_composes_owned_flows_into_a_meta_flow(tmp_path)`
+- `async def test_agent_cannot_compose_an_unowned_flow(tmp_path)`
+- `async def test_planner_emits_compose_flow_from_metadata(tmp_path)`
+- `async def test_planner_emits_compose_flow_from_text(tmp_path)`
+- `async def test_execute_compose_action_calls_the_composer(tmp_path, monkeypatch)`
+- `async def test_agent_composes_a_live_meta_flow(tmp_path)`
+- `async def test_agent_can_evolve_a_live_meta_flow(tmp_path)`
+- `async def test_sandbox_rejects_compose_with_an_unowned_member(tmp_path)`
+- `async def test_sandbox_allows_compose_with_owned_members(tmp_path)`
+- `async def test_propose_evolution_rejects_a_flow_not_owned(tmp_path)`
+- `async def test_propose_and_evolve_applies_llm_operations(tmp_path, monkeypatch)`
+- `async def test_update_flow_action_with_instruction_uses_proposer(tmp_path, monkeypatch)`
+- `async def test_planner_emits_update_flow_for_an_evolve_instruction(tmp_path)`
+- `async def test_execute_flow_integrates_with_the_real_flow_runner(tmp_path)`
+- `async def test_execute_action_without_flow_id_uses_the_active_flow(tmp_path, monkeypatch)`
+- `async def test_execute_action_rejects_an_explicit_unowned_flow(tmp_path)`
+- `async def test_execute_action_skips_a_stale_active_flow(tmp_path, monkeypatch)`
+- `def test_activate_flow_rejects_an_unowned_flow(tmp_path)`
+- `def test_activate_flow_rejects_a_missing_owned_flow(tmp_path)`
+- `def test_activate_flow_updates_settings(tmp_path, monkeypatch)`
+- `async def test_agent_handles_a_null_sandbox_config(tmp_path)`
+- `async def test_update_flow_rejects_non_dict_metadata(tmp_path)`
+- `async def test_execute_flow_rejects_an_unowned_flow(tmp_path)`
+- `async def test_blank_description_uses_a_fallback_name(tmp_path)`
+- `async def test_agent_evolves_an_owned_flow(tmp_path)`
+- `async def test_agent_cannot_evolve_an_unowned_flow(tmp_path)`
+- `async def test_flow_update_rejects_a_cycle(tmp_path)`
 - `async def test_sandbox_rejects_flow_over_configured_limit(tmp_path)`
 - `async def test_load_existing_flows_adopts_only_owned(tmp_path)`
 - `async def test_load_existing_flows_skips_malformed_metadata(tmp_path)`
 - `async def test_communicator_buffers_and_drains_chat_messages()`
 - `async def test_agent_node_processes_single_message(tmp_path)`
+- `async def test_every_node_template_dispatches_to_a_real_executor(template)`
+- `async def test_every_flow_pattern_builds_a_valid_flow(tmp_path, pattern)`
+- `async def test_scheduled_request_without_notification_builds_a_flow(tmp_path)`
+- `async def test_start_refuses_when_initialization_fails(tmp_path, monkeypatch)`
+- `async def test_unimplemented_actions_are_rejected_not_reported_done(tmp_path, action_type)`
+
+---
+
+### [`tests/test_brain_auth.py`](tests/test_brain_auth.py)
+> *Brain actor authentication and remote access gate.*
+
+**Size**: `183` lines (`5735` bytes)
+
+**Functions:**
+- `def make_request(host, headers)`
+- `def test_local_actor_is_trusted(monkeypatch)`
+- `def test_local_actor_stays_trusted_when_a_remote_token_is_configured(monkeypatch)`
+- `def test_remote_actor_requires_configured_token(monkeypatch)`
+- `def test_remote_actor_with_token(monkeypatch)`
+- `def test_actor_registry_hashes_rotates_and_disables(tmp_path)`
+- `def test_role_hierarchy()`
+- `def test_registry_token_authenticates_remote_actor(tmp_path, monkeypatch)`
+- `def test_viewer_cannot_use_admin_route()`
+- `def test_actor_admin_routes(tmp_path, monkeypatch)`
+- `def test_actor_route_reports_local_identity()`
+
+---
+
+### [`tests/test_brain_configuration.py`](tests/test_brain_configuration.py)
+> *Policy-gated self-configuration: preview, apply, rollback and quotas.*
+
+**Size**: `252` lines (`8517` bytes)
+
+**Classes:**
+- `class FakeSettings`
+  - Method `.__init__()`
+  - Method `.get(key, default)`
+  - Method `.save_settings(update)`
+- `class FakeModuleManager`
+  - Method `.__init__()`
+  - Method `.get_module(module_id)`
+  - Method `.enable_module(module_id)`
+  - Method `.disable_module(module_id)`
+
+**Functions:**
+- `def make_engine(tmp_path, **kwargs)`
+- `def test_setting_preview_apply_and_rollback(tmp_path)`
+- `def test_setting_policy_and_bounds(tmp_path)`
+- `def test_module_allowlist_protection_and_rollback(tmp_path)`
+- `def test_brain_option_bounds_runtime_and_rollback(tmp_path)`
+- `def test_allowed_tools_can_only_be_narrowed(tmp_path)`
+- `def test_rollback_rejects_an_older_change_for_the_same_target(tmp_path)`
+- `def test_configuration_quota_and_status(tmp_path)`
+- `def test_configuration_routes(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_evaluation.py`](tests/test_brain_evaluation.py)
+> *Deterministic evaluation harness and baseline regression gate.*
+
+**Size**: `157` lines (`4967` bytes)
+
+**Functions:**
+- `async def test_runner_passes_echo_tasks_through_a_fake_executor()`
+- `async def test_runner_marks_failing_checks()`
+- `async def test_echo_flow_runs_through_the_real_flow_runner()`
+- `def test_baseline_store_and_regression_comparison(tmp_path)`
+- `def test_compare_without_baseline_is_not_a_regression()`
+- `async def test_evaluation_rejects_state_mutating_nodes()`
+- `def test_tiny_latency_difference_does_not_block_promotion()`
+- `async def test_service_evaluation_promotes_and_compares(tmp_path)`
+
+---
+
+### [`tests/test_brain_improvement.py`](tests/test_brain_improvement.py)
+> *Eval-gated flow improvement: preview, quotas, promotion and rollback.*
+
+**Size**: `349` lines (`12927` bytes)
+
+**Classes:**
+- `class FakeEvalRunner`
+  - Method `.__init__(pass_rate, failed_tasks)`
+  - Method `async def .run(flow_id, **kwargs)`
+
+**Functions:**
+- `def make_flow_manager(tmp_path)`
+- `def make_engine(tmp_path, manager, pass_rate, failed_tasks, **kwargs)`
+- `def rename_ops(name)`
+- `def test_preview_applies_operations_without_saving(tmp_path)`
+- `async def test_candidate_is_promoted_only_after_evaluation_and_can_rollback(tmp_path)`
+- `async def test_failed_candidate_never_leaves_the_flow_modified(tmp_path)`
+- `async def test_candidate_with_a_foreign_baseline_is_not_promotable(tmp_path)`
+- `async def test_candidate_without_baseline_is_not_promotable(tmp_path)`
+- `async def test_weak_baseline_cannot_authorize_promotion(tmp_path)`
+- `async def test_promotion_requires_an_approver_identity(tmp_path)`
+- `async def test_rollback_rejects_an_older_promotion(tmp_path)`
+- `async def test_candidate_is_evaluated_in_memory_with_the_real_runner(tmp_path)`
+- `async def test_propose_rejects_non_object_operations(tmp_path)`
+- `async def test_policy_allowlist_rejects_unlisted_node_types(tmp_path)`
+- `async def test_summary_does_not_embed_candidate_list(tmp_path)`
+- `async def test_candidate_quota_is_enforced(tmp_path)`
+- `async def test_promotion_quota_marks_the_candidate_blocked(tmp_path)`
+- `async def test_generator_hook_proposes_a_candidate(tmp_path)`
+- `def test_improvement_routes(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
+> *Governance kernel, drift monitor and SAFE-mode actuator gates.*
+
+**Size**: `172` lines (`6464` bytes)
+
+**Classes:**
+- `class DegradedSelfModel`
+  - Method `async def .snapshot(mode)`
+
+**Functions:**
+- `def snapshot(provider_errors, pass_rate, drift, memory, documents)`
+- `def test_kernel_transitions_and_gates(tmp_path)`
+- `def test_safe_mode_hysteresis_and_kill_switch(tmp_path)`
+- `def test_drift_compares_against_baseline(tmp_path)`
+- `async def test_safe_mode_blocks_memory_improvement_and_configuration(tmp_path)`
+- `def test_kernel_routes(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_learning.py`](tests/test_brain_learning.py)
+> *Learning loop: outcomes, consolidation into global memory and held-out recall.*
+
+**Size**: `315` lines (`10174` bytes)
+
+**Classes:**
+- `class FakeMemoryBridge` - *In-memory stand-in for the global MemoryStore used by the learning loop.*
+  - Method `.__init__()`
+  - Method `.add_entry(text, mem_type, subject, source, confidence, verified, **kwargs)`
+  - Method `.update_entry(memory_id, text, mem_type, verified, **kwargs)`
+  - Method `.delete_entry(memory_id, reason)`
+  - Method `.browse(limit, search_text, mem_type, source, **kwargs)`
+
+**Functions:**
+- `def make_loop(tmp_path, min_occurrences)`
+- `def record(loop, action, input_data, output, success, tags)`
+- `def test_record_outcome_mirrors_experience_and_persists(tmp_path)`
+- `def test_consolidation_creates_one_skill_from_repeated_successes(tmp_path)`
+- `def test_consolidation_skips_failures_and_below_threshold(tmp_path)`
+- `def test_skill_success_rate_counts_training_failures(tmp_path)`
+- `def test_second_consolidation_does_not_duplicate_skill(tmp_path)`
+- `def test_held_out_recall_uses_only_training_experiences(tmp_path)`
+- `def test_experiences_page_zero_is_empty(tmp_path)`
+- `def test_recall_is_zero_without_holdout_examples(tmp_path)`
+- `def test_skill_ledger_is_capped_and_prunes_memory(tmp_path)`
+- `def test_experience_cap_prunes_mirrored_memory(tmp_path)`
+- `def test_learning_ledger_survives_reload_and_quarantines_corrupt_data(tmp_path)`
+- `async def test_service_evaluation_records_outcomes(tmp_path)`
+- `def test_learning_routes_record_consolidate_and_recall(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_ledger_locking.py`](tests/test_brain_ledger_locking.py)
+> *Cross-process safety of the brain ledgers: reload, mutate, persist under one lock.*
+
+**Size**: `152` lines (`5393` bytes)
+
+**Classes:**
+- `class FakeSettings`
+  - Method `.__init__()`
+  - Method `.get(key, default)`
+  - Method `.save_settings(values)`
+
+**Functions:**
+- `def learning_loop(tmp_path)`
+- `def test_learning_ledgers_do_not_clobber_each_other(tmp_path)`
+- `def test_consolidation_sees_another_process_experience(tmp_path)`
+- `def test_kernel_instances_share_blocked_action_counts(tmp_path)`
+- `def test_configuration_engines_keep_both_changes(tmp_path)`
+- `def test_actor_registries_keep_both_actors(tmp_path)`
+- `def test_reaction_engines_keep_both_mutes(tmp_path)`
+- `async def test_improvement_engines_keep_both_candidates(tmp_path)`
+- `def test_ledger_lock_excludes_a_second_writer(tmp_path)`
+
+---
+
+### [`tests/test_brain_outcomes.py`](tests/test_brain_outcomes.py)
+> *Automatic flow outcome capture into the brain learning loop.*
+
+**Size**: `123` lines (`4032` bytes)
+
+**Classes:**
+- `class BoomExecutor`
+  - Method `async def .receive(input_data, config)`
+  - Method `async def .send(processed_data)`
+
+**Functions:**
+- `async def test_flow_runner_emits_a_success_outcome()`
+- `async def test_flow_runner_emits_a_failure_outcome(monkeypatch)`
+- `async def test_evaluation_does_not_emit_flow_outcomes()`
+- `async def test_brain_service_captures_flow_outcomes_until_safe(tmp_path)`
+
+---
+
+### [`tests/test_brain_reactivity.py`](tests/test_brain_reactivity.py)
+> *Reactivity: proposals, dedupe, mute, sources, kernel gating and API.*
+
+**Size**: `165` lines (`5463` bytes)
+
+**Functions:**
+- `def make_engine(tmp_path, **config)`
+- `async def test_event_becomes_a_deduplicated_pending_reaction(tmp_path)`
+- `async def test_mute_and_dismiss(tmp_path)`
+- `async def test_calendar_metric_and_file_sources(tmp_path)`
+- `async def test_kernel_gate_blocks_normal_reactions(tmp_path)`
+- `async def test_reaction_ledger_persists(tmp_path)`
+- `async def test_reactivity_routes(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_substrate.py`](tests/test_brain_substrate.py)
+> *Brain substrate: event bus, real self-model, service modes and API wiring.*
+
+**Size**: `191` lines (`6386` bytes)
+
+**Classes:**
+- `class NullMemoryBridge`
+  - Method `.add_entry(text, **kwargs)`
+  - Method `.update_entry(memory_id, text, **kwargs)`
+  - Method `.browse(limit, search_text, mem_type, source, **kwargs)`
+- `class FakeSelfModel`
+  - Method `async def .snapshot(mode)`
+
+**Functions:**
+- `def temp_learning(tmp_path)`
+- `async def test_event_bus_publishes_deduplicates_and_records()`
+- `async def test_event_bus_times_out_a_slow_handler()`
+- `async def test_self_model_uses_live_flows_and_modules_not_mocks()`
+- `async def test_self_model_reports_provider_failure()`
+- `async def test_service_cycles_in_suggest_mode_and_rejects_auto(tmp_path)`
+- `async def test_service_start_stop_and_state_persistence(tmp_path)`
+- `def test_brain_routes_are_mounted_and_serve_state(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_ui.py`](tests/test_brain_ui.py)
+> *Brain dashboard route and navigation.*
+
+**Size**: `24` lines (`645` bytes)
+
+**Functions:**
+- `def test_brain_dashboard_renders()`
+- `def test_brain_dashboard_is_linked_from_navbar()`
 
 ---
 
@@ -2775,7 +3662,7 @@
 ---
 
 ### [`tests/test_chat_module.py`](tests/test_chat_module.py)
-**Size**: `167` lines (`6934` bytes)
+**Size**: `167` lines (`7027` bytes)
 
 **Functions:**
 - `def client()` - *A TestClient that handles startup and shutdown events.*
@@ -2809,8 +3696,22 @@
 
 ---
 
+### [`tests/test_chat_persistence.py`](tests/test_chat_persistence.py)
+> *Chat persistence: stale-read protection, retention and corrupt-store recovery.*
+
+**Size**: `78` lines (`2604` bytes)
+
+**Functions:**
+- `def test_second_manager_does_not_overwrite_newer_messages(tmp_path)`
+- `def test_message_retention_keeps_the_newest_messages(tmp_path)`
+- `def test_session_retention_drops_the_oldest_sessions(tmp_path)`
+- `def test_corrupt_session_store_is_quarantined(tmp_path)`
+- `def test_concurrent_write_is_seen_even_with_a_coarse_file_clock(tmp_path)`
+
+---
+
 ### [`tests/test_chat_router_flow.py`](tests/test_chat_router_flow.py)
-**Size**: `172` lines (`7333` bytes)
+**Size**: `172` lines (`7416` bytes)
 
 **Functions:**
 - `def client()` - *Create test client with chat module enabled.*
@@ -2842,29 +3743,52 @@
 
 ---
 
+### [`tests/test_containment_regressions.py`](tests/test_containment_regressions.py)
+> *Archive expansion caps, statistics edge cases and exact index synchronization.*
+
+**Size**: `123` lines (`3621` bytes)
+
+**Functions:**
+- `def write_zip(path, members)`
+- `def test_extract_rejects_an_oversized_member(tmp_path)`
+- `def test_extract_rejects_an_oversized_total(tmp_path)`
+- `def test_extract_normal_archive_still_works(tmp_path)`
+- `def test_descriptive_stats_single_value_returns_undefined_fields()`
+- `def test_descriptive_stats_empty_raises()`
+- `def test_confidence_interval_requires_two_values()`
+- `def test_one_sample_ttest_constant_data_does_not_crash()`
+- `def test_paired_ttest_constant_differences_does_not_crash()`
+- `def test_two_sample_ttest_requires_two_values_per_group()`
+- `def test_kb_small_faiss_mismatch_is_rebuilt(tmp_path, monkeypatch)`
+
+---
+
 ### [`tests/test_core_concurrency.py`](tests/test_core_concurrency.py)
 > *Tests for concurrency and deadlock scenarios.*
 
-**Size**: `277` lines (`9581` bytes)
+**Size**: `279` lines (`9685` bytes)
 
 **Classes:**
 - `class TestFlowManagerConcurrency` - *Test concurrent access to FlowManager.*
-  - Method `.test_concurrent_reads()` - *Test that multiple threads can read flows concurrently.*
-  - Method `.test_concurrent_read_write()` - *Test concurrent reads and writes don't deadlock.*
+  - Method `.test_concurrent_reads(flow_manager_instance)` - *Test that multiple threads can read flows concurrently.*
+  - Method `.test_concurrent_read_write(flow_manager_instance)` - *Test concurrent reads and writes don't deadlock or lose writes.*
 - `class TestModuleManagerConcurrency` - *Test concurrent access to ModuleManager.*
   - Method `.test_concurrent_module_access()` - *Test that multiple threads can access module manager.*
 - `class TestAsyncConcurrency` - *Test async concurrency primitives.*
   - Method `async def .test_asyncio_lock_concurrent_access()` - *Test asyncio.Lock allows concurrent coroutines.*
   - Method `async def .test_flow_runner_cache_concurrent_access()` - *Test FlowRunner cache is thread-safe.*
 - `class TestDeadlockPrevention` - *Test that we don't have classic deadlock patterns.*
-  - Method `.test_no_cross_lock_deadlock()` - *Verify we don't have A->B, B->A deadlock pattern.*
+  - Method `.test_no_cross_lock_deadlock(flow_manager_instance)` - *Verify we don't have A->B, B->A deadlock pattern.*
   - Method `async def .test_async_timeout_prevents_deadlock()` - *Test that operations can timeout to prevent deadlock.*
 - `class TestLockOrdering` - *Test lock ordering is followed.*
-  - Method `.test_flow_manager_lock_type()` - *Verify FlowManager uses RLock for reentrancy.*
+  - Method `.test_flow_manager_lock_type(flow_manager_instance)` - *Verify FlowManager uses RLock for reentrancy.*
   - Method `.test_module_manager_lock_type()` - *Verify ModuleManager uses RLock for reentrancy.*
 - `class TestStressConcurrency` - *Stress tests to detect concurrency issues.*
-  - Method `.test_high_concurrency_flow_manager()` - *Stress test with high concurrent access.*
+  - Method `.test_high_concurrency_flow_manager(flow_manager_instance)` - *Stress test with high concurrent access.*
   - Method `async def .test_high_concurrency_async_operations()` - *Stress test with high async concurrency.*
+
+**Functions:**
+- `def flow_manager_instance(tmp_path)` - *Isolated flow store so concurrency tests never touch project state.*
 
 ---
 
@@ -3169,6 +4093,25 @@
 
 ---
 
+### [`tests/test_flow_composition.py`](tests/test_flow_composition.py)
+> *Composition and agent-pattern regressions for real (possibly cyclic) flows.*
+
+**Size**: `185` lines (`5591` bytes)
+
+**Functions:**
+- `def manager(tmp_path)`
+- `def composer(manager)`
+- `def chat_node(node_id, kind)`
+- `def test_compose_accepts_a_cyclic_member(manager, composer)`
+- `def test_compose_accepts_the_default_flow(manager, composer)`
+- `def test_compose_rewrites_router_branch_configs(manager, composer)`
+- `def test_compose_rewrites_repeated_member_references(manager, composer)`
+- `def test_mutate_allows_editing_an_existing_cyclic_flow(manager)`
+- `def test_mutate_rejects_a_new_cycle_in_an_acyclic_flow(manager)`
+- `def test_agent_tool_pattern_is_acyclic_and_routed()`
+
+---
+
 ### [`tests/test_flow_context.py`](tests/test_flow_context.py)
 > *Tests for core.flow_context - Pydantic-based FlowContext model*
 
@@ -3316,6 +4259,38 @@
 
 ---
 
+### [`tests/test_flow_evolution.py`](tests/test_flow_evolution.py)
+> *Tests for validated, versioned flow self-evolution.*
+
+**Size**: `276` lines (`9705` bytes)
+
+**Functions:**
+- `def node(node_id, node_type, module_id, **config)`
+- `def chat_flow()`
+- `def flow_manager(tmp_path)`
+- `def evolution(flow_manager)`
+- `def test_create_persists_a_valid_flow(evolution, flow_manager)`
+- `def test_create_rejects_missing_node_keys(evolution)`
+- `def test_create_rejects_duplicate_node_ids(evolution)`
+- `def test_create_rejects_unknown_connection_endpoint(evolution)`
+- `def test_create_rejects_self_loop_and_cycle(evolution)`
+- `def test_create_rejects_too_many_nodes(flow_manager)`
+- `def test_create_rejects_empty_flow(evolution)`
+- `def test_mutate_adds_node_and_connection_with_a_version(evolution, flow_manager)`
+- `def test_mutate_update_remove_and_rename(evolution)`
+- `def test_mutate_invalid_operation_leaves_flow_unchanged(evolution, flow_manager)`
+- `def test_mutate_rejects_unknown_operation(evolution)`
+- `def test_history_and_rollback_restore_metadata(evolution, flow_manager)`
+- `def test_mutate_missing_flow_raises(evolution)`
+- `def test_validate_accepts_tuple_sequences(evolution)`
+- `def test_mutate_allows_existing_types_outside_the_allowlist(flow_manager)`
+- `def test_allowlist_rejects_unknown_node_type(flow_manager)`
+- `def test_allowlist_rejects_disallowed_tools(flow_manager)`
+- `def test_create_rejects_an_existing_flow_id(evolution)`
+- `def test_mutate_preserves_reverted_nodes(evolution, flow_manager)`
+
+---
+
 ### [`tests/test_flow_integration.py`](tests/test_flow_integration.py)
 **Size**: `110` lines (`5374` bytes)
 
@@ -3326,7 +4301,7 @@
 ---
 
 ### [`tests/test_flow_manager.py`](tests/test_flow_manager.py)
-**Size**: `207` lines (`9011` bytes)
+**Size**: `344` lines (`14647` bytes)
 
 **Classes:**
 - `class TestFlowVersioning`
@@ -3337,7 +4312,9 @@
   - Method `.test_versions_include_metadata(flow_manager)` - *Version entries include name, saved_at, node_count, connection_count.*
   - Method `.test_max_versions_pruned(flow_manager)` - *Versions exceeding MAX_VERSIONS_PER_FLOW are pruned (oldest removed).*
   - Method `.test_rollback_restores_snapshot(flow_manager)` - *rollback_version() restores the flow to the snapshotted state.*
-  - Method `.test_rollback_does_not_add_version(flow_manager)` - *Rollback does not create an extra version entry — it just restores silently.*
+  - Method `.test_rollback_preserves_created_at(flow_manager)` - *Rollback restores the original creation timestamp.*
+  - Method `.test_rollback_restores_metadata(flow_manager)` - *Version snapshots carry metadata so rollback keeps ownership.*
+  - Method `.test_rollback_adds_a_redo_version(flow_manager)` - *Rollback records the pre-rollback state so the rollback itself is undoable.*
   - Method `.test_rollback_nonexistent_version_returns_none(flow_manager)` - *rollback_version() with an unknown version number returns None.*
   - Method `.test_rollback_nonexistent_flow_returns_none(flow_manager)` - *rollback_version() with an unknown flow_id returns None.*
   - Method `.test_versions_persisted_to_disk(flow_manager)` - *Version data is written to the versions file on disk.*
@@ -3348,9 +4325,38 @@
 - `def flow_manager()` - *Provides a FlowManager instance using a temporary file, ensuring test isolation.*
 - `def test_initialization_creates_file(flow_manager)` - *Tests that a new, empty flow file is created on first run.*
 - `def test_save_and_get_flow(flow_manager)` - *Tests saving a flow and retrieving it.*
+- `def test_save_flow_preserves_metadata_and_created_at(flow_manager)` - *Metadata is stored and an update keeps the original created_at.*
+- `def test_save_flow_preserves_reverted_nodes(flow_manager)` - *An update keeps reverted_nodes that were not passed again.*
 - `def test_list_flows_sorted(flow_manager)` - *Tests that flows are listed with the newest first.*
 - `def test_delete_flow(flow_manager)` - *Tests deleting an existing and non-existing flow.*
+- `def test_updated_flow_sorts_first(flow_manager)` - *Editing a flow moves it to the top of the list without changing created_at.*
+- `def test_delete_flow_retains_versions_for_restore(flow_manager)` - *Deleting keeps snapshots so the flow can be restored.*
+- `def test_delete_flow_persists_when_settings_pruning_fails(flow_manager, monkeypatch)` - *A settings failure must not desynchronize the flow store.*
+- `def test_delete_flow_prunes_active_settings(flow_manager, monkeypatch)` - *Deleting an active flow also removes it from active_ai_flows.*
+- `def test_returned_flows_are_copies(flow_manager)` - *Mutating a returned flow must not change the store.*
 - `def test_rename_flow(flow_manager)` - *Tests renaming a flow.*
+
+---
+
+### [`tests/test_flow_proposer.py`](tests/test_flow_proposer.py)
+> *Tests for LLM-generated flow edit proposals.*
+
+**Size**: `89` lines (`2941` bytes)
+
+**Classes:**
+- `class FakeLLM`
+  - Method `.__init__(content)`
+  - Method `async def .chat_completion(**kwargs)`
+
+**Functions:**
+- `def flow()`
+- `async def test_propose_returns_valid_operations()`
+- `async def test_propose_strips_json_code_fences()`
+- `async def test_propose_rejects_invalid_json()`
+- `async def test_propose_rejects_unknown_operation()`
+- `async def test_propose_rejects_too_many_operations()`
+- `async def test_propose_rejects_disallowed_node_type()`
+- `async def test_propose_surfaces_a_missing_choice()`
 
 ---
 
@@ -3365,6 +4371,25 @@
 - `async def test_flow_run_success(mock_flow)` - *Tests the successful execution of a flow from start to finish.*
 - `async def test_flow_run_node_execution_error(mock_flow)` - *Tests that an error during a node's execution is caught and reported.*
 - `async def test_messages_list_not_shared_between_branches()` - *Regression test for the shared-messages-list bug.*
+
+---
+
+### [`tests/test_flow_store_safety.py`](tests/test_flow_store_safety.py)
+> *Flow store durability and validation regressions.*
+
+**Size**: `149` lines (`4863` bytes)
+
+**Functions:**
+- `def valid_flow(flow_id, name)`
+- `def make_manager(tmp_path)`
+- `def test_validated_save_rejects_invalid_shape_without_touching_store(tmp_path)`
+- `def test_validated_save_rejects_orphaned_connection(tmp_path)`
+- `def test_writes_are_atomic_and_keep_a_backup(tmp_path)`
+- `def test_corrupt_store_is_quarantined_and_backup_restored(tmp_path)`
+- `def test_non_dict_flow_entry_does_not_crash_load(tmp_path)`
+- `def test_import_flows_reports_invalid_data_and_keeps_state(tmp_path)`
+- `async def test_save_route_requests_validation_and_returns_400(monkeypatch)`
+- `async def test_import_route_surfaces_validation_failure(monkeypatch)`
 
 ---
 
@@ -3387,6 +4412,21 @@
 - `def test_validate_annotation_no_warning(flow_with_annotation, mock_module_manager)` - *Test that annotation/comment nodes don't trigger unconnected warnings.*
 - `def test_validate_trigger_node_no_warning(mock_module_manager)` - *Test that trigger nodes don't trigger unconnected warnings.*
 - `def test_validate_repeater_node_no_warning(mock_module_manager)` - *Test that repeater nodes don't trigger unconnected warnings.*
+
+---
+
+### [`tests/test_flow_versioning.py`](tests/test_flow_versioning.py)
+> *Version history for rename, delete, import and reversible rollback.*
+
+**Size**: `80` lines (`2839` bytes)
+
+**Functions:**
+- `def make_manager(tmp_path)`
+- `def chat_flow_nodes(suffix)`
+- `def test_rename_is_versioned_and_rolls_back(tmp_path)`
+- `def test_delete_retains_history_and_rollback_restores_the_flow(tmp_path)`
+- `def test_rollback_adds_a_redo_snapshot(tmp_path)`
+- `def test_import_snapshots_replaced_flows(tmp_path)`
 
 ---
 
@@ -3580,6 +4620,45 @@
 
 ---
 
+### [`tests/test_index_and_correlation.py`](tests/test_index_and_correlation.py)
+> *Correlation edge cases and FTS/FAISS self-healing.*
+
+**Size**: `89` lines (`2657` bytes)
+
+**Classes:**
+- `class CountingConnection` - *Minimal sqlite connection double that returns chosen FTS/chunk counts.*
+  - Method `.__init__(fts_count, chunk_count)`
+  - Method `.__enter__()`
+  - Method `.__exit__(*args)`
+  - Method `.execute(sql, *params)`
+  - Method `.fetchone()`
+  - Method `.commit()`
+
+**Functions:**
+- `def test_pearson_constant_series_is_undefined_not_nan()`
+- `def test_spearman_constant_series_is_undefined_not_nan()`
+- `def test_correlation_requires_two_values()`
+- `def test_intervention_analysis_requires_two_values_per_group()`
+- `def test_fts_sync_rebuilds_on_row_count_mismatch(tmp_path, monkeypatch)`
+- `def test_fts_sync_leaves_matching_indexes_alone(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_kb_stored_filename.py`](tests/test_kb_stored_filename.py)
+> *Knowledge-base storage-name regressions.*
+
+**Size**: `110` lines (`3428` bytes)
+
+**Functions:**
+- `def test_add_document_persists_stored_filename(tmp_path)`
+- `def test_reindex_document_updates_stored_filename(tmp_path)`
+- `def test_legacy_documents_table_gets_stored_filename_column(tmp_path)`
+- `def test_resolve_stored_path_prefers_recorded_name(tmp_path)`
+- `def test_resolve_stored_path_finds_legacy_uuid_prefixed_file(tmp_path)`
+- `def test_document_storage_names_maps_legacy_rows_to_disk(tmp_path)`
+
+---
+
 ### [`tests/test_knowledge_base.py`](tests/test_knowledge_base.py)
 **Size**: `584` lines (`24007` bytes)
 
@@ -3746,7 +4825,7 @@
 ---
 
 ### [`tests/test_main_routes.py`](tests/test_main_routes.py)
-**Size**: `188` lines (`7082` bytes)
+**Size**: `188` lines (`7097` bytes)
 
 **Functions:**
 - `def client()` - *A TestClient that provides mock managers to isolate web routes from the file system.*
@@ -3868,6 +4947,26 @@
 
 ---
 
+### [`tests/test_memory_regressions.py`](tests/test_memory_regressions.py)
+> *Memory regressions: upgrade migrations, consolidation, and FAISS edits.*
+
+**Size**: `207` lines (`7224` bytes)
+
+**Functions:**
+- `def test_existing_database_receives_new_schema(tmp_path)`
+- `def faiss_store(tmp_path, monkeypatch)`
+- `def test_consolidation_maps_faiss_ids_to_memory_ids(faiss_store)`
+- `def test_update_entry_adds_the_new_revision_to_faiss(faiss_store)`
+- `def make_consolidator(tmp_path)`
+- `def test_set_parent_removes_child_from_faiss(faiss_store)`
+- `async def test_consolidation_timestamp_does_not_advance_on_failure(tmp_path, monkeypatch)`
+- `async def test_consolidation_timestamp_advances_on_success(tmp_path, monkeypatch)`
+- `def _seed_ranked_memories(store, now)` - *Four top-ranked ineligible memories ahead of two eligible 'notes' ones.*
+- `def test_linear_search_fills_the_page_after_filtering(tmp_path)`
+- `def test_faiss_search_fills_the_page_after_filtering(faiss_store)`
+
+---
+
 ### [`tests/test_memory_router.py`](tests/test_memory_router.py)
 **Size**: `108` lines (`3634` bytes)
 
@@ -3983,8 +5082,53 @@
 
 ---
 
+### [`tests/test_meta_flow.py`](tests/test_meta_flow.py)
+> *Tests for composing small flows into meta-flows.*
+
+**Size**: `167` lines (`5193` bytes)
+
+**Functions:**
+- `def member(evolution, name, prefix)`
+- `def manager(tmp_path)`
+- `def evolution(manager)`
+- `def composer(manager)`
+- `def test_compose_links_ganglia_with_a_pathway(manager, evolution, composer)`
+- `def test_compose_auto_chains_single_boundary_members(evolution, composer)`
+- `def test_compose_allows_the_same_member_twice(evolution, composer)`
+- `def test_compose_live_uses_subflow_ganglia(manager, evolution, composer)`
+- `def test_compose_live_rejects_a_cyclic_pathway(evolution, composer)`
+- `def test_compose_live_rejects_an_unknown_member_pathway(evolution, composer)`
+- `def test_compose_rejects_a_missing_member(composer)`
+- `def test_compose_rejects_empty_members(composer)`
+- `def test_compose_rejects_an_unknown_pathway_node(evolution, composer)`
+- `def test_compose_rejects_a_cyclic_pathway(evolution, composer)`
+
+---
+
+### [`tests/test_meta_module.py`](tests/test_meta_module.py)
+> *Tests for the meta-flow subflow executor.*
+
+**Size**: `96` lines (`2881` bytes)
+
+**Classes:**
+- `class FakeRunner`
+  - Method `.__init__(flow_id, flow_manager_override)`
+  - Method `async def .run(data, **kwargs)`
+
+**Functions:**
+- `async def test_subflow_executes_the_referenced_flow(monkeypatch)`
+- `async def test_subflow_uses_the_context_flow_manager(monkeypatch)`
+- `async def test_subflow_requires_a_flow_id()`
+- `async def test_subflow_detects_a_cycle()`
+- `async def test_subflow_enforces_the_depth_limit()`
+- `async def test_get_executor_class_dispatch()`
+- `async def test_send_is_a_passthrough()`
+- `def test_module_manifest_declares_the_subflow_node()`
+
+---
+
 ### [`tests/test_module_manager.py`](tests/test_module_manager.py)
-**Size**: `116` lines (`4952` bytes)
+**Size**: `127` lines (`5518` bytes)
 
 **Functions:**
 - `def temp_modules_dir(tmp_path, monkeypatch)` - *Creates a temporary module directory structure for testing.*
@@ -3994,6 +5138,7 @@
 - `def test_hot_enable_module(temp_modules_dir, mock_app)` - *Tests that enabling a module dynamically adds its router.*
 - `def test_hot_disable_module(temp_modules_dir, mock_app)` - *Tests that disabling a module dynamically removes its router.*
 - `def test_update_module_config(temp_modules_dir, mock_app)` - *Tests that updating module configuration writes to the file.*
+- `def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, mock_app)`
 
 ---
 
@@ -4061,6 +5206,21 @@
   - Method `.test_does_not_raise_when_settings_unavailable()` - *enable_trace_file_export must not raise regardless of settings state.*
 - `class TestTraceCtxSharedBetweenSyncAndAsync` - *Verify trace_async uses the same ContextVar as the sync trace() context manager.*
   - Method `.test_trace_async_reuses_sync_context()`
+
+---
+
+### [`tests/test_packaging.py`](tests/test_packaging.py)
+> *Packaging contract: pyproject.toml is the source of truth for every requirements file.*
+
+**Size**: `48` lines (`1558` bytes)
+
+**Functions:**
+- `def _name(requirement)`
+- `def _requirement_names(path)`
+- `def _project()`
+- `def test_requirements_txt_is_runtime_plus_optional_capabilities()`
+- `def test_requirements_dev_adds_exactly_the_dev_group()`
+- `def test_built_in_route_dependencies_are_core_dependencies()`
 
 ---
 
@@ -4339,11 +5499,29 @@
 ### [`tests/test_runtime_paths.py`](tests/test_runtime_paths.py)
 > *Runtime state must stay inside the project, whatever the launch directory is.*
 
-**Size**: `51` lines (`1523` bytes)
+**Size**: `56` lines (`1768` bytes)
 
 **Functions:**
 - `def test_runtime_paths_are_absolute_and_inside_project()`
 - `def test_importing_the_app_from_another_directory_writes_nothing_there(tmp_path)`
+
+---
+
+### [`tests/test_runtime_regressions.py`](tests/test_runtime_regressions.py)
+> *Runtime regressions: state directory, raise_errors, debug trigger, hardware id.*
+
+**Size**: `111` lines (`3269` bytes)
+
+**Classes:**
+- `class BoomExecutor`
+  - Method `async def .receive(input_data, config)`
+  - Method `async def .send(processed_data)`
+
+**Functions:**
+- `def test_state_path_honours_state_directory(monkeypatch, tmp_path)`
+- `async def test_flow_runner_raise_errors_reraises_node_failure(monkeypatch)`
+- `async def test_debug_fire_flow_fires_every_active_flow(monkeypatch)`
+- `def test_hardware_id_differs_when_os_probes_are_empty(monkeypatch, tmp_path)`
 
 ---
 
@@ -4423,9 +5601,26 @@
 ---
 
 ### [`tests/test_security_middleware.py`](tests/test_security_middleware.py)
-> *Regression tests for M6: auth (opt-in API token) and CSRF (cross-origin write) enforcement.*
+> *Regression tests for auth (fail-closed API token) and CSRF (browser-origin) enforcement.*
 
-**Size**: `74` lines (`2703` bytes)
+**Size**: `175` lines (`7158` bytes)
+
+**Classes:**
+- `class TestDeploymentValidation`
+  - Method `.test_loopback_bind_needs_no_token(monkeypatch)`
+  - Method `.test_remote_bind_without_a_token_is_refused(monkeypatch, host)`
+  - Method `.test_remote_bind_with_a_token_is_allowed(monkeypatch)`
+  - Method `.test_remote_bind_can_be_explicitly_unauthenticated(monkeypatch)`
+- `class TestOriginComparison`
+  - Method `._request(url)`
+  - Method `.test_same_origin_is_allowed()`
+  - Method `.test_same_host_different_port_is_rejected()`
+  - Method `.test_same_host_different_scheme_is_rejected()`
+  - Method `.test_explicit_default_port_matches()`
+  - Method `.test_loopback_alias_is_allowed_on_the_same_port(monkeypatch)`
+  - Method `.test_trusted_origin_matches_the_normalized_origin(monkeypatch)`
+  - Method `.test_trusted_origin_entries_are_normalized(monkeypatch)`
+  - Method `.test_malformed_origin_is_rejected()`
 
 **Functions:**
 - `def _guarded_client()`
@@ -4434,15 +5629,39 @@
 - `def test_csrf_allows_trusted_origin(monkeypatch)`
 - `def test_get_is_not_csrf_checked(monkeypatch)`
 - `def test_api_token_required_for_non_loopback_when_set(monkeypatch)`
-- `def test_api_token_not_required_when_unset(monkeypatch)`
+- `def test_remote_client_without_a_token_is_rejected_even_when_unset(monkeypatch)`
+- `def test_remote_client_without_a_token_needs_the_explicit_opt_out(monkeypatch)`
 - `def test_loopback_client_is_exempt_from_token()`
+
+---
+
+### [`tests/test_security_regressions.py`](tests/test_security_regressions.py)
+> *Security regressions: HTML escaping, sandbox escapes, isolation and network policy.*
+
+**Size**: `204` lines (`7379` bytes)
+
+**Functions:**
+- `def test_shared_escape_helper_escapes_html_entities()`
+- `def test_marketplace_pages_use_the_shared_escape_helper()`
+- `def test_reflective_sandbox_bypasses_are_rejected(code)`
+- `def fake_dns(monkeypatch)` - *Resolve hostnames from a table instead of the network.*
+- `def test_sandbox_worker_start_failure_never_runs_in_process(monkeypatch)`
+- `def test_empty_allowlist_disables_network(httpx_mock)`
+- `def test_mixed_public_and_private_dns_answer_is_rejected(fake_dns)`
+- `def test_redirect_to_an_unlisted_host_is_rejected(fake_dns, httpx_mock)`
+- `def test_redirect_to_a_private_address_is_rejected(fake_dns, httpx_mock)`
+- `def test_oversized_streamed_response_is_rejected(fake_dns, httpx_mock)`
+- `def test_cross_host_redirect_drops_credentials(fake_dns, httpx_mock)`
+- `def test_tools_cannot_reach_the_control_plane(fake_dns, httpx_mock, monkeypatch, url)`
+- `def test_tools_keep_their_internal_and_local_llm_endpoints(fake_dns, httpx_mock, monkeypatch, url)`
+- `def test_allowlisted_name_resolving_to_loopback_is_rejected(fake_dns)`
 
 ---
 
 ### [`tests/test_session_manager.py`](tests/test_session_manager.py)
 > *Tests for Session Manager*
 
-**Size**: `590` lines (`19567` bytes)
+**Size**: `582` lines (`19248` bytes)
 
 **Classes:**
 - `class TestSessionManager` - *Test cases for SessionManager.*
@@ -4464,7 +5683,7 @@
   - Method `.setup_and_teardown()` - *Setup and teardown for each test.*
   - Method `._cleanup_test_files()` - *Remove test files.*
   - Method `.test_append()` - *Test appending events.*
-  - Method `.test_read_since()` - *Test reading events since timestamp.*
+  - Method `.test_read_since()` - *Only events strictly after the cutoff are returned.*
   - Method `.test_clear()` - *Test clearing trace.*
 - `class TestGetSessionManager` - *Test the get_session_manager factory function.*
   - Method `.setup_and_teardown()` - *Setup and teardown for each test.*
@@ -4716,7 +5935,7 @@
 ### [`tests/test_tool_sandbox.py`](tests/test_tool_sandbox.py)
 > *Tests for the Tool Sandbox security system.*
 
-**Size**: `603` lines (`21377` bytes)
+**Size**: `613` lines (`21923` bytes)
 
 **Classes:**
 - `class TestRestrictedImport` - *Tests for the restricted import hook.*
@@ -4755,7 +5974,8 @@
   - Method `.test_import_httpx_returns_safe_client()` - *Regression test: tool code that does `import httpx` must receive*
   - Method `.test_httpx_import_respects_domain_restriction()` - *Tool code that imports httpx and calls a blocked domain must be rejected.*
   - Method `.test_import_os_returns_safe_env()` - *import os must return SafeEnv, not the real os module.*
-  - Method `.test_os_getenv_works()` - *os.getenv() must work via the SafeEnv mock.*
+  - Method `.test_os_getenv_hides_the_inherited_environment()` - *A tool cannot read a host secret it was not explicitly given.*
+  - Method `.test_os_getenv_reads_permitted_values()` - *os.getenv() and os.environ expose exactly the permitted values.*
   - Method `.test_os_dangerous_attrs_blocked()` - *os.system, os.path, etc. must be blocked via SafeEnv.*
   - Method `.test_import_ast_works()` - *import ast must succeed (needed by Calculator tool).*
   - Method `.test_import_zoneinfo_works()` - *from zoneinfo import ZoneInfo must succeed (needed by TimeZoneConverter).*

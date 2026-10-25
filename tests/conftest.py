@@ -21,6 +21,16 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.chdir(PROJECT_ROOT)
 
+# Each run gets its own state directory before any app module computes its paths, so the suite
+# never reads or rewrites the checkout's real settings, flows, chats or databases, and two
+# concurrent runs cannot clobber each other's state.
+_TEST_STATE_DIR = tempfile.mkdtemp(prefix="neurocore-test-state-")
+os.environ.update(NEUROCORE_STATE_DIR=_TEST_STATE_DIR)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    shutil.rmtree(_TEST_STATE_DIR, ignore_errors=True)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -246,37 +256,84 @@ def backup_manager():
 
 
 @pytest.fixture(autouse=True)
+def clear_flow_outcome_listener():
+    """Never let a test brain capture flow outcomes from later tests."""
+    yield
+    try:
+        from core.outcomes import clear_outcome_listener
+
+        clear_outcome_listener()
+    except ImportError as exc:
+        logger.debug("Outcome listener cleanup skipped: %s", exc)
+
+
+_PROTECTED_SNAPSHOT: Optional[Dict[str, Optional[bytes]]] = None
+
+
+def _snapshot_protected_file(filepath: str) -> Optional[bytes]:
+    """The file's bytes, refusing to start from a JSON file that is already corrupt.
+
+    Restoring a corrupt snapshot after every test would make the damage permanent, so the run
+    stops instead and says how to repair the file.
+    """
+    if not os.path.exists(filepath):
+        return None
+    with open(filepath, "rb") as f:
+        content = f.read()
+    try:
+        json.loads(content.decode("utf-8"))
+    except ValueError:
+        pytest.exit(
+            f"{filepath} is not valid JSON before the tests ran. "
+            "Why: the suite restores protected files after every test and would preserve it. "
+            f"Fix: git checkout -- {filepath}  (or delete it if it is runtime state)",
+            returncode=2,
+        )
+    return content
+
+
+def _restore_protected_file(filepath: str, content: bytes) -> None:
+    """Replace the file atomically so no reader ever sees it truncated."""
+    directory = os.path.dirname(os.path.abspath(filepath))
+    fd, temp_path = tempfile.mkstemp(prefix=os.path.basename(filepath) + ".", suffix=".tmp",
+                                     dir=directory)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        os.replace(temp_path, filepath)
+    except BaseException:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+
+@pytest.fixture(autouse=True)
 def protect_module_files():
     """
-    Auto-use fixture that backs up module.json files before each test
-    and restores them after each test, even if the test fails.
-    
-    This ensures test isolation by preventing modifications from persisting
-    across test boundaries.
+    Restore module.json files (and legacy root state files) that a test modified.
+
+    The snapshot is taken once per session, so a test that corrupts a file cannot become the
+    baseline for the next test, and restores are atomic and only happen on change.
     """
-    # Backup all protected module files before test
-    backed_up_files = []
-    for filepath in PROTECTED_MODULE_FILES:
-        if os.path.exists(filepath):
-            # Read original content
-            with open(filepath, 'r', encoding="utf-8") as f:
-                original_content = f.read()
-            _backup_manager._backups[filepath] = original_content
-            backed_up_files.append(filepath)
-    
+    global _PROTECTED_SNAPSHOT
+    if _PROTECTED_SNAPSHOT is None:
+        _PROTECTED_SNAPSHOT = {
+            filepath: _snapshot_protected_file(filepath)
+            for filepath in PROTECTED_MODULE_FILES
+        }
+
     yield
-    
-    # Restore all backed up files after test (even on failure)
-    for filepath in backed_up_files:
-        if filepath in _backup_manager._backups:
-            original_content = _backup_manager._backups[filepath]
-            # Restore the original content
-            with open(filepath, 'w', encoding="utf-8") as f:
-                f.write(original_content)
-    
-    # Clear the backups for this test
-    for filepath in backed_up_files:
-        _backup_manager._backups.pop(filepath, None)
+
+    for filepath, content in _PROTECTED_SNAPSHOT.items():
+        if content is None:
+            continue
+        try:
+            with open(filepath, "rb") as f:
+                current = f.read()
+        except OSError:
+            current = None
+        if current != content:
+            _restore_protected_file(filepath, content)
 
 
 @pytest.fixture

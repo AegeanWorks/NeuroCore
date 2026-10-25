@@ -23,7 +23,13 @@ from core.observability import (
     instrument_tools,
 )
 from core.routers import router as core_router
-from core.security import bind_host, bind_port, install_security_middleware, reload_enabled
+from core.security import (
+    bind_host,
+    bind_port,
+    install_security_middleware,
+    reload_enabled,
+    validate_deployment_security,
+)
 from core.settings import settings
 
 
@@ -143,6 +149,9 @@ async def lifespan(app: FastAPI):
     # Close the shared LLM client
     await close_shared_client()
 
+# Fail closed: a non-loopback bind requires a token or an explicit, documented opt-out.
+validate_deployment_security()
+
 app = FastAPI(title="NeuroCore", description="Modular LLM API Core", lifespan=lifespan)
 
 # Ensure static directory exists to prevent startup errors
@@ -158,19 +167,19 @@ install_security_middleware(app)
 @app.post("/debug/fire-flow", dependencies=[Depends(verify_debug_key)])
 async def debug_fire_flow():
     active_flow_ids = settings.get("active_ai_flows", [])
+    fired = []
     for active_flow_id in active_flow_ids:
         flow = flow_manager.get_flow(active_flow_id)
-        if flow:
-            tasks = _fire_repeater_nodes(app, active_flow_id, flow, is_auto_start=False)
-            if tasks:
-                # Return serializable data instead of asyncio.Task object
-                task = tasks[0]
-                return {
-                    "status": "fired",
-                    "node_id": task.get_name() if hasattr(task, 'get_name') else f"task_{id(task)}",
-                    "flow_id": active_flow_id
-                }
-    return {"status": "failed"}
+        if not flow:
+            continue
+        for task in _fire_repeater_nodes(app, active_flow_id, flow, is_auto_start=False):
+            fired.append({
+                "flow_id": active_flow_id,
+                "node_id": task.get_name() if hasattr(task, 'get_name') else f"task_{id(task)}",
+            })
+    if fired:
+        return {"status": "fired", "count": len(fired), "fired": fired}
+    return {"status": "failed", "fired": []}
 
 # --- Server Startup ---
 if __name__ == "__main__":

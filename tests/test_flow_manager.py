@@ -14,7 +14,8 @@ TEST_VERSIONS_FILE = "test_flows_versions.json"
 def flow_manager():
     """Provides a FlowManager instance using a temporary file, ensuring test isolation."""
     # Setup
-    for f in (TEST_FLOWS_FILE, TEST_VERSIONS_FILE):
+    for f in (TEST_FLOWS_FILE, TEST_VERSIONS_FILE,
+              TEST_FLOWS_FILE + ".bak", TEST_VERSIONS_FILE + ".bak"):
         if os.path.exists(f):
             os.remove(f)
 
@@ -22,7 +23,8 @@ def flow_manager():
     yield manager
 
     # Teardown
-    for f in (TEST_FLOWS_FILE, TEST_VERSIONS_FILE):
+    for f in (TEST_FLOWS_FILE, TEST_VERSIONS_FILE,
+              TEST_FLOWS_FILE + ".bak", TEST_VERSIONS_FILE + ".bak"):
         if os.path.exists(f):
             os.remove(f)
 
@@ -48,6 +50,32 @@ def test_save_and_get_flow(flow_manager):
     with open(TEST_FLOWS_FILE, "r", encoding="utf-8") as f:
         disk_data = json.load(f)
     assert flow_id in disk_data
+
+def test_save_flow_preserves_metadata_and_created_at(flow_manager):
+    """Metadata is stored and an update keeps the original created_at."""
+    flow = flow_manager.save_flow(
+        "Owned", [{"id": "n1"}], [], metadata={"creator": "agent-1"}
+    )
+    created_at = flow["created_at"]
+    assert flow["metadata"] == {"creator": "agent-1"}
+
+    updated = flow_manager.save_flow(
+        "Owned v2", [{"id": "n2"}], [], flow_id=flow["id"]
+    )
+    assert updated["created_at"] == created_at
+    assert updated["metadata"] == {"creator": "agent-1"}
+
+def test_save_flow_preserves_reverted_nodes(flow_manager):
+    """An update keeps reverted_nodes that were not passed again."""
+    flow = flow_manager.save_flow(
+        "Reverted", [{"id": "n1"}], [], reverted_nodes=["n1"]
+    )
+    assert flow["reverted_nodes"] == ["n1"]
+
+    updated = flow_manager.save_flow(
+        "Reverted v2", [{"id": "n2"}], [], flow_id=flow["id"]
+    )
+    assert updated["reverted_nodes"] == ["n1"]
 
 def test_list_flows_sorted(flow_manager):
     """Tests that flows are listed with the newest first."""
@@ -76,6 +104,89 @@ def test_delete_flow(flow_manager):
     # Test deleting non-existent
     result_non_existent = flow_manager.delete_flow("non-existent-id")
     assert result_non_existent is False
+
+def test_updated_flow_sorts_first(flow_manager):
+    """Editing a flow moves it to the top of the list without changing created_at."""
+    first = flow_manager.save_flow("First", [{"id": "n1"}], [])
+    created_at = first["created_at"]
+    time.sleep(0.02)
+    flow_manager.save_flow("Second", [{"id": "n2"}], [])
+    time.sleep(0.02)
+
+    flow_manager.save_flow("First updated", [{"id": "n3"}], [], flow_id=first["id"])
+
+    listed = flow_manager.list_flows()
+    assert listed[0]["id"] == first["id"]
+    assert listed[0]["created_at"] == created_at
+
+def test_delete_flow_retains_versions_for_restore(flow_manager):
+    """Deleting keeps snapshots so the flow can be restored."""
+    flow = flow_manager.save_flow("Versioned", [{"id": "n1"}], [])
+    flow_manager.save_flow("Versioned v2", [{"id": "n2"}], [], flow_id=flow["id"])
+    assert flow_manager.get_versions(flow["id"])
+
+    assert flow_manager.delete_flow(flow["id"]) is True
+    versions = flow_manager.get_versions(flow["id"])
+    assert versions
+    restored = flow_manager.rollback_version(flow["id"], versions[-1]["version"])
+    assert restored is not None
+    assert flow_manager.get_flow(flow["id"])["name"] == "Versioned"
+
+def test_delete_flow_persists_when_settings_pruning_fails(flow_manager, monkeypatch):
+    """A settings failure must not desynchronize the flow store."""
+    class BadSettings:
+        def __init__(self, active):
+            self.active = active
+
+        def get(self, key, default=None):
+            return self.active if key == "active_ai_flows" else default
+
+        def save_settings(self, new_settings):
+            raise RuntimeError("settings write failed")
+
+    flow = flow_manager.save_flow("Active", [{"id": "n1"}], [])
+    flow_id = flow["id"]
+    monkeypatch.setattr("core.flow_manager.settings", BadSettings([flow_id]))
+
+    assert flow_manager.delete_flow(flow_id) is True
+    assert flow_manager.get_flow(flow_id) is None
+    with open(TEST_FLOWS_FILE, "r", encoding="utf-8") as handle:
+        assert flow_id not in json.load(handle)
+
+def test_delete_flow_prunes_active_settings(flow_manager, monkeypatch):
+    """Deleting an active flow also removes it from active_ai_flows."""
+    class FakeSettings:
+        def __init__(self):
+            self.data = {"active_ai_flows": []}
+
+        def get(self, key, default=None):
+            return self.data.get(key, default)
+
+        def save_settings(self, new_settings):
+            self.data.update(new_settings)
+
+    fake = FakeSettings()
+    monkeypatch.setattr("core.flow_manager.settings", fake)
+    flow = flow_manager.save_flow("Active", [{"id": "n1"}], [])
+    fake.data["active_ai_flows"] = [flow["id"], "other-flow"]
+
+    flow_manager.delete_flow(flow["id"])
+
+    assert fake.data["active_ai_flows"] == ["other-flow"]
+
+def test_returned_flows_are_copies(flow_manager):
+    """Mutating a returned flow must not change the store."""
+    flow = flow_manager.save_flow("Copy", [{"id": "n1"}], [])
+    flow["nodes"].append({"id": "leak"})
+    assert len(flow_manager.get_flow(flow["id"])["nodes"]) == 1
+
+    fetched = flow_manager.get_flow(flow["id"])
+    fetched["name"] = "mutated"
+    assert flow_manager.get_flow(flow["id"])["name"] == "Copy"
+
+    listed = flow_manager.list_flows()
+    listed[0]["name"] = "mutated-list"
+    assert flow_manager.get_flow(flow["id"])["name"] == "Copy"
 
 def test_rename_flow(flow_manager):
     """Tests renaming a flow."""
@@ -162,14 +273,40 @@ class TestFlowVersioning:
         assert restored["name"] == "Original"
         assert restored["nodes"] == nodes_v1
 
-    def test_rollback_does_not_add_version(self, flow_manager):
-        """Rollback does not create an extra version entry — it just restores silently."""
+    def test_rollback_preserves_created_at(self, flow_manager):
+        """Rollback restores the original creation timestamp."""
+        flow = flow_manager.save_flow("Original", [{"id": "n1"}], [])
+        created_at = flow["created_at"]
+        flow_manager.save_flow("Modified", [{"id": "n2"}], [], flow_id=flow["id"])
+
+        restored = flow_manager.rollback_version(flow["id"], 1)
+        assert restored["created_at"] == created_at
+
+    def test_rollback_restores_metadata(self, flow_manager):
+        """Version snapshots carry metadata so rollback keeps ownership."""
+        flow = flow_manager.save_flow(
+            "Owned V1", [{"id": "n1"}], [], metadata={"creator": "agent-1"}
+        )
+        flow_manager.save_flow(
+            "Owned V2", [{"id": "n2"}], [], flow_id=flow["id"],
+            metadata={"creator": "someone-else"},
+        )
+        restored = flow_manager.rollback_version(flow["id"], 1)
+        assert restored["metadata"] == {"creator": "agent-1"}
+
+    def test_rollback_adds_a_redo_version(self, flow_manager):
+        """Rollback records the pre-rollback state so the rollback itself is undoable."""
         flow = self._make_flow(flow_manager, "V1", nodes=[{"id": "n1"}])
         flow_id = flow["id"]
         flow_manager.save_flow("V2", [{"id": "n2"}], [], flow_id=flow_id)
-        before_count = len(flow_manager.get_versions(flow_id))
+        before = flow_manager.get_versions(flow_id)
         flow_manager.rollback_version(flow_id, 1)
-        assert len(flow_manager.get_versions(flow_id)) == before_count
+        after = flow_manager.get_versions(flow_id)
+        assert len(after) == len(before) + 1
+        assert after[0]["name"] == "V2"
+
+        flow_manager.rollback_version(flow_id, after[0]["version"])
+        assert flow_manager.get_flow(flow_id)["name"] == "V2"
 
     def test_rollback_nonexistent_version_returns_none(self, flow_manager):
         """rollback_version() with an unknown version number returns None."""

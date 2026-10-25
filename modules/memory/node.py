@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 # preventing memory loss when the server restarts while a save is in flight.
 _pending_save_tasks: set = set()
 
+# Consolidation runs in the background so a memory save never waits on an LLM.
+_pending_consolidation_tasks: set = set()
+
+
+def _consolidation_done(task):
+    _pending_consolidation_tasks.discard(task)
+    if task.cancelled():
+        return
+    error = task.exception()
+    if error is not None:
+        logger.error("Auto-consolidation failed: %s", error)
+
 
 class ConfigLoader:
     _cache = {"mtime": 0, "data": {}}
@@ -320,36 +332,21 @@ class MemorySaveExecutor:
             _pending_save_tasks.add(task)
             task.add_done_callback(_pending_save_tasks.discard)
 
-            # Auto-Consolidation Check with timeout to prevent deadlock
+            # Auto-consolidation is background work: never block a memory save on it.
             try:
                 auto_hours_val = self.config.get("auto_consolidation_hours", 24)
                 auto_hours = float(auto_hours_val) if auto_hours_val is not None else 24
-                if auto_hours > 0 and not hasattr(memory_store.last_consolidation_ts, 'assert_called'):
-                    if time.time() - memory_store.last_consolidation_ts > (auto_hours * 3600):
-                        logger.info("⏳ Triggering Auto-Consolidation...")
-                        memory_store.last_consolidation_ts = time.time()
-                        
-                        # Create consolidation task with timeout to prevent deadlock
-                        consolidation_task = asyncio.create_task(
-                            MemoryConsolidator(config=self.config).run()
-                        )
-
-                        # Wrap in timeout to prevent indefinite blocking
-                        try:
-                            self._consolidation_task = await asyncio.wait_for(
-                                consolidation_task,
-                                timeout=300  # 5 minute max
-                            )
-                        except asyncio.TimeoutError:
-                            logger.error("Memory consolidation timed out after 5 minutes")
-                            consolidation_state.last_error = "Auto-consolidation timed out after 5 minutes"
-                            consolidation_state.is_running = False
-                            consolidation_state.last_run = time.time()
-                            consolidation_task.cancel()
-                            try:
-                                await consolidation_task
-                            except asyncio.CancelledError as _exc:
-                                logger.debug("ignored exception: %s", _exc)
+                if (auto_hours > 0
+                        and not hasattr(memory_store.last_consolidation_ts, 'assert_called')
+                        and not consolidation_state.is_running
+                        and not _pending_consolidation_tasks
+                        and time.time() - memory_store.last_consolidation_ts > auto_hours * 3600):
+                    logger.info("⏳ Triggering Auto-Consolidation...")
+                    task = asyncio.create_task(
+                        MemoryConsolidator(config=self.config).run()
+                    )
+                    _pending_consolidation_tasks.add(task)
+                    task.add_done_callback(_consolidation_done)
             except Exception as e:
                 logger.warning(f"Auto-consolidation check failed: {e}")
 

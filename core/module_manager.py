@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import threading
 
 from fastapi import FastAPI
@@ -21,6 +22,28 @@ MODULES_DIR = project_path("modules")
 # loaded from settings.json at runtime. The settings value takes precedence.
 # Set to ["chat", "memory", "knowledge_base"] to restrict which modules can be loaded
 MODULE_ALLOWLIST = []  # Default empty = allow all (backwards compatibility)
+
+
+def _write_manifest(meta_path: str, meta: dict) -> None:
+    """Replace a module.json atomically so readers never see a truncated manifest.
+
+    Serializing first means an unserializable value fails before the file is touched.
+    """
+    payload = json.dumps(meta, indent=4)
+    fd, tmp_path = tempfile.mkstemp(prefix=".module-", suffix=".tmp",
+                                    dir=os.path.dirname(meta_path))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, meta_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError as exc:
+            logger.debug("Could not remove temp manifest %s: %s", tmp_path, exc)
+        raise
 
 class ModuleManager:
     def __init__(self, app: FastAPI, modules_dir=MODULES_DIR):
@@ -207,8 +230,7 @@ class ModuleManager:
             meta_to_save = {k: v for k, v in self.modules[module_id].items() if k != 'load_error'}
             
             meta_path = os.path.join(self.modules_dir, module_id, "module.json")
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta_to_save, f, indent=4)
+            _write_manifest(meta_path, meta_to_save)
                 
             # Clear the FlowRunner cache to ensure no stale executor classes are used
             # (FlowRunner handles its own internal state, so calling this static method is safe)
@@ -247,8 +269,7 @@ class ModuleManager:
             if os.path.exists(meta_path):
                 # Don't include load_error in saved metadata
                 meta_to_save = {k: v for k, v in id_to_meta[module_id].items() if k != 'load_error'}
-                with open(meta_path, "w", encoding="utf-8") as f:
-                    json.dump(meta_to_save, f, indent=4)
+                _write_manifest(meta_path, meta_to_save)
         
         # Log warning if operation took too long (potential lock contention)
         elapsed = time.time() - start_time
@@ -277,6 +298,5 @@ class ModuleManager:
             }
             
             meta_path = os.path.join(self.modules_dir, module_id, "module.json")
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta_to_save, f, indent=4)
+            _write_manifest(meta_path, meta_to_save)
             return self.modules[module_id]

@@ -310,8 +310,8 @@ async def send_message(
             {"type": "image_url", "image_url": {"url": image_url}}
         ]
 
-    # Add user message to history
-    session_manager.add_message(session_id, "user", user_content)
+    # Add user message to history without blocking the event loop on disk I/O
+    await asyncio.to_thread(session_manager.add_message, session_id, "user", user_content)
     active_session = session_manager.get_session(session_id)
 
     # Get module config early â€” used for both auto-compact and auto-rename below
@@ -386,10 +386,16 @@ async def send_message(
                     await queue.put({"type": "thinking", "content": thinking_steps})
 
                 if ai_response:
-                    session_manager.add_message(session_id, "assistant", ai_response, thinking=thinking_steps)
+                    await asyncio.to_thread(
+                        session_manager.add_message, session_id, "assistant",
+                        ai_response, thinking=thinking_steps,
+                    )
                     await queue.put({"type": "replace", "content": ai_response})
                 elif flow_result.get("error"):
-                    session_manager.add_message(session_id, "assistant", f"Error: {flow_result['error']}")
+                    await asyncio.to_thread(
+                        session_manager.add_message, session_id, "assistant",
+                        f"Error: {flow_result['error']}",
+                    )
                     await queue.put({"type": "error", "content": flow_result["error"]})
                 else:
                     await queue.put({"type": "error", "content": "Flow produced no response."})

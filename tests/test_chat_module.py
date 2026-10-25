@@ -4,7 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, AsyncMock
 from main import app
-import os
 from core.dependencies import get_llm_bridge
 from core.llm import LLMBridge
 from modules.chat import sessions
@@ -21,7 +20,8 @@ def client():
 
 @pytest.fixture(autouse=True)
 def clean_db():
-    if os.path.exists("data/memory.sqlite3"): os.remove("data/memory.sqlite3")
+    # Never delete the live memory database: the application may be running and holding it.
+    # Chat route tests use mocked sessions and do not depend on a pre-existing memory DB.
     yield
 
 @pytest.fixture(autouse=True)

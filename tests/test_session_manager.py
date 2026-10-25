@@ -386,26 +386,18 @@ class TestTraceWriter:
         assert events[1]["event"] == "test2"
     
     def test_read_since(self):
-        """Test reading events since timestamp."""
+        """Only events strictly after the cutoff are returned."""
+        from datetime import datetime, timezone
         from core.session_manager import TraceWriter
-        import time
 
         writer = TraceWriter(TEST_TRACE_FILE)
+        writer.append({"event": "before", "timestamp": "2024-01-01T00:00:00Z"})
+        cutoff = datetime(2025, 1, 1, tzinfo=timezone.utc).timestamp()
+        writer.append({"event": "after", "timestamp": "2025-06-01T00:00:00Z"})
 
-        writer.append({"event": "event1", "timestamp": "2026-01-01T00:00:00Z"})
-        time.sleep(0.01)  # Small delay
+        events = writer.read_since(cutoff)
 
-        # Use a fixed timestamp for testing
-        since_time = time.time()
-        
-        writer.append({"event": "event2", "timestamp": "2026-01-01T00:00:02Z"})
-        writer.append({"event": "event3", "timestamp": "2026-01-01T00:00:03Z"})
-
-        # Read since - note: our implementation reads based on ISO timestamp parsing
-        # This test verifies the function runs without error
-        events = writer.read_since(since_time)
-        # Events with timestamps before since_time won't be returned
-        assert len(events) >= 0  # May vary based on timestamp parsing
+        assert [event["event"] for event in events] == ["after"]
     
     def test_clear(self):
         """Test clearing trace."""

@@ -6,9 +6,17 @@ process can reach. This module validates every member against the resolved desti
 writing, and refuses symlink entries outright.
 """
 
+import logging
 import os
 import zipfile
 from pathlib import PurePosixPath
+
+logger = logging.getLogger(__name__)
+
+
+MAX_MEMBER_BYTES = 50 * 1024 * 1024
+MAX_TOTAL_BYTES = 200 * 1024 * 1024
+_CHUNK_SIZE = 64 * 1024
 
 
 class ArchiveSecurityError(Exception):
@@ -56,13 +64,17 @@ def _common_root(infos) -> str:
     return ""
 
 
-def extract_zip_safely(archive_path: str, dest_dir: str, strip_root: bool = False) -> list:
+def extract_zip_safely(archive_path: str, dest_dir: str, strip_root: bool = False,
+                       max_member_bytes: int = MAX_MEMBER_BYTES,
+                       max_total_bytes: int = MAX_TOTAL_BYTES) -> list:
     """Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.
 
-    With `strip_root`, a single shared top-level directory is removed first. Returns the
+    With `strip_root`, a single shared top-level directory is removed first. Members are
+    streamed and capped, so a compressed bomb cannot exhaust memory or disk. Returns the
     destination-relative paths written.
     """
     written = []
+    total_bytes = 0
     with zipfile.ZipFile(archive_path) as archive:
         infos = archive.infolist()
         prefix = _common_root(infos) if strip_root else ""
@@ -75,9 +87,32 @@ def extract_zip_safely(archive_path: str, dest_dir: str, strip_root: bool = Fals
             if _is_symlink(info):
                 raise ArchiveSecurityError(
                     f"archive member '{info.filename}' is a symbolic link")
+            if info.file_size > max_member_bytes:
+                raise ArchiveSecurityError(
+                    f"archive member '{info.filename}' exceeds the "
+                    f"{max_member_bytes}-byte limit")
             target = _safe_member_path(dest_dir, name)
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            with archive.open(info) as source, open(target, "wb") as sink:  # hygiene: allow zip member binary stream
-                sink.write(source.read())
+            member_bytes = 0
+            try:
+                with archive.open(info) as source, open(target, "wb") as sink:  # hygiene: allow zip member binary stream
+                    while True:
+                        chunk = source.read(_CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        member_bytes += len(chunk)
+                        total_bytes += len(chunk)
+                        if (member_bytes > max_member_bytes
+                                or total_bytes > max_total_bytes):
+                            raise ArchiveSecurityError(
+                                f"archive expands beyond the allowed size at "
+                                f"'{info.filename}'")
+                        sink.write(chunk)
+            except ArchiveSecurityError:
+                try:
+                    os.remove(target)
+                except OSError as exc:
+                    logger.debug("Could not remove partial archive member: %s", exc)
+                raise
             written.append(os.path.relpath(target, dest_dir).replace(os.sep, "/"))
     return written

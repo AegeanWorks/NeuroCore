@@ -15,14 +15,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture
+def flow_manager_instance(tmp_path):
+    """Isolated flow store so concurrency tests never touch project state."""
+    from core.flow_manager import FlowManager
+    return FlowManager(storage_file=str(tmp_path / "flows.json"))
+
+
 class TestFlowManagerConcurrency:
     """Test concurrent access to FlowManager."""
 
-    def test_concurrent_reads(self):
+    def test_concurrent_reads(self, flow_manager_instance):
         """Test that multiple threads can read flows concurrently."""
-        from core.flow_manager import FlowManager
-        
-        manager = FlowManager()
+        manager = flow_manager_instance
         
         def read_flows():
             for _ in range(10):
@@ -36,11 +41,10 @@ class TestFlowManagerConcurrency:
         
         assert all(results)
 
-    def test_concurrent_read_write(self):
-        """Test concurrent reads and writes don't deadlock."""
-        from core.flow_manager import FlowManager
-        
-        manager = FlowManager()
+    def test_concurrent_read_write(self, flow_manager_instance):
+        """Test concurrent reads and writes don't deadlock or lose writes."""
+        manager = flow_manager_instance
+        errors = []
         
         def write_flow():
             for i in range(5):
@@ -50,17 +54,17 @@ class TestFlowManagerConcurrency:
                         nodes=[],
                         connections=[]
                     )
-                except Exception as _exc:
-                    logger.debug("ignored exception: %s", _exc)  # May fail validation, that's OK
+                except Exception as exc:
+                    errors.append(exc)
                 time.sleep(0.001)
             return True
         
         def read_flows():
             for _ in range(10):
                 try:
-                    flows = manager.list_flows()
-                except Exception as _exc:
-                    logger.debug("ignored exception: %s", _exc)
+                    manager.list_flows()
+                except Exception as exc:
+                    errors.append(exc)
                 time.sleep(0.001)
             return True
         
@@ -74,6 +78,9 @@ class TestFlowManagerConcurrency:
             # Wait with timeout to detect deadlock
             for f in as_completed(futures, timeout=10):
                 f.result()
+
+        assert errors == []
+        assert len(manager.list_flows()) >= 25
 
 
 class TestModuleManagerConcurrency:
@@ -149,24 +156,24 @@ class TestAsyncConcurrency:
 class TestDeadlockPrevention:
     """Test that we don't have classic deadlock patterns."""
 
-    def test_no_cross_lock_deadlock(self):
+    def test_no_cross_lock_deadlock(self, flow_manager_instance):
         """Verify we don't have A->B, B->A deadlock pattern."""
         # This test documents the expected behavior:
         # - FlowManager uses threading.RLock (synchronous)
         # - LLM uses asyncio.Lock (asynchronous)
         # - They should NEVER be used together in nested way
-        
-        # This test passes if the code follows the CONCURRENCY.md rules
-        from core.flow_manager import FlowManager
-        from core.llm import _client_lock
-        
-        # Both should be importable and usable
-        manager = FlowManager()
-        assert hasattr(manager, 'lock')
-        
-        # This is a documentation test - the actual deadlock prevention
-        # is in the code design documented in docs/CONCURRENCY.md
-        assert True
+        import asyncio
+
+        from core.llm import get_client_lock
+
+        manager = flow_manager_instance
+        # A re-entrant lock accepts a second non-blocking acquire from the same thread.
+        assert manager.lock.acquire(blocking=False)
+        assert manager.lock.acquire(blocking=False)
+        manager.lock.release()
+        manager.lock.release()
+
+        assert isinstance(get_client_lock(), asyncio.Lock)
 
     @pytest.mark.asyncio
     async def test_async_timeout_prevents_deadlock(self):
@@ -190,12 +197,9 @@ class TestDeadlockPrevention:
 class TestLockOrdering:
     """Test lock ordering is followed."""
 
-    def test_flow_manager_lock_type(self):
+    def test_flow_manager_lock_type(self, flow_manager_instance):
         """Verify FlowManager uses RLock for reentrancy."""
-        from core.flow_manager import FlowManager
-        import threading
-        
-        manager = FlowManager()
+        manager = flow_manager_instance
         
         # Should be RLock (not Lock) for reentrant locking
         # Use type name check since isinstance may not work with threading.RLock on some platforms
@@ -219,11 +223,9 @@ class TestLockOrdering:
 class TestStressConcurrency:
     """Stress tests to detect concurrency issues."""
 
-    def test_high_concurrency_flow_manager(self):
+    def test_high_concurrency_flow_manager(self, flow_manager_instance):
         """Stress test with high concurrent access."""
-        from core.flow_manager import FlowManager
-        
-        manager = FlowManager()
+        manager = flow_manager_instance
         errors = []
         
         def worker(thread_id):

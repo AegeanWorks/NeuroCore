@@ -165,8 +165,8 @@ def test_send_message_success(client, mock_chat_sessions):
             events = [line for line in stream_response.iter_lines() if line]
             assert any("AI Reply" in e for e in events)
         
-        # Verify history update
-        history = session["history"]
+        # Verify history update (re-read; create_session returns a snapshot)
+        history = mock_chat_sessions.get_session(session["id"])["history"]
         assert len(history) == 2
         assert history[0]["content"] == "Hi"
         assert history[1]["content"] == "AI Reply"

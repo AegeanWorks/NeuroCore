@@ -114,3 +114,14 @@ def test_update_module_config(temp_modules_dir, mock_app):
     with open(config_path, "r", encoding="utf-8") as f:
         data = json.load(f)
         assert data["config"] == new_config
+
+def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, mock_app):
+    manager = ModuleManager(app=mock_app, modules_dir=temp_modules_dir)
+    manifest = os.path.join(temp_modules_dir, "enabled_module", "module.json")
+
+    with pytest.raises(TypeError):
+        manager.update_module_config("enabled_module", {"unserializable": object()})
+
+    with open(manifest, encoding="utf-8") as f:
+        assert json.load(f)["name"] == "Enabled Module"
+    assert [name for name in os.listdir(os.path.dirname(manifest)) if name.endswith(".tmp")] == []

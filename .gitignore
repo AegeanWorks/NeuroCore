@@ -8,8 +8,11 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Runtime data
-data/
+# Runtime data (the directory itself is tracked so Docker bind mounts keep host ownership)
+/data/*
+!/data/.gitkeep
+# Nested data directories (e.g. modules/skills/data) stay ignored as before
+*/**/data/
 test_memory.sqlite3
 
 # Runtime JSON state (not source-controlled)
@@ -22,6 +25,10 @@ modules/messaging_bridge/sessions.json
 test_*.json
 test_*.sqlite3
 test_*.faiss
+*.bak
+*.corrupt-*
+*.tmp
+*.json.lock
 
 # Coverage / test artifacts
 .coverage
@@ -33,3 +40,6 @@ htmlcov/
 .aikit/*.bak
 .aikit/*.tmp_*
 .aikit/*.corrupt_*
+# AIKit transient state
+*.py[cod]
+node_modules/

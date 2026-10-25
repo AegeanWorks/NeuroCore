@@ -100,7 +100,7 @@ def test_save_ai_flow(client):
 
     assert response.status_code == 200
     # Fix: Added bridges=[] to expected call
-    mock_fm.save_flow.assert_called_once_with(name="My New Flow", nodes=[{"id": "node-1"}], connections=[{"from": "node-1", "to": "node-2"}], bridges=[], flow_id=None)
+    mock_fm.save_flow.assert_called_once_with(name="My New Flow", nodes=[{"id": "node-1"}], connections=[{"from": "node-1", "to": "node-2"}], bridges=[], flow_id=None, validate=True)
 
 def test_save_ai_flow_invalid_json(client):
     """Tests that saving a flow with invalid JSON returns a 400 error."""

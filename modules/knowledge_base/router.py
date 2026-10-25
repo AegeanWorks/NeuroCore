@@ -55,6 +55,47 @@ if not os.path.exists(UPLOAD_DIR):
 if not os.path.exists(PROCESSED_DIR):
     os.makedirs(PROCESSED_DIR)
 
+
+def _resolve_stored_path(document: dict, upload_dir: str = None):
+    """Return the on-disk path for a document, including legacy UUID-prefixed uploads."""
+    directory = upload_dir or UPLOAD_DIR
+    stored = document.get("stored_filename")
+    filename = stored or document.get("filename")
+    if not filename:
+        return None
+
+    path = os.path.join(directory, os.path.basename(filename))
+    if os.path.exists(path) or stored:
+        return path
+
+    legacy_suffix = "_" + os.path.basename(filename)
+    try:
+        matches = [
+            name for name in os.listdir(directory)
+            if name.endswith(legacy_suffix)
+        ]
+    except OSError:
+        matches = []
+    if len(matches) == 1:
+        return os.path.join(directory, matches[0])
+    return path
+
+
+def _document_storage_names(documents: list, disk_files: set) -> set:
+    """Map document rows to the filenames that should exist in the upload directory."""
+    names = set()
+    for document in documents:
+        stored = document.get("stored_filename")
+        if stored:
+            names.add(stored)
+            continue
+        legacy = document.get("filename")
+        if not legacy:
+            continue
+        matches = [name for name in disk_files if name.endswith("_" + legacy)]
+        names.add(matches[0] if len(matches) == 1 else legacy)
+    return names
+
 # --- Security Configuration ---
 ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.html', '.json'}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
@@ -171,15 +212,19 @@ async def process_and_save_document(tracking_id: str, file_path: str, original_f
                     upload_progress[tracking_id]["message"] = "Document already exists (no changes)"
                 return
 
-            # Same filename, different content — perform delta re-index
+            # Same filename, different content — perform delta re-index and keep the new
+            # upload, replacing the previous stored file.
+            old_path = _resolve_stored_path(existing_doc)
             result = document_store.reindex_document(
-                existing_doc['id'], file_hash, file_size, page_count, chunks
+                existing_doc['id'], file_hash, file_size, page_count, chunks,
+                stored_filename=stored_filename,
             )
-            if os.path.exists(file_path):
+            if (old_path and os.path.exists(old_path)
+                    and os.path.basename(old_path) != stored_filename):
                 try:
-                    os.remove(file_path)
+                    os.remove(old_path)
                 except OSError as e:
-                    logger.warning(f"Failed to remove re-indexed file {stored_filename}: {e}")
+                    logger.warning(f"Failed to remove replaced file {old_path}: {e}")
             with upload_progress_lock:
                 upload_progress[tracking_id]["status"] = "done"
                 upload_progress[tracking_id]["progress"] = 100
@@ -203,8 +248,11 @@ async def process_and_save_document(tracking_id: str, file_path: str, original_f
                 upload_progress[tracking_id]["message"] = "Document already exists (duplicate content)"
             return
 
-        # Truly new document — add it
-        document_store.add_document(file_hash, original_filename, file_type, file_size, page_count, chunks)
+        # Truly new document — add it and remember the on-disk name
+        document_store.add_document(
+            file_hash, original_filename, file_type, file_size, page_count, chunks,
+            stored_filename=stored_filename,
+        )
 
         with upload_progress_lock:
             upload_progress[tracking_id]["status"] = "done"
@@ -393,9 +441,8 @@ async def delete_doc(request: Request, doc_id: int):
     doc_to_delete = document_store.get_document(doc_id)
     
     if doc_to_delete:
-        filename = doc_to_delete['filename']
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        if os.path.exists(file_path):
+        file_path = _resolve_stored_path(doc_to_delete)
+        if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
             except OSError as e:
@@ -480,9 +527,9 @@ async def check_integrity(request: Request):
     
     # Check for ghost files
     raw_docs = document_store.list_documents()
-    db_filenames = {r["filename"] for r in raw_docs}
     disk_files = set(os.listdir(UPLOAD_DIR))
-    
+    db_filenames = _document_storage_names(raw_docs, disk_files)
+
     ghost_files = [f for f in disk_files if f not in db_filenames]
     missing_files = [f for f in db_filenames if f not in disk_files]
     

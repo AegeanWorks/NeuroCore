@@ -1,6 +1,13 @@
 import numpy as np
 import json
 import logging
+
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError:
+    faiss = None
+    FAISS_AVAILABLE = False
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -76,9 +83,6 @@ class MemoryConsolidator:
         Uses FAISS range_search for efficient similarity computation instead of
         building a full n×n matrix.
         """
-        if not self.store.faiss_index or self.store.faiss_index.ntotal == 0:
-            return []
-
         with self.store._connect() as con:
             rows = con.execute("""
                 SELECT id, embedding FROM memories
@@ -98,28 +102,47 @@ class MemoryConsolidator:
         if len(embeddings) < 2:
             return []
 
-        # Stack embeddings into matrix and normalize
-        matrix = np.stack(embeddings).astype(np.float32)
-        faiss.normalize_L2(matrix)
-        
         ids = list(id_to_idx.keys())
-        
-        # Use FAISS range_search to find all pairs above threshold
-        # This is O(n) instead of O(n²)
-        pairs = []
-        
-        # For each query vector, find similar vectors
-        for i in range(len(matrix)):
-            query = matrix[i:i+1]  # Shape: (1, d)
-            distances, indices = self.store.faiss_index.search(query, len(matrix))
-            
-            for j, dist in zip(indices[0], distances[0]):
-                if j == -1:  # No more results
-                    break
-                if j > i:  # Avoid duplicates (only process where j > i)
-                    if dist >= threshold:
-                        pairs.append((ids[i], ids[j], float(dist)))
+        matrix = np.stack(embeddings).astype(np.float32)
 
+        if (not FAISS_AVAILABLE or not self.store.faiss_index
+                or self.store.faiss_index.ntotal == 0):
+            return self._find_similar_pairs_linear(matrix, ids, threshold)
+
+        faiss.normalize_L2(matrix)
+
+        # The index is an IndexIDMap, so search() returns memory IDs, not row positions.
+        pairs = []
+        seen = set()
+        for i, query_id in enumerate(ids):
+            query = matrix[i:i + 1]
+            distances, indices = self.store.faiss_index.search(query, len(ids))
+            for other_id, dist in zip(indices[0], distances[0]):
+                if other_id == -1:
+                    break
+                other_id = int(other_id)
+                if other_id == query_id or float(dist) < threshold:
+                    continue
+                pair = (min(query_id, other_id), max(query_id, other_id))
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                pairs.append((pair[0], pair[1], float(dist)))
+
+        return pairs
+
+    @staticmethod
+    def _find_similar_pairs_linear(matrix, ids, threshold):
+        """Cosine-similarity fallback used when the FAISS index is unavailable."""
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        normalized = matrix / np.maximum(norms, 1e-12)
+        similarities = normalized @ normalized.T
+        pairs = []
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                score = float(similarities[i, j])
+                if score >= threshold:
+                    pairs.append((ids[i], ids[j], score))
         return pairs
 
     def _get_processed_pairs(self) -> Set[Tuple[int, int]]:
@@ -168,6 +191,8 @@ class MemoryConsolidator:
         consolidation_state.memories_consolidated += count
         consolidation_state.last_run = time.time()
         consolidation_state.is_running = False
+        # Advance the retry clock only after a successful run.
+        self.store.last_consolidation_ts = time.time()
         return count
 
     async def _run_inner(self) -> int:

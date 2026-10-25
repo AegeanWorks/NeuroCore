@@ -38,3 +38,18 @@ docker-compose.yml
 
 # Local data (will be mounted)
 data/
+
+# Runtime state and secrets: never bake these into an image layer
+settings.json
+ai_flows.json
+chat_sessions.json
+calendar_events.json
+*.sqlite3
+*.sqlite3-*
+*.faiss
+*.corrupt-*
+test_flows*.json
+.aikit/
+tests/
+screenshots/
+.env

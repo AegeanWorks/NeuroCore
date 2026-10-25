@@ -483,20 +483,30 @@ result = type(os).__name__
         result = sandbox.execute(code, {})
         assert result['result'] == 'SafeEnv'
 
-    def test_os_getenv_works(self):
-        """os.getenv() must work via the SafeEnv mock."""
+    def test_os_getenv_hides_the_inherited_environment(self):
+        """A tool cannot read a host secret it was not explicitly given."""
         import os as _real_os
         _real_os.environ['_SANDBOX_TEST_VAR'] = 'hello'
         try:
             sandbox = ToolSandbox()
             code = """
 import os
-result = os.getenv('_SANDBOX_TEST_VAR', 'missing')
+result = [os.getenv('_SANDBOX_TEST_VAR', 'missing'), '_SANDBOX_TEST_VAR' in os.environ]
 """
             result = sandbox.execute(code, {})
-            assert result['result'] == 'hello'
+            assert result['result'] == ['missing', False]
         finally:
             del _real_os.environ['_SANDBOX_TEST_VAR']
+
+    def test_os_getenv_reads_permitted_values(self):
+        """os.getenv() and os.environ expose exactly the permitted values."""
+        sandbox = ToolSandbox(permitted_environment={'WEATHER_API_KEY': 'k-123'})
+        code = """
+import os
+result = [os.getenv('WEATHER_API_KEY'), os.environ['WEATHER_API_KEY'], list(os.environ)]
+"""
+        result = sandbox.execute(code, {})
+        assert result['result'] == ['k-123', 'k-123', ['WEATHER_API_KEY']]
 
     def test_os_dangerous_attrs_blocked(self):
         """os.system, os.path, etc. must be blocked via SafeEnv."""

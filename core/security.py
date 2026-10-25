@@ -12,8 +12,12 @@ Environment variables:
     NEUROCORE_RELOAD         set to an affirmative value to enable auto-reload (default off)
     NEUROCORE_ALLOWED_HOSTS  comma-separated extra ``Host`` names to accept
     NEUROCORE_EXPORT_SECRETS set to keep secrets in /settings/export/config (default: stripped)
-    NEUROCORE_API_TOKEN      when set, non-loopback requests must present this token
+    NEUROCORE_API_TOKEN      required for non-loopback clients unless remote-unauthenticated is
+                             explicitly allowed
     NEUROCORE_TRUSTED_ORIGINS  comma-separated extra origins allowed for cross-origin writes
+    NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE
+                             explicitly allow a non-loopback bind without a token; only for a
+                             deployment whose outer layer already prevents remote access
 """
 
 import hmac
@@ -41,9 +45,10 @@ REDACTED = "***REDACTED***"
 
 # Interfaces that keep the control plane local. Anything else must be asked for explicitly.
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
-# Starlette's TestClient sends this Host; keeping it lets the suite exercise the guarded app
-# without weakening the loopback default for a real deployment.
+# Starlette's TestClient sends this Host and connects as this client name; keeping both lets the
+# suite exercise the guarded app without weakening the loopback default for a real deployment.
 TEST_HOST = "testserver"
+TEST_CLIENT_HOSTS = frozenset({TEST_HOST, "testclient"})
 
 _ENV_AFFIRMATIVE = ("1", "true", "yes", "on")
 
@@ -146,8 +151,34 @@ def strip_secrets(values):
 
 
 def api_token() -> str:
-    """The optional control-plane API token; empty keeps the local no-token workflow."""
+    """The control-plane API token; empty means non-loopback clients are rejected."""
     return os.getenv("NEUROCORE_API_TOKEN", "").strip()
+
+
+def unauthenticated_remote_allowed() -> bool:
+    """Whether the operator explicitly accepted a non-loopback bind without a token.
+
+    This exists only for deployments whose outer layer (container port mapping, firewall)
+    already keeps the app local. It must never be the default.
+    """
+    return _env_flag("NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE")
+
+
+def deployment_is_remote() -> bool:
+    """Whether the configured bind interface is reachable from another machine."""
+    host = bind_host().strip("[]").lower()
+    return host not in LOOPBACK_HOSTS
+
+
+def validate_deployment_security() -> None:
+    """Refuse a non-loopback bind that has no credential and no explicit opt-out."""
+    if deployment_is_remote() and not api_token() and not unauthenticated_remote_allowed():
+        raise RuntimeError(
+            "Remote binding requires NEUROCORE_API_TOKEN. "
+            "Set a token, bind loopback, or explicitly set "
+            "NEUROCORE_ALLOW_UNAUTHENTICATED_REMOTE=1 when an outer layer already "
+            "prevents remote access."
+        )
 
 
 def trusted_origins() -> list:
@@ -162,27 +193,68 @@ def _is_loopback_host(host) -> bool:
     return host.lower() in LOOPBACK_HOSTS
 
 
+def _origin_tuple(scheme, hostname, port):
+    """A normalized (scheme, host, effective-port) origin triple.
+
+    A browser origin is the scheme, host and port, not just the hostname: pages served from
+    another port or another scheme on the same host are still different origins.
+    """
+    if not scheme or not hostname:
+        return None
+    scheme = str(scheme).lower()
+    hostname = str(hostname).lower()
+    if port is None:
+        port = 443 if scheme == "https" else 80 if scheme == "http" else None
+    return (scheme, hostname, int(port) if port is not None else None)
+
+
 def _origin_allowed(origin: str, request) -> bool:
     """Whether a browser `Origin` header may make a state-changing request to `request`.
 
-    A same-origin request, a loopback-to-loopback request (local dev switching between
-    ``localhost`` and ``127.0.0.1``) or an explicitly trusted origin is accepted.
+    A same-origin request, a loopback-to-loopback request on the same scheme and port (local
+    dev switching between ``localhost`` and ``127.0.0.1``) or an explicitly trusted origin is
+    accepted. Hostname alone is never enough: scheme and effective port must match.
     """
-    origin_host = urlparse(origin).hostname
-    request_host = request.url.hostname
-    if not origin_host or not request_host:
+    try:
+        parsed = urlparse(origin)
+        origin_origin = _origin_tuple(parsed.scheme, parsed.hostname, parsed.port)
+    except ValueError:
         return False
-    if origin_host == request_host:
+    request_url = request.url
+    request_origin = _origin_tuple(request_url.scheme, request_url.hostname, request_url.port)
+    if not origin_origin or not request_origin:
+        return False
+    if origin_origin == request_origin:
         return True
-    if _is_loopback_host(origin_host) and _is_loopback_host(request_host):
+    origin_scheme, origin_host, origin_port = origin_origin
+    request_scheme, request_host, request_port = request_origin
+    if (
+        origin_scheme == request_scheme
+        and origin_port == request_port
+        and _is_loopback_host(origin_host)
+        and _is_loopback_host(request_host)
+    ):
         return True
-    return origin.lower() in trusted_origins()
+    for trusted in trusted_origins():
+        try:
+            parsed_trusted = urlparse(trusted)
+            trusted_origin = _origin_tuple(
+                parsed_trusted.scheme, parsed_trusted.hostname, parsed_trusted.port
+            )
+        except ValueError:
+            continue
+        if trusted_origin == origin_origin:
+            return True
+    return False
 
 
 def _client_is_loopback(request) -> bool:
     """Whether the connecting peer is this machine (so the API token is not required)."""
     client = getattr(request, "client", None)
-    return _is_loopback_host(getattr(client, "host", None))
+    host = getattr(client, "host", None)
+    if host and str(host).lower() in TEST_CLIENT_HOSTS:
+        return True
+    return _is_loopback_host(host)
 
 
 def _token_matches(request, expected: str) -> bool:
@@ -209,9 +281,14 @@ class ControlPlaneGuard(BaseHTTPMiddleware):
             if origin and not _origin_allowed(origin, request):
                 return PlainTextResponse("Cross-origin request rejected", status_code=403)
         expected = api_token()
-        if expected and not _client_is_loopback(request) \
-                and not _token_matches(request, expected):
-            return PlainTextResponse("Missing or invalid API token", status_code=403)
+        if not _client_is_loopback(request):
+            if expected:
+                if not _token_matches(request, expected):
+                    return PlainTextResponse("Missing or invalid API token", status_code=403)
+            elif not unauthenticated_remote_allowed():
+                return PlainTextResponse(
+                    "Remote access requires NEUROCORE_API_TOKEN", status_code=403
+                )
         return await call_next(request)
 
 

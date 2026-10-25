@@ -4,11 +4,11 @@ import os
 import tempfile
 import threading
 
-from core.paths import project_path
+from core.paths import state_path
 
 logger = logging.getLogger(__name__)
 
-SETTINGS_FILE = project_path("settings.json")
+SETTINGS_FILE = state_path("settings.json")
 
 DEFAULT_SETTINGS = {
     "llm_api_url": "http://localhost:1234/v1",

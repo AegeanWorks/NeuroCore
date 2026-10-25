@@ -13,6 +13,7 @@ class ActionType(Enum):
     """Types of actions the agent can take."""
     CREATE_FLOW = "create_flow"
     UPDATE_FLOW = "update_flow"
+    COMPOSE_FLOW = "compose_flow"
     DELETE_FLOW = "delete_flow"
     EXECUTE_FLOW = "execute_flow"
     REMEMBER = "remember"

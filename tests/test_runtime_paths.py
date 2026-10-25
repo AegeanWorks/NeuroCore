@@ -30,10 +30,15 @@ RUNTIME_PATHS = (
 
 
 def test_runtime_paths_are_absolute_and_inside_project():
+    # conftest points NEUROCORE_STATE_DIR at a per-run directory; state follows it, code does not.
+    roots = {PROJECT_ROOT}
+    state_dir = os.getenv("NEUROCORE_STATE_DIR")
+    if state_dir:
+        roots.add(Path(state_dir).resolve())
     for runtime_path in RUNTIME_PATHS:
         path = Path(runtime_path)
         assert path.is_absolute(), runtime_path
-        assert path == PROJECT_ROOT or PROJECT_ROOT in path.parents, runtime_path
+        assert any(path == root or root in path.parents for root in roots), runtime_path
 
 
 def test_importing_the_app_from_another_directory_writes_nothing_there(tmp_path):

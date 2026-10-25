@@ -53,6 +53,13 @@
                 <!-- AI Flow -->
                 <li><a href="/ai-flow" class="hover:text-blue-400 transition-colors">AI Flow</a></li>
 
+                <!-- Brain -->
+                {% for module in modules %}
+                    {% if module.id == 'brain' and module.enabled %}
+                    <li><a href="/brain/ui" class="hover:text-blue-400 transition-colors">Brain</a></li>
+                    {% endif %}
+                {% endfor %}
+
                 <!-- Marketplace -->
                 <li><a href="/marketplace" class="hover:text-blue-400 transition-colors">Marketplace</a></li>
 

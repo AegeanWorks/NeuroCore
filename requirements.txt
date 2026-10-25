@@ -1,4 +1,6 @@
-# NeuroCore Dependencies
+# NeuroCore runtime dependencies plus the optional capabilities the README advertises.
+# Mirrors pyproject.toml (dependencies + browser, documents, messaging extras);
+# tests/test_packaging.py keeps them in sync. Test tools live in requirements-dev.txt.
 
 # Web Framework
 fastapi>=0.115.0
@@ -25,8 +27,10 @@ faiss-cpu>=1.8.0
 # Data Validation
 pydantic>=2.10.0
 
-# Testing
-pytest>=8.0.0,<9
-pytest-cov>=4.1.0
-pytest-httpx>=0.27.0
-pytest-asyncio>=0.23.0
+# Optional capabilities advertised in the README
+playwright>=1.40.0
+PyMuPDF>=1.23.0
+python-docx>=1.1.0
+Pillow>=10.0.0
+pytesseract>=0.3.10
+

@@ -6,6 +6,7 @@ import asyncio
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
+from core.flow_manager import FlowManager
 from ..service import AgentService
 from ..core.types import AgentConfig, AgentMessage, Perception, IncomingMessage
 
@@ -17,6 +18,7 @@ class AgentNodeConfig:
     auto_start: bool = True
     run_mode: str = "continuous"  # continuous, single, trigger
     max_cycles: int = 0  # 0 = unlimited
+    flow_store_path: str = ""  # empty: use the shared process flow store
 
 
 class AutonomousAgentNode:
@@ -75,7 +77,13 @@ class AutonomousAgentNode:
             }
         
         agent_config = AgentConfig(**agent_config_dict)
-        self.service = AgentService(agent_config)
+        if self.config.flow_store_path:
+            self.service = AgentService(
+                agent_config,
+                flow_manager=FlowManager(storage_file=self.config.flow_store_path),
+            )
+        else:
+            self.service = AgentService(agent_config)
         
         # Initialize service
         await self.service.initialize()

@@ -27,14 +27,24 @@ dependencies = [
     "faiss-cpu>=1.8.0",
     "pydantic>=2.10.0",
     "filelock>=3.13.0",
+    # Built-in statistics routes (core/statistics_engine.py)
+    "scipy>=1.13.0",
 ]
 
 [project.optional-dependencies]
+browser = ["playwright>=1.40.0"]
+documents = [
+    "PyMuPDF>=1.23.0",
+    "python-docx>=1.1.0",
+    "Pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+]
+messaging = ["websockets>=12.0"]
 dev = [
-    "pytest<9",
-    "pytest-cov",
-    "pytest-httpx",
-    "pytest-asyncio",
+    "pytest>=8.0.0,<9",
+    "pytest-cov>=4.1.0",
+    "pytest-httpx>=0.27.0",
+    "pytest-asyncio>=0.23.0",
 ]
 
 [build-system]

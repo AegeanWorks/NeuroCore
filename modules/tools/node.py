@@ -15,7 +15,23 @@ class ToolDispatcherExecutor:
             timeout=30.0,  # 30 second timeout for tool execution
             max_output_size=100 * 1024,  # 100KB max output
             read_only_files=True,  # Tools cannot write files by default
+            permitted_environment=self._permitted_environment(),
         )
+
+    @staticmethod
+    def _permitted_environment() -> dict:
+        """Only environment values the tools manifest explicitly authorizes reach a tool."""
+        manifest_path = os.path.join(os.path.dirname(__file__), "module.json")
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as handle:
+                config = (json.load(handle) or {}).get("config") or {}
+        except (OSError, json.JSONDecodeError):
+            return {}
+        names = config.get("env_allowlist")
+        if not isinstance(names, list):
+            return {}
+        values = {name: os.getenv(name) for name in names if isinstance(name, str)}
+        return {name: value for name, value in values.items() if value is not None}
     
     def _load_tools(self):
         if os.path.exists(TOOLS_FILE):

@@ -4,6 +4,7 @@ import importlib
 import json
 import logging
 import sys
+import time
 import types
 from collections import deque, defaultdict
 from .flow_manager import flow_manager
@@ -95,12 +96,15 @@ class FlowRunner:
             if settings.get("debug_mode"):
                 logger.debug(f"[FlowRunner] Cache size limit reached. Removed {len(keys_to_remove)} oldest entries.")
 
-    def __init__(self, flow_id: str, flow_override: dict = None):
+    def __init__(self, flow_id: str, flow_override: dict = None,
+                 flow_manager_override=None, capture_outcome: bool = True):
         self.flow_id = flow_id
+        self.flow_manager = flow_manager_override or flow_manager
+        self.capture_outcome = bool(capture_outcome)
         if flow_override:
             self.flow = flow_override
         else:
-            self.flow = flow_manager.get_flow(flow_id)
+            self.flow = self.flow_manager.get_flow(flow_id)
             
         if not self.flow:
             raise ValueError(f"Flow with id {flow_id} not found.")
@@ -585,6 +589,43 @@ class FlowRunner:
         }
 
     async def run(self, initial_input: dict, start_node_id: str = None, timeout: float = None, raise_errors: bool = False, episode_id: str = None, stream_queue: asyncio.Queue = None):
+        """Run a flow and emit one outcome record (unless capture is disabled)."""
+        started = time.perf_counter()
+        result = None
+        error = None
+        try:
+            result = await self._run(
+                initial_input, start_node_id=start_node_id, timeout=timeout,
+                raise_errors=raise_errors, episode_id=episode_id,
+                stream_queue=stream_queue,
+            )
+            if isinstance(result, dict) and result.get("error"):
+                error = str(result.get("error"))
+            return result
+        except Exception as exc:
+            error = str(exc)
+            raise
+        finally:
+            if self.capture_outcome:
+                from core.outcomes import emit_outcome
+
+                summary = result
+                if isinstance(result, dict):
+                    summary = (
+                        result.get("content")
+                        or result.get("response")
+                        or result.get("error")
+                        or "completed"
+                    )
+                emit_outcome({
+                    "flow_id": self.flow_id,
+                    "success": error is None,
+                    "error": error,
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                    "summary": str(summary)[:500],
+                })
+
+    async def _run(self, initial_input: dict, start_node_id: str = None, timeout: float = None, raise_errors: bool = False, episode_id: str = None, stream_queue: asyncio.Queue = None):
         """
         Executes the flow in order, passing data between nodes.
         
@@ -952,6 +993,8 @@ class FlowRunner:
 
                 except (ImportError, AttributeError) as e:
                     # Module import issues or missing executor classes
+                    if raise_errors:
+                        raise
                     logger.warning(f"Warning: Could not find or use node logic for {module_id}/{node_type_id}. Error: {e}. Passing data through.")
                     node_outputs[node_id] = node_input
                 except (RuntimeError, ValueError, TypeError) as e:
@@ -960,6 +1003,8 @@ class FlowRunner:
                     if settings.get("debug_mode"):
                         debug_logger.log(self.flow_id, node_id, node_meta['name'], "error", {"error": str(e), "error_type": type(e).__name__})
                     logger.exception(f"Error in FlowRunner: {error_msg}")
+                    if raise_errors:
+                        raise
                     # Return a structured error that the chat UI can display
                     return {"error": error_msg}
 
@@ -1017,6 +1062,8 @@ class FlowRunner:
                 if settings.get("debug_mode"):
                     debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_timeout", {"timeout": timeout})
                 logger.error(f"[FlowRunner] {error_msg}")
+                if raise_errors:
+                    raise asyncio.TimeoutError(error_msg)
                 return {"error": error_msg}
         else:
             return await run_impl()
