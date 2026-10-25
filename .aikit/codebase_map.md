@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `263`
-- **Total Classes**: `387`
-- **Total Top-Level Functions**: `1641`
-- **Total Class Methods**: `2083`
-- **Total Source Lines**: `74080`
+- **Total Python Modules**: `267`
+- **Total Classes**: `392`
+- **Total Top-Level Functions**: `1674`
+- **Total Class Methods**: `2095`
+- **Total Source Lines**: `74857`
 
 ---
 
@@ -94,6 +94,33 @@
 
 **Functions:**
 - `def exception_to_dict(exc)` - *Convert any exception to a dict representation.*
+
+---
+
+### [`core/execution_budget.py`](core/execution_budget.py)
+> *Per-run execution budget: bound nodes, LLM calls, tokens, tool calls and wall time.*
+
+**Size**: `161` lines (`5928` bytes)
+
+**Classes:**
+- `class BudgetExceeded` - *Raised when one dimension of the run budget is exhausted.*
+  - Method `.__init__(kind, limit, used)`
+- `class ExecutionBudget` - *Limits and usage for one top-level flow run.*
+  - Method `.remaining(kind)`
+  - Method `.elapsed()`
+  - Method `.spend(kind, units)` - *Consume units, or raise :class:`BudgetExceeded` naming the dimension.*
+  - Method `.check_time()`
+  - Property `.pressure` - *The fullest non-time dimension as a 0..1 fraction (for a 'slow down' signal).*
+  - Method `.snapshot()`
+
+**Functions:**
+- `def current_budget()`
+- `def use_budget(budget)` - *Install a budget for the current task; nested runs inherit it automatically.*
+- `def spend(kind, units)` - *Spend from the run budget when one is active; a no-op outside a budgeted run.*
+- `def push_budget(budget)` - *Install a budget and return the context token; pair with :func:`pop_budget`.*
+- `def pop_budget(token)`
+- `def _settings_int(key, default)`
+- `def budget_from_flow(flow)` - *Build the budget from settings, then let flow metadata lower (never raise) a limit.*
 
 ---
 
@@ -293,7 +320,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1080` lines (`52358` bytes)
+**Size**: `1102` lines (`53019` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -311,6 +338,26 @@
   - Method `.validate(module_manager)` - *Validates the flow for potential issues before execution.*
   - Method `async def .run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Run a flow and emit one outcome record (unless capture is disabled).*
   - Method `async def ._run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Executes the flow in order, passing data between nodes.*
+
+---
+
+### [`core/flow_simulation.py`](core/flow_simulation.py)
+> *Deterministic pre-flight flow analysis: structure, effects and a cost envelope.*
+
+**Size**: `284` lines (`11061` bytes)
+
+**Classes:**
+- `class Finding`
+  - Method `.to_dict()`
+- `class SimulationReport`
+  - Property `.blocking`
+  - Method `.to_dict()`
+
+**Functions:**
+- `def _node_effects(node)`
+- `def _strongly_connected(nodes, adjacency)` - *Tarjan's SCCs with at least two nodes, or one node pointing at itself.*
+- `def _settings_int(key, default)`
+- `def simulate_flow(flow, known_node_types)` - *Analyse a flow without running it and return a JSON-safe report.*
 
 ---
 
@@ -545,7 +592,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3309` lines (`145084` bytes)
+**Size**: `3331` lines (`146066` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -585,6 +632,7 @@
 - `async def ai_flow_page(request, module_manager, settings_man)`
 - `async def get_flow_data(flow_id)`
 - `async def validate_flow(flow_id, request)` - *Validates a flow for potential issues before execution.*
+- `async def simulate_flow_route(flow_id, request)` - *Deterministic pre-flight analysis: structure, external effects and a cost envelope.*
 - `async def save_ai_flow(request, name, nodes, connections, bridges, flow_id)`
 - `async def rename_flow(request, flow_id, name, settings_man)`
 - `async def set_active_flow(request, flow_id, action, settings_man)`
@@ -1553,7 +1601,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `466` lines (`19754` bytes)
+**Size**: `476` lines (`20231` bytes)
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -2271,7 +2319,7 @@
 ---
 
 ### [`modules/llm_module/node.py`](modules/llm_module/node.py)
-**Size**: `246` lines (`11397` bytes)
+**Size**: `265` lines (`12136` bytes)
 
 **Classes:**
 - `class LLMExecutor`
@@ -2282,6 +2330,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _spend_usage(response)` - *Charge the run budget with the tokens the provider reported, when available.*
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -2992,7 +3041,7 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `166` lines (`7060` bytes)
+**Size**: `168` lines (`7140` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -4216,6 +4265,29 @@
 
 ---
 
+### [`tests/test_execution_budget.py`](tests/test_execution_budget.py)
+> *Per-run execution budget: caps, inheritance, flow overrides and executor spending.*
+
+**Size**: `137` lines (`5122` bytes)
+
+**Classes:**
+- `class FakeSettings`
+  - Method `.__init__(values)`
+  - Method `.get(key, default)`
+
+**Functions:**
+- `def test_spend_tracks_usage_and_raises_with_the_remedy()`
+- `def test_unknown_or_negative_spends_are_rejected()`
+- `def test_time_limit_is_checked_before_each_spend()`
+- `def test_spend_outside_a_budgeted_run_is_a_noop()`
+- `def test_nested_scopes_inherit_one_budget()`
+- `def test_flow_metadata_may_lower_but_not_raise_a_limit(monkeypatch)`
+- `def test_pressure_reports_the_fullest_dimension()`
+- `async def test_a_flow_cannot_run_more_nodes_than_its_budget()`
+- `async def test_the_llm_node_spends_a_call_and_the_reported_tokens()`
+
+---
+
 ### [`tests/test_fixes_verification.py`](tests/test_fixes_verification.py)
 > *Quick verification tests for the bug fixes*
 
@@ -4510,6 +4582,26 @@
 - `def _node(node_id)`
 - `def test_cycle_is_entered_at_the_node_fed_from_outside_it()`
 - `def test_default_tool_loop_runs_the_llm_before_the_router(tmp_path)`
+
+---
+
+### [`tests/test_flow_simulation.py`](tests/test_flow_simulation.py)
+> *Deterministic flow simulation: structure, effects, cycles and cost envelope.*
+
+**Size**: `120` lines (`4591` bytes)
+
+**Functions:**
+- `def node(node_id, module, node_type, **extra)`
+- `def flow(nodes, connections, **extra)`
+- `def test_empty_flow_is_blocking()`
+- `def test_dangling_connection_blocks_before_execution()`
+- `def test_isolated_node_is_a_warning_not_a_block()`
+- `def test_unknown_node_type_blocks_when_a_catalogue_is_supplied()`
+- `def test_effects_are_classified_without_executing_anything()`
+- `def test_a_cycle_reports_its_envelope_as_a_warning_not_a_block()`
+- `def test_a_flow_that_cannot_fit_one_pass_is_blocking()`
+- `def test_simulation_route_returns_404_and_a_report()`
+- `def test_a_blocked_candidate_is_rejected_by_improvement(tmp_path, monkeypatch)`
 
 ---
 

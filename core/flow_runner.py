@@ -9,6 +9,13 @@ import types
 from collections import deque, defaultdict
 from .flow_manager import flow_manager
 from core.settings import settings
+from core.execution_budget import (
+    budget_from_flow,
+    current_budget,
+    pop_budget,
+    push_budget,
+    spend,
+)
 from core.debug import debug_logger
 from core.errors import FlowError, NodeExecutionError
 
@@ -279,6 +286,7 @@ class FlowRunner:
         bridge_module_id = bridge_meta['moduleId']
         bridge_type_id = bridge_meta['nodeTypeId']
 
+        spend("nodes")
         bridge_executor_class = await self._get_executor_class(bridge_module_id, bridge_type_id)
         if not bridge_executor_class:
             return bridge_input  # pass-through when executor is missing
@@ -604,7 +612,18 @@ class FlowRunner:
         started = time.perf_counter()
         result = None
         error = None
+        outer_budget = current_budget()
+        token = None
+        budget = outer_budget
+        if budget is None:
+            budget = budget_from_flow(self.flow)
+            token = push_budget(budget)
         try:
+            remaining = budget.remaining("seconds")
+            if timeout is None or timeout <= 0:
+                timeout = remaining
+            else:
+                timeout = min(timeout, remaining)
             result = await self._run(
                 initial_input, start_node_id=start_node_id, timeout=timeout,
                 raise_errors=raise_errors, episode_id=episode_id,
@@ -617,6 +636,8 @@ class FlowRunner:
             error = str(exc)
             raise
         finally:
+            if token is not None:
+                pop_budget(token)
             if self.capture_outcome:
                 from core.outcomes import emit_outcome
 
@@ -924,6 +945,7 @@ class FlowRunner:
 
                 try:
                     # Use thread-safe method to get executor class
+                    spend("nodes")
                     executor_class = await self._get_executor_class(module_id, node_type_id)
                     
                     if not executor_class:

@@ -5,6 +5,7 @@ import logging
 import httpx
 from .router import TOOLS_FILE, LIBRARY_DIR
 from .sandbox import ToolSandbox, SecurityError, ResourceLimitError, TimeoutError
+from core.execution_budget import spend
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,7 @@ class ToolDispatcherExecutor:
                     
                     # Execute tool code in sandboxed environment for security
                     # Use run_in_executor to avoid blocking the event loop
+                    spend("tool_calls")
                     try:
                         loop = asyncio.get_running_loop()
                         result = await loop.run_in_executor(

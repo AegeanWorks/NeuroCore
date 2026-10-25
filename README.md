@@ -119,6 +119,15 @@ NeuroCore is organized into **four clean, decoupled layers:**
 
 Workflows are directed acyclic graphs executed deterministically using Kahn's topological sort and component bridge groups for parallel data sharing.
 
+Every top-level run carries an execution budget: node executions, LLM calls, tokens, tool calls
+and wall time. Nested and bridged runs share the parent allowance, and a flow's
+`metadata.budget` may lower (never raise) a limit. Exhaustion stops the run with a precise
+message; the defaults live in `budget_max_nodes`, `budget_max_llm_calls`, `budget_max_tokens`,
+`budget_max_tool_calls` and `budget_max_seconds`. `GET /ai-flow/{id}/simulate` performs a
+deterministic pre-flight analysis without running anything: dangling connections, unknown node
+types, isolated nodes, cycles, external effects and a cost envelope against the budget. A single
+pass that cannot fit blocks; a cycle that may reach a cap is reported as a warning.
+
 ### Meta-Flows
 
 Small flows are ganglia; a meta-flow joins them through pathways. Inline composition namespaces

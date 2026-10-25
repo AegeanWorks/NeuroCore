@@ -896,6 +896,28 @@ async def validate_flow(flow_id: str, request: Request):
         return {"valid": False, "issues": [], "warnings": [], "error": f"Validation error: {e}"}
 
 
+@router.get("/ai-flow/{flow_id}/simulate", response_class=JSONResponse)
+async def simulate_flow_route(flow_id: str, request: Request):
+    """Deterministic pre-flight analysis: structure, external effects and a cost envelope."""
+    flow = flow_manager.get_flow(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    from core.flow_simulation import simulate_flow
+
+    known = None
+    try:
+        module_manager = request.app.state.module_manager
+        known = set()
+        for module_id, module in (module_manager.modules or {}).items():
+            for node_type in module.get("node_types", []) or []:
+                node_type_id = node_type.get("id") if isinstance(node_type, dict) else node_type
+                if node_type_id:
+                    known.add((module_id, str(node_type_id)))
+    except (AttributeError, KeyError, TypeError):
+        known = None
+    return simulate_flow(flow, known_node_types=known or None)
+
+
 @router.post("/ai-flow/save")
 async def save_ai_flow(request: Request, name: str = Form(...), nodes: str = Form(...), connections: str = Form(...), bridges: str = Form("[]"), flow_id: str = Form(None)):
     if not flow_id:

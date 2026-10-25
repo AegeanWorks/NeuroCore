@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from core.flow_evolution import FlowEvolution, FlowEvolutionError
+from core.flow_simulation import simulate_flow
 from core.paths import data_path
 
 from .evaluation import EvalStore, EvaluationRunner, compare_results
@@ -53,6 +54,7 @@ class Candidate:
     promoted_at: Optional[str] = None
     evaluation: Dict[str, Any] = field(default_factory=dict)
     comparison: Dict[str, Any] = field(default_factory=dict)
+    simulation: Dict[str, Any] = field(default_factory=dict)
     reasons: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -180,9 +182,16 @@ class ImprovementEngine:
             raise ValueError(f"flow '{flow_id}' does not exist")
         goal = self._resolve_goal(goal_id, goal_kind, description)
         try:
-            self.evolution.preview(flow_id, operations)
+            preview = self.evolution.preview(flow_id, operations)
         except FlowEvolutionError as exc:
             raise ValueError(f"candidate is invalid: {exc.errors}") from exc
+        simulation = simulate_flow(preview)
+        if simulation["blocking"]:
+            blocked = "; ".join(
+                finding["message"] for finding in simulation["findings"]
+                if finding["severity"] == "blocking"
+            )
+            raise ValueError(f"candidate failed simulation: {blocked}")
 
         candidate = Candidate(
             flow_id=flow_id,
@@ -192,6 +201,7 @@ class ImprovementEngine:
             goal_id=goal["goal_id"],
             goal_kind=goal["goal_kind"],
             goal_title=goal["goal_title"],
+            simulation=simulation,
         )
         self.candidates[candidate.id] = candidate.to_dict()
         self.candidate_times.append(candidate.created_at)

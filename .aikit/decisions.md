@@ -946,3 +946,40 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   fields; missing links return 400 before anything is written.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-000 (purposeful change),
   PRINCIPLE-007 (plan and impact) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-042: Per-run execution budget
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: A structurally valid flow could still spend without bound: node re-execution was
+  capped but LLM calls, tokens and tool calls were only limited per call, and nested flows had
+  no shared allowance. A retry loop could hammer a provider inside one run.
+- **Decision**: `core/execution_budget.py` creates one `ExecutionBudget` per top-level run with
+  limits for nodes, LLM calls, tokens, tool calls and wall time, published through a context
+  variable so nested and bridged runs share it. Flow metadata may lower, never raise, a limit.
+  `FlowRunner` spends one node per executor, the LLM node reserves a call before the request and
+  charges reported `total_tokens`, and the tool dispatcher reserves one call per execution.
+  Exhaustion raises `BudgetExceeded` with `Why:`/`Fix:` and is reported as a normal failure.
+- **Consequences**: A malicious or accidental flow stops at a predictable point with a precise
+  message. The limits are deployment settings (`budget_max_*`); a flow that legitimately needs
+  more can raise the deployment cap or split itself.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-007 (bounded change),
+  PRINCIPLE-010 (resource optimisation) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-043: Deterministic pre-flight flow simulation
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Flow validation checked structure only; nothing reported external effects, cycle
+  envelopes or whether one pass could fit the new execution budget. Improvement candidates were
+  evaluated without a dry structural analysis.
+- **Decision**: `core/flow_simulation.py` analyses a flow offline: dangling connections, unknown
+  node types when a catalogue is supplied, isolated nodes, strongly connected components,
+  external-effect classification (LLM, write, subflow) and a cost envelope against the run
+  budget. One pass that cannot fit is blocking; a cycle that may repeat into a cap is a warning,
+  because the runtime budget stops it. `GET /ai-flow/{id}/simulate` exposes the report, and the
+  improvement engine stores it on each candidate and rejects a blocking one before the ledger
+  grows.
+- **Consequences**: Editors and operators see the same deterministic report as the improvement
+  gate. The simulation never executes node code and cannot replace evaluation: it is a structural
+  pre-flight, not a behavioural proof.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (read before write),
+  PRINCIPLE-007 (no stub) and PRINCIPLE-014 (failing-first tests).

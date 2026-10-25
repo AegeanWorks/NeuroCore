@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from core.llm import LLMBridge
+from core.execution_budget import spend
 from core.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,19 @@ DEFAULT_TIMEOUT = 120.0  # seconds
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_DELAY = 1.0  # seconds
 MAX_RETRY_DELAY_CAP = 30.0  # Cap exponential backoff to prevent exceeding timeout
+
+
+def _spend_usage(response) -> None:
+    """Charge the run budget with the tokens the provider reported, when available."""
+    usage = response.get("usage") if isinstance(response, dict) else None
+    if not isinstance(usage, dict):
+        return
+    try:
+        total = int(usage.get("total_tokens") or 0)
+    except (TypeError, ValueError):
+        return
+    if total > 0:
+        spend("tokens", total)
 
 
 class LLMExecutor:
@@ -69,17 +83,22 @@ class LLMExecutor:
         stream_queue = config.get("_stream_queue")
         has_tools = bool(final_params.get("tools"))
         
+        # The call itself is reserved before the request, so a retry-heavy loop exhausts the
+        # budget instead of hammering a failing provider (ADR-042).
+        spend("llm_calls")
         if stream_queue and not has_tools:
-            return await self._receive_with_stream(messages, final_params, stream_queue)
-        
-        # Execute with timeout and retry logic
-        return await self._execute_with_retry_and_timeout(
-            messages=messages,
-            timeout=timeout,
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-            **final_params
-        )
+            response = await self._receive_with_stream(messages, final_params, stream_queue)
+        else:
+            # Execute with timeout and retry logic
+            response = await self._execute_with_retry_and_timeout(
+                messages=messages,
+                timeout=timeout,
+                max_retries=max_retries,
+                retry_delay=retry_delay,
+                **final_params
+            )
+        _spend_usage(response)
+        return response
 
     async def _execute_with_retry_and_timeout(self, messages: list, timeout: float, max_retries: int, retry_delay: float, **kwargs) -> dict:
         """
