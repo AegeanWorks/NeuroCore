@@ -1,54 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "link-aware-recall",
+    "task_id": "archive-tif-analysis",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792968570.5077353,
+    "updated_at": 1792969410.4494958,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792968570.9463196
+    "completed_at": 1792969410.7908235
   },
   "checkpoints": [
-    {
-      "task_id": "memory-evidence-links",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'memory-evidence-links' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792955946.4663742,
-      "timestamp_str": "2026-10-25 22:19:06",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "research-gateway",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] ADR-049 allowlisted research gateway: fixed Wikipedia/arXiv/PubMed adapters, HTTPS+host+public-IP validation per redirect hop, 2 MB/10 s caps, 24 h cache with stale fallback, provenance and optional article persistence. [2/3] Routes, README and tests. [3/3] Gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792956764.228218,
-      "timestamp_str": "2026-10-25 22:32:44",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The final report item: research fetches had no provenance and no bounded, allowlisted surface.",
-        "benefits": "Citable results, offline-testable adapters and no generic web/scraping path.",
-        "risks": "contract: a new endpoint only; dependency: httpx already declared; concurrency: cache writes are serialised per process; state: one cache file plus optional research articles.",
-        "mitigation": "Failures return 502, stale cache is explicit, and tests mock the network entirely."
-      }
-    },
-    {
-      "task_id": "research-gateway",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'research-gateway' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792956941.4611523,
-      "timestamp_str": "2026-10-25 22:35:41",
-      "agent": "kilo:main"
-    },
     {
       "task_id": "research-gateway",
       "phase": "phase 4",
@@ -288,6 +251,49 @@
       "status": "completed",
       "timestamp": 1792968570.9463212,
       "timestamp_str": "2026-10-26 01:49:30",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "archive-tif-analysis",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/2] Preserve the Tif assessment before the reference folder is deleted: header archive status, Appendix C implementation map, remaining designs (metric-drift repair, goal review/clarity, destructive confirmation, asymmetric smoothing, gap-driven research), and rejected ideas. [2/2] Gates, commit and push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792969224.1565118,
+      "timestamp_str": "2026-10-26 02:00:24",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The reference folder is about to be deleted; the analysis and remaining designs must survive in the repository.",
+        "benefits": "A self-contained record with implementation status and enough design detail to continue without the source; confirms nothing depends on it.",
+        "risks": "contract: none (documentation); dependency: none; concurrency: none; state: one tracked document.",
+        "mitigation": "No runtime references exist; the note states the folder was unlicensed and records the deletion."
+      }
+    },
+    {
+      "task_id": "archive-tif-analysis",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[2/2] done: the report now carries archive status, a complete implementation map (ADR-039..055), four remaining designs, gap-driven research design, rejected ideas and a deletion-safety statement. checklists: passed (Track B; secrets and guidelines clean); aikit check 4/4.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792969410.4494958,
+      "timestamp_str": "2026-10-26 02:03:30",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "durable record complete",
+        "next": "commit and push",
+        "open": "none besides the optional designs listed in Appendix C"
+      }
+    },
+    {
+      "task_id": "archive-tif-analysis",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'archive-tif-analysis' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792969410.7908251,
+      "timestamp_str": "2026-10-26 02:03:30",
       "agent": "kilo:main"
     }
   ]

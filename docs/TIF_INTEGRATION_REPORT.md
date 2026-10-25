@@ -2,6 +2,8 @@
 
 - **Date:** 2026-10-25
 - **Reference analysed:** `references/Tif` (Tiferet): 51 Python files, 20,822 lines, 58 files total
+- **Archive status:** the folder was analysed read-only and has been removed; this report is the
+  durable record. No NeuroCore code imports, reads or depends on it.
 - **Target:** `projects/neurocore` (`modules/brain`, `core` flow engine, memory, knowledge base, tools)
 - **Status:** read-only assessment; no Tif code was copied, executed, or installed
 - **Constraint:** `references/Tif` contains **no LICENSE file** (and no `pyproject.toml` or
@@ -699,7 +701,7 @@ Total: roughly 33-36 engineer-days, including tests and documentation, excluding
 | History 20, 4-topic stagnation, A-B-A-B | `treeoflife/tiferet_components/decision_maker.py:1035-1071` | P2-9 seed thresholds |
 | Allowed sources and URL checks | `internet_bridge.py:28,74-120` | P2-10 (without scraping) |
 
-## Appendix B: Where to start reading Tif
+## Appendix B: Where the reference was read (paths removed)
 
 Smallest useful reading set, in order:
 
@@ -714,3 +716,108 @@ Smallest useful reading set, in order:
 
 Everything else in Tif is either desktop-specific, persona narrative, or a prompt chain with no
 deterministic contract.
+
+---
+
+## Appendix C: Archive note and post-implementation status
+
+The reference tree was analysed read-only and is now removed. Nothing in NeuroCore imports,
+reads, or depends on it. Do not restore it: it carried no licence and its `settings.json` could
+contain provider credentials. The sections below preserve every remaining idea with enough
+detail to implement it without the source.
+
+### C.1 Implementation status
+
+| Report item | Where it now lives | ADR |
+|-------------|--------------------|-----|
+| Deterministic guardrails | `modules/brain/guardrails.py`, chat/KB/tool surfaces | 040, 050, 054 |
+| Kernel error budget, recovery, dwell | `modules/brain/kernel.py` | 039, 052 |
+| Goal-governed self-modification | `modules/brain/goal_link.py` | 041 |
+| Per-run execution budget | `core/execution_budget.py`, flow/agent executors | 042, 050, 054 |
+| Deterministic flow simulation | `core/flow_simulation.py` | 043, 053 |
+| Versioned skill documents | `modules/skills/versions.py` | 044 |
+| Evidence links, Bayesian confidence, contradiction proposals | `modules/memory/backend.py` | 048 |
+| Failure consolidation into `[avoid]` knowledge | `modules/brain/learning.py` | 047 |
+| Agent-loop repetition guard | `modules/agent_loop/loop_guard.py`, all agent loops | 045, 050, 054 |
+| Allowlisted research gateway with provenance | `core/research_gateway.py` | 049 |
+| Unified daily self-modification budget | `modules/brain/self_budget.py` | 046 |
+| Link-aware recall (post-report addition) | `modules/memory/backend.py` | 055 |
+
+No P0, P1 or P2 report item is open.
+
+### C.2 Remaining ideas, implementable from this note
+
+None is required for the current product. They are ordered by value per unit of risk.
+
+**C.2.1 Metric-drift self-repair proposals (small, deterministic).**
+Original idea: compare recent and prior windows of a health metric and emit a repair goal.
+NeuroCore records evaluation pass rate, provider errors and drift but has no trend detector.
+Design: keep a bounded history (for example the last 100 samples) in brain state; once a day
+compare the mean of the last 20 against the previous 20. Trigger when pass rate falls by more
+than 0.10 or provider errors rise by more than 0.10; create an improvement candidate with
+`goal_kind="self_repair"` and a deterministic reason. Deduplicate by metric and window, cooldown
+six hours, at most one per day through the self-modification budget. Proposal only; an admin
+still approves. No LLM. Files: `modules/brain/service.py` or a small `trends.py`; tests.
+Effort: one to two days.
+
+**C.2.2 Goal review and clarity (small, deterministic).**
+Original idea: rank/prune goals and score "objective clarity". NeuroCore stores description,
+priority, status, context, deadline and timestamps but exposes no review and has no clarity
+signal. Design: `POST /brain/goals/review` returns, without mutating, overdue goals, stale goals
+(no update in N days), low-clarity goals and near-duplicates. Clarity is a deterministic score:
+description length, context present, deadline or priority set, no duplicate. Promotion already
+revalidates the linked goal; optionally warn when clarity is below a threshold. Files:
+`modules/brain/goal_link.py` or a new `goal_review.py` plus router; tests. Effort: one day.
+
+**C.2.3 Server-side confirmation for irreversible operations (small).**
+Original idea: a pending-confirmation command. NeuroCore destructive routes (reset settings,
+clear all documents, wipe memory, delete all sessions) rely on the browser `confirm()` dialog
+only, which API callers bypass. Design: require an explicit typed confirmation in the body (for
+example `{"confirm": "delete all documents"}`) or a short-lived nonce issued by a GET; reject
+with 400 and `Why:`/`Fix:`. Keep the dialogs as UX. Admin auth already covers kernel reset.
+Files: `core/routers.py`, `modules/knowledge_base/router.py`, `modules/memory/router.py`,
+`modules/chat/router.py`; tests. Effort: one to two days.
+
+**C.2.4 Asymmetric risk smoothing (small, optional).**
+Original idea: fast-attack/slow-release smoothing (`alpha` 0.5 / 0.1). NeuroCore uses raw risk,
+bounded windows and a dwell. Design: escalate on raw risk so SAFE is never delayed; de-escalate
+on `smoothed = 0.1 * raw + 0.9 * smoothed`; persist the smoothed value; reset clears it. Files:
+`modules/brain/kernel.py`; tests for a spike and a slow recovery. Effort: one day.
+
+**C.2.5 Optional product ideas.**
+- Dialectic critique flow node (thesis, antithesis, synthesis): three budgeted LLM calls,
+  advisory only, never a gate. Two to three days; only if high-stakes review is wanted.
+- Event-bus priority and load shedding: add only if brain event volume grows; the bus is already
+  bounded, deduplicated and handler-timeout guarded.
+- Gap-driven research: see C.3; a product decision, not a defect.
+
+### C.3 Gap-driven research proposals (design only)
+
+Goal: turn weak knowledge into reviewable research work without autonomous writes.
+Inputs: low-confidence memories without accepted supporting links, unresolved contradiction
+proposals, sparse unverified subjects and stale facts. Scanner: deterministic, bounded to the
+last N active memories, with a cooldown per subject and deduplication against open proposals.
+Output: proposals (not goals) carrying the evidence for the gap. Accepting a proposal creates a
+goal; an optional action queries `core/research_gateway.search` for the topic and stores the
+provenance. No LLM decides whether a gap exists; an LLM may summarise only after a human accepts.
+Files: `modules/brain/gaps.py`, router endpoints, tests. Effort: three to four days. Skip if the
+product should stay reactive.
+
+### C.4 Explicitly rejected
+
+- Drives, metabolism, circadian phases, identity-stability metrics, phenomenology, narrative and
+  "consciousness" scripts. They add prompt surface and unverifiable state.
+- Global workspace/spotlight and thalamus input buffering: anthropomorphic context machinery with
+  no measurable advantage over session context and memory recall.
+- Dream cycles, policy-weight learning, autonomous goals from value conflicts, and user/creator
+  modelling: non-deterministic, privacy-sensitive and not tied to an evaluation gate.
+- Plugin AST validator, shell command allowlist and text-tag tool execution: weaker than the
+  existing sandbox and structured tool calls.
+- Persona/default prompt text and "core value" prompt invariants: brittle, and contrary to the
+  eval-gated prompt/skill workflow.
+- `internet_bridge`: superseded by the allowlisted research gateway.
+
+### C.5 Deleting the reference
+
+It is safe to delete `references/Tif`: only this report mentioned it, and no script, test,
+manifest or runtime path reads it. Do not copy code or prompt text from it; it is unlicensed.
