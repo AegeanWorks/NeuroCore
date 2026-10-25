@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+
+from modules.brain.guardrails import scan_input
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -176,7 +178,28 @@ async def process_and_save_document(tracking_id: str, file_path: str, original_f
 
         processor = DocumentProcessor(llm)
         chunks, page_count, file_type = await processor.process_document(file_path, progress_callback=progress_callback)
-        
+
+        # Guard the ingestion surface, not only chat: a document is untrusted input too.
+        flagged = blocked = 0
+        for chunk in chunks:
+            verdict = scan_input(str(chunk.get("text", "")))
+            if verdict.findings:
+                flagged += 1
+            if verdict.blocked:
+                blocked += 1
+        if blocked:
+            with upload_progress_lock:
+                upload_progress[tracking_id]["status"] = "error"
+                upload_progress[tracking_id]["message"] = (
+                    f"Blocked by the input guardrail ({blocked} chunk(s)); nothing was indexed"
+                )
+            return
+        if flagged:
+            logger.warning(
+                "Knowledge base document %r has %d flagged chunk(s); indexing continues",
+                original_filename, flagged,
+            )
+
         with upload_progress_lock:
             if upload_progress.get(tracking_id, {}).get("status") == "aborted":
                 raise Exception("ABORTED")

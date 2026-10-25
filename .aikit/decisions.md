@@ -1179,3 +1179,31 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   unit, and a corrupt cache file degrades instead of breaking a search.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (verify before a
   change), PRINCIPLE-010 (resource accounting) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-054: Closing the remaining review gaps
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: The second review left six hardening gaps: the repetition guard ran only in the
+  standard agent loop, guardrails covered only chat, the research cache used a process-local lock,
+  an invalid legacy skill id could break listing, disabled modules still counted as installed in
+  simulation, and merged (archived) memories still counted as evidence.
+- **Decision**:
+  1. The repetition guard now runs in the RLM and hybrid loops too (goal pursuit inherits the
+     hybrid loop); an abort records `loop_error` in `repl_state`/`final_state` and surfaces as
+     `agent_loop_error` and `loop_detected`.
+  2. Knowledge-base chunks are scanned before indexing (enforce blocks the document, observe logs
+     and continues); tool results are scanned for credential shapes and redacted before entering a
+     conversation or flow output.
+  3. The research cache takes an OS file lock in addition to its thread lock, so workers sharing a
+     state directory cannot lose entries.
+  4. Invalid legacy skill ids are skipped by listing and treated as missing by lookups; reports,
+     updates and deletes return None/False instead of raising.
+  5. Simulation only treats enabled manifests as installed.
+  6. Confidence counts only links between active, unarchived memories; merging recomputes the
+     targets of archived sources, and the merge log write happens after releasing the
+     non-reentrant lock (a pre-existing deadlock).
+- **Consequences**: All agent modes share loop protection, untrusted documents and tool output are
+  screened, multi-worker caches stay consistent, legacy bad data no longer breaks the skills list,
+  and merged evidence cannot silently inflate confidence.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (resource accounting),
+  PRINCIPLE-013 (state integrity) and PRINCIPLE-014 (failing-first tests).

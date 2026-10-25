@@ -4,11 +4,14 @@ Backend for Skills module - handles file storage and retrieval of SKILL.md files
 
 import os
 import json
+import logging
 import re
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from .versions import SkillVersionStore
+
+logger = logging.getLogger(__name__)
 
 
 class SkillBackend:
@@ -42,10 +45,14 @@ class SkillBackend:
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
     
+    @staticmethod
+    def _valid_skill_id(skill_id: str) -> bool:
+        return bool(re.fullmatch(r"[A-Za-z0-9_-]{1,128}", str(skill_id)))
+
     def _get_skill_path(self, skill_id: str) -> str:
         """Get file path for a skill's markdown file; reject anything that can escape it."""
         name = str(skill_id)
-        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", name):
+        if not self._valid_skill_id(name):
             raise ValueError(
                 "skill_id must be 1-128 characters of letters, digits, underscore or hyphen"
             )
@@ -85,6 +92,9 @@ class SkillBackend:
         skills = []
         
         for skill_id, meta in metadata.items():
+            if not self._valid_skill_id(skill_id):
+                logger.warning("Skipping a skill with an unsafe legacy id: %r", skill_id)
+                continue
             skill_path = self._get_skill_path(skill_id)
             if os.path.exists(skill_path):
                 # Add file stats
@@ -98,6 +108,8 @@ class SkillBackend:
     
     def get_skill(self, skill_id: str) -> Optional[Dict[str, Any]]:
         """Get a skill's metadata and content."""
+        if not self._valid_skill_id(skill_id):
+            return None
         metadata = self._load_metadata()
         
         if skill_id not in metadata:
@@ -153,6 +165,8 @@ class SkillBackend:
                      description: Optional[str] = None, content: Optional[str] = None,
                      category: Optional[str] = None, tags: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """Update an existing skill."""
+        if not self._valid_skill_id(skill_id):
+            return None
         metadata = self._load_metadata()
         
         if skill_id not in metadata:
@@ -185,6 +199,8 @@ class SkillBackend:
     
     def delete_skill(self, skill_id: str) -> bool:
         """Delete a skill."""
+        if not self._valid_skill_id(skill_id):
+            return False
         metadata = self._load_metadata()
         
         if skill_id not in metadata:
@@ -237,6 +253,8 @@ class SkillBackend:
     
     def get_skill_content_only(self, skill_id: str) -> Optional[str]:
         """Get only the content of a skill (for system prompt injection)."""
+        if not self._valid_skill_id(skill_id):
+            return None
         skill_path = self._get_skill_path(skill_id)
         
         if not os.path.exists(skill_path):
@@ -247,6 +265,8 @@ class SkillBackend:
     
     def skill_exists(self, skill_id: str) -> bool:
         """Check if a skill exists."""
+        if not self._valid_skill_id(skill_id):
+            return False
         metadata = self._load_metadata()
         skill_path = self._get_skill_path(skill_id)
         return skill_id in metadata and os.path.exists(skill_path)

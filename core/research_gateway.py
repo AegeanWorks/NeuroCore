@@ -24,6 +24,7 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import quote_plus, urljoin, urlparse
 
 import httpx
+from filelock import FileLock
 
 from core.paths import data_path
 
@@ -244,6 +245,9 @@ class _Cache:
     def __init__(self, path: Optional[str] = None):
         self.path = path or data_path("research_gateway_cache.json")
         self._lock = threading.Lock()
+        # Several uvicorn workers may share one cache file; the process-local lock alone would
+        # let them overwrite each other's entries (ADR-054).
+        self._file_lock = FileLock(f"{self.path}.lock", timeout=5)
 
     def _load(self) -> Dict[str, Any]:
         try:
@@ -255,10 +259,12 @@ class _Cache:
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         with self._lock:
-            return self._load().get(key)
+            with self._file_lock:
+                value = self._load().get(key)
+        return value if isinstance(value, dict) else None
 
     def put(self, key: str, payload: Dict[str, Any]) -> None:
-        with self._lock:
+        with self._lock, self._file_lock:
             data = self._load()
             data[key] = payload
             for corrupt_key in [name for name, value in data.items()

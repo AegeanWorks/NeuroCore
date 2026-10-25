@@ -147,12 +147,3 @@ class SkillVersionStore:
         result["content"] = content
         result["active"] = index.get("active") == record["version"]
         return result
-
-    def activate(self, skill_id: str, version: int) -> bool:
-        """Point the active marker at an existing version without rewriting the file."""
-        index = self._load_index(skill_id)
-        if not any(item.get("version") == int(version) for item in index["versions"]):
-            return False
-        index["active"] = int(version)
-        self._save_index(skill_id, index)
-        return True

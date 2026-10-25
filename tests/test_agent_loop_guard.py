@@ -92,3 +92,13 @@ async def test_the_agent_loop_aborts_after_a_repeated_call():
     assert iterations == 4, "three calls warn at the third, abort at the fourth"
     assert had_tool_error is False
     assert response is repeated
+
+
+def test_tool_output_credentials_are_redacted_before_context():
+    from modules.agent_loop.node import _redact_tool_output
+
+    result = _redact_tool_output({"content": "token = 'abcdefgh12345678'"})
+
+    assert "abcdefgh12345678" not in result["content"]
+    assert "[REDACTED]" in result["content"]
+    assert result["redacted"] >= 1

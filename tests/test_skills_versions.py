@@ -108,3 +108,20 @@ def test_versions_survive_a_new_backend_instance(tmp_path):
         (Path(backend.storage_path) / "versions" / skill["id"] / "index.json").read_text(
             encoding="utf-8")
     )["active"] == 1
+
+
+def test_list_skills_skips_an_unsafe_legacy_id(tmp_path):
+    backend = make_backend(tmp_path)
+    backend.create_skill("Good", "ok", "text")
+    metadata_path = Path(backend.storage_path) / "skills_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["../escape"] = {"name": "Bad", "created_at": "2026-01-01T00:00:00Z"}
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    skills = backend.list_skills()
+
+    assert [skill["id"] for skill in skills] == ["good"]
+    assert backend.skill_exists("../escape") is False
+    assert backend.get_skill("../escape") is None
+    assert backend.get_skill_content_only("../escape") is None
+    assert backend.delete_skill("../escape") is False

@@ -839,9 +839,23 @@ class MemoryStore:
                 
                 if len(originals) < 2:
                     return None
-                
+
+                placeholders = ','.join(['?'] * len(memory_ids))
+                affected = [
+                    int(row[0]) for row in con.execute(
+                        f"""SELECT DISTINCT target_id FROM memory_links
+                            WHERE source_id IN ({placeholders})
+                              AND target_id NOT IN ({placeholders})""",
+                        list(memory_ids) + list(memory_ids),
+                    ).fetchall()
+                ]
+
                 for orig_id, _, _, _ in originals:
                     con.execute("UPDATE memories SET parent_id = ? WHERE id = ?", (orig_id, orig_id))
+
+                # Archived originals no longer count as evidence; recompute their targets.
+                for target_id in affected:
+                    self._recompute_confidence(target_id, con)
                 
                 avg_embedding = None
                 embeddings = []
@@ -883,9 +897,12 @@ class MemoryStore:
                         self._save_faiss_index()
                 
                 description = f"Merged memories {', '.join(['#' + str(mid) for mid in memory_ids])} into #{new_id}: {new_text[:50]}..."
-                self.log_meta_memory("merge", memory_ids, json.dumps({"new_id": new_id, "new_text": new_text}), description)
-                
-                return new_id
+
+            # Log AFTER releasing write_lock — log_meta_memory acquires it itself and the
+            # lock is not reentrant.
+        self.log_meta_memory("merge", memory_ids, json.dumps({"new_id": new_id, "new_text": new_text}), description)
+
+        return new_id
 
     LINK_RELATIONS = ("supports", "contradicts", "derived_from", "supersedes")
     LINK_STATUSES = ("proposed", "accepted")
@@ -981,6 +998,7 @@ class MemoryStore:
             JOIN memories t ON t.id = l.target_id
             WHERE (l.source_id=? OR l.target_id=?)
               AND s.deleted=0 AND t.deleted=0
+              AND s.parent_id IS NULL AND t.parent_id IS NULL
         """
         params: List = [int(memory_id), int(memory_id)]
         if relation:
@@ -1025,8 +1043,8 @@ class MemoryStore:
                  SUM(CASE WHEN l.relation='supports' THEN 1 ELSE 0 END),
                  SUM(CASE WHEN l.relation='contradicts' THEN 1 ELSE 0 END)
                FROM memory_links l
-               JOIN memories s ON s.id = l.source_id AND s.deleted = 0
-               JOIN memories t ON t.id = l.target_id AND t.deleted = 0
+               JOIN memories s ON s.id = l.source_id AND s.deleted = 0 AND s.parent_id IS NULL
+               JOIN memories t ON t.id = l.target_id AND t.deleted = 0 AND t.parent_id IS NULL
                WHERE l.target_id=? AND l.status='accepted'""",
             (int(memory_id),),
         ).fetchone()

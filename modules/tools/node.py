@@ -6,6 +6,7 @@ import httpx
 from .router import TOOLS_FILE, LIBRARY_DIR
 from .sandbox import ToolSandbox, SecurityError, ResourceLimitError, TimeoutError
 from core.execution_budget import spend
+from modules.brain.guardrails import scan_output
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,12 @@ class ToolDispatcherExecutor:
                         output = f"Error executing tool {func_name}: {str(e)}"
             else:
                 output = f"Error: Tool {func_name} not found in library."
+
+            # Tool output is untrusted: redact credential-shaped text before it reaches
+            # the conversation (ADR-054).
+            guard = scan_output(str(output))
+            if guard.redactions:
+                output = guard.text
 
             results.append({
                 "tool_call_id": tool_call["id"],

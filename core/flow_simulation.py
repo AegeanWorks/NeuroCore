@@ -163,6 +163,10 @@ def node_type_catalogue(modules: Any) -> Set[Tuple[str, str]]:
     for module_id, manifest in modules.items():
         if not isinstance(manifest, dict):
             continue
+        if not manifest.get("enabled", False):
+            # The loader only starts enabled modules; a disabled manifest's node types are not
+            # installed even though its file still declares them.
+            continue
         provided = manifest.get("provides_nodes") or manifest.get("node_types") or []
         if manifest.get("is_flow_node"):
             # Single-node modules (llm_module, system_prompt) declare no provides_nodes and use

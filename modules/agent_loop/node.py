@@ -7,6 +7,7 @@ from core.llm import LLMBridge
 from core.execution_budget import spend
 from core.settings import settings
 from modules.agent_loop.loop_guard import LoopGuard
+from modules.brain.guardrails import scan_output
 from modules.tools.sandbox import ToolSandbox
 from core.session_manager import session_manager, get_session_manager, EpisodeState
 
@@ -20,6 +21,16 @@ def _charge_llm_usage(response) -> None:
         total = 0
     if total > 0:
         spend("tokens", total)
+
+
+def _redact_tool_output(tool_result):
+    """Redact credential-shaped text before a tool result enters the context."""
+    if isinstance(tool_result, dict) and isinstance(tool_result.get("content"), str):
+        verdict = scan_output(tool_result["content"])
+        if verdict.redactions:
+            tool_result["content"] = verdict.text
+            tool_result["redacted"] = verdict.redactions
+    return tool_result
 
 
 logger = logging.getLogger(__name__)
@@ -772,7 +783,9 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     })
 
                 iteration_trace["tool_calls"].append(tool_name)
-                tool_result = await self._execute_tool(tool_call, tool_library)
+                tool_result = _redact_tool_output(
+                    await self._execute_tool(tool_call, tool_library)
+                )
 
                 # Fix 1: truncate large tool outputs at the source
                 if max_tool_output_chars > 0:
@@ -1507,6 +1520,7 @@ Call set_final() when complete."""
 
         llm_messages = initial_messages.copy()
         seen_calls: set[str] = set()
+        guard = LoopGuard()
 
         for iteration in range(max_iterations):
             repl_state["iteration"] = iteration
@@ -1601,9 +1615,22 @@ Call set_final() when complete."""
                     )
                     continue
                 seen_calls.add(call_sig)
+                decision = guard.observe(tool_name, fn.get("arguments", "{}"))
+                if decision:
+                    iteration_trace["errors"].append(decision["reason"])
+                    if decision["action"] == "abort":
+                        repl_state["loop_error"] = decision["reason"]
+                        break
+                    llm_messages.append({
+                        "role": "system",
+                        "content": "Loop detected: " + decision["reason"]
+                        + ". Change the approach or set a final answer.",
+                    })
                 iteration_trace["tool_calls"].append(tool_name)
 
-                tool_result = await self._execute_tool(tool_call, tool_library, repl_state)
+                tool_result = _redact_tool_output(
+                    await self._execute_tool(tool_call, tool_library, repl_state)
+                )
 
                 output_content = tool_result["content"]
                 repl_state["stdout_history"].append(str(output_content))
@@ -1628,6 +1655,10 @@ Call set_final() when complete."""
                     await stream_queue.put(
                         {"type": "thinking", "content": list(thinking_steps)}
                     )
+
+            if repl_state.get("loop_error"):
+                trace.append(iteration_trace)
+                break
 
             if repl_state.get("final") is not None:
                 trace.append(iteration_trace)
@@ -1821,6 +1852,10 @@ Call set_final() when complete."""
 
             result = input_data.copy()
             result["content"] = final_result or ""
+            loop_error = final_state.get("loop_error")
+            if loop_error:
+                result["agent_loop_error"] = f"Loop detected: {loop_error}"
+                result["loop_detected"] = loop_error
             result["repl_state"] = {
                 "variables": final_state.get("variables", {}),
                 "iteration": final_state.get("iteration", 0),
@@ -1835,7 +1870,7 @@ Call set_final() when complete."""
                 result["rlm_error"] = "No final answer set — max iterations reached or error"
 
             # Re-planning detection
-            actually_failed = not final_result
+            actually_failed = not final_result or bool(loop_error)
 
             plan = input_data.get("plan", [])
             current_step = input_data.get("current_step", 0)
@@ -2194,6 +2229,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         final_response = None
         had_tool_error = False
         _consecutive_unhelpful = 0  # iterations where every result was unhelpful
+        guard = LoopGuard()
 
         for iteration in range(max_iterations):
             # Reset per-iteration: dedup catches duplicate calls within a single
@@ -2276,11 +2312,22 @@ class HybridAgentExecutor(AgentBaseExecutor):
                     )
                     continue
                 seen_calls.add(call_sig)
+                decision = guard.observe(tool_name, tool_args)
+                if decision:
+                    iteration_trace["errors"].append(decision["reason"])
+                    if decision["action"] == "abort":
+                        repl_state["loop_error"] = decision["reason"]
+                        break
+                    llm_messages.append({
+                        "role": "system",
+                        "content": "Loop detected: " + decision["reason"]
+                        + ". Change the approach or stop and explain what is blocking you.",
+                    })
 
                 iteration_trace["tool_calls"].append(tool_name)
-                tool_result = await self._execute_tool(
+                tool_result = _redact_tool_output(await self._execute_tool(
                     tool_call, tool_library, repl_state, large_output_threshold
-                )
+                ))
 
                 success = tool_result.get("success", False)
                 display = (tool_result.get("content") or "").strip()[:400]
@@ -2302,6 +2349,9 @@ class HybridAgentExecutor(AgentBaseExecutor):
                 llm_messages.append(tool_result)
 
             trace.append(iteration_trace)
+
+            if repl_state.get("loop_error"):
+                break
 
             if tool_error_occurred and tool_error_strategy == "stop":
                 break
@@ -2576,8 +2626,12 @@ class HybridAgentExecutor(AgentBaseExecutor):
             }
 
             # Re-planning detection (mirrors AgentLoopExecutor logic)
+            loop_error = repl_state.get("loop_error")
+            if loop_error:
+                result["agent_loop_error"] = f"Loop detected: {loop_error}"
+                result["loop_detected"] = loop_error
             has_error_flag = final_response.get("error") is not None if final_response else False
-            actually_failed = had_tool_error or not content or has_error_flag
+            actually_failed = had_tool_error or not content or has_error_flag or bool(loop_error)
 
             plan = input_data.get("plan", [])
             current_step = input_data.get("current_step", 0)

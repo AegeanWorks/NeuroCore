@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `276`
 - **Total Classes**: `399`
-- **Total Top-Level Functions**: `1790`
+- **Total Top-Level Functions**: `1794`
 - **Total Class Methods**: `2144`
-- **Total Source Lines**: `77467`
+- **Total Source Lines**: `77636`
 
 ---
 
@@ -344,7 +344,7 @@
 ### [`core/flow_simulation.py`](core/flow_simulation.py)
 > *Deterministic pre-flight flow analysis: structure, effects and a cost envelope.*
 
-**Size**: `317` lines (`12595` bytes)
+**Size**: `321` lines (`12824` bytes)
 
 **Classes:**
 - `class Finding`
@@ -540,7 +540,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `397` lines (`15265` bytes)
+**Size**: `403` lines (`15632` bytes)
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -1003,7 +1003,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5722` lines (`264027` bytes)
+**Size**: `5776` lines (`266519` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1078,6 +1078,7 @@
 
 **Functions:**
 - `def _charge_llm_usage(response)` - *Charge the run budget with the tokens the provider reported.*
+- `def _redact_tool_output(tool_result)` - *Redact credential-shaped text before a tool result enters the context.*
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -2376,7 +2377,7 @@
 ---
 
 ### [`modules/knowledge_base/router.py`](modules/knowledge_base/router.py)
-**Size**: `544` lines (`22249` bytes)
+**Size**: `567` lines (`23136` bytes)
 
 **Functions:**
 - `def _format_size(size_bytes)` - *Return a human-readable file size string.*
@@ -2485,7 +2486,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1322` lines (`59362` bytes)
+**Size**: `1340` lines (`60223` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -2935,7 +2936,7 @@
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `271` lines (`9987` bytes)
+**Size**: `291` lines (`10687` bytes)
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -2943,6 +2944,7 @@
   - Method `._ensure_storage_exists()` - *Ensure storage directory and metadata file exist.*
   - Method `._save_metadata(metadata)` - *Save skills metadata to JSON file.*
   - Method `._load_metadata()` - *Load skills metadata from JSON file.*
+  - Method `._valid_skill_id(skill_id)`
   - Method `._get_skill_path(skill_id)` - *Get file path for a skill's markdown file; reject anything that can escape it.*
   - Method `._generate_skill_id(name)` - *Generate a URL-friendly skill ID from name.*
   - Method `.list_skills()` - *List all skills with their metadata.*
@@ -3016,7 +3018,7 @@
 ### [`modules/skills/versions.py`](modules/skills/versions.py)
 > *Content-addressed versions for skill documents.*
 
-**Size**: `158` lines (`6431` bytes)
+**Size**: `149` lines (`6024` bytes)
 
 **Classes:**
 - `class SkillVersionStore` - *Per-skill version history rooted beside the skill storage.*
@@ -3030,7 +3032,6 @@
   - Method `.versions(skill_id)`
   - Method `.active(skill_id)`
   - Method `.read(skill_id, version)`
-  - Method `.activate(skill_id, version)` - *Point the active marker at an existing version without rewriting the file.*
 
 **Functions:**
 - `def _now()`
@@ -3175,7 +3176,7 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `168` lines (`7140` bytes)
+**Size**: `175` lines (`7434` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -3456,7 +3457,7 @@
 ### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
 > *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
 
-**Size**: `94` lines (`3530` bytes)
+**Size**: `104` lines (`3869` bytes)
 
 **Functions:**
 - `def test_transport_identifiers_do_not_make_a_call_unique()`
@@ -3467,6 +3468,7 @@
 - `def test_distinct_calls_do_not_trip_the_guard()`
 - `def test_malformed_arguments_still_produce_a_stable_signature()`
 - `async def test_the_agent_loop_aborts_after_a_repeated_call()`
+- `def test_tool_output_credentials_are_redacted_before_context()`
 
 ---
 
@@ -4771,7 +4773,7 @@
 ### [`tests/test_flow_simulation.py`](tests/test_flow_simulation.py)
 > *Deterministic flow simulation: structure, effects, cycles and cost envelope.*
 
-**Size**: `165` lines (`6242` bytes)
+**Size**: `170` lines (`6587` bytes)
 
 **Functions:**
 - `def node(node_id, module, node_type, **extra)`
@@ -5357,7 +5359,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `255` lines (`9694` bytes)
+**Size**: `269` lines (`10243` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -5379,6 +5381,7 @@
 - `def test_an_accepted_link_persists_confidence_immediately(store)`
 - `def test_deleting_a_link_restores_the_stored_confidence(store)`
 - `def test_deleting_an_evidence_memory_removes_its_links_and_confidence(store)`
+- `def test_merging_archives_sources_and_recomputes_confidence(store)`
 
 ---
 
@@ -6297,7 +6300,7 @@
 ### [`tests/test_skills_versions.py`](tests/test_skills_versions.py)
 > *Content-addressed skill versions: history, deduplication and auditable rollback.*
 
-**Size**: `110` lines (`4460` bytes)
+**Size**: `127` lines (`5211` bytes)
 
 **Functions:**
 - `def make_backend(tmp_path)`
@@ -6310,6 +6313,7 @@
 - `def test_the_backend_path_helper_rejects_traversal(tmp_path)`
 - `def test_a_corrupt_index_reads_as_empty_and_recovers(tmp_path)`
 - `def test_versions_survive_a_new_backend_instance(tmp_path)`
+- `def test_list_skills_skips_an_unsafe_legacy_id(tmp_path)`
 
 ---
 

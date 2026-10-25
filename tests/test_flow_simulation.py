@@ -124,12 +124,15 @@ def test_the_catalogue_reads_provides_nodes_from_manifests():
     from core.flow_simulation import node_type_catalogue
 
     catalogue = node_type_catalogue({
-        "chat": {"provides_nodes": [{"id": "chat_input"}, "chat_output"]},
-        "meta": {"node_types": [{"id": "subflow"}]},
+        "chat": {"enabled": True, "provides_nodes": [{"id": "chat_input"}, "chat_output"]},
+        "meta": {"enabled": True, "node_types": [{"id": "subflow"}]},
+        "llm_module": {"enabled": True, "is_flow_node": True},
+        "disabled": {"enabled": False, "provides_nodes": [{"id": "ghost"}]},
         "broken": "not a manifest",
     })
     assert catalogue == {("chat", "chat_input"), ("chat", "chat_output"),
-                         ("meta", "subflow")}
+                         ("meta", "subflow"), ("llm_module", "llm_module")}
+    assert ("disabled", "ghost") not in catalogue
 
 
 def test_a_missing_provides_nodes_entry_blocks_the_flow():
@@ -137,7 +140,9 @@ def test_a_missing_provides_nodes_entry_blocks_the_flow():
 
     report = simulate_flow(
         flow([node("a", "chat", "chat_input")]),
-        known_node_types=node_type_catalogue({"chat": {"provides_nodes": [{"id": "chat_output"}]}}),
+        known_node_types=node_type_catalogue({"chat": {
+            "enabled": True, "provides_nodes": [{"id": "chat_output"}],
+        }}),
     )
     assert report["blocking"]
     assert any(finding["code"] == "unknown_node_type" for finding in report["findings"])
@@ -156,9 +161,9 @@ def test_the_catalogue_includes_single_node_modules():
     from core.flow_simulation import node_type_catalogue
 
     catalogue = node_type_catalogue({
-        "llm_module": {"is_flow_node": True},
-        "system_prompt": {"is_flow_node": True, "provides_nodes": []},
-        "chat": {"provides_nodes": [{"id": "chat_input"}]},
+        "llm_module": {"enabled": True, "is_flow_node": True},
+        "system_prompt": {"enabled": True, "is_flow_node": True, "provides_nodes": []},
+        "chat": {"enabled": True, "provides_nodes": [{"id": "chat_input"}]},
     })
     assert ("llm_module", "llm_module") in catalogue
     assert ("system_prompt", "system_prompt") in catalogue

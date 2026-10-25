@@ -253,3 +253,17 @@ def test_deleting_an_evidence_memory_removes_its_links_and_confidence(store):
     assert stored_confidence(store, target) == 0.5
     assert store.bayesian_confidence(target)["supports"] == 0
     assert store.get_links(target) == []
+
+
+def test_merging_archives_sources_and_recomputes_confidence(store):
+    first = add(store, "alpha fact")
+    second = add(store, "beta fact")
+    target = add(store, "target fact")
+    store.add_link(first, target, relation="supports", status="accepted")
+    assert stored_confidence(store, target) == round(2 / 3, 4)
+
+    merged = store.merge_memories([first, second], "alpha and beta")
+
+    assert merged is not None
+    assert stored_confidence(store, target) == 0.5, "archived evidence stops counting"
+    assert store.get_links(target) == []
