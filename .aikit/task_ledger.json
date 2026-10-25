@@ -1,63 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "skill-version-registry",
+    "task_id": "brain-p2-controls",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792951712.38104,
+    "updated_at": 1792954643.9871538,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792951712.7268372
+    "completed_at": 1792954644.2046027
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-followups-v1",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/6] Brain and meta modules opt-in (enabled false) with docs. [2/6] Default flow messaging nodes use messaging_bridge messaging_input/messaging_output; test that every default-flow node dispatches. [3/6] Cycle breaking enters each cycle at its entry node (fed from sorted nodes) instead of the alphabetically first id; cycles stay bounded loops, strict_cycle_mode opt-in; ADR declines default rejection because the default tool loop is a cycle. [4/6] Brain token lookup by sha256 token id (one PBKDF2 per request), legacy records backfilled, last_used writes throttled. [5/6] testclient/testserver host hooks honoured only under NEUROCORE_TEST_MODE set by conftest. [6/6] data_path(): one data directory (NEUROCORE_STATE_DIR when set, else project data/) for every data/ file incl. decoder key, so tests isolate it; full verification, ADR.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792919103.4971278,
-      "timestamp_str": "2026-10-25 12:05:03",
-      "agent": "claude-code:neurocore",
-      "impact_assessment": {
-        "why": "Follow-ups 2-5 from the audit review: experimental brain enabled by default, dead telegram nodes in the default flow, cycles entered at the wrong node, per-actor PBKDF2 per request, test hooks reachable in production, data/ files outside the state dir.",
-        "benefits": "Experimental code stays off until chosen; default flow sends replies; source-less cyclic runs start at the cycle entry; brain auth cost O(1); no production path treats a host name string as loopback; tests never touch real data/.",
-        "risks": "contract: brain/meta disabled for installs that relied on default-on; default flow nodes change for new installs only; cyclic flows run in a different initial order without a source; brain token records gain token_id; dependency: none; concurrency: actor ledger writes reduced; state: data files keep their current location in every existing deployment (state dir set => same dir Docker uses today).",
-        "mitigation": "Failing-first tests per milestone, full suite plus concurrent-run chaos check, README and ADR-036, no commit until authorized."
-      }
-    },
-    {
-      "task_id": "neurocore-followups-v1",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[1/6]-[3/6] done. Brain ships disabled (meta stays enabled: saved meta-flows use its subflow node and the runner rejects disabled modules); brain tests load it via an autouse fixture that patches discovery, never the manifest. Default flow uses messaging_bridge messaging_input/messaging_output(auto); test asserts every default-flow node dispatches. Cycle breaking enters at the node fed from sorted nodes; default tool loop now orders llm before router/tool/chat_output. 92+32 targeted tests pass.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792919352.6477227,
-      "timestamp_str": "2026-10-25 12:09:12",
-      "agent": "claude-code:neurocore"
-    },
-    {
-      "task_id": "neurocore-followups-v1",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[4/6]-[6/6] done: brain tokens are <key_id>.<secret> so authentication verifies one record (legacy/caller-chosen tokens keep the scan, last_used rewrites at most once a minute); testclient/testserver are loopback only under NEUROCORE_TEST_MODE set by conftest; core.paths.data_path() is the single data directory (state dir when set, else project data/) used by routers, memory, knowledge base, research, observability, reasoning book, session manager and every brain ledger, decoder key included; decoder/hardware paths and dashboard counts follow it. ADR-036, README loop and brain opt-in docs, new tests for token cost, test-mode hooks and path isolation. Full suite 1760 passed 7 skipped; aikit check neurocore 4/4; checklists: passed. No commit (delivery not authorized).",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792927290.6451702,
-      "timestamp_str": "2026-10-25 14:21:30",
-      "agent": "kilo:neurocore",
-      "handoff": {
-        "state": "follow-ups complete and green",
-        "next": "commit approval for neurocore-followups-v1, then reaction delivery/inbox polish and optional auto-mode design",
-        "open": "34 modified/3 untracked, brain disabled, Docker image build still unverified (daemon not running)",
-        "evidence": "pytest 1760 passed 7 skipped, aikit check 4/4"
-      },
-      "continued_from": "claude-code:neurocore"
-    },
     {
       "task_id": "neurocore-followups-v1",
       "phase": "phase 4",
@@ -297,6 +251,49 @@
       "status": "completed",
       "timestamp": 1792951712.726839,
       "timestamp_str": "2026-10-25 21:08:32",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "brain-p2-controls",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/4] Failure consolidation into bounded avoidance knowledge (ADR-047). [2/4] Agent-loop repetition guard with warning then abort (ADR-045). [3/4] Unified daily self-modification budget across improvement, configuration and learning (ADR-046). [4/4] Gates, commit and push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792954630.6276755,
+      "timestamp_str": "2026-10-25 21:57:10",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The remaining P2 control items from the Tif report: repeated failures were never distilled, looping agents only stopped at the iteration cap, and learning writes were unbounded across subsystems.",
+        "benefits": "Recurring failures become reviewable advice, loops fail fast with a trace reason, and one operator-visible ceiling bounds self-modification.",
+        "risks": "contract: agent loop now returns a fifth value and spend() may stop a run; dependency: stdlib only; concurrency: each budget/window uses its own ledger lock; state: additive learning-avoidance and budget ledgers.",
+        "mitigation": "Avoidances are advisory, the guard warns once before aborting, and budget reservations are released on failure."
+      }
+    },
+    {
+      "task_id": "brain-p2-controls",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[4/4] done: avoidance consolidation with recall endpoint, loop guard wired into the standard agent loop with execution-budget spending, unified self-modification budget with reservations and /brain/budget/status; ADR-045..047, README and map refreshed. Full suite 1852 passed 7 skipped; aikit check 4/4; checklists: passed.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1792954643.9871538,
+      "timestamp_str": "2026-10-25 21:57:23",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "P2-8, P2-9 and P2-11 complete and green",
+        "next": "commit and push",
+        "open": "P2-7 epistemic links and P2-10 research gateway"
+      }
+    },
+    {
+      "task_id": "brain-p2-controls",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'brain-p2-controls' completed successfully.",
+      "status": "completed",
+      "timestamp": 1792954644.2046041,
+      "timestamp_str": "2026-10-25 21:57:24",
       "agent": "kilo:main"
     }
   ]

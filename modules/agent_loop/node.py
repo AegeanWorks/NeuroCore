@@ -4,7 +4,9 @@ import asyncio
 import logging
 import time
 from core.llm import LLMBridge
+from core.execution_budget import spend
 from core.settings import settings
+from modules.agent_loop.loop_guard import LoopGuard
 from modules.tools.sandbox import ToolSandbox
 from core.session_manager import session_manager, get_session_manager, EpisodeState
 
@@ -610,12 +612,15 @@ class AgentLoopExecutor(AgentBaseExecutor):
         compact_keep_last: int = 6,
         max_tool_output_chars: int = 0,
         thinking_steps: list = None,
+        loop_guard: LoopGuard = None,
     ) -> tuple:
-        """Core agent loop: LLM ↔ Tool execution until no more tool calls or max_iterations.
+        """Core agent loop: LLM â†” Tool execution until no more tool calls or max_iterations.
 
-        Returns (final_response, iterations, had_tool_error, accumulated_usage).
+        Returns (final_response, iterations, had_tool_error, accumulated_usage, loop_error).
         accumulated_usage is a dict with prompt_tokens, completion_tokens, total_tokens
-        summed across all LLM calls in this loop run.
+        summed across all LLM calls in this loop run. loop_error is a string when the
+        repetition guard aborted the episode.
+
         """
         # Fix 2: use local thinking_steps instead of instance-level state
         if thinking_steps is None:
@@ -629,6 +634,8 @@ class AgentLoopExecutor(AgentBaseExecutor):
         # Only compact again once enough new messages have accumulated since
         # the last compaction, preventing a no-op re-compaction every iteration.
         _compacted_at_len = 0
+        guard = loop_guard or LoopGuard()
+        loop_error = None
 
         for iteration in range(max_iterations):
             # Reset per-iteration: dedup catches duplicate calls within a single
@@ -648,6 +655,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
                         _compacted_at_len = len(llm_messages)
 
             llm_start = self._log_llm_call(model)
+            spend("llm_calls")
             response = await self._llm_with_retry(
                 messages=llm_messages,
                 model=model,
@@ -658,6 +666,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
                 retry_delay=retry_delay,
             )
             self._log_llm_result(model, llm_start, response)
+            spend("tokens", int(((response or {}).get("usage") or {}).get("total_tokens", 0) or 0))
 
             if not response or "choices" not in response:
                 error_msg = (
@@ -723,7 +732,31 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     continue
                 seen_calls.add(call_signature)
 
+                decision = guard.observe(tool_name, tool_args)
+                if decision is not None:
+                    iteration_trace["errors"].append(decision["reason"])
+                    thinking_steps.append({
+                        "type": "reflection", "name": "loop_guard",
+                        "content": decision["reason"],
+                    })
+                    if stream_queue:
+                        await stream_queue.put(
+                            {"type": "thinking", "content": list(thinking_steps)}
+                        )
+                    if decision["action"] == "abort":
+                        loop_error = decision["reason"]
+                        break
+                    # One explicit warning, then abort if the loop continues.
+                    llm_messages.append({
+                        "role": "system",
+                        "content": (
+                            "Loop detected: " + decision["reason"]
+                            + ". Change the approach, or stop and explain what is blocking you."
+                        ),
+                    })
+
                 iteration_trace["tool_calls"].append(tool_name)
+                spend("tool_calls")
                 tool_result = await self._execute_tool(tool_call, tool_library)
 
                 # Fix 1: truncate large tool outputs at the source
@@ -759,10 +792,13 @@ class AgentLoopExecutor(AgentBaseExecutor):
 
             trace.append(iteration_trace)
 
+            if loop_error:
+                break
+
             if tool_error_occurred and tool_error_strategy == "stop":
                 break
 
-        return final_response, iterations, had_tool_error, accumulated_usage
+        return final_response, iterations, had_tool_error, accumulated_usage, loop_error
 
     async def receive(self, input_data: dict, config: dict = None) -> dict:
         """
@@ -938,7 +974,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
                 else:
                     llm_messages.insert(0, {"role": "system", "content": system_prompt})
 
-            final_response, iterations, had_tool_error, accumulated_usage = await self._run_agent_loop(
+            final_response, iterations, had_tool_error, accumulated_usage, loop_error = await self._run_agent_loop(
                 llm_messages=llm_messages,
                 tools_list=tools_list,
                 tool_library=tool_library,
@@ -979,6 +1015,9 @@ class AgentLoopExecutor(AgentBaseExecutor):
             result["messages"] = llm_messages
             result["response"] = final_response
             result["iterations"] = iterations
+            if loop_error:
+                result["agent_loop_error"] = f"Loop detected: {loop_error}"
+                result["loop_detected"] = loop_error
             # Expose accumulated token usage so the chat router can report it to the UI
             if accumulated_usage.get("total_tokens", 0) > 0:
                 result["usage"] = accumulated_usage

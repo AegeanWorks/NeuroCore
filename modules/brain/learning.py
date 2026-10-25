@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 SKILL_PREFIX = "[skill] "
 EXPERIENCE_PREFIX = "[experience] "
+AVOIDANCE_PREFIX = "[avoid] "
 TOKEN_RE = re.compile(r"[a-z0-9_]+")
 HOLDOUT_MODULUS = 5
 
@@ -149,6 +150,8 @@ class LearningStore:
                 data["experiences"] = []
             if not isinstance(data.get("skills"), dict):
                 data["skills"] = {}
+            if not isinstance(data.get("avoidances"), dict):
+                data["avoidances"] = {}
             return data
 
     def _quarantine(self) -> None:
@@ -174,6 +177,8 @@ class LearningLoop:
                  min_occurrences: int = 2,
                  holdout_ratio: float = 0.2,
                  max_skills: int = 500,
+                 min_failures: int = 2,
+                 max_avoidances: int = 200,
                  mirror_experiences: bool = True):
         self.memory = memory or GlobalMemoryBridge()
         self.store = store or LearningStore()
@@ -181,11 +186,14 @@ class LearningLoop:
         self.min_occurrences = max(1, int(min_occurrences))
         self.holdout_ratio = min(0.5, max(0.0, float(holdout_ratio)))
         self.max_skills = max(10, int(max_skills))
+        self.min_failures = max(1, int(min_failures))
+        self.max_avoidances = max(10, int(max_avoidances))
         self.mirror_experiences = bool(mirror_experiences)
 
         data = self.store.load()
         self.experiences: List[Dict[str, Any]] = data.get("experiences", [])[-self.max_experiences:]
         self.skills: Dict[str, Dict[str, Any]] = data.get("skills", {})
+        self.avoidances: Dict[str, Dict[str, Any]] = data.get("avoidances", {})
         self.last_consolidation_at: Optional[str] = data.get("last_consolidation_at")
         self.metrics: Dict[str, Any] = data.get("metrics", {})
 
@@ -193,6 +201,7 @@ class LearningLoop:
         data = self.store.load()
         self.experiences = data.get("experiences", [])[-self.max_experiences:]
         self.skills = data.get("skills", {})
+        self.avoidances = data.get("avoidances", {})
         self.last_consolidation_at = data.get("last_consolidation_at")
         self.metrics = data.get("metrics", {})
 
@@ -346,12 +355,15 @@ class LearningLoop:
                     except Exception as exc:
                         logger.warning("Could not delete pruned skill memory: %s", exc)
 
+        avoidances = self._consolidate_avoidances(groups)
+
         self.last_consolidation_at = _now()
         self.metrics["last_consolidation"] = {
             "created": created,
             "updated": updated,
             "skipped": skipped,
             "skills": len(self.skills),
+            "avoidances": len(self.avoidances),
         }
         self._save()
         return {
@@ -359,8 +371,86 @@ class LearningLoop:
             "updated": updated,
             "skipped": skipped,
             "skills": len(self.skills),
+            "avoidances": len(self.avoidances),
+            "avoidance_changes": avoidances,
             "last_consolidation_at": self.last_consolidation_at,
         }
+
+    def _consolidate_avoidances(
+        self, groups: Dict[str, List[Dict[str, Any]]],
+    ) -> Dict[str, int]:
+        """Turn repeated failures into bounded 'do not repeat this' knowledge."""
+        created = updated = 0
+        for key, experiences in groups.items():
+            failures = [item for item in experiences if not item.get("success")]
+            if len(failures) < self.min_failures:
+                continue
+            action = failures[0]["action"]
+            signature = failures[0]["input_signature"]
+            error_class = self._error_class(failures[-1].get("error"))
+            text = AVOIDANCE_PREFIX + json.dumps({
+                "action": action,
+                "signature": signature,
+                "error_class": error_class,
+                "failures": len(failures),
+                "occurrences": len(experiences),
+                "last_error": str(failures[-1].get("error") or "")[:300],
+            }, sort_keys=True)
+
+            existing = self.avoidances.get(key)
+            if (existing and existing.get("error_class") == error_class
+                    and int(existing.get("failures", 0)) == len(failures)):
+                # More occurrences of the same failure do not change the advice, so leave the
+                # memory row (and the ledger) alone instead of rewriting it every cycle.
+                continue
+            memory_id = existing.get("memory_id") if existing else None
+            if existing and existing.get("text") == text:
+                continue
+            new_id = None
+            if memory_id is not None:
+                new_id = self._update_avoidance_memory(memory_id, text)
+            if new_id is None:
+                new_id = self._add_avoidance_memory(text)
+
+            self.avoidances[key] = {
+                "key": key,
+                "action": action,
+                "signature": signature,
+                "error_class": error_class,
+                "failures": len(failures),
+                "occurrences": len(experiences),
+                "memory_id": new_id if isinstance(new_id, int) and new_id > 0 else memory_id,
+                "text": text,
+                "updated_at": _now(),
+            }
+            if existing:
+                updated += 1
+            else:
+                created += 1
+
+        if len(self.avoidances) > self.max_avoidances:
+            ordered = sorted(
+                self.avoidances.values(),
+                key=lambda item: (int(item.get("failures", 0)), item.get("updated_at", "")),
+            )
+            for avoidance in ordered[:len(self.avoidances) - self.max_avoidances]:
+                self.avoidances.pop(avoidance.get("key"), None)
+                memory_id = avoidance.get("memory_id")
+                if isinstance(memory_id, int) and memory_id > 0:
+                    try:
+                        self.memory.delete_entry(memory_id, reason="avoidance cap")
+                    except Exception as exc:
+                        logger.warning("Could not delete pruned avoidance memory: %s", exc)
+        return {"created": created, "updated": updated}
+
+    @staticmethod
+    def _error_class(error: Any) -> str:
+        if not error:
+            return "unknown"
+        text = str(error).strip().lower()
+        text = re.sub(r"[0-9a-f]{8,}", "<id>", text)
+        text = re.sub(r"\s+", " ", text)
+        return text[:120]
 
     @staticmethod
     def _best_approach(experiences: List[Dict[str, Any]]) -> str:
@@ -391,6 +481,26 @@ class LearningLoop:
             return new_id if isinstance(new_id, int) and new_id > 0 else None
         except Exception as exc:
             logger.warning("Could not update skill in memory: %s", exc)
+            return None
+
+    def _add_avoidance_memory(self, text: str) -> Optional[int]:
+        try:
+            return self.memory.add_entry(
+                text, mem_type="RULE", subject="Assistant",
+                source="brain", confidence=0.3, verified=False,
+            )
+        except Exception as exc:
+            logger.warning("Could not add avoidance to memory: %s", exc)
+            return None
+
+    def _update_avoidance_memory(self, memory_id: int, text: str) -> Optional[int]:
+        try:
+            new_id = self.memory.update_entry(
+                memory_id, text=text, mem_type="RULE", verified=False
+            )
+            return new_id if isinstance(new_id, int) and new_id > 0 else None
+        except Exception as exc:
+            logger.warning("Could not update avoidance in memory: %s", exc)
             return None
 
     def retrieve_skills(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
@@ -427,6 +537,53 @@ class LearningLoop:
             ranked.append({**candidate, **payload, "score": round(score, 4)})
         ranked.sort(key=lambda item: item["score"], reverse=True)
         return ranked[:limit]
+
+    def retrieve_avoidances(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
+        """Rank bounded failure knowledge for a query; empty when nothing close is known."""
+        action = query.split(" ")[0] if isinstance(query, str) and query.strip() else ""
+        try:
+            rows = self.memory.browse(
+                limit=max(limit * 4, 20), search_text=action,
+                mem_type="RULE", source="brain",
+            )
+        except Exception as exc:
+            logger.warning("Avoidance retrieval failed: %s", exc)
+            return []
+        ranked = []
+        seen = set()
+        for row in rows:
+            text = str(row.get("text", ""))
+            if not text.startswith(AVOIDANCE_PREFIX) or text in seen:
+                continue
+            seen.add(text)
+            try:
+                payload = json.loads(text[len(AVOIDANCE_PREFIX):])
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            score = _token_overlap(query, json.dumps(payload, sort_keys=True))
+            ranked.append({
+                "memory_id": row.get("id"), **payload,
+                "score": round(score, 4),
+                "warning": (
+                    f"'{payload.get('action')}' failed {payload.get('failures')} time(s) "
+                    f"with '{payload.get('error_class')}'; verify before retrying"
+                ),
+            })
+        ranked.sort(key=lambda item: (item["score"], int(item.get("failures", 0))),
+                    reverse=True)
+        return ranked[:limit]
+
+    def recall(self, query: str, top_k: int = 3) -> Dict[str, Any]:
+        """Skills to reuse and failures to avoid for one query, from one ledger."""
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+        return {
+            "query": query,
+            "skills": self.retrieve_skills(query, limit=top_k),
+            "avoidances": self.retrieve_avoidances(query, limit=top_k),
+        }
 
     @engine_transaction
     def evaluate_recall(self, top_k: int = 3) -> Dict[str, Any]:
@@ -497,6 +654,7 @@ class LearningLoop:
             "train": sum(1 for item in self.experiences if item.get("split") == "train"),
             "holdout": sum(1 for item in self.experiences if item.get("split") == "holdout"),
             "skills": len(self.skills),
+            "avoidances": len(self.avoidances),
             "last_consolidation_at": self.last_consolidation_at,
             "metrics": dict(self.metrics),
         }
@@ -510,6 +668,7 @@ class LearningLoop:
             self.store.save({
                 "experiences": self.experiences,
                 "skills": self.skills,
+                "avoidances": self.avoidances,
                 "last_consolidation_at": self.last_consolidation_at,
                 "metrics": self.metrics,
             })

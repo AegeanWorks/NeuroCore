@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `269`
-- **Total Classes**: `393`
-- **Total Top-Level Functions**: `1688`
-- **Total Class Methods**: `2109`
-- **Total Source Lines**: `75175`
+- **Total Python Modules**: `273`
+- **Total Classes**: `396`
+- **Total Top-Level Functions**: `1717`
+- **Total Class Methods**: `2128`
+- **Total Source Lines**: `75983`
 
 ---
 
@@ -951,8 +951,25 @@
 
 ---
 
+### [`modules/agent_loop/loop_guard.py`](modules/agent_loop/loop_guard.py)
+> *Deterministic repetition and deadlock detection for an agent loop.*
+
+**Size**: `106` lines (`4370` bytes)
+
+**Classes:**
+- `class LoopGuard` - *Watch a bounded call history and return a warning or an abort decision.*
+  - Method `.__init__(history, repeat_limit, oscillation_pairs, topic_limit)`
+  - Method `.observe(tool_name, arguments)` - *Record one call; return ``None`` or a decision with ``action`` warn/abort.*
+  - Method `._reason(signature)`
+
+**Functions:**
+- `def normalize_arguments(arguments)` - *Stable representation of tool arguments with volatile identifiers removed.*
+- `def call_signature(tool_name, arguments)`
+
+---
+
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5664` lines (`261696` bytes)
+**Size**: `5703` lines (`263501` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -977,7 +994,7 @@
 - `class AgentLoopExecutor`
   - Method `._load_tool_library()` - *Load tool implementations from library directory with file-level mtime caching.*
   - Method `async def ._execute_tool(tool_call, tool_library)` - *Execute a single tool call in the sandbox and return a tool result message.*
-  - Method `async def ._run_agent_loop(llm_messages, tools_list, tool_library, model, temperature, max_tokens, max_iterations, max_llm_retries, retry_delay, tool_error_strategy, trace, stream_queue, compact_threshold, compact_keep_last, max_tool_output_chars, thinking_steps)` - *Core agent loop: LLM ↔ Tool execution until no more tool calls or max_iterations.*
+  - Method `async def ._run_agent_loop(llm_messages, tools_list, tool_library, model, temperature, max_tokens, max_iterations, max_llm_retries, retry_delay, tool_error_strategy, trace, stream_queue, compact_threshold, compact_keep_last, max_tool_output_chars, thinking_steps, loop_guard)` - *Core agent loop: LLM â†” Tool execution until no more tool calls or max_iterations.*
   - Method `async def .receive(input_data, config)` - *Agent loop: repeatedly calls LLM with tools until no more tool calls.*
   - Method `async def .send(processed_data)`
 - `class REPLEnvironmentExecutor` - *REPL Environment Node — initializes a persistent REPL state.*
@@ -1680,7 +1697,7 @@
 ### [`modules/brain/learning.py`](modules/brain/learning.py)
 > *Outcome-driven learning: experiences, consolidation and held-out recall.*
 
-**Size**: `517` lines (`19558` bytes)
+**Size**: `676` lines (`26627` bytes)
 
 **Classes:**
 - `class Outcome`
@@ -1704,17 +1721,23 @@
   - Method `._quarantine()`
   - Method `.save(data)`
 - `class LearningLoop` - *Record outcomes, consolidate repeated successes into rules, measure recall.*
-  - Method `.__init__(memory, store, max_experiences, min_occurrences, holdout_ratio, max_skills, mirror_experiences)`
+  - Method `.__init__(memory, store, max_experiences, min_occurrences, holdout_ratio, max_skills, min_failures, max_avoidances, mirror_experiences)`
   - Method `._reload_from_store()`
   - Method `._split_for(outcome)`
   - Method `.record_outcome(action, input_data, output, success, error, latency_ms, tags, trace_id)`
   - Method `._delete_mirrored_experience(record)`
   - Method `._mirror_experience(record)`
   - Method `.consolidate()`
+  - Method `._consolidate_avoidances(groups)` - *Turn repeated failures into bounded 'do not repeat this' knowledge.*
+  - Method `._error_class(error)`
   - Method `._best_approach(experiences)`
   - Method `._add_memory(text)`
   - Method `._update_memory(memory_id, text)`
+  - Method `._add_avoidance_memory(text)`
+  - Method `._update_avoidance_memory(memory_id, text)`
   - Method `.retrieve_skills(query, limit)` - *Retrieve candidate skills from global memory, then rank lexically.*
+  - Method `.retrieve_avoidances(query, limit)` - *Rank bounded failure knowledge for a query; empty when nothing close is known.*
+  - Method `.recall(query, top_k)` - *Skills to reuse and failures to avoid for one query, from one ledger.*
   - Method `.evaluate_recall(top_k)`
   - Method `.status()`
   - Method `.experiences_page(limit)`
@@ -1787,7 +1810,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `502` lines (`18140` bytes)
+**Size**: `527` lines (`19168` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -1811,11 +1834,13 @@
 - `async def brain_eval_run(body, _actor)`
 - `async def brain_eval_baseline(actor)`
 - `async def brain_eval_status()`
+- `async def brain_budget_status()`
 - `async def brain_learn_status()`
 - `async def brain_learn_experiences(limit)`
 - `async def brain_learn(body, actor)`
 - `async def brain_learn_consolidate(_actor)`
 - `async def brain_learn_recall(body)`
+- `async def brain_learn_suggest(body)`
 - `async def brain_improve_status()`
 - `async def brain_improve_candidate(body, actor)`
 - `async def brain_improve_generate(body, _actor)`
@@ -1838,6 +1863,28 @@
 - `async def brain_config_preview(body, module_manager)`
 - `async def brain_config_apply(body, module_manager, actor)`
 - `async def brain_config_rollback(body, module_manager, actor)`
+
+---
+
+### [`modules/brain/self_budget.py`](modules/brain/self_budget.py)
+> *One daily ceiling for everything the brain changes about itself.*
+
+**Size**: `141` lines (`4884` bytes)
+
+**Classes:**
+- `class SelfBudgetExceeded` - *Raised when the daily ceiling for one kind of self-modification is reached.*
+  - Method `.__init__(kind, cap, used)`
+- `class SelfBudget`
+  - Method `.__post_init__()`
+  - Method `._load()`
+  - Method `._save()`
+  - Method `._roll()`
+  - Method `.reserve(kind, units)`
+  - Method `.release(kind, units)` - *Give back a reservation whose work definitely did not happen.*
+  - Method `.snapshot()`
+
+**Functions:**
+- `def _today()`
 
 ---
 
@@ -1864,7 +1911,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `699` lines (`30705` bytes)
+**Size**: `742` lines (`32434` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -1879,6 +1926,7 @@
   - Method `async def .record_outcome(action, input_data, output, success, error, latency_ms, tags, trace_id)`
   - Method `async def .consolidate_learning()`
   - Method `async def .evaluate_learning_recall(top_k)`
+  - Method `.suggest_learning(query, top_k)` - *Skills worth reusing and past failures worth avoiding for one query.*
   - Method `.learning_status()`
   - Method `async def .propose_improvement(flow_id, operations, description, source, goal_id, goal_kind)`
   - Method `async def .evaluate_improvement(candidate_id, approve, approved_by)`
@@ -1887,6 +1935,7 @@
   - Method `.improvement_status()`
   - Method `.preview_configuration(operation, module_manager)`
   - Method `.apply_configuration(operation, approved_by, module_manager)`
+  - Method `.self_budget_status()`
   - Method `.rollback_configuration(change_id, approved_by, module_manager)`
   - Method `.configuration_status()`
   - Method `.kernel_status()`
@@ -3241,7 +3290,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `1688` lines (`67907` bytes)
+**Size**: `1688` lines (`67920` bytes)
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -3347,6 +3396,22 @@
 - `def make_llm_response(content, tool_calls)` - *Build a minimal valid LLM response dict.*
 - `def make_tool_call(name, args, call_id)` - *Build a minimal tool_call dict as returned by the LLM.*
 - `def make_executor(tools, library)` - *Create an AgentLoopExecutor with _load_tools and _load_tool_library patched*
+
+---
+
+### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
+> *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
+
+**Size**: `90` lines (`3374` bytes)
+
+**Functions:**
+- `def test_volatile_identifiers_do_not_make_a_call_unique()`
+- `def test_three_identical_calls_warn_then_abort()`
+- `def test_alternating_calls_are_detected_as_oscillation()`
+- `def test_the_same_tool_with_different_arguments_is_stagnation()`
+- `def test_distinct_calls_do_not_trip_the_guard()`
+- `def test_malformed_arguments_still_produce_a_stable_signature()`
+- `async def test_the_agent_loop_aborts_after_a_repeated_call()`
 
 ---
 
@@ -3650,7 +3715,7 @@
 ### [`tests/test_brain_learning.py`](tests/test_brain_learning.py)
 > *Learning loop: outcomes, consolidation into global memory and held-out recall.*
 
-**Size**: `315` lines (`10174` bytes)
+**Size**: `422` lines (`13945` bytes)
 
 **Classes:**
 - `class FakeMemoryBridge` - *In-memory stand-in for the global MemoryStore used by the learning loop.*
@@ -3676,6 +3741,14 @@
 - `def test_learning_ledger_survives_reload_and_quarantines_corrupt_data(tmp_path)`
 - `async def test_service_evaluation_records_outcomes(tmp_path)`
 - `def test_learning_routes_record_consolidate_and_recall(tmp_path, monkeypatch)`
+- `def test_repeated_failures_consolidate_into_one_avoidance(tmp_path)`
+- `def test_avoidance_consolidation_is_idempotent(tmp_path)`
+- `def test_a_single_failure_does_not_become_an_avoidance(tmp_path)`
+- `def test_later_success_does_not_erase_an_avoidance(tmp_path)`
+- `def test_recall_returns_skills_and_avoidance_warnings(tmp_path)`
+- `def test_avoidance_recall_is_empty_for_an_unknown_query(tmp_path)`
+- `def test_avoidance_history_is_bounded_and_memory_is_pruned(tmp_path)`
+- `def test_the_suggest_route_requires_a_query()`
 
 ---
 
@@ -3734,6 +3807,24 @@
 - `async def test_kernel_gate_blocks_normal_reactions(tmp_path)`
 - `async def test_reaction_ledger_persists(tmp_path)`
 - `async def test_reactivity_routes(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
+> *Unified self-modification budget: caps, rollover, release and service wiring.*
+
+**Size**: `98` lines (`3631` bytes)
+
+**Functions:**
+- `def make_budget(tmp_path, **caps)`
+- `def test_a_reservation_consumes_one_unit_and_denies_past_the_cap(tmp_path)`
+- `def test_release_gives_back_a_reservation_that_did_not_happen(tmp_path)`
+- `def test_release_never_goes_negative(tmp_path)`
+- `def test_an_unknown_kind_or_empty_reservation_is_rejected(tmp_path)`
+- `def test_counts_persist_and_roll_over_on_a_new_utc_day(tmp_path, monkeypatch)`
+- `def test_a_corrupt_ledger_starts_from_zero_and_is_replaced(tmp_path)`
+- `def test_the_service_bounds_learning_writes(tmp_path, monkeypatch)`
+- `def test_the_budget_route_reports_counts()`
 
 ---
 

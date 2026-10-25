@@ -155,6 +155,11 @@ change, up to `max_node_loops` (Settings, default 100), and enters each cycle at
 outside it. Set `"strict_cycle_mode": true` on a flow to reject cycles instead. Agent-proposed
 edits (below) must stay acyclic.
 
+The agent loop also carries a repetition guard: normalized tool-call signatures (volatile IDs
+removed) detect three identical calls, an A-B-A-B oscillation, or the same tool four times with
+different arguments. The first detection injects a `change approach` message; the second aborts
+the episode with `agent_loop_error` and `loop_detected` in the result and trace.
+
 ### Self-Evolution
 
 `core/flow_evolution.py` is the only write path for agent-initiated flow edits. A proposal is
@@ -192,6 +197,10 @@ suite (or a supplied flow id), `POST /brain/eval/baseline` promotes the last res
 Outcome learning mirrors experiences into the shared memory store: `POST /brain/learn` records
 an action outcome, `POST /brain/learn/consolidate` turns repeated **training** successes into
 `RULE` skills, and `POST /brain/learn/recall` reports held-out precision, recall and MRR.
+Consolidation also distils repeated training failures into bounded `[avoid]` knowledge; a later
+success does not erase it, because one success is not evidence against two failures.
+`POST /brain/learn/suggest {"query": "..."}` returns the skills worth reusing and the past
+failures to verify before retrying.
 `GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger. Evaluation runs
 also record their per-task outcomes, so the scorecard feeds the same learning loop.
 
@@ -253,6 +262,12 @@ kernel modes, except health alerts. They never execute an action themselves.
 Brain ledgers (learning, improvement, configuration, kernel, reactions, actors) are written under a
 per-file cross-process lock and reloaded before each mutation, so multiple server workers keep each
 other's updates instead of overwriting them.
+
+One daily ceiling covers self-modification across subsystems: candidate creation, evaluation,
+promotion, configuration changes, prompt activation and automatic learning writes. Counts are
+persisted and reset at UTC midnight; a denied reservation changes nothing and returns 429.
+`GET /brain/budget/status` reports counts, caps and remaining units. Caps live in
+`self_budget_caps` under the brain module config (defaults: 50/50/10/20/20/500 per day).
 
 Brain audit identity comes from the request, not from an `approved_by` JSON field. Loopback and
 test clients are trusted as `local` admins (or the optional `X-Brain-Actor` label). Remote clients

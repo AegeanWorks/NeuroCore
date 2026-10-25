@@ -986,7 +986,7 @@ class TestContextCompaction:
             big_msgs.append({"role": "user", "content": f"u{i}" * 5})
             big_msgs.append({"role": "assistant", "content": f"a{i}" * 5})
 
-        result, iters, _, _usage = await ex._run_agent_loop(
+        result, iters, _, _usage, _loop_error = await ex._run_agent_loop(
             llm_messages=big_msgs,
             tools_list=[],
             tool_library={},

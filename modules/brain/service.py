@@ -16,6 +16,7 @@ from core.outcomes import clear_outcome_listener, set_outcome_listener
 from .configuration import ConfigurationEngine, ConfigurationStore
 from .drift import DriftMonitor
 from .evaluation import EvalStore, EvaluationRunner, compare_results
+from .self_budget import SelfBudget, SelfBudgetExceeded
 from .events import EventBus
 from .improvement import ImprovementEngine, ImprovementStore
 from .kernel import BrainKernel, KernelBlockedError
@@ -78,6 +79,7 @@ class BrainService:
         self.event_bus = event_bus or EventBus()
         self.state_store = state_store or BrainStateStore()
         self.kernel = kernel or BrainKernel()
+        self.self_budget = SelfBudget(caps=merged.get("self_budget_caps") or {})
         self.drift = drift or DriftMonitor()
         self.evaluation_runner = evaluation_runner or EvaluationRunner()
         self.eval_store = eval_store or EvalStore()
@@ -86,6 +88,8 @@ class BrainService:
             min_occurrences=int(merged.get("min_occurrences", 2)),
             holdout_ratio=float(merged.get("holdout_ratio", 0.2)),
             max_skills=int(merged.get("max_skills", 500)),
+            min_failures=int(merged.get("min_failures", 2)),
+            max_avoidances=int(merged.get("max_avoidances", 200)),
         )
         if improvement is not None:
             self.improvement = improvement
@@ -248,6 +252,11 @@ class BrainService:
         if not self.kernel.can_write_memory():
             return
         try:
+            self.self_budget.reserve("learning_write")
+        except SelfBudgetExceeded as exc:
+            logger.warning("Skipping automatic learning write: %s", exc)
+            return
+        try:
             self.learning.record_outcome(
                 action=f"flow:{flow_id}",
                 input_data={"flow_id": flow_id},
@@ -258,6 +267,7 @@ class BrainService:
                 tags=["flow", "auto"],
             )
         except Exception as exc:
+            self.self_budget.release("learning_write")
             logger.warning("Could not record flow outcome: %s", exc)
 
     def _observe_self(self, snapshot: Dict[str, Any]) -> None:
@@ -292,10 +302,15 @@ class BrainService:
                              tags: Optional[List[str]] = None,
                              trace_id: Optional[str] = None) -> Dict[str, Any]:
         self.kernel.require_memory_write("learning outcome")
-        record = self.learning.record_outcome(
-            action=action, input_data=input_data, output=output, success=success,
-            error=error, latency_ms=latency_ms, tags=tags, trace_id=trace_id,
-        )
+        self.self_budget.reserve("learning_write")
+        try:
+            record = self.learning.record_outcome(
+                action=action, input_data=input_data, output=output, success=success,
+                error=error, latency_ms=latency_ms, tags=tags, trace_id=trace_id,
+            )
+        except Exception:
+            self.self_budget.release("learning_write")
+            raise
         await self.event_bus.publish(
             "learning.outcome",
             "brain",
@@ -313,6 +328,10 @@ class BrainService:
     async def evaluate_learning_recall(self, top_k: int = 3) -> Dict[str, Any]:
         return self.learning.evaluate_recall(top_k=top_k)
 
+    def suggest_learning(self, query: str, top_k: int = 3) -> Dict[str, Any]:
+        """Skills worth reusing and past failures worth avoiding for one query."""
+        return self.learning.recall(query, top_k=top_k)
+
     def learning_status(self) -> Dict[str, Any]:
         return self.learning.status()
 
@@ -322,17 +341,28 @@ class BrainService:
                                   goal_id: Optional[str] = None,
                                   goal_kind: str = "goal") -> Dict[str, Any]:
         self.kernel.require_autonomy("improvement proposal")
-        return await self.improvement.propose(
-            flow_id, operations, description=description, source=source,
-            goal_id=goal_id, goal_kind=goal_kind,
-        )
+        self.self_budget.reserve("candidate")
+        try:
+            return await self.improvement.propose(
+                flow_id, operations, description=description, source=source,
+                goal_id=goal_id, goal_kind=goal_kind,
+            )
+        except Exception:
+            self.self_budget.release("candidate")
+            raise
 
     async def evaluate_improvement(self, candidate_id: str, approve: bool = False,
                                    approved_by: Optional[str] = None) -> Dict[str, Any]:
         self.kernel.require_autonomy("improvement evaluation")
-        return await self.improvement.evaluate(
-            candidate_id, approve=approve, approved_by=approved_by
-        )
+        kind = "promotion" if approve else "evaluation"
+        self.self_budget.reserve(kind)
+        try:
+            return await self.improvement.evaluate(
+                candidate_id, approve=approve, approved_by=approved_by
+            )
+        except Exception:
+            self.self_budget.release(kind)
+            raise
 
     async def rollback_improvement(self, candidate_id: str) -> Dict[str, Any]:
         return await self.improvement.rollback(candidate_id)
@@ -342,9 +372,14 @@ class BrainService:
                                    goal_id: Optional[str] = None,
                                    goal_kind: str = "goal") -> Dict[str, Any]:
         self.kernel.require_autonomy("improvement generation")
-        return await self.improvement.generate(
-            flow_id, instruction, goal_id=goal_id, goal_kind=goal_kind
-        )
+        self.self_budget.reserve("candidate")
+        try:
+            return await self.improvement.generate(
+                flow_id, instruction, goal_id=goal_id, goal_kind=goal_kind
+            )
+        except Exception:
+            self.self_budget.release("candidate")
+            raise
 
     def improvement_status(self) -> Dict[str, Any]:
         return self.improvement.status()
@@ -356,9 +391,17 @@ class BrainService:
     def apply_configuration(self, operation: Dict[str, Any], approved_by: str,
                             module_manager=None) -> Dict[str, Any]:
         self.kernel.require_configuration("configuration change")
-        return self.configuration.apply(
-            operation, approved_by=approved_by, module_manager=module_manager
-        )
+        self.self_budget.reserve("config_change")
+        try:
+            return self.configuration.apply(
+                operation, approved_by=approved_by, module_manager=module_manager
+            )
+        except Exception:
+            self.self_budget.release("config_change")
+            raise
+
+    def self_budget_status(self) -> Dict[str, Any]:
+        return self.self_budget.snapshot()
 
     def rollback_configuration(self, change_id: str, approved_by: str,
                                module_manager=None) -> Dict[str, Any]:

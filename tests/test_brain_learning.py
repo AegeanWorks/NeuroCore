@@ -313,3 +313,110 @@ def test_learning_routes_record_consolidate_and_recall(tmp_path, monkeypatch):
     assert consolidated.json()["created"] == 1
     assert recalled.status_code == 200
     assert invalid.status_code == 400
+
+
+def test_repeated_failures_consolidate_into_one_avoidance(tmp_path):
+    loop, memory = make_loop(tmp_path)
+    for _ in range(3):
+        record(loop, success=False, tags=["train"], output=None)
+    if not loop.experiences or loop.experiences[0].get("error") is None:
+        pass
+
+    result = loop.consolidate()
+
+    assert result["avoidances"] == 1
+    avoids = [entry for entry in memory.entries.values()
+              if str(entry["text"]).startswith("[avoid] ")]
+    assert len(avoids) == 1
+    payload = json.loads(avoids[0]["text"].removeprefix("[avoid] "))
+    assert payload["action"] == "tool:Calculator"
+    assert payload["failures"] == 3
+    assert avoids[0]["confidence"] == 0.3
+    assert avoids[0]["verified"] is False
+
+
+def test_avoidance_consolidation_is_idempotent(tmp_path):
+    loop, memory = make_loop(tmp_path)
+    for _ in range(2):
+        record(loop, success=False, tags=["train"])
+    loop.consolidate()
+    before = len([e for e in memory.entries.values() if str(e["text"]).startswith("[avoid] ")])
+
+    second = loop.consolidate()
+
+    after = len([e for e in memory.entries.values() if str(e["text"]).startswith("[avoid] ")])
+    assert second["avoidance_changes"] == {"created": 0, "updated": 0}
+    assert after == before == 1
+
+
+def test_a_single_failure_does_not_become_an_avoidance(tmp_path):
+    loop, _ = make_loop(tmp_path)
+    record(loop, success=False, tags=["train"])
+    result = loop.consolidate()
+    assert result["avoidances"] == 0
+
+
+def test_later_success_does_not_erase_an_avoidance(tmp_path):
+    loop, memory = make_loop(tmp_path)
+    for _ in range(2):
+        record(loop, success=False, tags=["train"])
+    loop.consolidate()
+    record(loop, success=True, tags=["train"])
+    loop.consolidate()
+
+    avoids = [entry for entry in memory.entries.values()
+              if str(entry["text"]).startswith("[avoid] ")]
+    assert len(avoids) == 1, "one success is not enough evidence to forget two failures"
+
+
+def test_recall_returns_skills_and_avoidance_warnings(tmp_path):
+    loop, _ = make_loop(tmp_path)
+    for _ in range(3):
+        record(loop, success=True, tags=["train"])
+    for _ in range(2):
+        record(loop, success=False, tags=["train"], output=None)
+    loop.consolidate()
+
+    result = loop.recall("tool:Calculator", top_k=3)
+
+    assert result["query"] == "tool:Calculator"
+    assert len(result["skills"]) == 1
+    assert len(result["avoidances"]) == 1
+    assert "verify before retrying" in result["avoidances"][0]["warning"]
+
+
+def test_avoidance_recall_is_empty_for_an_unknown_query(tmp_path):
+    loop, _ = make_loop(tmp_path)
+    for _ in range(2):
+        record(loop, success=False, tags=["train"])
+    loop.consolidate()
+
+    assert loop.recall("something-unrelated", top_k=3)["avoidances"] == []
+
+
+def test_avoidance_history_is_bounded_and_memory_is_pruned(tmp_path):
+    loop, memory = make_loop(tmp_path)
+    loop.max_avoidances = 10
+    loop.min_failures = 1
+    for index in range(12):
+        loop.record_outcome(
+            action=f"tool:Fail{index}", input_data={"expression": "1+1"},
+            output=None, success=False, error=f"boom {index}", tags=["train"],
+        )
+    loop.consolidate()
+    assert len(loop.avoidances) <= 10
+    avoids = [e for e in memory.entries.values() if str(e["text"]).startswith("[avoid] ")]
+    assert len(avoids) <= 10, "pruned avoidances leave no orphan memory rows"
+
+
+def test_the_suggest_route_requires_a_query():
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    with TestClient(app) as client:
+        missing = client.post("/brain/learn/suggest", json={})
+        invalid = client.post("/brain/learn/suggest", json={"query": "  "})
+
+    assert missing.status_code == 400
+    assert invalid.status_code == 400

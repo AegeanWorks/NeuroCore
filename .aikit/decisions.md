@@ -1001,3 +1001,56 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   change; a corrupt index degrades to empty history and is rebuilt on the next write.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (atomic generated
   files), PRINCIPLE-016 (knowledge integrity) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-045: Agent-loop repetition guard
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: `max_iterations` and `max_node_loops` bound a run but cannot see that the model is
+  repeating the same tool call with new identifiers or alternating between two actions. Such a
+  loop burns tokens without producing progress and was only caught by the iteration cap.
+- **Decision**: `modules/agent_loop/loop_guard.py` normalizes tool arguments (drops volatile ID
+  keys, masks long hex, sorts, caps at 500 chars) and watches a bounded history. Three identical
+  signatures, an A-B-A-B pattern, or the same tool four times with different arguments produce a
+  decision: the first is a warning injected as a system message, the second aborts the loop. The
+  standard agent loop returns `loop_error`, surfaced as `agent_loop_error` and `loop_detected`.
+  The loop also spends from the execution budget for each LLM and tool call.
+- **Consequences**: Repetition fails fast with a reason in the trace rather than at the iteration
+  cap. Legitimate retries with different arguments are unaffected; a genuine retry after an error
+  is allowed unless it repeats identically three times.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (resource use) and
+  PRINCIPLE-014 (failing-first tests).
+
+### ADR-046: Unified self-modification budget
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Improvement and configuration each kept a daily quota, but learning writes were
+  unbounded and no single view answered how much the system changed itself today.
+- **Decision**: `modules/brain/self_budget.py` keeps one persisted ledger of daily counts for
+  candidate, evaluation, promotion, configuration change, prompt activation and learning write,
+  reset at UTC midnight. Reservations happen before work and are released when the work definitely
+  failed; exhaustion raises a 429 with `Why:`/`Fix:`. The brain service reserves for improvement,
+  evaluation/promotion, configuration and both explicit and automatic learning writes;
+  `GET /brain/budget/status` reports counts, caps and remaining units. Caps default to 50/50/10/
+  20/20/500 and can be set in `self_budget_caps`.
+- **Consequences**: One operator-visible ceiling spans every self-modification path, and an
+  automatic outcome flood can no longer crowd out deliberate work. The per-engine quotas remain as
+  the finer control; the unified ledger is the hard outer bound.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-006 (state discipline),
+  PRINCIPLE-010 (resource use) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-047: Failure consolidation into avoidance knowledge
+- **Date**: 2026-10-25
+- **Status**: Accepted
+- **Context**: Consolidation promoted only repeated successes. Failures stayed as individual
+  experiences, so recall could recommend the same failing approach and nothing recorded "do not
+  retry this blindly".
+- **Decision**: `LearningLoop.consolidate` also groups training failures by action and normalized
+  signature. At `min_failures` (default 2) it writes one bounded `[avoid]` entry to memory with
+  confidence 0.3 and the error class, capped at `max_avoidances` (200) with orphan rows pruned.
+  Recurrences of the same error class and failure count are a no-op, so consolidation is
+  idempotent; a later success does not erase the warning. `recall()` and
+  `POST /brain/learn/suggest` return skills and avoidances together.
+- **Consequences**: Recurring failures become visible, reviewable knowledge instead of noise, and
+  the memory store stays bounded. Avoidances advise verification; they never block a tool call.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded state) and
+  PRINCIPLE-014 (failing-first tests).

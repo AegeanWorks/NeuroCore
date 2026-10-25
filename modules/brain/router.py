@@ -200,6 +200,11 @@ async def brain_eval_status():
     return get_brain_service().evaluation_status()
 
 
+@router.get("/budget/status")
+async def brain_budget_status():
+    return get_brain_service().self_budget_status()
+
+
 @router.get("/learn/status")
 async def brain_learn_status():
     return get_brain_service().learning_status()
@@ -231,6 +236,8 @@ async def brain_learn(body: dict = Body(...),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except SelfBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -247,6 +254,16 @@ async def brain_learn_consolidate(_actor: BrainActor = Depends(require_role("ope
 async def brain_learn_recall(body: dict = Body(default_factory=dict)):
     return await get_brain_service().evaluate_learning_recall(
         top_k=max(1, min(int(body.get("top_k", 3)), 20))
+    )
+
+
+@router.post("/learn/suggest")
+async def brain_learn_suggest(body: dict = Body(...)):
+    query = body.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise HTTPException(status_code=400, detail="query is required")
+    return get_brain_service().suggest_learning(
+        query, top_k=max(1, min(int(body.get("top_k", 3)), 20))
     )
 
 
@@ -274,6 +291,8 @@ async def brain_improve_candidate(body: dict = Body(...),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except SelfBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except QuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
@@ -295,6 +314,8 @@ async def brain_improve_generate(body: dict = Body(...),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except SelfBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except QuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
@@ -314,6 +335,8 @@ async def brain_improve_evaluate(body: dict = Body(...),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except SelfBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except QuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
@@ -479,6 +502,8 @@ async def brain_config_apply(body: dict = Body(...),
         )
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+    except SelfBudgetExceeded as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ConfigurationQuotaError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ConfigurationPolicyError as exc:
