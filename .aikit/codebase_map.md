@@ -10,7 +10,7 @@
 - **Total Classes**: `383`
 - **Total Top-Level Functions**: `1592`
 - **Total Class Methods**: `2065`
-- **Total Source Lines**: `73024`
+- **Total Source Lines**: `73023`
 
 ---
 
@@ -3343,7 +3343,7 @@
 ### [`tests/test_brain_auth.py`](tests/test_brain_auth.py)
 > *Brain actor authentication and remote access gate.*
 
-**Size**: `242` lines (`7675` bytes)
+**Size**: `241` lines (`7674` bytes)
 
 **Functions:**
 - `def make_request(host, headers)`
