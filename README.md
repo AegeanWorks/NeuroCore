@@ -9,7 +9,7 @@
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://htmx.org"><img src="https://img.shields.io/badge/HTMX-333333?style=for-the-badge&logo=htmx&logoColor=white" alt="HTMX"></a>
   <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AL--1.1-blue.svg?style=for-the-badge" alt="License"></a>
 </p>
 
 <h3 align="center">
@@ -79,29 +79,31 @@ playwright install chromium
 
 ```text
 neurocore/
-├── .aikit/                   <- AIKit project memory: ledger, guidelines, decisions
+├── .aikit/               <- AIKit project memory: ledger, guidelines, decisions
 ├── .dockerignore
 ├── .github/
 ├── .gitignore
 ├── CLAUDE.md
-├── COMMERCIAL.md             <- commercial licence terms (AECL) and dual licensing
+├── COMMERCIAL.md         <- commercial terms (ACL-1.0)
 ├── Dockerfile
 ├── LICENSE
+├── LICENSES/             <- REUSE license texts
+├── REUSE.toml            <- Machine-readable SPDX metadata
 ├── README.md
 ├── start.bat
 ├── banner.jpg
 ├── docker-compose.yml
-├── main.py                   <- FastAPI application entrypoint
-├── pyproject.toml            <- package metadata & dependencies
-├── requirements.txt          <- runtime + optional capabilities (mirrors pyproject.toml)
-├── requirements-dev.txt      <- adds the test tools
-├── core/                     <- engine, flow manager, runner, observability
-├── data/                     <- runtime state (ignored; only the directory is tracked)
-├── docs/                     <- architectural guides & module docs
-├── modules/                  <- hot-swappable functional modules
-├── screenshots/              <- UI and feature captures
-├── tests/                    <- automated pytest test suite
-└── web/                      <- frontend templates and static assets
+├── main.py               <- FastAPI application entrypoint
+├── pyproject.toml        <- package metadata & dependencies
+├── requirements.txt      <- runtime + optional capabilities (mirrors pyproject.toml)
+├── requirements-dev.txt  <- adds the test tools
+├── core/                 <- engine, flow manager, runner, observability
+├── data/                 <- runtime state (ignored; only the directory is tracked)
+├── docs/                 <- architectural guides & module docs
+├── modules/              <- hot-swappable functional modules
+├── screenshots/          <- UI and feature captures
+├── tests/                <- automated pytest test suite
+└── web/                  <- frontend templates and static assets
 ```
 
 ---
@@ -193,11 +195,11 @@ The `brain` module is the control substrate for a neocortex-style loop. It compo
 self-model from live flows, module manifests, memory, knowledge-base, metrics and evaluation
 state; failures are reported as provider errors rather than mock values. An in-process event bus
 feeds a bounded cognitive scheduler, and `observe` cycles record state while `suggest` cycles add
-pending proposals. Autonomous actuation (`auto`) is intentionally not implemented yet.
+pending proposals. Autonomous actuation (`auto`) is not implemented yet.
 
 `GET /brain/state`, `GET /brain/events`, `POST /brain/start|stop|cycle|mode` and
 `POST /brain/events` expose the substrate. `POST /brain/eval/run` runs the deterministic echo
-suite (or a supplied flow id), `POST /brain/eval/baseline` promotes the last result, and
+suite (or a supplied flow id), `POST /brain/eval/baseline` (admin) promotes the last result if it is perfect, and
 `GET /brain/eval/status` compares current against baseline. The brain is experimental and ships
 **disabled**: enable it on the Modules page (or set `"enabled": true` in
 `modules/brain/module.json`); even then `auto_start` stays false until you call `/brain/start`.
@@ -210,12 +212,12 @@ success does not erase.
 `POST /brain/learn/suggest {"query": "..."}` returns the skills worth reusing and the past
 failures to verify before retrying.
 `GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger.
-`POST /brain/goals/review` is a read-only review of active goals: overdue, stale, low-clarity and
-near-duplicate objectives. Evidence links are exposed by
+`POST /brain/goals/review` reviews active goals read-only: overdue, stale, low-clarity and
+near-duplicate. Evidence links are exposed by
 `GET /memory/links/{id}`, `POST /memory/links` and `POST /memory/links/{id}/accept`; a
 contradiction scan (`GET /memory/contradictions`, `POST /memory/contradictions/scan`) is a
 deterministic prefilter that only creates proposals for review. Evaluation runs
-also record their per-task outcomes, so the scorecard feeds the same learning loop.
+also record per-task outcomes for the same learning loop.
 
 While the brain is running, ordinary chat/flow executions emit an outcome through
 `core/outcomes.py` and become `flow:<id>` experiences; evaluations opt out to avoid double
@@ -232,7 +234,7 @@ controls the operator path.
 
 Evaluation is read-only by construction: flows with state-mutating or external-effect nodes
 (tools, memory writes, messaging, calendar, subflows) are rejected with `UnsafeEvaluationError`
-before execution. `POST /brain/eval/baseline` (admin) accepts only a perfect run.
+before execution.
 
 Self-configuration is policy-gated: `/brain/config/preview` shows a before/after diff,
 `/brain/config/apply` requires an admin, and `/brain/config/rollback` restores the snapshot
@@ -266,8 +268,7 @@ proposal-only reactions. `GET /brain/reactions`, `/reactions/dismiss|mute|unmute
 `/react/start|stop|poll` control polling. They are deduplicated, muted, capped hourly, blocked
 outside normal/degraded modes except health alerts, and never act.
 
-Brain ledgers use a per-file cross-process lock and reload before each mutation, so workers keep
-each other's updates.
+Brain ledgers take a per-file cross-process lock and reload before each mutation.
 
 One daily ceiling covers self-modification: candidates, evaluations, promotions, configuration
 changes, prompt activation and automatic learning writes. Counts persist and reset at UTC midnight;
@@ -291,8 +292,8 @@ cycles) and `admin` (promotions, configuration, kernel, baselines, actors). Prot
 record the actor name.
 
 `/brain/ui` is the local Brain dashboard: kernel mode/risk, health, cycle status, proposals,
-reactions (dismiss/mute), evaluation controls and start/stop/kill/reset controls. It is linked
-from the navbar when the `brain` module is enabled and refreshes every five seconds.
+reactions, evaluation and start/stop/kill/reset controls. It appears
+in the navbar when `brain` is enabled and refreshes every five seconds.
 
 ---
 
@@ -376,8 +377,8 @@ search; there is no fallback to an unlisted search engine or a spoofed user agen
 These are defense-in-depth Python restrictions, not an OS isolation boundary: do not run
 untrusted community tools on a machine whose files or credentials you cannot afford to expose.
 
----
+> **License history:** versions up to and including `v0.1.0-agpl` remain under GNU AGPL-3.0.
 
-## 📄 License
+## 📜 License
 
-NeuroCore is licensed under the [GNU Affero General Public License v3](LICENSE).
+Free for personal use under the Aegean License 1.1 (AL-1.1); see [LICENSE](LICENSE). Any commercial use needs the Aegean Commercial License 1.0 (ACL-1.0); see [COMMERCIAL.md](COMMERCIAL.md).

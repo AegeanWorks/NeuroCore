@@ -1365,3 +1365,9 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   breaking the brain loop.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (empirical hardening),
   PRINCIPLE-011 (clear errors) and PRINCIPLE-014 (failing-first tests).
+
+## Licensing migration (v0.1.0-agpl)
+
+- New versions use the Aegean License 1.1 (AL-1.1); versions up to and including `v0.1.0-agpl` remain under GNU AGPL-3.0.
+- Rights holder: AegeanWorks; commercial use under ACL-1.0.
+- Counsel review of the 1.1 texts remains pending.
