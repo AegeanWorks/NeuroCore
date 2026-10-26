@@ -319,7 +319,9 @@ because nodes with external effects must not run twice silently.
 
 Only transient failures retry: `TimeoutError`, `ConnectionError`, `LLMTimeoutError`,
 `ToolTimeoutError` and `LLMHTTPError` with 408/425/429/5xx. `ValueError`, `TypeError`,
-`KeyError` and cancellation fail immediately. Each attempt spends one node from the run budget.
+`KeyError` and cancellation fail immediately. Each attempt spends one node from the run budget,
+and backoff is clamped to the run's remaining wall time. When retries are exhausted, a typed
+provider/tool timeout becomes the normal structured node error rather than escaping the runner.
 
 Every attempt is also timed by `core/node_stall.py`. After 20 samples for a module/type, a duration
 above both 2,000 ms and 3x the prior p99 is a stall: it increments `node.stall`, logs a structured

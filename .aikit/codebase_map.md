@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1862`
+- **Total Top-Level Functions**: `1874`
 - **Total Class Methods**: `2168`
-- **Total Source Lines**: `79396`
+- **Total Source Lines**: `79600`
 
 ---
 
@@ -330,7 +330,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1145` lines (`55251` bytes)
+**Size**: `1155` lines (`55625` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -438,7 +438,7 @@
 ### [`core/node_retry.py`](core/node_retry.py)
 > *Opt-in per-node retry policy with bounded exponential backoff (ADR-060).*
 
-**Size**: `127` lines (`4956` bytes)
+**Size**: `140` lines (`5586` bytes)
 
 **Classes:**
 - `class RetryPolicy` - *How many times a node may be retried and how long to wait between attempts.*
@@ -451,7 +451,7 @@
 - `def _bounded_float(value, default, *, low, high)`
 - `def node_timeout(config)` - *Per-node wall-clock ceiling in seconds; ``0`` means no ceiling.*
 - `def is_transient(exc)` - *Whether retrying the same call could plausibly succeed.*
-- `async def run_with_retry(operation, policy, *, retryable, sleep, on_retry)` - *Run ``operation`` under ``policy``; re-raise the last error when retries are spent.*
+- `async def run_with_retry(operation, policy, *, retryable, sleep, on_retry, delay_cap)` - *Run ``operation`` under ``policy``; re-raise the last error when retries are spent.*
 
 ---
 
@@ -1679,7 +1679,7 @@
 ### [`modules/brain/goal_review.py`](modules/brain/goal_review.py)
 > *Deterministic, read-only review of the shared goal ledger (ADR-057).*
 
-**Size**: `153` lines (`5226` bytes)
+**Size**: `174` lines (`5994` bytes)
 
 **Functions:**
 - `def _tokens(text)`
@@ -1687,6 +1687,8 @@
 - `def _brief(goal, *, clarity)`
 - `def clarity(goal)` - *Score how actionable a goal description is, from 0 to 1.*
 - `def _timestamp(value)`
+- `def _finite(value, name, *, minimum)`
+- `def _sort_epoch(value)`
 - `def review_goals(goals, *, now, stale_days, clarity_threshold, duplicate_threshold)` - *Return a bounded review of active goals; never raises for malformed rows.*
 
 ---
@@ -1758,7 +1760,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `453` lines (`18953` bytes)
+**Size**: `476` lines (`19882` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -1798,6 +1800,9 @@
   - Method `.require_configuration(action)`
   - Method `.to_dict()`
   - Method `._save()`
+
+**Functions:**
+- `def _clamp_unit(value, default)` - *Clamp a 0..1 risk input; a malformed value keeps the previous input.*
 
 ---
 
@@ -1917,7 +1922,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `546` lines (`19898` bytes)
+**Size**: `552` lines (`20088` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -2021,7 +2026,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `793` lines (`34466` bytes)
+**Size**: `793` lines (`34496` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -2104,7 +2109,7 @@
 ### [`modules/brain/trends.py`](modules/brain/trends.py)
 > *Bounded metric-trend detection for reviewable self-repair proposals (ADR-058).*
 
-**Size**: `222` lines (`8730` bytes)
+**Size**: `229` lines (`9097` bytes)
 
 **Classes:**
 - `class TrendStore` - *Atomic JSON ledger for samples and emitted findings.*
@@ -3792,13 +3797,16 @@
 ### [`tests/test_brain_goal_review.py`](tests/test_brain_goal_review.py)
 > *Deterministic goal review: overdue, stale, clarity and near-duplicate detection.*
 
-**Size**: `71` lines (`2793` bytes)
+**Size**: `93` lines (`3640` bytes)
 
 **Functions:**
 - `def goal(goal_id, description, *, status, priority, context, deadline, updated_at)`
 - `def test_review_reports_overdue_stale_low_clarity_and_duplicates_without_mutation()`
 - `def test_clarity_is_bounded_and_explains_what_is_missing()`
 - `def test_goal_review_route_is_read_only_and_reports_a_review()`
+- `def test_review_rejects_negative_stale_days()`
+- `def test_review_sorts_overdue_and_stale_by_epoch_not_text()`
+- `def test_goal_review_route_rejects_negative_stale_days()`
 
 ---
 
@@ -3861,7 +3869,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `289` lines (`11304` bytes)
+**Size**: `335` lines (`12645` bytes)
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -3880,6 +3888,9 @@
 - `def test_drift_compares_against_baseline(tmp_path)`
 - `async def test_safe_mode_blocks_memory_improvement_and_configuration(tmp_path)`
 - `def test_kernel_routes(tmp_path, monkeypatch)`
+- `def test_kernel_tolerates_malformed_persisted_fields(tmp_path)`
+- `def test_observe_tolerates_malformed_risk_inputs(tmp_path)`
+- `def test_record_evaluation_and_drift_ignore_malformed_values(tmp_path)`
 
 ---
 
@@ -4029,7 +4040,7 @@
 ### [`tests/test_brain_trends.py`](tests/test_brain_trends.py)
 > *Bounded metric-trend detection and its reviewable proposals.*
 
-**Size**: `117` lines (`3575` bytes)
+**Size**: `135` lines (`4086` bytes)
 
 **Functions:**
 - `def snapshot(pass_rate, errors)`
@@ -4039,6 +4050,7 @@
 - `def test_history_is_bounded_and_an_empty_ledger_is_quiet(tmp_path)`
 - `def test_the_service_turns_a_finding_into_a_reviewable_proposal()`
 - `def test_trend_route_reports_the_window()`
+- `def test_trend_record_survives_malformed_snapshot_fields(tmp_path)`
 
 ---
 
@@ -5775,7 +5787,7 @@
 ### [`tests/test_node_retry.py`](tests/test_node_retry.py)
 > *Per-node retry policy: parsing, backoff, classification and bounded attempts.*
 
-**Size**: `285` lines (`8571` bytes)
+**Size**: `323` lines (`9603` bytes)
 
 **Functions:**
 - `def test_retries_are_off_by_default()`
@@ -5795,6 +5807,8 @@
 - `async def test_a_node_timeout_can_be_retried()`
 - `async def test_retry_attempts_are_charged_to_the_run_budget()`
 - `async def test_bridge_execution_uses_the_same_policy()`
+- `async def test_retry_backoff_is_capped_by_the_remaining_run_time()`
+- `async def test_a_typed_llm_timeout_exhausts_into_a_structured_node_error()`
 
 ---
 

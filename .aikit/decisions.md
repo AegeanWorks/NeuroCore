@@ -1318,7 +1318,9 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   and timeouts surface as the usual structured node error.
 - **Consequences**: Operators can recover from transient faults per node without changing global
   behaviour, while a misconfigured node cannot spin: at most 5 attempts, bounded delay, and the
-  run budget still applies. Default behaviour is unchanged for every existing flow.
+  run budget still applies. Backoff is clamped to the remaining run wall time, and a typed
+  provider/tool failure that runs out of attempts becomes the usual structured node error.
+  Default behaviour is unchanged for every existing flow.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work and
   timeouts) and PRINCIPLE-014 (failing-first tests).
 
@@ -1341,3 +1343,25 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   monitor is process-local and bounded, and a metrics failure cannot break execution.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work) and
   PRINCIPLE-014 (failing-first tests).
+
+### ADR-062: Post-delivery hardening of the operator controls
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: A review of the three preceding deliveries found four gaps. Typed
+  `LLMTimeoutError`/`ToolTimeoutError` failures escaped `FlowRunner` as unhandled exceptions after
+  retries were exhausted because they are not `RuntimeError`/`OSError` subclasses. Retry backoff
+  ignored the run's remaining wall time. `stale_days=-1` silently became `0`, and text sorting
+  misordered epoch deadlines. Malformed persisted kernel fields and malformed snapshot inputs could
+  raise inside `BrainKernel.observe`, while `TrendMonitor.record` could divide by zero or record a
+  bogus sample when provider fields were malformed.
+- **Decision**: Catch `NeuroCoreError` in the runner's structured node-error path and keep log
+  messages bounded. Clamp each retry delay to `ExecutionBudget.remaining("seconds")`. Validate
+  goal-review numbers (`stale_days >= 0`, finite thresholds) and return 400 with `Why:`/`Fix:`;
+  sort review results by parsed epoch. Parse kernel restore and snapshot inputs defensively, keeping
+  the previous value for malformed rate inputs. Guard trend snapshot shapes and clock conversion.
+- **Consequences**: Exhausted retries always produce the normal node error dict instead of a 500,
+  backoff can never sleep past the run deadline, and operator reviews fail loudly on bad input
+  rather than silently reinterpreting it. Malformed state now degrades to a safe default instead of
+  breaking the brain loop.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (empirical hardening),
+  PRINCIPLE-011 (clear errors) and PRINCIPLE-014 (failing-first tests).
