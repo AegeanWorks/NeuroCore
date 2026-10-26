@@ -377,8 +377,6 @@ search; there is no fallback to an unlisted search engine or a spoofed user agen
 These are defense-in-depth Python restrictions, not an OS isolation boundary: do not run
 untrusted community tools on a machine whose files or credentials you cannot afford to expose.
 
-> **License history:** versions up to and including `v0.1.0-agpl` remain under GNU AGPL-3.0.
-
 ## 📜 License
 
 Free for personal use under the Aegean License 1.1 (AL-1.1); see [LICENSE](LICENSE). Any commercial use needs the Aegean Commercial License 1.0 (ACL-1.0); see [COMMERCIAL.md](COMMERCIAL.md).
