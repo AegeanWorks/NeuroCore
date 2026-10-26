@@ -18,6 +18,7 @@ from core.execution_budget import (
 )
 from core.debug import debug_logger
 from core.errors import FlowError, NodeExecutionError
+from core.node_retry import RetryPolicy, node_timeout, run_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +277,57 @@ class FlowRunner:
 
         return levels
 
+    async def _run_node(self, node_id: str, node_input, stream_queue: asyncio.Queue = None):
+        """Execute one node under its configured timeout and retry policy (ADR-060).
+
+        Returns ``("ok", output)``, ``("stop", None)`` when the node intentionally stops the
+        branch, or ``("missing", None)`` when no executor exists. Each attempt spends one node
+        from the run budget, so a retry cannot escape the per-run ceiling.
+        """
+        node_meta = self.nodes[node_id]
+        module_id = node_meta['moduleId']
+        node_type_id = node_meta['nodeTypeId']
+        source_config = node_meta.get('config') or {}
+        policy = RetryPolicy.from_config(source_config)
+        timeout = node_timeout(source_config)
+
+        async def attempt():
+            spend("nodes")
+            executor_class = await self._get_executor_class(module_id, node_type_id)
+            if not executor_class:
+                return "missing", None
+            executor = executor_class()
+            node_config = source_config.copy()
+            node_config['_flow_id'] = self.flow_id
+            node_config['_node_id'] = node_id
+            if stream_queue:
+                node_config['_stream_queue'] = stream_queue
+            processed_data = await executor.receive(node_input, config=node_config)
+            if processed_data is None:
+                return "stop", None
+            return "ok", await executor.send(processed_data)
+
+        async def call():
+            if timeout > 0:
+                return await asyncio.wait_for(attempt(), timeout=timeout)
+            return await attempt()
+
+        def on_retry(retry: int, delay: float, exc: BaseException) -> None:
+            logger.warning(
+                "Node '%s' attempt %s failed (%s: %s); retrying in %.2fs",
+                node_meta.get('name', node_id), retry, type(exc).__name__, exc, delay,
+            )
+            if settings.get("debug_mode"):
+                debug_logger.log(self.flow_id, node_id, node_meta.get('name', node_id),
+                                 "node_retry", {
+                                     "attempt": retry,
+                                     "delay": delay,
+                                     "error": str(exc),
+                                     "error_type": type(exc).__name__,
+                                 })
+
+        return await run_with_retry(call, policy, on_retry=on_retry)
+
     async def _run_bridge_node(self, bridge_node_id: str, bridge_input: dict, stream_queue: asyncio.Queue = None):
         """Execute a single bridge node and return its output dict, or None to stop the chain.
 
@@ -283,26 +335,13 @@ class FlowRunner:
         return_exceptions=True)`` can capture it without killing sibling tasks.
         """
         bridge_meta = self.nodes[bridge_node_id]
-        bridge_module_id = bridge_meta['moduleId']
-        bridge_type_id = bridge_meta['nodeTypeId']
-
-        spend("nodes")
-        bridge_executor_class = await self._get_executor_class(bridge_module_id, bridge_type_id)
-        if not bridge_executor_class:
+        status, bridge_output = await self._run_node(
+            bridge_node_id, bridge_input, stream_queue=stream_queue
+        )
+        if status == "missing":
             return bridge_input  # pass-through when executor is missing
-
-        bridge_executor = bridge_executor_class()
-        bridge_config = (bridge_meta.get('config') or {}).copy()
-        bridge_config['_flow_id'] = self.flow_id
-        bridge_config['_node_id'] = bridge_node_id
-        if stream_queue:
-            bridge_config['_stream_queue'] = stream_queue
-
-        bridge_processed = await bridge_executor.receive(bridge_input, config=bridge_config)
-        if bridge_processed is None:
+        if status == "stop":
             return None  # intentional stop signal
-
-        bridge_output = await bridge_executor.send(bridge_processed)
 
         if settings.get("debug_mode") and bridge_output is not None:
             debug_logger.log(
@@ -947,33 +986,20 @@ class FlowRunner:
                     debug_logger.log(self.flow_id, node_id, node_meta['name'], "input_resolved", {"input": node_input})
 
                 try:
-                    # Use thread-safe method to get executor class
-                    spend("nodes")
-                    executor_class = await self._get_executor_class(module_id, node_type_id)
-                    
-                    if not executor_class:
+                    status, output = await self._run_node(node_id, node_input, stream_queue=stream_queue)
+
+                    if status == "missing":
                         # Fallback: Pass through if no executor found (e.g. missing module)
                         node_outputs[node_id] = node_input
                         continue
 
-                    executor = executor_class()
-                    node_config = (node_meta.get('config') or {}).copy()
-                    node_config['_flow_id'] = self.flow_id
-                    node_config['_node_id'] = node_id
-                    if stream_queue:
-                        node_config['_stream_queue'] = stream_queue
-                    
-                    processed_data = await executor.receive(node_input, config=node_config)
-                    
                     # If receive returns None (e.g. Condition failed), we stop this branch
-                    if processed_data is None:
+                    if status == "stop":
                         if settings.get("debug_mode"):
                             debug_logger.log(self.flow_id, node_id, node_meta['name'], "branch_stop", {"reason": "Node returned None"})
                         node_outputs[node_id] = None
                         continue
 
-                    output = await executor.send(processed_data)
-                    
                     # Automatic Context Propagation:
                     # If input had 'messages' (chat history) and output is a dict that missed it,
                     # preserve it. This ensures chains like System -> LLM -> Router -> Tools -> LLM
@@ -1033,8 +1059,9 @@ class FlowRunner:
                         raise
                     logger.warning(f"Warning: Could not find or use node logic for {module_id}/{node_type_id}. Error: {e}. Passing data through.")
                     node_outputs[node_id] = node_input
-                except (RuntimeError, ValueError, TypeError) as e:
+                except (RuntimeError, ValueError, TypeError, TimeoutError, ConnectionError) as e:
                     # Node execution errors: runtime failures, invalid values, type mismatches
+                    # and a retryable failure whose attempts are exhausted
                     error_msg = f"Execution failed at node '{node_meta['name']}': {e}"
                     if settings.get("debug_mode"):
                         debug_logger.log(self.flow_id, node_id, node_meta['name'], "error", {"error": str(e), "error_type": type(e).__name__})
