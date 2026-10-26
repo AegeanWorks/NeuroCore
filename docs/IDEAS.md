@@ -44,8 +44,9 @@ This document tracks brainstorming features, layout refinements, and long-term a
 - **[x] Node Retry Policies with Backoff** *(implemented, ADR-060)*:
   - Per-node `retry_count`, `retry_delay`, `retry_max_delay`, `retry_backoff` and
     `timeout_seconds`; transient failures only, charged to the run budget.
-- **[ ] Node Deadlocks / Stalls Detector**:
-  - Observability hooks tracking node latency outliers above p99 values to trigger self-paused states on timed halts flawlessly ok.
+- **[x] Node Deadlocks / Stalls Detector** *(implemented, ADR-061)*:
+  - Per module/type latency history with p50/p95/p99; an attempt above both 2 s and 3x the prior
+    p99 is logged, counted and exposed by `GET /debug/node-latency` without aborting the run.
 
 ---
 

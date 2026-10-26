@@ -321,6 +321,10 @@ Only transient failures retry: `TimeoutError`, `ConnectionError`, `LLMTimeoutErr
 `ToolTimeoutError` and `LLMHTTPError` with 408/425/429/5xx. `ValueError`, `TypeError`,
 `KeyError` and cancellation fail immediately. Each attempt spends one node from the run budget.
 
+Every attempt is also timed by `core/node_stall.py`. After 20 samples for a module/type, a duration
+above both 2,000 ms and 3x the prior p99 is a stall: it increments `node.stall`, logs a structured
+warning and appears in `GET /debug/node-latency` (debug mode). Detection never aborts a run.
+
 ---
 
 ## 7. Core Modules Reference

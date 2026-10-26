@@ -128,17 +128,17 @@ deterministic pre-flight analysis without running anything: dangling connections
 types, isolated nodes, cycles, external effects and a cost envelope against the budget. A single
 pass that cannot fit blocks; a cycle that may reach a cap is reported as a warning.
 
-A node can retry transient failures explicitly: `retry_count` (0-4), `retry_delay` (base seconds,
-default 0.5), `retry_max_delay` (default 10) and `retry_backoff` (default 2.0). Retries are off by
-default because a node may have side effects; only timeouts, connection errors and retryable LLM
-HTTP statuses (408/425/429/5xx) qualify, and each attempt spends one node from the run budget.
-`timeout_seconds` adds an optional per-node wall-clock ceiling; a timed-out attempt is retryable.
+A node can opt into retries: `retry_count` (0-4), `retry_delay`, `retry_max_delay` and
+`retry_backoff` in its config. Retries are off by default because nodes may have side effects; only
+timeouts, connection errors and retryable LLM statuses (408/425/429/5xx) qualify, and each attempt
+spends one node from the run budget. `timeout_seconds` adds a per-node ceiling. Latency is timed per
+module/type; `GET /debug/node-latency` (debug mode) reports p50/p95/p99 and stalls above
+max(2 s, 3x p99); detection never aborts the run.
 
-Skill documents are versioned: every create, import and content change stores the exact text
-under its SHA-256 in a bounded per-skill history (50 versions). `GET /api/skills/{id}/versions`
-lists versions, `GET /api/skills/{id}/versions/{n}` returns one with its content, and
-`POST /api/skills/{id}/rollback/{n}` restores it as a new version, so a rollback is auditable
-rather than a silent rewrite.
+Skill documents are versioned: every content change stores the exact text under its SHA-256 in a
+bounded 50-version history. `GET /api/skills/{id}/versions` lists them,
+`GET /api/skills/{id}/versions/{n}` returns one with content, and
+`POST /api/skills/{id}/rollback/{n}` restores it as a new version.
 
 ### Meta-Flows
 

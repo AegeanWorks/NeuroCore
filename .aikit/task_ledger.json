@@ -1,60 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-node-retry",
+    "task_id": "neurocore-node-stall",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1793011318.6531923,
+    "updated_at": 1793028133.0809731,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1793011319.3231516
+    "completed_at": 1793028133.2272763
   },
   "checkpoints": [
-    {
-      "task_id": "close-review-gaps",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/4] Repetition guard in RLM/hybrid (goal pursuit inherits). [2/4] Guardrails on KB chunks and tool results; cross-worker research cache lock. [3/4] Legacy skill ids, disabled modules in simulation, active-only evidence + merge deadlock/recompute. [4/4] Gates, commit and push. ADR-054.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792966847.6594293,
-      "timestamp_str": "2026-10-26 01:20:47",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "Close the six hardening gaps left by the second review.",
-        "benefits": "All agent modes share loop protection, untrusted ingestion and tool output are screened, and state stays consistent across workers and merges.",
-        "risks": "contract: KB documents may be rejected in enforce mode; dependency: filelock already declared; concurrency: cache uses an OS lock, merge log moved outside the lock; state: archived evidence stops counting.",
-        "mitigation": "Defaults remain observe for guardrails, focused tests cover each fix, and full gates run before commit."
-      }
-    },
-    {
-      "task_id": "close-review-gaps",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[4/4] done: all six gaps closed with tests; guard in RLM/hybrid, KB chunk and tool-result guardrails, file-locked research cache, legacy skill id tolerance, enabled-only simulation catalogue, active-only confidence and merge deadlock fix. ADR-054. Full suite 1901 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792967029.9201255,
-      "timestamp_str": "2026-10-26 01:23:49",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "gaps closed and green",
-        "next": "commit and push",
-        "open": "none"
-      }
-    },
-    {
-      "task_id": "close-review-gaps",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'close-review-gaps' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792967030.3165946,
-      "timestamp_str": "2026-10-26 01:23:50",
-      "agent": "kilo:main"
-    },
     {
       "task_id": "link-aware-recall",
       "phase": "phase 2",
@@ -294,6 +251,50 @@
       "status": "completed",
       "timestamp": 1793011319.3231547,
       "timestamp_str": "2026-10-26 13:41:59",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-node-stall",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/2] Add bounded per-node latency history with p99 stall detection, metrics/logging hooks, a debug-mode report route, and per-attempt timing in the flow runner; then verify and ship",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793027809.9632165,
+      "timestamp_str": "2026-10-26 18:16:49",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "A stalled node was invisible until the whole flow timed out, and there was no per-node-type latency baseline to distinguish a normal slow node from an outlier",
+        "benefits": "Operators can see degrading node types and the exact flow/node of a stall without changing run behaviour",
+        "risks": "contract: new debug route and metrics keys; dependency: none; concurrency: thread-safe monitor with bounded state; state: process-local history only",
+        "mitigation": "Bounded history and keys, observational-only detection, injected observability hooks to avoid an import cycle, failing-first tests"
+      }
+    },
+    {
+      "task_id": "neurocore-node-stall",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[2/2] done: bounded per-node p99 stall monitor with injected metrics/logging hooks, per-attempt timing in both node paths, debug-mode report route, 6 tests, README/IDEAS/MODULE_GUIDE/ADR-061/map updated; checklists: passed; aikit check 4/4",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793028133.0809731,
+      "timestamp_str": "2026-10-26 18:22:13",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "green and ready to commit",
+        "next": "commit and push",
+        "open": "other IDEAS.md items (visual replay, memoization, parallel merge, streaming)",
+        "evidence": "aikit check neurocore 4/4, full pytest pass"
+      }
+    },
+    {
+      "task_id": "neurocore-node-stall",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-node-stall' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793028133.2272778,
+      "timestamp_str": "2026-10-26 18:22:13",
       "agent": "kilo:main"
     }
   ]

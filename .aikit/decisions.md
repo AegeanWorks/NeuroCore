@@ -1321,3 +1321,23 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   run budget still applies. Default behaviour is unchanged for every existing flow.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work and
   timeouts) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-061: Node latency stall detection
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: The flow engine records per-run duration and a generic `node.latency` metric when a
+  tracing decorator is used, but there was no per-node-type history, no p99, and no way to notice a
+  single stalled attempt while a run was still hung.
+- **Decision**: Add `core/node_stall.py`, a thread-safe monitor with a bounded history (200 samples,
+  at most 512 module/type keys). After at least 20 prior samples, an attempt is a stall when its
+  duration exceeds both a 2,000 ms floor and three times the prior p99. Each attempt records
+  `node.latency` and `node.last_duration_ms`; a stall also increments `node.stall`, emits a
+  structured warning and is kept in a bounded 50-entry findings list. `FlowRunner._run_node` times
+  every attempt, including a timed-out or failed one, in a `finally` block. `GET /debug/node-latency`
+  (debug mode) returns thresholds, per-node percentiles and recent stalls.
+- **Consequences**: Operators can see whether a node type is degrading and which flow/node stalled,
+  with thresholds that adapt to that node's own baseline instead of a global constant. Detection is
+  observational: it never pauses or aborts a run, so a slow-but-useful node still completes. The
+  monitor is process-local and bounded, and a metrics failure cannot break execution.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work) and
+  PRINCIPLE-014 (failing-first tests).

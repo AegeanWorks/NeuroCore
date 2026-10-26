@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `284`
-- **Total Classes**: `402`
-- **Total Top-Level Functions**: `1849`
-- **Total Class Methods**: `2161`
-- **Total Source Lines**: `79060`
+- **Total Python Modules**: `286`
+- **Total Classes**: `403`
+- **Total Top-Level Functions**: `1862`
+- **Total Class Methods**: `2168`
+- **Total Source Lines**: `79396`
 
 ---
 
@@ -330,7 +330,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1132` lines (`54604` bytes)
+**Size**: `1145` lines (`55251` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -455,10 +455,34 @@
 
 ---
 
+### [`core/node_stall.py`](core/node_stall.py)
+> *Node latency outlier detection for stalled executions (ADR-061).*
+
+**Size**: `205` lines (`7987` bytes)
+
+**Classes:**
+- `class NodeLatencyMonitor` - *Thread-safe bounded latency history per node type with p99 outlier detection.*
+  - Method `.__init__(*, min_samples, factor, floor_ms, history_size, clock)`
+  - Method `.key(module_id, node_type_id)`
+  - Method `.record(module_id, node_type_id, duration_ms, *, flow_id, node_id)` - *Record one attempt and return a stall finding when it is an outlier.*
+  - Method `.stats()`
+  - Method `.findings()`
+  - Method `.report()`
+  - Method `.reset()`
+
+**Functions:**
+- `def configure_node_stall(*, timing, gauge, counter, warn)` - *Inject the observability sinks; node_stall never imports them (no import cycle).*
+- `def _percentile(sorted_values, fraction)`
+- `def record_node_latency(module_id, node_type_id, duration_ms, *, flow_id, node_id)` - *Record an attempt on the shared monitor; never raises into the runner.*
+- `def node_latency_report()`
+- `def reset_node_latency()`
+
+---
+
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `991` lines (`36253` bytes)
+**Size**: `1000` lines (`36529` bytes)
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -655,7 +679,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3362` lines (`147078` bytes)
+**Size**: `3368` lines (`147403` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -751,6 +775,7 @@
 - `async def get_agent_summary(request, since, limit, _)` - *Get a summary of the last agent session trace events.*
 - `async def get_debug_summary(request, since, limit, _)` - *Get the agent summary panel for the debug page.*
 - `async def get_token_stats_json(request, _)` - *Return LLM token usage counters (total + per-model) as JSON.*
+- `async def get_node_latency_json(_)` - *Return node latency percentiles and recent p99 stall findings as JSON.*
 - `async def get_token_stats_partial(request, _)` - *Return the token stats panel as an HTML partial for HTMX polling.*
 - `async def clear_debug_logs(request, _)`
 - `async def goals_page(request, module_manager, settings_man)`
@@ -5770,6 +5795,22 @@
 - `async def test_a_node_timeout_can_be_retried()`
 - `async def test_retry_attempts_are_charged_to_the_run_budget()`
 - `async def test_bridge_execution_uses_the_same_policy()`
+
+---
+
+### [`tests/test_node_stall.py`](tests/test_node_stall.py)
+> *Node latency outlier detection, bounded history and the debug report (ADR-061).*
+
+**Size**: `103` lines (`3349` bytes)
+
+**Functions:**
+- `def monitor(**overrides)`
+- `def test_no_finding_before_the_minimum_sample_count_or_below_the_floor()`
+- `def test_a_duration_above_both_the_floor_and_prior_p99_is_a_stall()`
+- `def test_history_is_bounded_per_node_type_and_resettable()`
+- `def test_report_exposes_thresholds_nodes_and_findings()`
+- `def test_the_debug_route_reports_the_monitor(monkeypatch)`
+- `async def test_flow_runner_records_each_attempt_latency(monkeypatch)`
 
 ---
 
