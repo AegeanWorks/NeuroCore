@@ -39,7 +39,7 @@
             
             <!-- Confirmation State Buttons -->
             <div class="hidden confirm-{{ session.id }} flex items-center space-x-2">
-                <button hx-post="/chat/sessions/{{ session.id }}/delete"
+                <button hx-post="/chat/sessions/{{ session.id }}/delete?confirm=delete+this+session"
                         hx-target="#module-content"
                         hx-swap="innerHTML"
                         class="text-red-500 hover:text-red-400 font-bold text-[10px] uppercase">Del</button>

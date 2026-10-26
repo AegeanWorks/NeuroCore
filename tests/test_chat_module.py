@@ -142,7 +142,7 @@ def test_delete_session_route(client, mock_chat_sessions):
     session_id = session['id']
     assert len(mock_chat_sessions.list_sessions()) == 1
 
-    response = client.post(f"/chat/sessions/{session_id}/delete", headers={"HX-Trigger": "sessionsChanged"})
+    response = client.post(f"/chat/sessions/{session_id}/delete?confirm=delete+this+session", headers={"HX-Trigger": "sessionsChanged"})
     assert response.status_code == 200
     assert "sessionsChanged" in response.headers["HX-Trigger"]
     assert len(mock_chat_sessions.list_sessions()) == 0, "Deleting the last session should result in zero sessions"

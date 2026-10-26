@@ -36,7 +36,7 @@
                    hx-target="#doc-list-container">
             <svg class="w-4 h-4 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         </div>
-        <button hx-delete="/knowledge_base/delete_all" 
+        <button hx-delete="/knowledge_base/delete_all?confirm=delete+all+documents" 
                 hx-target="#doc-list-container"
                 hx-confirm="Are you sure you want to delete ALL documents? This cannot be undone."
                 class="text-slate-400 hover:text-red-500 text-sm font-semibold transition-colors">

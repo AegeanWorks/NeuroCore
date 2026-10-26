@@ -57,7 +57,10 @@ async def get_thoughts(request: Request):
     })
 
 @router.post("/clear")
-async def clear_thoughts(request: Request):
+async def clear_thoughts(request: Request, confirm: str = None):
+    from core.confirmations import require_confirmation
+
+    require_confirmation(confirm, "wipe the reasoning book", "wiping the reasoning book")
     await service.clear()
     return templates.TemplateResponse(request, "reasoning_thoughts.html", {
         "thoughts": []

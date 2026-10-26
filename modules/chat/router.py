@@ -255,7 +255,10 @@ async def compact_session_route(
     return response
 
 @router.post("/sessions/{session_id}/delete")
-async def delete_session(request: Request, session_id: str):
+async def delete_session(request: Request, session_id: str, confirm: str = None):
+    from core.confirmations import require_confirmation
+
+    require_confirmation(confirm, "delete this session", "deleting a chat session")
     session_manager.delete_session(session_id)
 
     # Get the new chat GUI. By passing session_id=None, chat_gui will pick the latest session,

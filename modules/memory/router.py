@@ -127,7 +127,10 @@ async def consolidate_memories(request: Request):
 
 
 @router.post("/wipe")
-async def wipe_memories(request: Request):
+async def wipe_memories(request: Request, confirm: str = None):
+    from core.confirmations import require_confirmation
+
+    require_confirmation(confirm, "wipe all memories", "wiping every memory")
     try:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(memory_store.executor, memory_store.wipe_all)

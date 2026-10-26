@@ -45,7 +45,7 @@
         </div>
         <div class="mt-6 flex justify-end space-x-3">
             <button type="button" onclick="closeWipeModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
-            <button hx-post="/reasoning_book/clear" 
+            <button hx-post="/reasoning_book/clear?confirm=wipe+the+reasoning+book" 
                     hx-target="#thoughts-container" 
                     onclick="closeWipeModal()"
                     class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors">

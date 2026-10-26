@@ -2535,9 +2535,13 @@ async def import_flows(request: Request, file: UploadFile = File(...)):
 
 
 @router.post("/settings/reset")
-async def reset_settings(request: Request, settings_man: SettingsManager = Depends(get_settings_manager)):
+async def reset_settings(request: Request, confirm: str = None,
+                         settings_man: SettingsManager = Depends(get_settings_manager)):
     """Resets settings to defaults."""
+    from core.confirmations import require_confirmation
     from core.settings import DEFAULT_SETTINGS
+
+    require_confirmation(confirm, "reset all settings", "resetting settings")
     # Preserve the file path but overwrite content
     settings_man.save_settings(DEFAULT_SETTINGS)
     return Response(status_code=200, headers={"HX-Trigger": json.dumps({"settingsChanged": None, "showMessage": {"level": "success", "message": "Settings reset to defaults"}})})

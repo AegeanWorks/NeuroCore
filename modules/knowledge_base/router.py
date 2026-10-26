@@ -483,7 +483,10 @@ async def delete_doc(request: Request, doc_id: int):
     return await list_docs(request)
 
 @router.delete("/delete_all", response_class=HTMLResponse)
-async def delete_all_docs(request: Request):
+async def delete_all_docs(request: Request, confirm: str = None):
+    from core.confirmations import require_confirmation
+
+    require_confirmation(confirm, "delete all documents", "deleting every document")
     document_store.clear()
     
     # Also clean up files

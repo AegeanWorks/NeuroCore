@@ -854,7 +854,7 @@
         function confirmWipe() {
             const input = prompt("⚠️ DANGER ZONE ⚠️\n\nThis will permanently delete ALL stored memories. This action cannot be undone.\n\nTo confirm, type 'DELETE' in the box below:");
             if (input === 'DELETE') {
-                htmx.ajax('POST', '/memory/wipe', {swap: 'none'});
+                htmx.ajax('POST', '/memory/wipe?confirm=wipe+all+memories', {swap: 'none'});
             } else if (input !== null) {
                 alert("Incorrect confirmation code. Action cancelled.");
             }
@@ -1106,7 +1106,7 @@
         function confirmWipe() {
             const input = prompt("⚠️ DANGER ZONE ⚠️\n\nThis will permanently delete ALL stored memories. This action cannot be undone.\n\nTo confirm, type 'DELETE' in the box below:");
             if (input === 'DELETE') {
-                htmx.ajax('POST', '/memory/wipe', {swap: 'none'});
+                htmx.ajax('POST', '/memory/wipe?confirm=wipe+all+memories', {swap: 'none'});
             } else if (input !== null) {
                 alert("Incorrect confirmation code. Action cancelled.");
             }
