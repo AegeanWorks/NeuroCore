@@ -4,6 +4,7 @@ The review never mutates a goal. It reports overdue work, stale work, goals whos
 is too vague to act on, and near-duplicate objectives, so an operator can decide what to fix.
 """
 
+import math
 import re
 import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -84,16 +85,36 @@ def _timestamp(value: Any) -> Optional[float]:
         return None
 
 
+def _finite(value: Any, name: str, *, minimum: Optional[float] = None) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a number") from exc
+    if not math.isfinite(parsed):
+        raise ValueError(f"{name} must be finite")
+    if minimum is not None and parsed < minimum:
+        raise ValueError(f"{name} must be at least {minimum:g}")
+    return parsed
+
+
+def _sort_epoch(value: Any) -> float:
+    parsed = _timestamp(value)
+    return parsed if parsed is not None else 0.0
+
+
 def review_goals(goals: Iterable[Dict[str, Any]], *,
                  now: Optional[float] = None,
                  stale_days: float = DEFAULT_STALE_DAYS,
                  clarity_threshold: float = DEFAULT_CLARITY_THRESHOLD,
                  duplicate_threshold: float = DEFAULT_DUPLICATE_THRESHOLD) -> Dict[str, Any]:
     """Return a bounded review of active goals; never raises for malformed rows."""
-    current = time.time() if now is None else float(now)
-    stale_cutoff = current - max(0.0, float(stale_days)) * 86400.0
-    threshold = max(0.0, min(1.0, float(clarity_threshold)))
-    duplicate_at = max(0.0, min(1.0, float(duplicate_threshold)))
+    current = time.time() if now is None else _finite(now, "now")
+    stale_days = _finite(stale_days, "stale_days", minimum=0.0)
+    clarity_value = _finite(clarity_threshold, "clarity_threshold")
+    duplicate_value = _finite(duplicate_threshold, "duplicate_threshold")
+    stale_cutoff = current - stale_days * 86400.0
+    threshold = max(0.0, min(1.0, clarity_value))
+    duplicate_at = max(0.0, min(1.0, duplicate_value))
 
     active = [
         goal for goal in goals
@@ -141,8 +162,8 @@ def review_goals(goals: Iterable[Dict[str, Any]], *,
         "stale_days": float(stale_days),
         "clarity_threshold": threshold,
         "duplicate_threshold": duplicate_at,
-        "overdue": sorted(overdue, key=lambda item: str(item.get("deadline"))),
-        "stale": sorted(stale, key=lambda item: str(item.get("updated_at"))),
+        "overdue": sorted(overdue, key=lambda item: _sort_epoch(item.get("deadline"))),
+        "stale": sorted(stale, key=lambda item: _sort_epoch(item.get("updated_at"))),
         "low_clarity": sorted(low_clarity, key=lambda item: item["clarity"]),
         "near_duplicates": sorted(
             duplicates, key=lambda item: item["similarity"], reverse=True

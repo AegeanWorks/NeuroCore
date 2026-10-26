@@ -115,3 +115,21 @@ def test_trend_route_reports_the_window():
     assert response.status_code == 200
     body = response.json()
     assert {"samples", "window", "history", "means", "proposals"} <= set(body)
+
+
+def test_trend_record_survives_malformed_snapshot_fields(tmp_path):
+    tracker = monitor(tmp_path, [1000.0])
+
+    sample = tracker.record({
+        "provider_status": "bad",
+        "provider_errors": "bad",
+        "evaluation": "bad",
+    })
+    assert sample is None
+
+    with_errors = tracker.record({
+        "provider_status": None,
+        "provider_errors": [{"provider": "a", "error": "x"}],
+        "evaluation": {"last_pass_rate": 0.5},
+    })
+    assert with_errors["provider_error_rate"] == 1.0

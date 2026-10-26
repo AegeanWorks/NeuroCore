@@ -1,5 +1,6 @@
 """Deterministic goal review: overdue, stale, clarity and near-duplicate detection."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -69,3 +70,24 @@ def test_goal_review_route_is_read_only_and_reports_a_review():
     body = response.json()
     assert isinstance(body["reviewed"], int)
     assert {"overdue", "stale", "low_clarity", "near_duplicates", "clarity"} <= set(body)
+
+
+def test_review_rejects_negative_stale_days():
+    with pytest.raises(ValueError):
+        review_goals([], now=NOW, stale_days=-1)
+
+
+def test_review_sorts_overdue_and_stale_by_epoch_not_text():
+    later = goal(1, "Later deadline objective words here", deadline=100, updated_at=100)
+    earlier = goal(2, "Earlier deadline objective words here", deadline=99, updated_at=99)
+    result = review_goals([later, earlier], now=1000, stale_days=0)
+    assert [item["id"] for item in result["overdue"]] == [2, 1]
+    assert [item["id"] for item in result["stale"]] == [2, 1]
+
+
+def test_goal_review_route_rejects_negative_stale_days():
+    with TestClient(app) as client:
+        response = client.post("/brain/goals/review", json={"stale_days": -1})
+
+    assert response.status_code == 400
+    assert "Fix:" in response.json()["detail"]

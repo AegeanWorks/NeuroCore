@@ -287,3 +287,49 @@ def test_kernel_routes(tmp_path, monkeypatch):
     assert after.json()["mode"] == "safe"
     assert reset.status_code == 200
     assert reset.json()["mode"] == "normal"
+
+
+def test_kernel_tolerates_malformed_persisted_fields(tmp_path):
+    import json
+
+    path = tmp_path / "kernel.json"
+    path.write_text(json.dumps({
+        "mode": "degraded",
+        "risk_score": "not-a-number",
+        "smoothed_risk": "also-bad",
+        "smoothed_at": "bad",
+        "blocked_actions": "many",
+    }), encoding="utf-8")
+
+    kernel = BrainKernel(store=KernelStore(str(path)))
+
+    assert kernel.mode == "degraded"
+    assert kernel.risk_score == 0.0
+    assert kernel.to_dict()["blocked_actions"] == 0
+
+
+def test_observe_tolerates_malformed_risk_inputs(tmp_path):
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")))
+
+    result = kernel.observe({
+        "provider_status": "not-a-mapping",
+        "provider_errors": "also-bad",
+        "evaluation": "bad",
+        "drift": ["bad"],
+    })
+
+    assert result["risk"]["mode"] == "normal"
+    assert kernel.risk_score == 0.0
+
+
+def test_record_evaluation_and_drift_ignore_malformed_values(tmp_path):
+    now = [1000.0]
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0])
+
+    kernel.record_evaluation({"pass_rate": "not-a-number"})
+    kernel.record_drift("also-bad")
+
+    state = kernel.to_dict()
+    assert state["risk_score"] == 0.0
+    assert state["mode"] == "normal"

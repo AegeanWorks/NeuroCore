@@ -85,16 +85,19 @@ class TrendMonitor:
 
     def record(self, snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Append one sample derived from a self-model snapshot, bounded by history."""
-        provider_status = snapshot.get("provider_status") or {}
-        providers = len(provider_status) or 1
-        errors = len(snapshot.get("provider_errors") or [])
-        evaluation = snapshot.get("evaluation") or {}
+        provider_status = snapshot.get("provider_status")
+        providers = len(provider_status) if isinstance(provider_status, (dict, list)) else 0
+        raw_errors = snapshot.get("provider_errors")
+        errors = len(raw_errors) if isinstance(raw_errors, (list, tuple, dict)) else 0
+        evaluation = snapshot.get("evaluation")
+        if not isinstance(evaluation, dict):
+            evaluation = {}
         sample = {
             "at": self._clock(),
             "pass_rate": evaluation.get("last_pass_rate"),
-            "provider_error_rate": min(1.0, errors / providers),
+            "provider_error_rate": min(1.0, errors / max(1, providers)),
         }
-        if sample["pass_rate"] is None and not errors and not provider_status:
+        if sample["pass_rate"] is None and not errors and providers == 0:
             return None
         data = self.store.load()
         samples = data.get("samples") if isinstance(data.get("samples"), list) else []
@@ -112,7 +115,11 @@ class TrendMonitor:
         current = samples[-self.window:]
         previous = samples[-2 * self.window:-self.window]
         now = self._clock()
-        day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        try:
+            day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        except (OverflowError, OSError, ValueError):
+            logger.warning("Could not derive a trend day from clock value %r", now)
+            return []
         proposals = self._prune_proposals(data.get("proposals"))
 
         emitted_today = sum(

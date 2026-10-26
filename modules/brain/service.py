@@ -286,7 +286,7 @@ class BrainService:
         snapshot["kernel"] = self.kernel.to_dict()
         try:
             self.trends.record(snapshot)
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, OverflowError, TypeError, ValueError) as exc:
             logger.warning("Could not record the brain trend sample: %s", exc)
 
     async def snapshot(self) -> Dict[str, Any]:
@@ -722,7 +722,7 @@ class BrainService:
 
         try:
             findings = self.trends.detect()
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, OverflowError, TypeError, ValueError) as exc:
             logger.warning("Could not evaluate the brain trend window: %s", exc)
             findings = []
         for finding in findings:

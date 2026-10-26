@@ -30,6 +30,14 @@ DWELL_SECONDS = 60.0
 RISK_RELEASE_ALPHA = 0.1
 
 
+def _clamp_unit(value: Any, default: float) -> float:
+    """Clamp a 0..1 risk input; a malformed value keeps the previous input."""
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 class KernelMode(str, Enum):
     NORMAL = "normal"
     DEGRADED = "degraded"
@@ -141,14 +149,27 @@ class BrainKernel:
             smoothed_at = float(restored.get("smoothed_at", 0.0))
         except (TypeError, ValueError):
             smoothed_at = 0.0
+
+        def bounded_risk(value: Any, default: float = 0.0) -> float:
+            try:
+                return max(0.0, min(100.0, float(value)))
+            except (TypeError, ValueError):
+                return default
+
+        def bounded_count(value: Any, default: int = 0) -> int:
+            try:
+                return max(0, int(value))
+            except (TypeError, ValueError):
+                return default
+
         state = KernelState(
             mode=str(restored.get("mode", KernelMode.NORMAL.value)),
-            risk_score=float(restored.get("risk_score", 0.0)),
+            risk_score=bounded_risk(restored.get("risk_score"), 0.0),
             smoothed_risk=smoothed_risk,
             smoothed_at=smoothed_at,
             reason=str(restored.get("reason", "startup")),
             kill_switch_active=bool(restored.get("kill_switch_active", False)),
-            blocked_actions=int(restored.get("blocked_actions", 0)),
+            blocked_actions=bounded_count(restored.get("blocked_actions"), 0),
             blocked_times=blocked_times,
             component_errors=components,
             mode_changed_at=mode_changed_at,
@@ -205,17 +226,19 @@ class BrainKernel:
     @engine_transaction
     def observe(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         """Update risk inputs from one self-model snapshot and reassess the mode."""
-        provider_status = snapshot.get("provider_status") or {}
-        errors = len(snapshot.get("provider_errors") or [])
-        providers = len(provider_status) or 1
-        self._provider_error_rate = min(1.0, errors / providers)
-        evaluation = snapshot.get("evaluation") or {}
-        pass_rate = evaluation.get("last_pass_rate")
+        provider_status = snapshot.get("provider_status")
+        providers = len(provider_status) if isinstance(provider_status, (dict, list)) else 0
+        raw_errors = snapshot.get("provider_errors")
+        errors = len(raw_errors) if isinstance(raw_errors, (list, tuple, dict)) else 0
+        self._provider_error_rate = min(1.0, errors / max(1, providers))
+        evaluation = snapshot.get("evaluation")
+        pass_rate = evaluation.get("last_pass_rate") if isinstance(evaluation, dict) else None
         if pass_rate is not None:
-            self._last_pass_rate = max(0.0, min(1.0, float(pass_rate)))
-        drift = snapshot.get("drift") or {}
-        if drift.get("score") is not None:
-            self._drift = max(0.0, min(1.0, float(drift["score"])))
+            self._last_pass_rate = _clamp_unit(pass_rate, self._last_pass_rate)
+        drift = snapshot.get("drift")
+        drift_score = drift.get("score") if isinstance(drift, dict) else None
+        if drift_score is not None:
+            self._drift = _clamp_unit(drift_score, self._drift)
         self.assess("snapshot", persist=True)
         snapshot["risk"] = self.to_dict()
         return snapshot
@@ -224,12 +247,12 @@ class BrainKernel:
     def record_evaluation(self, result: Dict[str, Any]) -> None:
         pass_rate = result.get("pass_rate")
         if pass_rate is not None:
-            self._last_pass_rate = max(0.0, min(1.0, float(pass_rate)))
+            self._last_pass_rate = _clamp_unit(pass_rate, self._last_pass_rate)
             self.assess("evaluation", persist=True)
 
     @engine_transaction
     def record_drift(self, score: float) -> None:
-        self._drift = max(0.0, min(1.0, float(score)))
+        self._drift = _clamp_unit(score, self._drift)
         self.assess("drift", persist=True)
 
     @engine_transaction

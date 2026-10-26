@@ -278,7 +278,13 @@ async def brain_goals_review(body: dict = Body(default_factory=dict),
             duplicate_threshold=float(body.get("duplicate_threshold", 0.75)),
         )
     except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Why: the goal review parameters are invalid ({exc}). "
+                "Fix: pass numeric stale_days >= 0 and finite thresholds."
+            ),
+        ) from exc
 
 
 @router.get("/improve/status")
