@@ -16,14 +16,15 @@ from core.outcomes import clear_outcome_listener, set_outcome_listener
 from .configuration import ConfigurationEngine, ConfigurationStore
 from .drift import DriftMonitor
 from .evaluation import EvalStore, EvaluationRunner, compare_results
-from .self_budget import SelfBudget, SelfBudgetExceeded
 from .events import EventBus
 from .improvement import ImprovementEngine, ImprovementStore
 from .kernel import BrainKernel, KernelBlockedError
 from .learning import LearningLoop
 from .reactivity import ReactionStore, ReactivityEngine
+from .self_budget import SelfBudget, SelfBudgetExceeded
 from .self_model import BrainSelfModel
 from .state import VALID_MODES, BrainState, BrainStateStore, utc_now
+from .trends import TrendMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,7 @@ class BrainService:
                  configuration: Optional[ConfigurationEngine] = None,
                  kernel: Optional[BrainKernel] = None,
                  drift: Optional[DriftMonitor] = None,
+                 trends: Optional[TrendMonitor] = None,
                  reactivity: Optional[ReactivityEngine] = None):
         merged = _load_module_config()
         if config:
@@ -81,6 +83,13 @@ class BrainService:
         self.kernel = kernel or BrainKernel()
         self.self_budget = SelfBudget(caps=merged.get("self_budget_caps") or {})
         self.drift = drift or DriftMonitor()
+        self.trends = trends or TrendMonitor(
+            window=int(merged.get("trend_window", 20)),
+            history=int(merged.get("trend_history", 100)),
+            min_delta=float(merged.get("trend_min_delta", 0.10)),
+            cooldown_seconds=float(merged.get("trend_cooldown_seconds", 6 * 3600)),
+            max_per_day=int(merged.get("trend_max_per_day", 1)),
+        )
         self.evaluation_runner = evaluation_runner or EvaluationRunner()
         self.eval_store = eval_store or EvalStore()
         self.learning = learning or LearningLoop(
@@ -275,6 +284,10 @@ class BrainService:
         snapshot["drift"] = drift_report
         self.kernel.observe(snapshot)
         snapshot["kernel"] = self.kernel.to_dict()
+        try:
+            self.trends.record(snapshot)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not record the brain trend sample: %s", exc)
 
     async def snapshot(self) -> Dict[str, Any]:
         async with self._state_lock:
@@ -334,6 +347,22 @@ class BrainService:
 
     def learning_status(self) -> Dict[str, Any]:
         return self.learning.status()
+
+    def review_goals(self, *, stale_days: float = 14.0,
+                     clarity_threshold: float = 0.5,
+                     duplicate_threshold: float = 0.75) -> Dict[str, Any]:
+        """Read the shared goal ledger and return a deterministic, read-only review."""
+        from modules.memory.backend import memory_store
+
+        from .goal_review import review_goals
+
+        goals = memory_store.get_goals(limit=500)
+        return review_goals(
+            goals,
+            stale_days=stale_days,
+            clarity_threshold=clarity_threshold,
+            duplicate_threshold=duplicate_threshold,
+        )
 
     async def propose_improvement(self, flow_id: str, operations: List[Dict[str, Any]],
                                   description: str = "",
@@ -414,6 +443,9 @@ class BrainService:
 
     def kernel_status(self) -> Dict[str, Any]:
         return self.kernel.to_dict()
+
+    def trends_status(self) -> Dict[str, Any]:
+        return self.trends.review()
 
     def reactivity_status(self) -> Dict[str, Any]:
         return self.reactivity.status()
@@ -687,6 +719,25 @@ class BrainService:
                 "Held-out recall is below 60%; skills are not generalizing.",
                 0.75,
             ))
+
+        try:
+            findings = self.trends.detect()
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not evaluate the brain trend window: %s", exc)
+            findings = []
+        for finding in findings:
+            proposal = self._proposal(
+                "repair_metric",
+                f"Review {finding['metric']} trend",
+                finding["reason"],
+                0.8,
+            )
+            proposal.update({
+                "goal_kind": "self_repair",
+                "reason": finding["reason"],
+                "evidence": finding,
+            })
+            proposals.insert(0, proposal)
 
         if not proposals:
             proposals.append(self._proposal(

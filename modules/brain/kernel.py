@@ -25,6 +25,9 @@ ERRORS_FOR_FULL_PRESSURE = 10
 # Once the brain leaves NORMAL it stays out of it at least this long, so a single good
 # snapshot cannot flap it back while the cause is still present (ADR-039).
 DWELL_SECONDS = 60.0
+# Escalation follows the raw risk so a spike can never be delayed. Release follows a
+# slow exponential decay, because one clean snapshot is weak evidence of recovery.
+RISK_RELEASE_ALPHA = 0.1
 
 
 class KernelMode(str, Enum):
@@ -41,6 +44,9 @@ class KernelBlockedError(ValueError):
 class KernelState:
     mode: str = KernelMode.NORMAL.value
     risk_score: float = 0.0
+    # Raw risk escalates; this released value gates de-escalation (ADR-056).
+    smoothed_risk: float = 0.0
+    smoothed_at: float = 0.0
     reason: str = "startup"
     kill_switch_active: bool = False
     # Lifetime audit counters; risk uses the bounded windows below, never these totals.
@@ -126,9 +132,20 @@ class BrainKernel:
             mode_changed_at = float(restored.get("mode_changed_at", 0.0))
         except (TypeError, ValueError):
             mode_changed_at = 0.0
+        smoothed = restored.get("smoothed_risk", restored.get("risk_score", 0.0))
+        try:
+            smoothed_risk = max(0.0, min(100.0, float(smoothed)))
+        except (TypeError, ValueError):
+            smoothed_risk = 0.0
+        try:
+            smoothed_at = float(restored.get("smoothed_at", 0.0))
+        except (TypeError, ValueError):
+            smoothed_at = 0.0
         state = KernelState(
             mode=str(restored.get("mode", KernelMode.NORMAL.value)),
             risk_score=float(restored.get("risk_score", 0.0)),
+            smoothed_risk=smoothed_risk,
+            smoothed_at=smoothed_at,
             reason=str(restored.get("reason", "startup")),
             kill_switch_active=bool(restored.get("kill_switch_active", False)),
             blocked_actions=int(restored.get("blocked_actions", 0)),
@@ -199,7 +216,7 @@ class BrainKernel:
         drift = snapshot.get("drift") or {}
         if drift.get("score") is not None:
             self._drift = max(0.0, min(1.0, float(drift["score"])))
-        self.assess("snapshot")
+        self.assess("snapshot", persist=True)
         snapshot["risk"] = self.to_dict()
         return snapshot
 
@@ -208,12 +225,12 @@ class BrainKernel:
         pass_rate = result.get("pass_rate")
         if pass_rate is not None:
             self._last_pass_rate = max(0.0, min(1.0, float(pass_rate)))
-            self.assess("evaluation")
+            self.assess("evaluation", persist=True)
 
     @engine_transaction
     def record_drift(self, score: float) -> None:
         self._drift = max(0.0, min(1.0, float(score)))
-        self.assess("drift")
+        self.assess("drift", persist=True)
 
     @engine_transaction
     def record_blocked_action(self, reason: str = "blocked action") -> None:
@@ -261,20 +278,42 @@ class BrainKernel:
         now = self._clock()
         self._prune(now)
         risk = self.risk_score
+        stale = (
+            self.state.smoothed_at > 0.0
+            and now - self.state.smoothed_at > ERROR_WINDOW_SECONDS
+        )
+        if stale or risk >= self.state.smoothed_risk:
+            # Fast attack, and a long idle gap resets a stale release value.
+            smoothed = risk
+        else:
+            smoothed = round(
+                RISK_RELEASE_ALPHA * risk
+                + (1.0 - RISK_RELEASE_ALPHA) * self.state.smoothed_risk,
+                2,
+            )
         self.state.risk_score = risk
+        self.state.smoothed_risk = smoothed
+        self.state.smoothed_at = now
         self.state.reason = reason
         mode = self.state.mode
 
         if self.state.kill_switch_active:
             target = KernelMode.SAFE.value
-        elif mode == KernelMode.SAFE.value:
-            target = (
-                KernelMode.SAFE.value
-                if risk >= self.safe_exit_threshold
-                else (KernelMode.DEGRADED.value if risk >= self.degrade_threshold else KernelMode.NORMAL.value)
-            )
         elif risk >= self.safe_threshold:
             target = KernelMode.SAFE.value
+        elif mode == KernelMode.SAFE.value:
+            if smoothed >= self.safe_exit_threshold:
+                target = KernelMode.SAFE.value
+            elif risk >= self.degrade_threshold or smoothed >= self.degrade_threshold:
+                target = KernelMode.DEGRADED.value
+            else:
+                target = KernelMode.NORMAL.value
+        elif mode == KernelMode.DEGRADED.value:
+            target = (
+                KernelMode.DEGRADED.value
+                if risk >= self.degrade_threshold or smoothed >= self.degrade_threshold
+                else KernelMode.NORMAL.value
+            )
         elif risk >= self.degrade_threshold:
             target = KernelMode.DEGRADED.value
         else:
@@ -331,6 +370,8 @@ class BrainKernel:
         self.state.mode = KernelMode.NORMAL.value
         self.state.mode_changed_at = 0.0
         self.state.risk_score = 0.0
+        self.state.smoothed_risk = 0.0
+        self.state.smoothed_at = 0.0
         self.state.reason = f"reset by {approved_by.strip()}"
         self.state.updated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         self._save()

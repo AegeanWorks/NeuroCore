@@ -15,6 +15,7 @@ from .configuration import (
 )
 from .improvement import QuotaExceededError
 from .kernel import KernelBlockedError
+from .self_budget import SelfBudgetExceeded
 from .service import (
     brain_auto_start_enabled,
     get_brain_service,
@@ -267,6 +268,19 @@ async def brain_learn_suggest(body: dict = Body(...)):
     )
 
 
+@router.post("/goals/review")
+async def brain_goals_review(body: dict = Body(default_factory=dict),
+                             _actor: BrainActor = Depends(require_role("operator"))):
+    try:
+        return get_brain_service().review_goals(
+            stale_days=float(body.get("stale_days", 14.0)),
+            clarity_threshold=float(body.get("clarity_threshold", 0.5)),
+            duplicate_threshold=float(body.get("duplicate_threshold", 0.75)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/improve/status")
 async def brain_improve_status():
     return get_brain_service().improvement_status()
@@ -383,6 +397,11 @@ async def brain_kernel_reset(actor: BrainActor = Depends(require_role("admin")))
         return get_brain_service().reset_kernel(actor.name)
     except KernelBlockedError as exc:
         raise HTTPException(status_code=423, detail=str(exc)) from exc
+
+
+@router.get("/trends")
+async def brain_trends_status():
+    return get_brain_service().trends_status()
 
 
 @router.get("/guardrails/status")

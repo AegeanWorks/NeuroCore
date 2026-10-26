@@ -11,7 +11,6 @@ from modules.brain.kernel import BrainKernel, KernelBlockedError, KernelStore
 from modules.brain.learning import LearningLoop, LearningStore
 from modules.brain.service import BrainService
 from modules.brain.state import BrainStateStore
-
 from tests.test_brain_substrate import FakeSelfModel, NullMemoryBridge
 
 
@@ -60,8 +59,11 @@ def test_safe_mode_hysteresis_and_kill_switch(tmp_path):
     assert kernel.mode == "safe"
     assert kernel.to_dict()["dwell_remaining"] > 0
 
-    now[0] += 61
-    kernel.observe(snapshot(provider_errors=0, pass_rate=1.0, drift=0.0))
+    # Release is deliberately slow: the dwell elapsed, but one clean sample is not
+    # enough evidence to leave SAFE (ADR-056).
+    for _ in range(10):
+        now[0] += 61
+        kernel.observe(snapshot(provider_errors=0, pass_rate=1.0, drift=0.0))
     assert kernel.mode == "normal"
 
     kernel.kill_switch("manual", "tester")
@@ -91,10 +93,16 @@ def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path):
     assert kernel.risk_score == 28.0
     assert kernel.mode == "degraded"
 
-    # A success cancels one fresh error rather than resetting the whole window.
+    # A success cancels one fresh error rather than resetting the whole window. The raw
+    # risk falls but the released value stays above the threshold for a while.
     kernel.record_component_recovery("flows")
     assert kernel.to_dict()["windows"]["components"]["flows"]["count"] == 6
     assert kernel.risk_score == 24.0
+    assert kernel.mode == "degraded"
+
+    now[0] += 3601
+    kernel.assess("window expired")
+    assert kernel.risk_score == 0.0
     assert kernel.mode == "normal"
 
 
@@ -108,6 +116,30 @@ def test_one_failing_subsystem_alone_can_degrade(tmp_path):
 
     assert kernel.risk_score == 40.0
     assert kernel.mode == "degraded"
+
+
+def test_risk_escalates_immediately_but_releases_slowly(tmp_path):
+    now = [100.0]
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: now[0], dwell_seconds=0.0)
+    kernel.observe(snapshot())
+    assert kernel.mode == "normal"
+
+    kernel.observe(snapshot(provider_errors=1, pass_rate=0.0, drift=1.0))
+    assert kernel.mode == "safe", "a spike must escalate on the raw score"
+    assert kernel.to_dict()["smoothed_risk"] == kernel.risk_score
+
+    # One clean snapshot lowers the raw score but not the released score.
+    kernel.observe(snapshot())
+    assert kernel.risk_score == 0.0
+    assert kernel.to_dict()["smoothed_risk"] == 67.5
+    assert kernel.mode == "safe"
+
+    # The release rate is persisted, so a restart cannot jump back to NORMAL.
+    reopened = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                           clock=lambda: now[0], dwell_seconds=0.0)
+    assert reopened.to_dict()["smoothed_risk"] == 67.5
+    assert reopened.mode == "safe"
 
 
 def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path):

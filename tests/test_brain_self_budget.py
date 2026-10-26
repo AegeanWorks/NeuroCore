@@ -98,6 +98,26 @@ def test_the_budget_route_reports_counts():
     assert "counts" in body and "caps" in body and "remaining" in body
 
 
+def test_budget_exhaustion_returns_429_instead_of_a_name_error(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import modules.brain.service as brain_service_module
+    from main import app
+    from modules.brain.service import BrainService
+
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "state"))
+    service = BrainService(config={"self_budget_caps": {"learning_write": 1}})
+    monkeypatch.setattr(brain_service_module, "_service", service)
+
+    with TestClient(app) as client:
+        first = client.post("/brain/learn", json={"action": "a", "success": True})
+        second = client.post("/brain/learn", json={"action": "b", "success": True})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert "Fix:" in second.json()["detail"]
+
+
 def test_malformed_cap_config_uses_defaults_instead_of_crashing(tmp_path):
     for caps in (["bad"], "bad", 5, {"candidate": "many"}, {"candidate": 0}):
         budget = SelfBudget(path=str(tmp_path / "budget.json"), caps=caps)
