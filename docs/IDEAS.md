@@ -41,8 +41,9 @@ This document tracks brainstorming features, layout refinements, and long-term a
 ---
 
 ## ⚙️ 5. Reliability & Error Recovery (Core Engine)
-- **[ ] Node Retry Policies with Backoff**:
-  - Introduce `retry_count` and `retry_delay` parameters per Node Config to transparently catch `NodeExecutionError` or `LLMTimeoutError` node exceptions and try again before failing explicitly flaws ok.
+- **[x] Node Retry Policies with Backoff** *(implemented, ADR-060)*:
+  - Per-node `retry_count`, `retry_delay`, `retry_max_delay`, `retry_backoff` and
+    `timeout_seconds`; transient failures only, charged to the run budget.
 - **[ ] Node Deadlocks / Stalls Detector**:
   - Observability hooks tracking node latency outliers above p99 values to trigger self-paused states on timed halts flawlessly ok.
 

@@ -128,6 +128,12 @@ deterministic pre-flight analysis without running anything: dangling connections
 types, isolated nodes, cycles, external effects and a cost envelope against the budget. A single
 pass that cannot fit blocks; a cycle that may reach a cap is reported as a warning.
 
+A node can retry transient failures explicitly: `retry_count` (0-4), `retry_delay` (base seconds,
+default 0.5), `retry_max_delay` (default 10) and `retry_backoff` (default 2.0). Retries are off by
+default because a node may have side effects; only timeouts, connection errors and retryable LLM
+HTTP statuses (408/425/429/5xx) qualify, and each attempt spends one node from the run budget.
+`timeout_seconds` adds an optional per-node wall-clock ceiling; a timed-out attempt is retryable.
+
 Skill documents are versioned: every create, import and content change stores the exact text
 under its SHA-256 in a bounded per-skill history (50 versions). `GET /api/skills/{id}/versions`
 lists versions, `GET /api/skills/{id}/versions/{n}` returns one with its content, and
@@ -211,10 +217,9 @@ contradiction scan (`GET /memory/contradictions`, `POST /memory/contradictions/s
 deterministic prefilter that only creates proposals for review. Evaluation runs
 also record their per-task outcomes, so the scorecard feeds the same learning loop.
 
-While the brain service is active, ordinary chat/flow executions emit an outcome through
-`core/outcomes.py` and are recorded as `flow:<id>` experiences; evaluation runners opt out to avoid
-double counting, and `/brain/stop` disables capture. `capture_flow_outcomes` in the brain module
-config can turn this off entirely.
+While the brain is running, ordinary chat/flow executions emit an outcome through
+`core/outcomes.py` and become `flow:<id>` experiences; evaluations opt out to avoid double
+counting and `/brain/stop` disables capture (`capture_flow_outcomes` turns it off entirely).
 
 Self-improvement is explicit and eval-gated: `POST /brain/improve/candidates` accepts a flow
 operation list (or `/improve/generate` drafts one), `/improve/evaluate` runs the candidate on an in-memory
@@ -225,54 +230,49 @@ an active goal (`goal_id`) or declares `goal_kind: "self_repair"` with a reason;
 revalidated at promotion and the goal becomes `in_progress`. `require_goal_link` (default true)
 controls the operator path.
 
-Evaluation is read-only by construction: flows containing state-mutating or external-effect
-nodes (tools, memory writes, messaging, calendar, subflows) are rejected with
-`UnsafeEvaluationError` before execution. Promote a baseline with
-`POST /brain/eval/baseline` (admin); only a perfect run is accepted.
+Evaluation is read-only by construction: flows with state-mutating or external-effect nodes
+(tools, memory writes, messaging, calendar, subflows) are rejected with `UnsafeEvaluationError`
+before execution. `POST /brain/eval/baseline` (admin) accepts only a perfect run.
 
-Self-configuration is separately policy-gated: `POST /brain/config/preview` shows a before/after
-diff, `POST /brain/config/apply` requires an authenticated admin, and `POST /brain/config/rollback` restores
-the snapshot (newer changes for the same target must be rolled back first). Only whitelisted
-settings, allowlisted modules, and bounded brain options are editable; protected modules and
-API keys/secrets are rejected, and `allowed_tools` can only be narrowed. Changes are recorded in the
-configuration ledger and broadcast through `GET /brain/config/status`; the daily quota is
-configurable in `modules/brain/module.json`. A configuration operation follows the same goal rule:
-pass `goal_id`, or `goal_kind: "self_repair"` with a `reason`.
+Self-configuration is policy-gated: `/brain/config/preview` shows a before/after diff,
+`/brain/config/apply` requires an admin, and `/brain/config/rollback` restores the snapshot
+(newer changes for the same target must be rolled back first). Only whitelisted settings,
+allowlisted modules and bounded brain options are editable; protected modules, API keys and
+secrets are rejected, and `allowed_tools` can only be narrowed. Changes go to the configuration
+ledger and `GET /brain/config/status`; the daily quota lives in `modules/brain/module.json`. A
+configuration operation follows the goal rule: `goal_id`, or `goal_kind: "self_repair"` + `reason`.
 
 The governance kernel derives a risk score from provider errors, evaluation pass rate, drift, a
 one-hour window of blocked actions and a one-hour per-component error window, then runs in
-`normal`, `degraded` or `safe` mode. Failed flow runs and failed evaluations feed the component
-window, and a later success cancels one entry, so a transient outage cannot hold the brain down.
-SAFE blocks learning writes, improvement and configuration; rollback remains available.
-`GET /brain/kernel` reports the mode, risk inputs, error windows and gates; `POST /brain/kernel/kill`
-and `/kernel/reset` require an authenticated admin. Leaving NORMAL starts a 60-second dwell during
-which a single clean snapshot cannot return the brain to NORMAL; a kill switch or manual reset
-bypasses it. Escalation follows raw risk immediately; release uses persisted 0.1 exponential
-smoothing and a stale value is discarded after the error window. `POST /brain/drift/baseline`
-records a measured baseline for drift comparison.
+`normal`, `degraded` or `safe`. Failed flows and evaluations feed the component window and a later
+success cancels one entry, so an outage cannot hold the brain down. SAFE blocks learning writes,
+improvement and configuration; rollback remains available.
+`GET /brain/kernel` reports mode, inputs, windows and gates; `/kernel/kill` and `/kernel/reset`
+require an admin. Leaving NORMAL starts a 60-second dwell during which a single clean snapshot
+cannot return to NORMAL; a kill switch or manual reset bypasses it. Escalation follows raw risk
+immediately; release uses persisted 0.1 smoothing and a stale value expires with the error window.
+`POST /brain/drift/baseline` records a measured baseline for drift comparison.
 
 Guardrails inspect untrusted text with local, deterministic rules (no network or LLM): context
-separators and instruction-override attempts on chat input and uploaded knowledge-base chunks,
-credential-shaped strings on every surface, and verbatim system-prompt echoes on output. Set
-`brain_guardrail_mode` to `observe` (default: report and count only) or `enforce` (block an
-injected chat message or document, replace a leaked response). A credential is flagged on input
-without rewriting the user's text, and redacted from model output and tool results in both modes. `GET /brain/guardrails/status` reports counters and
+separators and instruction overrides on chat input and knowledge-base chunks, credential shapes on
+every surface, and verbatim system-prompt echoes on output. `brain_guardrail_mode` is `observe`
+(default: report and count) or `enforce` (block an injected message or document, replace a leaked
+response). A credential is flagged on input without rewriting the user's text and redacted from
+output and tool results in both modes. `GET /brain/guardrails/status` reports counters and
 `POST /brain/guardrails/scan` runs a scan without affecting anything.
 
-Reactivity turns events from the calendar, watched files, metric thresholds and the event API into
-proposal-only reactions. `GET /brain/reactions`, `/reactions/dismiss`, `/reactions/mute` and
-`/reactions/unmute` manage them; `/react/start`, `/react/stop` and `/react/poll` control polling.
-Reactions are deduplicated, muted, capped hourly, blocked outside normal/degraded modes except
-health alerts, and never act.
+Reactivity turns calendar events, watched files, metric thresholds and event-API calls into
+proposal-only reactions. `GET /brain/reactions`, `/reactions/dismiss|mute|unmute` manage them;
+`/react/start|stop|poll` control polling. They are deduplicated, muted, capped hourly, blocked
+outside normal/degraded modes except health alerts, and never act.
 
 Brain ledgers use a per-file cross-process lock and reload before each mutation, so workers keep
 each other's updates.
 
-One daily ceiling covers self-modification across subsystems: candidate creation, evaluation,
-promotion, configuration changes, prompt activation and automatic learning writes. Counts are
-persisted and reset at UTC midnight; a denied reservation changes nothing and returns 429.
-`GET /brain/budget/status` reports counts, caps and remaining units. Caps live in
-`self_budget_caps` under the brain module config (defaults: 50/50/10/20/20/500 per day).
+One daily ceiling covers self-modification: candidates, evaluations, promotions, configuration
+changes, prompt activation and automatic learning writes. Counts persist and reset at UTC midnight;
+a denied reservation changes nothing and returns 429. `GET /brain/budget/status` reports counts,
+caps and remaining units (`self_budget_caps`; defaults 50/50/10/20/20/500).
 
 A bounded trend detector keeps 100 pass-rate/provider-error samples, compares the last 20 with the
 previous 20 once a day, and turns a 0.10 regression into a reviewable `repair_metric` proposal

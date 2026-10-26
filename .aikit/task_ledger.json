@@ -1,70 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-operator-controls",
+    "task_id": "neurocore-node-retry",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1793007827.0427601,
+    "updated_at": 1793011318.6531923,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1793007827.2460706
+    "completed_at": 1793011319.3231516
   },
   "checkpoints": [
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'post-push-review-fixes' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792963090.4720874,
-      "timestamp_str": "2026-10-26 00:18:10",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "second-review-fixes",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] Fix the single-node module catalogue so real flows (llm_module, system_prompt) are not falsely blocked (ADR-053). [2/3] Charge goal-pursuit tool calls once and harden cache eviction; add regression tests. [3/3] Gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792964346.3706915,
-      "timestamp_str": "2026-10-26 00:39:06",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The second review found regressions in the review-fix commit: the default flow block and a double tool charge.",
-        "benefits": "A truthful simulation for real flows, correct budget accounting and a resilient cache.",
-        "risks": "contract: catalogue now includes self-node modules; dependency: none; concurrency: unchanged; state: cache corrupt entries are dropped.",
-        "mitigation": "Focused tests for the catalogue, cache bound and goal-pursuit suite; full gates before commit."
-      }
-    },
-    {
-      "task_id": "second-review-fixes",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: catalogue includes is_flow_node self-nodes (default flow simulates as runnable), goal pursuit charges locally handled tools once and delegates normal tools to the hybrid charge, cache eviction drops corrupt entries, helper/docstring ordering fixed. ADR-053. Full suite 1898 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792964735.0498135,
-      "timestamp_str": "2026-10-26 00:45:35",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "second-review fixes complete and green",
-        "next": "commit and push",
-        "open": "none"
-      }
-    },
-    {
-      "task_id": "second-review-fixes",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'second-review-fixes' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792964735.3627837,
-      "timestamp_str": "2026-10-26 00:45:35",
-      "agent": "kilo:main"
-    },
     {
       "task_id": "close-review-gaps",
       "phase": "phase 2",
@@ -292,6 +239,61 @@
       "status": "completed",
       "timestamp": 1793007827.2460718,
       "timestamp_str": "2026-10-26 12:43:47",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-node-retry",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/3] Add opt-in per-node retry policies with bounded exponential backoff and per-node timeouts, wired through both normal and bridge node execution; then document, verify and ship",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793009984.8920162,
+      "timestamp_str": "2026-10-26 13:19:44",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "A transient provider timeout or connection drop currently fails the whole node (and often the run) with no recovery, and node latency has no per-node ceiling",
+        "benefits": "Bounded, deterministic recovery from transient node failures without duplicating side effects by default, plus an optional per-node time ceiling",
+        "risks": "contract: node config gains retry_* and timeout_seconds, execution budget spending moves into the attempt; dependency: none; concurrency: retries happen in the same task; state: none beyond flow JSON",
+        "mitigation": "Opt-in defaults (attempts=1), transient-only classification, budget-aware attempts, failing-first tests for both paths"
+      }
+    },
+    {
+      "task_id": "neurocore-node-retry",
+      "phase": "phase 3",
+      "phase_num": 3,
+      "description": "[2/3] M1 done: core/node_retry.py with opt-in bounded policy, transient-only classification, per-node timeout parsing and 22 unit tests",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793010136.2331717,
+      "timestamp_str": "2026-10-26 13:22:16",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-node-retry",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done: opt-in retry policy + per-node timeout wired through one _run_node path for regular and bridge nodes, 27 tests, README/IDEAS/MODULE_GUIDE/ADR-060/map updated; checklists: passed; aikit check 4/4",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793011318.6531923,
+      "timestamp_str": "2026-10-26 13:41:58",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "green and ready to commit",
+        "next": "commit and push",
+        "open": "node stall detector from IDEAS remains",
+        "evidence": "aikit check neurocore 4/4, full pytest pass (321s)"
+      }
+    },
+    {
+      "task_id": "neurocore-node-retry",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-node-retry' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793011319.3231547,
+      "timestamp_str": "2026-10-26 13:41:59",
       "agent": "kilo:main"
     }
   ]

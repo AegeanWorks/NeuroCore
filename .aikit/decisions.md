@@ -1299,3 +1299,25 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   caller must send the query parameter deliberately.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-011 (clear remedies) and
   PRINCIPLE-014 (failing-first tests).
+
+### ADR-060: Opt-in per-node retry policy and node timeout
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: A transient provider timeout or connection drop failed the whole node, and often
+  the run, with no recovery path; node configuration had no time ceiling either. Retrying blindly
+  is unsafe because tool and messaging nodes can have external effects.
+- **Decision**: Add `core/node_retry.py` with a bounded `RetryPolicy` read from node config
+  (`retry_count` 0-4, `retry_delay` base 0.5s, `retry_max_delay` 10s, `retry_backoff` 2.0) and
+  `timeout_seconds` (0 disables). Retries are off by default. Only transient failures are
+  retried: `TimeoutError`/`asyncio.TimeoutError`, `ConnectionError`, `LLMTimeoutError`,
+  `ToolTimeoutError`, and `LLMHTTPError` with 408, 425, 429 or 5xx. `ValueError`, `TypeError`,
+  `KeyError` and cancellation are never retried. Backoff is `base * factor^(n-1)` capped at
+  `retry_max_delay`. `FlowRunner._run_node` is the single execution path for regular and bridge
+  nodes, so both share the policy; each attempt spends one node from the execution budget and the
+  optional per-node timeout wraps the whole attempt, making a timeout retryable. Exhausted retries
+  and timeouts surface as the usual structured node error.
+- **Consequences**: Operators can recover from transient faults per node without changing global
+  behaviour, while a misconfigured node cannot spin: at most 5 attempts, bounded delay, and the
+  run budget still applies. Default behaviour is unchanged for every existing flow.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work and
+  timeouts) and PRINCIPLE-014 (failing-first tests).

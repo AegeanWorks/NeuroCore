@@ -304,6 +304,23 @@ These keys are managed by the framework and must not be repurposed:
 | `completed_steps` | Plan Tracker | Set of completed step indices |
 | `satisfied` | Reflection | Boolean for conditional routing |
 
+### Node Retry and Timeout Config
+
+Any node config may opt into retries and a per-node time ceiling. Retries are off by default
+because nodes with external effects must not run twice silently.
+
+| Key | Default | Range | Meaning |
+|-----|---------|-------|---------|
+| `retry_count` | `0` | 0-4 | Extra attempts after the first |
+| `retry_delay` | `0.5` | 0-30 s | Base delay before the first retry |
+| `retry_max_delay` | `10` | 0-30 s | Cap on any single delay |
+| `retry_backoff` | `2.0` | 1-10 | Multiplier per retry |
+| `timeout_seconds` | `0` | 0-3600 s | Per-attempt ceiling; `0` disables |
+
+Only transient failures retry: `TimeoutError`, `ConnectionError`, `LLMTimeoutError`,
+`ToolTimeoutError` and `LLMHTTPError` with 408/425/429/5xx. `ValueError`, `TypeError`,
+`KeyError` and cancellation fail immediately. Each attempt spends one node from the run budget.
+
 ---
 
 ## 7. Core Modules Reference

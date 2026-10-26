@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `282`
-- **Total Classes**: `401`
-- **Total Top-Level Functions**: `1827`
-- **Total Class Methods**: `2157`
-- **Total Source Lines**: `78621`
+- **Total Python Modules**: `284`
+- **Total Classes**: `402`
+- **Total Top-Level Functions**: `1849`
+- **Total Class Methods**: `2161`
+- **Total Source Lines**: `79060`
 
 ---
 
@@ -330,7 +330,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1105` lines (`53254` bytes)
+**Size**: `1132` lines (`54604` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -342,6 +342,7 @@
   - Method `._build_bridge_groups()` - *Identifies groups of bridged nodes using BFS to find connected components.*
   - Method `._get_bridge_order(node_id)` - *Get bridge chain nodes in execution order (upstream to downstream).*
   - Method `._get_bridge_levels(node_id)` - *Group bridge-group nodes into parallel execution levels using Kahn's algorithm.*
+  - Method `async def ._run_node(node_id, node_input, stream_queue)` - *Execute one node under its configured timeout and retry policy (ADR-060).*
   - Method `async def ._run_bridge_node(bridge_node_id, bridge_input, stream_queue)` - *Execute a single bridge node and return its output dict, or None to stop the chain.*
   - Method `._compute_execution_order()` - *Performs a topological sort (Kahn's algorithm) to find the execution order.*
   - Method `._identify_cycle_nodes(adj, sorted_order, remaining_nodes)` - *Identify the nodes that form the cycle in the flow graph.*
@@ -431,6 +432,26 @@
 
 **Functions:**
 - `def _write_manifest(meta_path, meta)` - *Replace a module.json atomically so readers never see a truncated manifest.*
+
+---
+
+### [`core/node_retry.py`](core/node_retry.py)
+> *Opt-in per-node retry policy with bounded exponential backoff (ADR-060).*
+
+**Size**: `127` lines (`4956` bytes)
+
+**Classes:**
+- `class RetryPolicy` - *How many times a node may be retried and how long to wait between attempts.*
+  - Property `.retries`
+  - Method `.from_config(config)` - *Read ``retry_count``/``retry_delay`` from node config; malformed values fall back.*
+  - Method `.delay_for(retry)` - *Delay before retry number ``retry`` (1-based), capped at ``max_delay``.*
+
+**Functions:**
+- `def _bounded_int(value, default, *, low, high)`
+- `def _bounded_float(value, default, *, low, high)`
+- `def node_timeout(config)` - *Per-node wall-clock ceiling in seconds; ``0`` means no ceiling.*
+- `def is_transient(exc)` - *Whether retrying the same call could plausibly succeed.*
+- `async def run_with_retry(operation, policy, *, retryable, sleep, on_retry)` - *Run ``operation`` under ``policy``; re-raise the last error when retries are spent.*
 
 ---
 
@@ -5723,6 +5744,32 @@
 - `def test_hot_disable_module(temp_modules_dir, mock_app)` - *Tests that disabling a module dynamically removes its router.*
 - `def test_update_module_config(temp_modules_dir, mock_app)` - *Tests that updating module configuration writes to the file.*
 - `def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, mock_app)`
+
+---
+
+### [`tests/test_node_retry.py`](tests/test_node_retry.py)
+> *Per-node retry policy: parsing, backoff, classification and bounded attempts.*
+
+**Size**: `285` lines (`8571` bytes)
+
+**Functions:**
+- `def test_retries_are_off_by_default()`
+- `def test_policy_reads_node_config_and_caps_values()`
+- `def test_malformed_config_falls_back_instead_of_crashing(bad)`
+- `def test_node_timeout_is_bounded_and_opt_in()`
+- `def test_transient_failures_are_retryable(exc)`
+- `def test_deterministic_failures_and_cancellation_are_not_retried(exc)`
+- `async def test_a_transient_failure_is_retried_and_succeeds()`
+- `async def test_retries_are_bounded_and_the_last_error_surfaces()`
+- `async def test_a_deterministic_error_fails_on_the_first_attempt()`
+- `async def test_a_custom_on_retry_reports_the_attempt_and_delay()`
+- `def _retry_flow(config, metadata)`
+- `async def _run_retry_flow(flow, receive, send)`
+- `async def test_a_flow_node_retries_a_transient_failure()`
+- `async def test_a_flow_node_does_not_retry_a_deterministic_error()`
+- `async def test_a_node_timeout_can_be_retried()`
+- `async def test_retry_attempts_are_charged_to_the_run_budget()`
+- `async def test_bridge_execution_uses_the_same_policy()`
 
 ---
 
