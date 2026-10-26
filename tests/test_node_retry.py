@@ -283,3 +283,41 @@ async def test_bridge_execution_uses_the_same_policy():
 
     assert output == {"bridged": True}
     assert len(attempts) == 2
+
+
+async def test_retry_backoff_is_capped_by_the_remaining_run_time():
+    delays = []
+
+    async def operation():
+        raise TimeoutError("slow")
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    with pytest.raises(TimeoutError):
+        await run_with_retry(
+            operation,
+            RetryPolicy(attempts=3, base_delay=5.0, max_delay=10.0, backoff=2.0),
+            sleep=fake_sleep,
+            delay_cap=lambda: 0.25,
+        )
+
+    assert delays == [0.25, 0.25]
+
+
+async def test_a_typed_llm_timeout_exhausts_into_a_structured_node_error():
+    from core.errors import LLMTimeoutError
+
+    attempts = []
+
+    async def receive(data, config=None):
+        attempts.append(1)
+        raise LLMTimeoutError("provider timed out")
+
+    result, _instance = await _run_retry_flow(
+        _retry_flow({"retry_count": 1, "retry_delay": 0}), receive
+    )
+
+    assert len(attempts) == 2
+    assert "Execution failed at node 'RetryNode'" in result["error"]
+    assert "provider timed out" in result["error"]

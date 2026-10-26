@@ -17,7 +17,7 @@ from core.execution_budget import (
     spend,
 )
 from core.debug import debug_logger
-from core.errors import FlowError, NodeExecutionError
+from core.errors import FlowError, NeuroCoreError, NodeExecutionError
 from core.node_retry import RetryPolicy, node_timeout, run_with_retry
 from core.node_stall import record_node_latency
 
@@ -288,7 +288,9 @@ class FlowRunner:
         node_meta = self.nodes[node_id]
         module_id = node_meta['moduleId']
         node_type_id = node_meta['nodeTypeId']
-        source_config = node_meta.get('config') or {}
+        source_config = node_meta.get('config')
+        if not isinstance(source_config, dict):
+            source_config = {}
         policy = RetryPolicy.from_config(source_config)
         timeout = node_timeout(source_config)
 
@@ -326,20 +328,27 @@ class FlowRunner:
             return await attempt()
 
         def on_retry(retry: int, delay: float, exc: BaseException) -> None:
+            detail = str(exc)[:200]
             logger.warning(
                 "Node '%s' attempt %s failed (%s: %s); retrying in %.2fs",
-                node_meta.get('name', node_id), retry, type(exc).__name__, exc, delay,
+                node_meta.get('name', node_id), retry, type(exc).__name__, detail, delay,
             )
             if settings.get("debug_mode"):
                 debug_logger.log(self.flow_id, node_id, node_meta.get('name', node_id),
                                  "node_retry", {
                                      "attempt": retry,
                                      "delay": delay,
-                                     "error": str(exc),
+                                     "error": detail,
                                      "error_type": type(exc).__name__,
                                  })
 
-        return await run_with_retry(call, policy, on_retry=on_retry)
+        def remaining_seconds():
+            budget = current_budget()
+            return None if budget is None else budget.remaining("seconds")
+
+        return await run_with_retry(
+            call, policy, on_retry=on_retry, delay_cap=remaining_seconds
+        )
 
     async def _run_bridge_node(self, bridge_node_id: str, bridge_input: dict, stream_queue: asyncio.Queue = None):
         """Execute a single bridge node and return its output dict, or None to stop the chain.
@@ -1072,9 +1081,10 @@ class FlowRunner:
                         raise
                     logger.warning(f"Warning: Could not find or use node logic for {module_id}/{node_type_id}. Error: {e}. Passing data through.")
                     node_outputs[node_id] = node_input
-                except (RuntimeError, ValueError, TypeError, TimeoutError, ConnectionError) as e:
-                    # Node execution errors: runtime failures, invalid values, type mismatches
-                    # and a retryable failure whose attempts are exhausted
+                except (RuntimeError, ValueError, TypeError, TimeoutError, ConnectionError,
+                        NeuroCoreError) as e:
+                    # Node execution errors: runtime failures, invalid values, type mismatches,
+                    # typed provider/tool errors and an exhausted retryable failure
                     error_msg = f"Execution failed at node '{node_meta['name']}': {e}"
                     if settings.get("debug_mode"):
                         debug_logger.log(self.flow_id, node_id, node_meta['name'], "error", {"error": str(e), "error_type": type(e).__name__})

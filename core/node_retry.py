@@ -29,6 +29,7 @@ RETRYABLE_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 Attempt = Callable[[], Awaitable[Any]]
 Sleep = Callable[[float], Awaitable[None]]
 OnRetry = Callable[[int, float, BaseException], None]
+DelayCap = Callable[[], Optional[float]]
 
 
 @dataclass(frozen=True)
@@ -105,8 +106,13 @@ def is_transient(exc: BaseException) -> bool:
 async def run_with_retry(operation: Attempt, policy: RetryPolicy, *,
                          retryable: Callable[[BaseException], bool] = is_transient,
                          sleep: Sleep = asyncio.sleep,
-                         on_retry: Optional[OnRetry] = None) -> Any:
-    """Run ``operation`` under ``policy``; re-raise the last error when retries are spent."""
+                         on_retry: Optional[OnRetry] = None,
+                         delay_cap: Optional[DelayCap] = None) -> Any:
+    """Run ``operation`` under ``policy``; re-raise the last error when retries are spent.
+
+    ``delay_cap`` may return the seconds left in the caller's wall-time budget; the backoff is
+    clamped to it so a retry never sleeps past the run deadline.
+    """
     attempts = max(1, int(policy.attempts))
     for attempt in range(1, attempts + 1):
         try:
@@ -115,12 +121,19 @@ async def run_with_retry(operation: Attempt, policy: RetryPolicy, *,
             if attempt >= attempts or not retryable(exc):
                 raise
             delay = policy.delay_for(attempt)
+            if delay_cap is not None:
+                try:
+                    cap = delay_cap()
+                    if cap is not None:
+                        delay = min(delay, max(0.0, float(cap)))
+                except (TypeError, ValueError, OSError) as exc:
+                    logger.debug("Could not read the remaining run time: %s", exc)
             if on_retry is not None:
                 on_retry(attempt, delay, exc)
             else:
                 logger.warning(
                     "retrying node attempt %s/%s after %s: %s",
-                    attempt, attempts, type(exc).__name__, exc,
+                    attempt, attempts, type(exc).__name__, str(exc)[:200],
                 )
             if delay > 0:
                 await sleep(delay)
