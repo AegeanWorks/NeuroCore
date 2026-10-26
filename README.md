@@ -199,11 +199,13 @@ suite (or a supplied flow id), `POST /brain/eval/baseline` promotes the last res
 Outcome learning mirrors experiences into the shared memory store: `POST /brain/learn` records
 an action outcome, `POST /brain/learn/consolidate` turns repeated **training** successes into
 `RULE` skills, and `POST /brain/learn/recall` reports held-out precision, recall and MRR.
-Consolidation also distils repeated training failures into bounded `[avoid]` knowledge; a later
-success does not erase it, because one success is not evidence against two failures.
+Consolidation also distils repeated failures into bounded `[avoid]` knowledge that a later
+success does not erase.
 `POST /brain/learn/suggest {"query": "..."}` returns the skills worth reusing and the past
 failures to verify before retrying.
-`GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger. Evidence links are exposed by
+`GET /brain/learn/status` and `GET /brain/learn/experiences` expose the ledger.
+`POST /brain/goals/review` is a read-only review of active goals: overdue, stale, low-clarity and
+near-duplicate objectives. Evidence links are exposed by
 `GET /memory/links/{id}`, `POST /memory/links` and `POST /memory/links/{id}/accept`; a
 contradiction scan (`GET /memory/contradictions`, `POST /memory/contradictions/scan`) is a
 deterministic prefilter that only creates proposals for review. Evaluation runs
@@ -215,17 +217,13 @@ double counting, and `/brain/stop` disables capture. `capture_flow_outcomes` in 
 config can turn this off entirely.
 
 Self-improvement is explicit and eval-gated: `POST /brain/improve/candidates` accepts a flow
-operation list (or `/improve/generate` drafts one with the configured LLM), `/improve/evaluate`
-runs the candidate against an in-memory copy and only promotes it when `approve` is true, the
-caller is an authenticated admin (recorded as the approver), a **perfect same-flow baseline** with
-provenance exists, the candidate itself is perfect, and there is no latency regression.
-`/improve/rollback` restores the
-pre-promotion snapshot; `/improve/status` reports candidates and daily quotas. Candidate,
-evaluation, promotion and ledger caps are configured in `modules/brain/module.json`. Every
-candidate must name an active memory goal (`goal_id`) or declare `goal_kind: "self_repair"` with a
-description; the link is revalidated at promotion and the goal becomes `in_progress` once promoted.
-`require_goal_link` (default true) controls the operator path, while direct engine construction
-leaves it off for embedding.
+operation list (or `/improve/generate` drafts one), `/improve/evaluate` runs the candidate on an in-memory
+copy, and promotion requires an admin, a **perfect same-flow baseline** with provenance, a perfect
+candidate and no latency regression. `/improve/rollback` restores the snapshot; `/improve/status`
+reports candidates and quotas (configured in `modules/brain/module.json`). Every candidate names
+an active goal (`goal_id`) or declares `goal_kind: "self_repair"` with a reason; the link is
+revalidated at promotion and the goal becomes `in_progress`. `require_goal_link` (default true)
+controls the operator path.
 
 Evaluation is read-only by construction: flows containing state-mutating or external-effect
 nodes (tools, memory writes, messaging, calendar, subflows) are rejected with
@@ -249,7 +247,9 @@ SAFE blocks learning writes, improvement and configuration; rollback remains ava
 `GET /brain/kernel` reports the mode, risk inputs, error windows and gates; `POST /brain/kernel/kill`
 and `/kernel/reset` require an authenticated admin. Leaving NORMAL starts a 60-second dwell during
 which a single clean snapshot cannot return the brain to NORMAL; a kill switch or manual reset
-bypasses it. `POST /brain/drift/baseline` records a measured baseline for drift comparison.
+bypasses it. Escalation follows raw risk immediately; release uses persisted 0.1 exponential
+smoothing and a stale value is discarded after the error window. `POST /brain/drift/baseline`
+records a measured baseline for drift comparison.
 
 Guardrails inspect untrusted text with local, deterministic rules (no network or LLM): context
 separators and instruction-override attempts on chat input and uploaded knowledge-base chunks,
@@ -262,12 +262,11 @@ without rewriting the user's text, and redacted from model output and tool resul
 Reactivity turns events from the calendar, watched files, metric thresholds and the event API into
 proposal-only reactions. `GET /brain/reactions`, `/reactions/dismiss`, `/reactions/mute` and
 `/reactions/unmute` manage them; `/react/start`, `/react/stop` and `/react/poll` control polling.
-Reactions are deduplicated, muted by key, capped per hour and blocked outside normal/degraded
-kernel modes, except health alerts. They never execute an action themselves.
+Reactions are deduplicated, muted, capped hourly, blocked outside normal/degraded modes except
+health alerts, and never act.
 
-Brain ledgers (learning, improvement, configuration, kernel, reactions, actors) are written under a
-per-file cross-process lock and reloaded before each mutation, so multiple server workers keep each
-other's updates instead of overwriting them.
+Brain ledgers use a per-file cross-process lock and reload before each mutation, so workers keep
+each other's updates.
 
 One daily ceiling covers self-modification across subsystems: candidate creation, evaluation,
 promotion, configuration changes, prompt activation and automatic learning writes. Counts are
@@ -275,18 +274,21 @@ persisted and reset at UTC midnight; a denied reservation changes nothing and re
 `GET /brain/budget/status` reports counts, caps and remaining units. Caps live in
 `self_budget_caps` under the brain module config (defaults: 50/50/10/20/20/500 per day).
 
+A bounded trend detector keeps 100 pass-rate/provider-error samples, compares the last 20 with the
+previous 20 once a day, and turns a 0.10 regression into a reviewable `repair_metric` proposal
+(one per day, no flow edits). `GET /brain/trends` shows the window and findings; thresholds live in
+`modules/brain/module.json`.
+
 Brain audit identity comes from the request, not from an `approved_by` JSON field. Loopback and
 test clients are trusted as `local` admins (or the optional `X-Brain-Actor` label). Remote clients
 must present a token in `X-Brain-Token`: either `NEUROCORE_BRAIN_TOKEN` (shared admin override) or a
 token from the actor registry. `GET /brain/actor` reports the resolved actor.
 
-Actor-management endpoints are admin-only: `GET/POST /brain/actors`,
-`POST /brain/actors/{name}/rotate|disable`, and `DELETE /brain/actors/{name}`. Tokens are returned
-once on create/rotate as `<key_id>.<secret>` and stored only as salted PBKDF2 hashes; the public
-key id selects one record, so a check costs one hash. Roles are `viewer` (read-only),
-`operator` (learning, reactions, evaluation runs, cycles) and `admin` (promotions, configuration,
-kernel controls, baselines, actors). Promotions, configuration changes, kernel controls and drift
-baselines record the authenticated actor name.
+Actor management is admin-only (`GET/POST /brain/actors`, rotate/disable/delete). Tokens are
+returned once as `<key_id>.<secret>`, stored as salted PBKDF2 hashes, and selected by key id so a
+check costs one hash. Roles: `viewer` (read-only), `operator` (learning, reactions, evaluation,
+cycles) and `admin` (promotions, configuration, kernel, baselines, actors). Protected operations
+record the actor name.
 
 `/brain/ui` is the local Brain dashboard: kernel mode/risk, health, cycle status, proposals,
 reactions (dismiss/mute), evaluation controls and start/stop/kill/reset controls. It is linked
@@ -356,8 +358,9 @@ access, the auto-reloader and secret-bearing exports are each an explicit opt-in
 | `NEUROCORE_BRAIN_TOKEN` | unset | Required for all remote `/brain/*` access; send `X-Brain-Token`, optional `X-Brain-Actor` |
 | `NEUROCORE_EXPORT_SECRETS` | off | Include secrets in the config export |
 
-State-changing requests are rejected when their `Origin` is cross-origin (CSRF). Marketplace
-packages are extracted through a path-confined helper, and secrets are stripped from config
+State-changing requests are rejected when their `Origin` is cross-origin (CSRF). Destructive
+routes also require the exact `confirm` phrase, so an API caller cannot bypass the dialog.
+Marketplace packages are extracted through a path-confined helper, and secrets are stripped from config
 exports and masked in debug logs. Tool code runs in a separate worker process (never in-process)
 with allowlisted imports, only the environment values listed in the tools module's
 `env_allowlist`, and a network allowlist that re-checks every redirect and caps response size.

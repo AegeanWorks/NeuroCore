@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `276`
-- **Total Classes**: `399`
-- **Total Top-Level Functions**: `1801`
-- **Total Class Methods**: `2145`
-- **Total Source Lines**: `77803`
+- **Total Python Modules**: `282`
+- **Total Classes**: `401`
+- **Total Top-Level Functions**: `1827`
+- **Total Class Methods**: `2157`
+- **Total Source Lines**: `78621`
 
 ---
 
@@ -29,6 +29,16 @@
 - `def _safe_member_path(dest_dir, member)` - *The absolute write path for `member`, or raise when it escapes `dest_dir`.*
 - `def _common_root(infos)` - *The single shared top-level directory of the archive as ``dir/``, or ``''``.*
 - `def extract_zip_safely(archive_path, dest_dir, strip_root, max_member_bytes, max_total_bytes)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
+
+---
+
+### [`core/confirmations.py`](core/confirmations.py)
+> *Server-side confirmation for irreversible routes (ADR-059).*
+
+**Size**: `25` lines (`971` bytes)
+
+**Functions:**
+- `def require_confirmation(provided, phrase, action)` - *Allow the operation only when ``provided`` matches ``phrase`` after normalization.*
 
 ---
 
@@ -624,7 +634,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3358` lines (`146897` bytes)
+**Size**: `3362` lines (`147078` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -712,7 +722,7 @@
 - `async def import_config(request, file, settings_man)` - *Imports settings from a JSON file.*
 - `async def export_flows()` - *Downloads the current ai_flows.json file.*
 - `async def import_flows(request, file)` - *Imports flows from a JSON file.*
-- `async def reset_settings(request, settings_man)` - *Resets settings to defaults.*
+- `async def reset_settings(request, confirm, settings_man)` - *Resets settings to defaults.*
 - `async def save_settings_route(request, settings_man)`
 - `async def debug_page(request, settings_man, module_manager)`
 - `async def get_debug_logs(request, _)`
@@ -1620,6 +1630,21 @@
 
 ---
 
+### [`modules/brain/goal_review.py`](modules/brain/goal_review.py)
+> *Deterministic, read-only review of the shared goal ledger (ADR-057).*
+
+**Size**: `153` lines (`5226` bytes)
+
+**Functions:**
+- `def _tokens(text)`
+- `def _jaccard(left, right)`
+- `def _brief(goal, *, clarity)`
+- `def clarity(goal)` - *Score how actionable a goal description is, from 0 to 1.*
+- `def _timestamp(value)`
+- `def review_goals(goals, *, now, stale_days, clarity_threshold, duplicate_threshold)` - *Return a bounded review of active goals; never raises for malformed rows.*
+
+---
+
 ### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
 > *Deterministic guardrails for untrusted text entering or leaving the platform.*
 
@@ -1687,7 +1712,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `412` lines (`17150` bytes)
+**Size**: `453` lines (`18953` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -1846,7 +1871,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `527` lines (`19168` bytes)
+**Size**: `546` lines (`19898` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -1877,6 +1902,7 @@
 - `async def brain_learn_consolidate(_actor)`
 - `async def brain_learn_recall(body)`
 - `async def brain_learn_suggest(body)`
+- `async def brain_goals_review(body, _actor)`
 - `async def brain_improve_status()`
 - `async def brain_improve_candidate(body, actor)`
 - `async def brain_improve_generate(body, _actor)`
@@ -1886,6 +1912,7 @@
 - `async def brain_kernel_status()`
 - `async def brain_kernel_kill(body, actor)`
 - `async def brain_kernel_reset(actor)`
+- `async def brain_trends_status()`
 - `async def brain_guardrails_status()`
 - `async def brain_guardrails_scan(body, _actor)`
 - `async def brain_drift_baseline(actor)`
@@ -1948,11 +1975,11 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `742` lines (`32434` bytes)
+**Size**: `793` lines (`34466` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
-  - Method `.__init__(config, self_model, event_bus, state_store, evaluation_runner, eval_store, learning, improvement, configuration, kernel, drift, reactivity)`
+  - Method `.__init__(config, self_model, event_bus, state_store, evaluation_runner, eval_store, learning, improvement, configuration, kernel, drift, trends, reactivity)`
   - Method `async def .start()`
   - Method `async def .stop()`
   - Method `async def .set_mode(mode)`
@@ -1965,6 +1992,7 @@
   - Method `async def .evaluate_learning_recall(top_k)`
   - Method `.suggest_learning(query, top_k)` - *Skills worth reusing and past failures worth avoiding for one query.*
   - Method `.learning_status()`
+  - Method `.review_goals(*, stale_days, clarity_threshold, duplicate_threshold)` - *Read the shared goal ledger and return a deterministic, read-only review.*
   - Method `async def .propose_improvement(flow_id, operations, description, source, goal_id, goal_kind)`
   - Method `async def .evaluate_improvement(candidate_id, approve, approved_by)`
   - Method `async def .rollback_improvement(candidate_id)`
@@ -1976,6 +2004,7 @@
   - Method `.rollback_configuration(change_id, approved_by, module_manager)`
   - Method `.configuration_status()`
   - Method `.kernel_status()`
+  - Method `.trends_status()`
   - Method `.reactivity_status()`
   - Method `async def .start_reactivity()`
   - Method `async def .stop_reactivity()`
@@ -2023,6 +2052,27 @@
 
 **Functions:**
 - `def utc_now()`
+
+---
+
+### [`modules/brain/trends.py`](modules/brain/trends.py)
+> *Bounded metric-trend detection for reviewable self-repair proposals (ADR-058).*
+
+**Size**: `222` lines (`8730` bytes)
+
+**Classes:**
+- `class TrendStore` - *Atomic JSON ledger for samples and emitted findings.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `.save(data)`
+- `class TrendMonitor` - *Record bounded samples and emit at most one deterministic repair finding per day.*
+  - Method `.__init__(store, clock, window, history, min_delta, cooldown_seconds, max_per_day)`
+  - Method `._value(sample, metric)`
+  - Method `._mean(values)`
+  - Method `.record(snapshot)` - *Append one sample derived from a self-model snapshot, bounded by history.*
+  - Method `.detect()` - *Return zero or one finding; persisted dedupe prevents proposal spam.*
+  - Method `._prune_proposals(raw)`
+  - Method `.review()` - *Read-only view of the sample window, means and emitted findings.*
 
 ---
 
@@ -2138,7 +2188,7 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `571` lines (`25917` bytes)
+**Size**: `574` lines (`26079` bytes)
 
 **Functions:**
 - `def _flow_system_prompt(flow)` - *Concatenated system prompts configured in a flow, bounded for leak detection.*
@@ -2148,7 +2198,7 @@
 - `async def get_chat_sessions(request)`
 - `async def create_new_session()`
 - `async def compact_session_route(request, session_id, llm)` - *Manual compact: summarize old messages, keep last N verbatim.*
-- `async def delete_session(request, session_id)`
+- `async def delete_session(request, session_id, confirm)`
 - `async def rename_session(session_id, name)`
 - `async def save_chat_settings(request, auto_rename_turns, auto_compact_tokens, compact_keep_last)`
 - `async def send_message(request, message, session_id, image, goal_id, llm)`
@@ -2377,7 +2427,7 @@
 ---
 
 ### [`modules/knowledge_base/router.py`](modules/knowledge_base/router.py)
-**Size**: `567` lines (`23136` bytes)
+**Size**: `570` lines (`23299` bytes)
 
 **Functions:**
 - `def _format_size(size_bytes)` - *Return a human-readable file size string.*
@@ -2393,7 +2443,7 @@
 - `async def get_upload_progress(request, tracking_id)`
 - `async def abort_upload(request, tracking_id)`
 - `async def delete_doc(request, doc_id)`
-- `async def delete_all_docs(request)`
+- `async def delete_all_docs(request, confirm)`
 - `async def reindex_doc(doc_id, llm)` - *Re-embed all chunks for a document using the current embedding model.*
 - `async def check_integrity(request)`
 
@@ -2592,14 +2642,14 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `361` lines (`17071` bytes)
+**Size**: `364` lines (`17227` bytes)
 
 **Functions:**
 - `async def get_stats(request)`
 - `async def save_memory_settings(request, recall_limit, recall_min_score, save_confidence_threshold, consolidation_threshold, auto_consolidation_hours, arbiter_model, arbiter_prompt, similarity_threshold, belief_ttl_days, recall_access_weight)`
 - `async def consolidation_status(request)`
 - `async def consolidate_memories(request)`
-- `async def wipe_memories(request)`
+- `async def wipe_memories(request, confirm)`
 - `async def update_memory(request, memory_id, text, mem_type, verified)`
 - `async def delete_memory(request, memory_id, reason)`
 - `async def merge_memories(request, memory_ids, new_text, new_type, new_verified)`
@@ -2879,14 +2929,14 @@
 ---
 
 ### [`modules/reasoning_book/router.py`](modules/reasoning_book/router.py)
-**Size**: `64` lines (`2650` bytes)
+**Size**: `67` lines (`2818` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
 - `async def reasoning_page(request, module_manager, settings_man)` - *Serves the full page shell with the reasoning book active.*
 - `async def reasoning_gui(request)` - *Serves the inner content of the reasoning book.*
 - `async def get_thoughts(request)` - *Returns just the list of thoughts for polling.*
-- `async def clear_thoughts(request)`
+- `async def clear_thoughts(request, confirm)`
 
 ---
 
@@ -3693,6 +3743,19 @@
 
 ---
 
+### [`tests/test_brain_goal_review.py`](tests/test_brain_goal_review.py)
+> *Deterministic goal review: overdue, stale, clarity and near-duplicate detection.*
+
+**Size**: `71` lines (`2793` bytes)
+
+**Functions:**
+- `def goal(goal_id, description, *, status, priority, context, deadline, updated_at)`
+- `def test_review_reports_overdue_stale_low_clarity_and_duplicates_without_mutation()`
+- `def test_clarity_is_bounded_and_explains_what_is_missing()`
+- `def test_goal_review_route_is_read_only_and_reports_a_review()`
+
+---
+
 ### [`tests/test_brain_guardrails.py`](tests/test_brain_guardrails.py)
 > *Deterministic guardrails: injection, secret redaction and prompt-leak detection.*
 
@@ -3752,7 +3815,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `257` lines (`9875` bytes)
+**Size**: `289` lines (`11304` bytes)
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -3764,6 +3827,7 @@
 - `def test_safe_mode_hysteresis_and_kill_switch(tmp_path)`
 - `def test_component_errors_accumulate_and_recovery_lowers_pressure(tmp_path)`
 - `def test_one_failing_subsystem_alone_can_degrade(tmp_path)`
+- `def test_risk_escalates_immediately_but_releases_slowly(tmp_path)`
 - `def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path)`
 - `def test_component_errors_require_a_name(tmp_path)`
 - `def test_blocked_action_window_is_bounded(tmp_path)`
@@ -3874,7 +3938,7 @@
 ### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
 > *Unified self-modification budget: caps, rollover, release and service wiring.*
 
-**Size**: `105` lines (`3986` bytes)
+**Size**: `125` lines (`4796` bytes)
 
 **Functions:**
 - `def make_budget(tmp_path, **caps)`
@@ -3886,6 +3950,7 @@
 - `def test_a_corrupt_ledger_starts_from_zero_and_is_replaced(tmp_path)`
 - `def test_the_service_bounds_learning_writes(tmp_path, monkeypatch)`
 - `def test_the_budget_route_reports_counts()`
+- `def test_budget_exhaustion_returns_429_instead_of_a_name_error(tmp_path, monkeypatch)`
 - `def test_malformed_cap_config_uses_defaults_instead_of_crashing(tmp_path)`
 
 ---
@@ -3912,6 +3977,22 @@
 - `async def test_service_cycles_in_suggest_mode_and_rejects_auto(tmp_path)`
 - `async def test_service_start_stop_and_state_persistence(tmp_path)`
 - `def test_brain_routes_are_mounted_and_serve_state(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_brain_trends.py`](tests/test_brain_trends.py)
+> *Bounded metric-trend detection and its reviewable proposals.*
+
+**Size**: `117` lines (`3575` bytes)
+
+**Functions:**
+- `def snapshot(pass_rate, errors)`
+- `def monitor(tmp_path, now, **overrides)`
+- `def test_a_fall_in_pass_rate_emits_one_finding_and_dedupes_for_the_day(tmp_path)`
+- `def test_a_rise_in_provider_errors_emits_a_finding(tmp_path)`
+- `def test_history_is_bounded_and_an_empty_ledger_is_quiet(tmp_path)`
+- `def test_the_service_turns_a_finding_into_a_reviewable_proposal()`
+- `def test_trend_route_reports_the_window()`
 
 ---
 
@@ -4016,7 +4097,7 @@
 ---
 
 ### [`tests/test_chat_module.py`](tests/test_chat_module.py)
-**Size**: `167` lines (`7027` bytes)
+**Size**: `167` lines (`7055` bytes)
 
 **Functions:**
 - `def client()` - *A TestClient that handles startup and shutdown events.*
@@ -4094,6 +4175,19 @@
 - `def test_list_sessions(session_manager)`
 - `def test_add_message(session_manager)`
 - `def test_add_message_to_nonexistent_session(session_manager)`
+
+---
+
+### [`tests/test_confirmations.py`](tests/test_confirmations.py)
+> *Server-side confirmation gates for irreversible routes (ADR-059).*
+
+**Size**: `51` lines (`1957` bytes)
+
+**Functions:**
+- `def test_confirmation_matches_case_and_whitespace()`
+- `def test_a_missing_or_wrong_phrase_is_rejected_with_a_remedy(provided)`
+- `def test_destructive_routes_require_the_phrase()`
+- `def test_memory_wipe_runs_only_after_confirmation(monkeypatch)`
 
 ---
 

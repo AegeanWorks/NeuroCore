@@ -742,12 +742,19 @@ detail to implement it without the source.
 | Allowlisted research gateway with provenance | `core/research_gateway.py` | 049 |
 | Unified daily self-modification budget | `modules/brain/self_budget.py` | 046 |
 | Link-aware recall (post-report addition) | `modules/memory/backend.py` | 055 |
+| Metric-trend repair proposals (C.2.1) | `modules/brain/trends.py` | 058 |
+| Read-only goal review (C.2.2) | `modules/brain/goal_review.py` | 057 |
+| Asymmetric risk release (C.2.4) | `modules/brain/kernel.py` | 056 |
+| Server-side confirmation for destructive routes (C.2.3) | `core/confirmations.py` | 059 |
 
-No P0, P1 or P2 report item is open.
+No P0, P1 or P2 report item is open. Of the optional C.2 items, C.2.1, C.2.2, C.2.3 and C.2.4 are
+now implemented; only C.2.5 (product ideas) remains optional.
 
 ### C.2 Remaining ideas, implementable from this note
 
-None is required for the current product. They are ordered by value per unit of risk.
+None was required for the current product. C.2.1, C.2.2, C.2.3 and C.2.4 are implemented
+(ADR-056, ADR-057, ADR-058 and ADR-059); the original design text is kept below as history.
+Only C.2.5 remains optional.
 
 **C.2.1 Metric-drift self-repair proposals (small, deterministic).**
 Original idea: compare recent and prior windows of a health metric and emit a repair goal.
@@ -770,6 +777,9 @@ revalidates the linked goal; optionally warn when clarity is below a threshold. 
 `modules/brain/goal_link.py` or a new `goal_review.py` plus router; tests. Effort: one day.
 
 **C.2.3 Server-side confirmation for irreversible operations (small).**
+Implemented as ADR-059: `core/confirmations.py` requires an exact phrase in the `confirm` query
+parameter on settings reset, knowledge-base delete-all, memory wipe and session delete, returning
+400 with `Why:`/`Fix:`. The original design text follows as history.
 Original idea: a pending-confirmation command. NeuroCore destructive routes (reset settings,
 clear all documents, wipe memory, delete all sessions) rely on the browser `confirm()` dialog
 only, which API callers bypass. Design: require an explicit typed confirmation in the body (for

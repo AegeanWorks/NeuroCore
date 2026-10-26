@@ -1227,3 +1227,75 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   costs one indexed query per recall. It changes ranking only, never stored confidence.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work) and
   PRINCIPLE-014 (failing-first tests).
+
+### ADR-056: Asymmetric kernel risk release
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: The kernel used the raw risk score for both escalation and release. Because the
+  one-hour windows decay slowly already, a single sample could also drop the mode as soon as the
+  raw score crossed a threshold, and the reported score could oscillate with one bad provider.
+- **Decision**: Keep raw risk for escalation, but gate de-escalation with a persisted
+  `smoothed_risk`: `smoothed = 0.1 * raw + 0.9 * smoothed` when risk falls, while a rise applies
+  immediately. `smoothed_at` is persisted; a gap longer than `ERROR_WINDOW_SECONDS` discards the
+  stale release value. Kernel reset clears both values. State is written after snapshot,
+  evaluation and drift observations so the release survives a restart.
+- **Consequences**: SAFE is never delayed by smoothing, while recovery needs several healthy
+  snapshots plus the existing dwell. The reported `risk_score` stays raw and the released value is
+  visible as `smoothed_risk` for operators.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (state integrity) and
+  PRINCIPLE-014 (failing-first tests).
+
+### ADR-057: Read-only goal review
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: Goals carry description, priority, context, deadline and timestamps, but the brain
+  offered no way to find overdue, stale, vague or duplicated objectives before linking a change to
+  them. Tif's review idea was useful, but automatic pruning would remove operator intent.
+- **Decision**: `POST /brain/goals/review` reads up to 500 goals from the shared memory store and
+  returns a deterministic review of `pending`/`in_progress` goals: overdue by deadline, stale by
+  `updated_at` (default 14 days), low clarity, near-duplicate descriptions (token Jaccard, default
+  0.75), and a clarity score built from description length, context, deadline and priority. The
+  route is operator-only and never mutates a goal; thresholds are request parameters, and malformed
+  values return 400.
+- **Consequences**: Operators can fix goal hygiene before using a goal to justify a change, with no
+  hidden deletion or re-ranking. The score is intentionally simple and explainable, not an LLM
+  judgement.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work) and
+  PRINCIPLE-014 (failing-first tests).
+
+### ADR-058: Bounded metric-trend repair proposals
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: The brain records pass rate and provider errors but never notices a sustained
+  regression across cycles. The archived Tif report proposed a trend detector that emits a
+  `self_repair` improvement candidate.
+- **Decision**: Add `modules/brain/trends.py`, a locked bounded ledger of the last 100 samples. It
+  compares the latest 20-sample window against the previous one and reports a fall of at least 0.10
+  in pass rate or a rise of at least 0.10 in provider-error rate. At most one finding is emitted per
+  day (six-hour per-metric cooldown), persisted for dedupe. In `suggest` mode the cycle converts a
+  finding into a `repair_metric` proposal carrying `goal_kind: "self_repair"`, the reason and the
+  evidence; it deliberately does not create a flow candidate, because a metric regression has no
+  flow operation list and must not bypass evaluation. `GET /brain/trends` exposes the window.
+- **Consequences**: Sustained regressions become reviewable without autonomous edits or LLM calls.
+  The detector is cheap, bounded and reconstructible from the persisted samples. An operator still
+  decides whether to open a self-repair candidate.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded work),
+  PRINCIPLE-013 (atomic state) and PRINCIPLE-014 (failing-first tests).
+
+### ADR-059: Server-side confirmation for irreversible routes
+- **Date**: 2026-10-26
+- **Status**: Accepted
+- **Context**: Settings reset, knowledge-base delete-all, memory wipe and chat-session delete were
+  guarded only by a browser `confirm()` dialog or an HTMX `hx-confirm`. Any HTTP client could call
+  them directly, so the UI guard was not an authorization check.
+- **Decision**: Add `core/confirmations.py::require_confirmation`, which compares a normalized
+  phrase and raises HTTP 400 with `Why:`/`Fix:` guidance. Each destructive route requires the exact
+  phrase in a `confirm` query parameter: `reset all settings`, `delete all documents`,
+  `wipe all memories`, `delete this session`, `wipe the reasoning book`. The existing dialogs stay
+  as UX, and every in-app caller now sends the phrase.
+- **Consequences**: A script or a stray request can no longer wipe state by accident or bypass the
+  dialog. The phrase is not a secret and does not replace authentication; it makes intent explicit
+  and forces callers to name the operation. No route accepts the phrase from the body, so a JSON
+  caller must send the query parameter deliberately.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-011 (clear remedies) and
+  PRINCIPLE-014 (failing-first tests).

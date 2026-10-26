@@ -1,119 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "archive-tif-analysis",
+    "task_id": "neurocore-operator-controls",
     "last_phase": "phase 4",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1792969410.4494958,
+    "updated_at": 1793007827.0427601,
     "owner": "kilo:main",
     "started_by": "kilo:main",
     "continuations": [],
-    "completed_at": 1792969410.7908235
+    "completed_at": 1793007827.2460706
   },
   "checkpoints": [
-    {
-      "task_id": "research-gateway",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: /research/sources and /research/fetch, README and ADR-049. Full suite 1881 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792956951.700682,
-      "timestamp_str": "2026-10-25 22:35:51",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "P2-10 complete, every report item P0/P1/P2 now implemented",
-        "next": "commit and push",
-        "open": "none",
-        "evidence": "1881 passed 7 skipped, aikit check 4/4"
-      }
-    },
-    {
-      "task_id": "research-gateway",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'research-gateway' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792956951.955686,
-      "timestamp_str": "2026-10-25 22:35:51",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/5] Loop guard: drop same-tool stagnation, keep domain ids (ADR-050). [2/5] Guardrails: outputs-only redaction, narrower assignment rule. [3/5] Kernel: worst-component pressure up to 40 points. [4/5] Simulation manifest catalogue and dangling bridges; memory confidence recompute lifecycle; research persist/dedupe/cache cap; skill id validation; budget cap validation; timeout=0 and shared budget charges (ADR-051, ADR-052). [5/5] Tests, gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792961873.8508725,
-      "timestamp_str": "2026-10-25 23:57:53",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The last five pushes introduced controls with false positives and state drift; the review found ten concrete defects.",
-        "benefits": "Normal agent work is no longer aborted or rewritten, one failing subsystem can degrade the kernel, evidence confidence stays consistent, and research persistence is idempotent.",
-        "risks": "contract: timeout=0 semantics restored, guard behavior narrowed; dependency: none; concurrency: confidence recompute stays inside the write lock; state: links are removed on memory deletion.",
-        "mitigation": "Every correction has a failing-first test; no safety default was relaxed, only false-positive paths were removed."
-      }
-    },
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[5/5] done: all review corrections implemented with failing-first tests: loop guard false positives, guardrail input mutation and narrow secret rule, kernel worst-component pressure, simulation provides_nodes/dangling bridges, memory confidence recompute on every link mutation, research persist-on-hit/dedupe/cache cap/DNS offload, skill id validation, budget cap validation, timeout=0 semantics, shared budget charges across executors. ADR-050..052. Full suite 1895 passed 7 skipped; aikit check 4/4; checklists: passed.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792962340.6861336,
-      "timestamp_str": "2026-10-26 00:05:40",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "review fixes complete and green",
-        "next": "commit and push",
-        "open": "repetition guard still covers only the standard agent loop, alternate executors rely on iteration caps and the shared budget"
-      }
-    },
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "checklists: passed; full suite 1896 passed 7 skipped, including a direct test that the shared LLM helper charges the run budget; aikit check 4/4.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792962710.8876193,
-      "timestamp_str": "2026-10-26 00:11:50",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "complete",
-        "next": "commit and push",
-        "open": "repetition guard still limited to the standard agent loop"
-      }
-    },
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'post-push-review-fixes' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792962711.076324,
-      "timestamp_str": "2026-10-26 00:11:51",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "post-push-review-fixes",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "checklists: passed after the secret-scan pragmas and ADR wording fix; full suite 1896 passed 7 skipped; aikit check 4/4.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792963090.1876578,
-      "timestamp_str": "2026-10-26 00:18:10",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "ready to commit",
-        "next": "commit and push",
-        "open": "repetition guard limited to the standard loop"
-      }
-    },
     {
       "task_id": "post-push-review-fixes",
       "phase": "completed",
@@ -294,6 +192,106 @@
       "status": "completed",
       "timestamp": 1792969410.7908251,
       "timestamp_str": "2026-10-26 02:03:30",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 2",
+      "phase_num": 2,
+      "description": "[1/3] Fix budget exhaustion responses, add asymmetric kernel risk release, deterministic goal review, and metric-trend self-repair proposals with tests and docs",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793004046.2001512,
+      "timestamp_str": "2026-10-26 11:40:46",
+      "agent": "kilo:main",
+      "impact_assessment": {
+        "why": "The optional operator controls from the archived Tif report are the only open improvements, and the brain router currently raises NameError when a self-modification budget is exhausted",
+        "benefits": "Actionable budget errors instead of 500s, slower risk release without delaying SAFE escalation, deterministic goal hygiene, and reviewable drift repairs",
+        "risks": "contract: brain status fields and two new routes; dependency: none; concurrency: shared brain state writes stay under existing locks; state: kernel state gains smoothed_risk and a new trend ledger",
+        "mitigation": "Failing-first tests, bounded/persisted state with atomic writes, docs and ADR, full Phase 4 gates"
+      }
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 3",
+      "phase_num": 3,
+      "description": "[2/3] M1 done: imported SelfBudgetExceeded (429 instead of NameError), added persisted asymmetric risk smoothing (raw escalation, alpha-0.1 release, stale reset, reset clears), and updated kernel/budget tests",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793004957.8746696,
+      "timestamp_str": "2026-10-26 11:55:57",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 3",
+      "phase_num": 3,
+      "description": "[2/3] M2 done: deterministic read-only POST /brain/goals/review reports overdue, stale, low-clarity and near-duplicate active goals with a bounded clarity score; pure and route tests pass",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793005123.0570726,
+      "timestamp_str": "2026-10-26 11:58:43",
+      "agent": "kilo:main"
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done: async budget errors now 429, asymmetric persisted risk release, read-only goal review, bounded metric-trend proposals, README/ADR/report/map updated; checklists: passed; aikit check 4/4",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793006133.6892025,
+      "timestamp_str": "2026-10-26 12:15:33",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "uncommitted and green",
+        "next": "review and commit/push when authorized",
+        "open": "optional C.2.3 server-side confirmation and C.2.5 product ideas",
+        "evidence": "aikit check neurocore 4/4, full pytest pass"
+      }
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done + C.2.3: destructive routes (settings reset, KB delete-all, memory wipe, session delete) require the exact confirm phrase via core/confirmations.py; dialogs kept; tests added; README/ADR-059/report/map updated; checklists: passed; aikit check 4/4",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793006994.668326,
+      "timestamp_str": "2026-10-26 12:29:54",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "uncommitted and green",
+        "next": "commit and push on user authorization",
+        "open": "C.2.5 optional product ideas",
+        "evidence": "aikit check neurocore 4/4, full pytest pass, no open P0-P2 or C.2.1-C.2.4 items"
+      }
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "phase 4",
+      "phase_num": 4,
+      "description": "[3/3] done: budget 429 fix, asymmetric risk release, read-only goal review, bounded metric-trend proposals, and confirm-phrase gates on settings reset, KB delete-all, memory wipe, session delete, reasoning-book clear; checklists: passed; aikit check 4/4",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793007827.0427601,
+      "timestamp_str": "2026-10-26 12:43:47",
+      "agent": "kilo:main",
+      "handoff": {
+        "state": "green and ready to commit",
+        "next": "commit then check --strict and push",
+        "open": "C.2.5 optional product ideas",
+        "evidence": "aikit check neurocore 4/4, full pytest pass"
+      }
+    },
+    {
+      "task_id": "neurocore-operator-controls",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-operator-controls' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793007827.2460718,
+      "timestamp_str": "2026-10-26 12:43:47",
       "agent": "kilo:main"
     }
   ]
