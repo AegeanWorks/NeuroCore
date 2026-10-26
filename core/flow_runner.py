@@ -19,6 +19,7 @@ from core.execution_budget import (
 from core.debug import debug_logger
 from core.errors import FlowError, NodeExecutionError
 from core.node_retry import RetryPolicy, node_timeout, run_with_retry
+from core.node_stall import record_node_latency
 
 logger = logging.getLogger(__name__)
 
@@ -296,16 +297,28 @@ class FlowRunner:
             executor_class = await self._get_executor_class(module_id, node_type_id)
             if not executor_class:
                 return "missing", None
-            executor = executor_class()
-            node_config = source_config.copy()
-            node_config['_flow_id'] = self.flow_id
-            node_config['_node_id'] = node_id
-            if stream_queue:
-                node_config['_stream_queue'] = stream_queue
-            processed_data = await executor.receive(node_input, config=node_config)
-            if processed_data is None:
-                return "stop", None
-            return "ok", await executor.send(processed_data)
+            started = time.perf_counter()
+            try:
+                executor = executor_class()
+                node_config = source_config.copy()
+                node_config['_flow_id'] = self.flow_id
+                node_config['_node_id'] = node_id
+                if stream_queue:
+                    node_config['_stream_queue'] = stream_queue
+                processed_data = await executor.receive(node_input, config=node_config)
+                if processed_data is None:
+                    return "stop", None
+                return "ok", await executor.send(processed_data)
+            finally:
+                finding = record_node_latency(
+                    module_id, node_type_id,
+                    (time.perf_counter() - started) * 1000.0,
+                    flow_id=self.flow_id, node_id=node_id,
+                )
+                if finding and settings.get("debug_mode"):
+                    debug_logger.log(self.flow_id, node_id,
+                                     node_meta.get('name', node_id),
+                                     "node_stall", finding)
 
         async def call():
             if timeout > 0:

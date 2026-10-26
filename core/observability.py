@@ -33,6 +33,7 @@ from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
 from core.paths import data_path
+from core.node_stall import configure_node_stall
 
 logger = logging.getLogger(__name__)
 
@@ -989,3 +990,11 @@ def is_trace_file_export_enabled() -> bool:
     except Exception:
         return False
 
+
+# Wire node latency detection into this module's metrics without a reverse import.
+configure_node_stall(
+    timing=metrics.timing,
+    gauge=metrics.gauge,
+    counter=metrics.increment,
+    warn=structured_logger.warning,
+)

@@ -2660,6 +2660,12 @@ async def get_token_stats_json(request: Request, _: bool = Depends(require_debug
     from core.observability import get_token_stats
     return JSONResponse(content=get_token_stats())
 
+@router.get("/debug/node-latency", response_class=JSONResponse)
+async def get_node_latency_json(_: bool = Depends(require_debug_mode)):
+    """Return node latency percentiles and recent p99 stall findings as JSON."""
+    from core.node_stall import node_latency_report
+    return JSONResponse(content=node_latency_report())
+
 @router.get("/debug/token-stats/partial", response_class=HTMLResponse)
 async def get_token_stats_partial(request: Request, _: bool = Depends(require_debug_mode)):
     """Return the token stats panel as an HTML partial for HTMX polling."""
