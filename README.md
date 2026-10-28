@@ -95,7 +95,6 @@ neurocore/
 ├── REUSE.toml            <- Machine-readable SPDX metadata
 ├── README.md
 ├── start.bat
-├── banner.jpg
 ├── docker-compose.yml
 ├── main.py               <- FastAPI application entrypoint
 ├── pyproject.toml        <- package metadata & dependencies
