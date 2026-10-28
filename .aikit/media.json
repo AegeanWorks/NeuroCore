@@ -28,17 +28,16 @@
       }
     },
     "social_preview": {
-      "path": "assets/social-preview.png",
+      "path": "assets/social-preview.jpg",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T17:41:02",
+      "generated_at": "2026-10-28T18:26:59",
       "review": {
         "status": "approved",
-        "reviewer": "subagent:vision-review",
-        "method": "vision",
-        "notes": "Neurocore NEUROSCIENCE",
-        "score": 94,
-        "reviewed_at": "2026-10-28T17:52:09"
+        "reviewer": "human:user",
+        "method": "human",
+        "notes": "The project's pre-existing banner was preferred by the user; it was moved to the current social-preview asset name.",
+        "reviewed_at": "2026-10-28T18:26:59"
       }
     }
   },

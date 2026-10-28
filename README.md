@@ -1,12 +1,11 @@
 # NeuroCore
 
 <!-- aegean:media:start -->
-<p align="center"><img src="assets/logo.jpg" alt="Neurocore logo" width="96" height="96"></p>
-<p align="center"><img src="assets/social-preview.png" alt="Neurocore social preview" width="100%"></p>
+<p align="center"><img src="assets/social-preview.jpg" alt="Neurocore social preview" width="100%"></p>
+*Brand assets are generated and may not fully represent the project scope.*
 <!-- aegean:media:end -->
 
 <p align="center">
-  <img src="https://github.com/Aegean-E/NeuroCore/blob/main/banner.jpg?raw=true" alt="NeuroCore Banner" width="1200">
 </p>
 
 <p align="center">
