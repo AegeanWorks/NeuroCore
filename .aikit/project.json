@@ -26,6 +26,7 @@
   "ui_source": "detected",
   "topics": [
     "aikit",
+    "aikit-integrated",
     "source-available",
     "aegean-license",
     "commercial-license",
@@ -38,7 +39,6 @@
     "htmx",
     "python",
     "tailwindcss",
-    "workflow",
     "agent-framework",
     "faiss",
     "local-llm",
