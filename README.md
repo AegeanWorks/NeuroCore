@@ -2,7 +2,6 @@
 
 <!-- aegean:media:start -->
 <p align="center"><img src="assets/social-preview.jpg" alt="Neurocore social preview" width="100%"></p>
-*The banner and logo are AI-generated brand assets. They are illustrative and may not literally depict every feature or the full project scope.*
 <!-- aegean:media:end -->
 
 <p align="center">
@@ -379,6 +378,12 @@ lists the adapters and `POST /research/fetch {"source","query","limit","persist"
 search; there is no fallback to an unlisted search engine or a spoofed user agent.
 These are defense-in-depth Python restrictions, not an OS isolation boundary: do not run
 untrusted community tools on a machine whose files or credentials you cannot afford to expose.
+
+<!-- aegean:brand-assets:start -->
+## 🎨 Brand Assets
+
+> **AI-Generated Brand Artwork.** The banner and logo are **AI-generated brand assets**. They are illustrative and may not literally depict every feature or the full project scope.
+<!-- aegean:brand-assets:end -->
 
 ## 📜 License
 

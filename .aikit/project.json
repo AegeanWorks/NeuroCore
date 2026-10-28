@@ -26,12 +26,14 @@
   "ui_source": "detected",
   "topics": [
     "aikit",
+    "source-available",
+    "aegean-license",
+    "commercial-license",
     "ai",
     "ai-agents",
     "autonomous-agents",
     "llm",
     "rag",
-    "tools",
     "fastapi",
     "htmx",
     "python",
@@ -42,14 +44,17 @@
     "local-llm",
     "workflow-automation",
     "plugin-system",
-    "source-available",
-    "aegeanworks",
-    "software"
+    "aegeanworks"
   ],
   "topics_source": "ai:kilo:2026-10-27",
   "topics_reviewed_at": "2026-10-28",
   "topics_choice": [
     "aegeanworks",
     "software"
+  ],
+  "license_topics": [
+    "source-available",
+    "aegean-license",
+    "commercial-license"
   ]
 }
