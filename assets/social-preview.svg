@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">Neurocore social preview</title>
+  <desc id="desc">A complete, self-hosted AI agent framework. Visual flow editor · Persistent memory · RAG · Tools · Multi-platform messaging · Community marketplace.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset="1" stop-color="#0e2a47"/></linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.15" r="0.9"><stop offset="0" stop-color="#a78bfa" stop-opacity="0.30"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+  <g opacity="0.16" stroke="#e2f8ff">
+    <path d="M0 160h1280M0 320h1280M0 480h1280M256 0v640M512 0v640M768 0v640M1024 0v640"/>
+  </g>
+  <rect x="64" y="112" width="176" height="176" rx="42" fill="#07111f" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="2"/>
+  <circle cx="152" cy="200" r="58" fill="none" stroke="#a78bfa" stroke-opacity="0.45" stroke-width="2"/>
+  <text x="152" y="224" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="62" font-weight="700" fill="#a78bfa">NE</text>
+  <text x="300" y="192" font-family="Segoe UI, Arial, sans-serif" font-size="72" font-weight="700" fill="#e2f8ff">Neurocore</text>
+  <text x="300" y="250" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#e2f8ff" fill-opacity="0.78">A complete, self-hosted AI agent framework. Visual</text><text x="300" y="298" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#e2f8ff" fill-opacity="0.78">flow editor · Persistent memory · RAG · Tools ·</text><text x="300" y="346" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#e2f8ff" fill-opacity="0.78">Multi-platform messaging · Community marketplace.</text>
+  <text x="64" y="560" font-family="Segoe UI, Arial, sans-serif" font-size="22" letter-spacing="6" fill="#e2f8ff" fill-opacity="0.55">AEGEANWORKS · WEB</text>
+  <text x="1216" y="560" text-anchor="end" font-family="Segoe UI, Arial, sans-serif" font-size="22" fill="#a78bfa">github.com/AegeanWorks/Neurocore</text>
+</svg>

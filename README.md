@@ -1,5 +1,10 @@
 # NeuroCore
 
+<!-- aegean:media:start -->
+<p align="center"><img src="assets/logo.svg" alt="Neurocore logo" width="96" height="96"></p>
+<p align="center"><img src="assets/social-preview.svg" alt="Neurocore social preview" width="100%"></p>
+<!-- aegean:media:end -->
+
 <p align="center">
   <img src="https://github.com/Aegean-E/NeuroCore/blob/main/banner.jpg?raw=true" alt="NeuroCore Banner" width="1200">
 </p>
