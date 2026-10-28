@@ -17,35 +17,35 @@
       "path": "assets/logo.png",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T11:43:35",
+      "generated_at": "2026-10-28T13:53:40",
       "review": {
         "status": "approved",
-        "reviewer": "subagent:vision-review",
+        "reviewer": "subagent:brand-review",
         "method": "vision",
-        "notes": "Monogram NE matches project; legible, unclipped, no overlaps/watermark, premium.",
-        "score": 90,
-        "reviewed_at": "2026-10-28T11:49:30"
+        "notes": "NE monogram, NEUROSCIENCE eyebrow, single-word title case Neurocore. Neural burst artwork fits neuroscience research platform precisely. Premium.",
+        "score": 89,
+        "reviewed_at": "2026-10-28T14:00:01"
       }
     },
     "social_preview": {
       "path": "assets/social-preview.png",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T11:43:35",
+      "generated_at": "2026-10-28T13:53:40",
       "review": {
         "status": "approved",
-        "reviewer": "subagent:vision-review",
+        "reviewer": "subagent:brand-review",
         "method": "vision",
-        "notes": "Strong hierarchy; legible, unclipped; premium card, no watermark.",
-        "score": 89,
-        "reviewed_at": "2026-10-28T11:49:30"
+        "notes": "Title 'Neurocore' crisp; tagline 'A research workspace for neuroscience collaboration.' complete; chips (ai, ai agents, autonomous agents) readable; URL legible; neural explosion imagery fits neuroscience platform; no clipping.",
+        "score": 92,
+        "reviewed_at": "2026-10-28T14:00:01"
       }
     },
     "artwork": {
       "path": "assets/artwork.jpg",
       "status": "pending_review",
       "commit": "",
-      "generated_at": "2026-10-28T11:43:35",
+      "generated_at": "2026-10-28T13:34:20",
       "review": null
     }
   },
