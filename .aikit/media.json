@@ -14,46 +14,39 @@
   "layout": "grid",
   "assets": {
     "logo": {
-      "path": "assets/logo.svg",
+      "path": "assets/logo.png",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T08:47:05",
+      "generated_at": "2026-10-28T11:43:35",
       "review": {
         "status": "approved",
         "reviewer": "subagent:vision-review",
         "method": "vision",
-        "notes": "NE brain, distinct from ME brain",
-        "score": 88,
-        "reviewed_at": "2026-10-28T08:58:21"
+        "notes": "Monogram NE matches project; legible, unclipped, no overlaps/watermark, premium.",
+        "score": 90,
+        "reviewed_at": "2026-10-28T11:49:30"
       }
     },
     "social_preview": {
-      "path": "assets/social-preview.svg",
+      "path": "assets/social-preview.png",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T08:47:05",
+      "generated_at": "2026-10-28T11:43:35",
       "review": {
         "status": "approved",
         "reviewer": "subagent:vision-review",
         "method": "vision",
-        "notes": "Consistent template, legible",
-        "score": 88,
-        "reviewed_at": "2026-10-28T08:58:21"
+        "notes": "Strong hierarchy; legible, unclipped; premium card, no watermark.",
+        "score": 89,
+        "reviewed_at": "2026-10-28T11:49:30"
       }
     },
-    "social_preview_png": {
-      "path": "assets/social-preview.png",
-      "status": "approved",
+    "artwork": {
+      "path": "assets/artwork.jpg",
+      "status": "pending_review",
       "commit": "",
-      "generated_at": "2026-10-28T08:47:06",
-      "review": {
-        "status": "approved",
-        "reviewer": "subagent:vision-review",
-        "method": "structural",
-        "notes": "Rendered from the approved 1280x640 social SVG; exact dimensions verified.",
-        "score": null,
-        "reviewed_at": "2026-10-28T09:02:38"
-      }
+      "generated_at": "2026-10-28T11:43:35",
+      "review": null
     }
   },
   "screenshots": []
