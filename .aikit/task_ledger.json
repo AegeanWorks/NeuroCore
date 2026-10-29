@@ -14,17 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-operator-controls",
-      "phase": "phase 3",
-      "phase_num": 3,
-      "description": "[2/3] M2 done: deterministic read-only POST /brain/goals/review reports overdue, stale, low-clarity and near-duplicate active goals with a bounded clarity score; pure and route tests pass",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793005123.0570726,
-      "timestamp_str": "2026-10-26 11:58:43",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "neurocore-operator-controls",
       "phase": "phase 4",
       "phase_num": 4,
       "description": "[3/3] done: async budget errors now 429, asymmetric persisted risk release, read-only goal review, bounded metric-trend proposals, README/ADR/report/map updated; checklists: passed; aikit check 4/4",
@@ -288,6 +277,17 @@
       "status": "in_progress",
       "timestamp": 1793291245.9890337,
       "timestamp_str": "2026-10-29 19:27:25",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 5",
+      "phase_num": 3,
+      "description": "Reforge stage 5: window 50, 10 commit(s), 38 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793292207.5984895,
+      "timestamp_str": "2026-10-29 19:43:27",
       "agent": "opencode"
     }
   ]
