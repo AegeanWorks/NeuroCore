@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1882`
+- **Total Top-Level Functions**: `1883`
 - **Total Class Methods**: `2169`
-- **Total Source Lines**: `79713`
+- **Total Source Lines**: `79745`
 
 ---
 
@@ -3091,7 +3091,7 @@
 ### [`modules/skills/service.py`](modules/skills/service.py)
 > *Service layer for Skills module - business logic for skill management.*
 
-**Size**: `353` lines (`15275` bytes)
+**Size**: `368` lines (`16103` bytes)
 
 **Classes:**
 - `class SkillService` - *Business logic for skill management.*
@@ -6456,7 +6456,7 @@
 ### [`tests/test_skills_module.py`](tests/test_skills_module.py)
 > *Tests for the Skills module.*
 
-**Size**: `550` lines (`18909` bytes)
+**Size**: `567` lines (`19545` bytes)
 
 **Classes:**
 - `class TestSkillBackend` - *Test SkillBackend data persistence layer.*
@@ -6507,6 +6507,7 @@
 **Functions:**
 - `def test_example_skill_loads()` - *Test that the example skill file loads correctly.*
 - `def test_skill_content_sanitization()` - *Test that skill content is properly handled.*
+- `def test_import_from_url_rejects_mixed_public_and_loopback_answers(monkeypatch)`
 
 ---
 
