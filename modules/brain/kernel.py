@@ -33,9 +33,12 @@ RISK_RELEASE_ALPHA = 0.1
 def _clamp_unit(value: Any, default: float) -> float:
     """Clamp a 0..1 risk input; a malformed value keeps the previous input."""
     try:
-        return max(0.0, min(1.0, float(value)))
+        parsed = float(value)
     except (TypeError, ValueError):
         return default
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):
+        return default
+    return max(0.0, min(1.0, parsed))
 
 
 class KernelMode(str, Enum):
@@ -152,9 +155,12 @@ class BrainKernel:
 
         def bounded_risk(value: Any, default: float = 0.0) -> float:
             try:
-                return max(0.0, min(100.0, float(value)))
+                parsed = float(value)
             except (TypeError, ValueError):
                 return default
+            if parsed != parsed or parsed in (float("inf"), float("-inf")):
+                return default
+            return max(0.0, min(100.0, parsed))
 
         def bounded_count(value: Any, default: int = 0) -> int:
             try:

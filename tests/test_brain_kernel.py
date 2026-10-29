@@ -333,3 +333,28 @@ def test_record_evaluation_and_drift_ignore_malformed_values(tmp_path):
     state = kernel.to_dict()
     assert state["risk_score"] == 0.0
     assert state["mode"] == "normal"
+
+
+def test_non_finite_kernel_inputs_keep_the_previous_values(tmp_path):
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: 1000.0)
+    kernel.record_evaluation({"pass_rate": 0.5})
+    kernel.record_drift(0.25)
+
+    kernel.record_evaluation({"pass_rate": float("nan")})
+    kernel.record_drift(float("inf"))
+
+    state = kernel.to_dict()
+    assert state["inputs"]["last_pass_rate"] == 0.5
+    assert state["inputs"]["drift"] == 0.25
+
+
+def test_restore_rejects_a_non_finite_risk_score(tmp_path):
+    import json
+
+    path = tmp_path / "kernel.json"
+    path.write_text(json.dumps({"risk_score": float("nan")}), encoding="utf-8")
+
+    kernel = BrainKernel(store=KernelStore(str(path)))
+
+    assert kernel.to_dict()["risk_score"] == 0.0
