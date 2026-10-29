@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1883`
-- **Total Class Methods**: `2169`
-- **Total Source Lines**: `79745`
+- **Total Top-Level Functions**: `1884`
+- **Total Class Methods**: `2170`
+- **Total Source Lines**: `79807`
 
 ---
 
@@ -1059,7 +1059,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5779` lines (`266604` bytes)
+**Size**: `5805` lines (`267998` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1133,7 +1133,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
-- `def _charge_llm_usage(response)` - *Charge the run budget with the tokens the provider reported.*
+- `def _charge_llm_usage(response, messages)` - *Charge the run budget with provider usage, or a bounded estimate when it is absent.*
 - `def _redact_tool_output(tool_result)` - *Redact credential-shaped text before a tool result enters the context.*
 - `async def get_executor_class(node_type_id)`
 
@@ -3447,7 +3447,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `1688` lines (`67920` bytes)
+**Size**: `1711` lines (`68932` bytes)
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -3540,6 +3540,7 @@
   - Method `async def .test_duplicate_tool_call_skips_only_duplicate_not_subsequent()` - *After a duplicate, remaining unique tool calls in the same batch must still execute.*
   - Method `async def .test_input_messages_not_mutated_by_receive()` - *Original messages list and its dicts must be unchanged after receive().*
   - Method `async def .test_truncate_messages_counts_tool_calls_tokens()` - *_truncate_messages must account for tool_calls payload in token budget.*
+  - Method `.test_truncate_keeps_all_system_messages_and_tool_groups()` - *Every system message survives, and a tool result never outlives its call.*
   - Method `async def .test_planning_prompt_has_no_double_braces()` - *_DEFAULT_PLANNING_PROMPT must not contain {{ or }} after .replace() processing.*
   - Method `async def .test_replan_prompt_has_no_double_braces()` - *_DEFAULT_REPLAN_PROMPT must not contain {{ or }} after .replace() processing.*
 - `class TestHybridBugFixes` - *Regression tests for HybridAgentExecutor-specific fixes.*
@@ -4609,7 +4610,7 @@
 ### [`tests/test_execution_budget.py`](tests/test_execution_budget.py)
 > *Per-run execution budget: caps, inheritance, flow overrides and executor spending.*
 
-**Size**: `196` lines (`7039` bytes)
+**Size**: `209` lines (`7406` bytes)
 
 **Classes:**
 - `class FakeSettings`
@@ -4629,6 +4630,7 @@
 - `async def test_the_llm_node_spends_a_call_and_the_reported_tokens()`
 - `async def test_timeout_zero_still_means_no_asyncio_deadline(monkeypatch)`
 - `async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch)`
+- `def test_missing_provider_usage_charges_an_estimate()`
 
 ---
 
