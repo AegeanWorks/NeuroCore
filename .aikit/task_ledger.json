@@ -13,16 +13,6 @@
   },
   "checkpoints": [
     {
-      "task_id": "neurocore-node-stall",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-node-stall' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793028133.2272778,
-      "timestamp_str": "2026-10-26 18:22:13",
-      "agent": "kilo:main"
-    },
-    {
       "task_id": "neurocore-audit-hardening",
       "phase": "phase 2",
       "phase_num": 2,
@@ -248,6 +238,17 @@
       "status": "in_progress",
       "timestamp": 1793295938.159353,
       "timestamp_str": "2026-10-29 20:45:38",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 16",
+      "phase_num": 3,
+      "description": "Reforge stage 16: window 160, 10 commit(s), 17 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793296063.2279112,
+      "timestamp_str": "2026-10-29 20:47:43",
       "agent": "opencode"
     }
   ]
