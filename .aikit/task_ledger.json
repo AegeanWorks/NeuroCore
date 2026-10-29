@@ -16,23 +16,6 @@
       "task_id": "neurocore-operator-controls",
       "phase": "phase 4",
       "phase_num": 4,
-      "description": "[3/3] done + C.2.3: destructive routes (settings reset, KB delete-all, memory wipe, session delete) require the exact confirm phrase via core/confirmations.py; dialogs kept; tests added; README/ADR-059/report/map updated; checklists: passed; aikit check 4/4",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793006994.668326,
-      "timestamp_str": "2026-10-26 12:29:54",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "uncommitted and green",
-        "next": "commit and push on user authorization",
-        "open": "C.2.5 optional product ideas",
-        "evidence": "aikit check neurocore 4/4, full pytest pass, no open P0-P2 or C.2.1-C.2.4 items"
-      }
-    },
-    {
-      "task_id": "neurocore-operator-controls",
-      "phase": "phase 4",
-      "phase_num": 4,
       "description": "[3/3] done: budget 429 fix, asymmetric risk release, read-only goal review, bounded metric-trend proposals, and confirm-phrase gates on settings reset, KB delete-all, memory wipe, session delete, reasoning-book clear; checklists: passed; aikit check 4/4",
       "files_affected": [],
       "status": "in_progress",
@@ -282,6 +265,17 @@
       "status": "in_progress",
       "timestamp": 1793293637.9737275,
       "timestamp_str": "2026-10-29 20:07:17",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 7",
+      "phase_num": 3,
+      "description": "Reforge stage 7: window 70, 10 commit(s), 104 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793293962.9489248,
+      "timestamp_str": "2026-10-29 20:12:42",
       "agent": "opencode"
     }
   ]
