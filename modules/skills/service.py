@@ -108,10 +108,15 @@ class SkillService:
             if not hostname:
                 raise ValueError("Invalid URL: no hostname specified")
             
-            # Resolve hostname to IP and check against blocked patterns
+            # Resolve every address (IPv4 and IPv6); a hostname that returns any
+            # private/loopback answer is rejected as a whole.
             try:
-                ip = socket.gethostbyname(hostname)
+                infos = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC,
+                                           socket.SOCK_STREAM)
             except socket.gaierror:
+                raise ValueError(f"Could not resolve hostname '{hostname}'")
+            resolved_ips = [info[4][0] for info in infos]
+            if not resolved_ips:
                 raise ValueError(f"Could not resolve hostname '{hostname}'")
             
             # Issue 7: Additional DNS rebinding protection
