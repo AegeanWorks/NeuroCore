@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1878`
+- **Total Top-Level Functions**: `1881`
 - **Total Class Methods**: `2168`
-- **Total Source Lines**: `79643`
+- **Total Source Lines**: `79687`
 
 ---
 
@@ -110,7 +110,7 @@
 ### [`core/execution_budget.py`](core/execution_budget.py)
 > *Per-run execution budget: bound nodes, LLM calls, tokens, tool calls and wall time.*
 
-**Size**: `161` lines (`5928` bytes)
+**Size**: `161` lines (`5943` bytes)
 
 **Classes:**
 - `class BudgetExceeded` - *Raised when one dimension of the run budget is exhausted.*
@@ -1696,7 +1696,7 @@
 ### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
 > *Deterministic guardrails for untrusted text entering or leaving the platform.*
 
-**Size**: `258` lines (`9043` bytes)
+**Size**: `262` lines (`9281` bytes)
 
 **Classes:**
 - `class Finding` - *One matched rule, with the surface and the action the mode applied.*
@@ -1983,7 +1983,7 @@
 ### [`modules/brain/self_budget.py`](modules/brain/self_budget.py)
 > *One daily ceiling for everything the brain changes about itself.*
 
-**Size**: `149` lines (`5303` bytes)
+**Size**: `154` lines (`5427` bytes)
 
 **Classes:**
 - `class SelfBudgetExceeded` - *Raised when the daily ceiling for one kind of self-modification is reached.*
@@ -3814,7 +3814,7 @@
 ### [`tests/test_brain_guardrails.py`](tests/test_brain_guardrails.py)
 > *Deterministic guardrails: injection, secret redaction and prompt-leak detection.*
 
-**Size**: `160` lines (`5772` bytes)
+**Size**: `168` lines (`6040` bytes)
 
 **Functions:**
 - `def test_context_switch_and_override_attempts_are_flagged(text)`
@@ -3831,6 +3831,7 @@
 - `def test_stats_count_findings_and_blocks()`
 - `def test_an_unknown_mode_falls_back_to_observe(monkeypatch)`
 - `def test_guardrail_routes_report_and_scan()`
+- `def test_zero_width_splits_do_not_leave_a_credential_unredacted()`
 
 ---
 
@@ -3998,7 +3999,7 @@
 ### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
 > *Unified self-modification budget: caps, rollover, release and service wiring.*
 
-**Size**: `125` lines (`4796` bytes)
+**Size**: `140` lines (`5288` bytes)
 
 **Functions:**
 - `def make_budget(tmp_path, **caps)`
@@ -4010,6 +4011,7 @@
 - `def test_a_corrupt_ledger_starts_from_zero_and_is_replaced(tmp_path)`
 - `def test_the_service_bounds_learning_writes(tmp_path, monkeypatch)`
 - `def test_the_budget_route_reports_counts()`
+- `def test_two_instances_share_one_persisted_ceiling(tmp_path)`
 - `def test_budget_exhaustion_returns_429_instead_of_a_name_error(tmp_path, monkeypatch)`
 - `def test_malformed_cap_config_uses_defaults_instead_of_crashing(tmp_path)`
 
@@ -4607,7 +4609,7 @@
 ### [`tests/test_execution_budget.py`](tests/test_execution_budget.py)
 > *Per-run execution budget: caps, inheritance, flow overrides and executor spending.*
 
-**Size**: `184` lines (`6649` bytes)
+**Size**: `196` lines (`7039` bytes)
 
 **Classes:**
 - `class FakeSettings`
@@ -4621,6 +4623,7 @@
 - `def test_spend_outside_a_budgeted_run_is_a_noop()`
 - `def test_nested_scopes_inherit_one_budget()`
 - `def test_flow_metadata_may_lower_but_not_raise_a_limit(monkeypatch)`
+- `def test_non_finite_flow_budget_overrides_are_ignored()`
 - `def test_pressure_reports_the_fullest_dimension()`
 - `async def test_a_flow_cannot_run_more_nodes_than_its_budget()`
 - `async def test_the_llm_node_spends_a_call_and_the_reported_tokens()`
