@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1874`
+- **Total Top-Level Functions**: `1878`
 - **Total Class Methods**: `2168`
-- **Total Source Lines**: `79600`
+- **Total Source Lines**: `79643`
 
 ---
 
@@ -1044,7 +1044,7 @@
 ### [`modules/agent_loop/loop_guard.py`](modules/agent_loop/loop_guard.py)
 > *Deterministic repetition and deadlock detection for an agent loop.*
 
-**Size**: `97` lines (`3882` bytes)
+**Size**: `97` lines (`3861` bytes)
 
 **Classes:**
 - `class LoopGuard` - *Watch a bounded call history and return a warning or an abort decision.*
@@ -1760,7 +1760,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `476` lines (`19882` bytes)
+**Size**: `482` lines (`20128` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -2587,7 +2587,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1413` lines (`63467` bytes)
+**Size**: `1414` lines (`63535` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -3559,11 +3559,12 @@
 ### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
 > *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
 
-**Size**: `104` lines (`3869` bytes)
+**Size**: `109` lines (`4054` bytes)
 
 **Functions:**
 - `def test_transport_identifiers_do_not_make_a_call_unique()`
 - `def test_domain_identifiers_remain_part_of_the_signature()`
+- `def test_hex_domain_identifiers_remain_part_of_the_signature()`
 - `def test_three_identical_calls_warn_then_abort()`
 - `def test_alternating_calls_are_detected_as_oscillation()`
 - `def test_reading_many_records_does_not_trip_the_guard()`
@@ -3869,7 +3870,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `335` lines (`12645` bytes)
+**Size**: `360` lines (`13442` bytes)
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -3891,6 +3892,8 @@
 - `def test_kernel_tolerates_malformed_persisted_fields(tmp_path)`
 - `def test_observe_tolerates_malformed_risk_inputs(tmp_path)`
 - `def test_record_evaluation_and_drift_ignore_malformed_values(tmp_path)`
+- `def test_non_finite_kernel_inputs_keep_the_previous_values(tmp_path)`
+- `def test_restore_rejects_a_non_finite_risk_score(tmp_path)`
 
 ---
 
@@ -5512,7 +5515,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `358` lines (`13883` bytes)
+**Size**: `364` lines (`14049` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -5542,6 +5545,7 @@
 - `def test_deleted_archived_and_expired_neighbours_do_not_boost(store)`
 - `def test_an_existing_neighbour_is_merged_and_keeps_the_higher_score(store)`
 - `def test_link_boost_respects_the_limit(store)`
+- `def test_contractions_count_as_negation()`
 
 ---
 
