@@ -9,8 +9,8 @@
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
 - **Total Top-Level Functions**: `1882`
-- **Total Class Methods**: `2168`
-- **Total Source Lines**: `79697`
+- **Total Class Methods**: `2169`
+- **Total Source Lines**: `79713`
 
 ---
 
@@ -3011,7 +3011,7 @@
 ---
 
 ### [`modules/reflection/node.py`](modules/reflection/node.py)
-**Size**: `289` lines (`13083` bytes)
+**Size**: `289` lines (`13092` bytes)
 
 **Classes:**
 - `class ReflectionExecutor`
@@ -6085,7 +6085,7 @@
 ### [`tests/test_reflection_node.py`](tests/test_reflection_node.py)
 > *Tests for modules/reflection/node.py*
 
-**Size**: `792` lines (`30636` bytes)
+**Size**: `808` lines (`31278` bytes)
 
 **Classes:**
 - `class TestReflectionBasic` - *Core satisfied / not-satisfied behaviour.*
@@ -6095,6 +6095,7 @@
   - Method `async def .test_no_content_no_user_message_defaults_to_satisfied()` - *When there is no user message, reflection should default to satisfied=True.*
   - Method `async def .test_none_input_defaults_to_satisfied()` - *None input should be treated as empty dict and default to satisfied=True.*
   - Method `async def .test_markdown_wrapped_json_parsing()` - *When LLM response is wrapped in ```json ... ```, it should still parse correctly.*
+  - Method `async def .test_https_url_in_reason_is_not_stripped_as_a_comment()`
   - Method `async def .test_reflection_key_always_present()` - *Output must always contain a 'reflection' dict.*
   - Method `async def .test_satisfied_key_present_at_top_level()` - *satisfied must be present at the top level for ConditionalRouter routing.*
   - Method `async def .test_default_prompt_includes_clarifying_question_instruction()` - *The default reflection prompt should instruct the LLM to allow clarifying questions.*
