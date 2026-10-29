@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-node-stall",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/2] Add bounded per-node latency history with p99 stall detection, metrics/logging hooks, a debug-mode report route, and per-attempt timing in the flow runner; then verify and ship",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793027809.9632165,
-      "timestamp_str": "2026-10-26 18:16:49",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "A stalled node was invisible until the whole flow timed out, and there was no per-node-type latency baseline to distinguish a normal slow node from an outlier",
-        "benefits": "Operators can see degrading node types and the exact flow/node of a stall without changing run behaviour",
-        "risks": "contract: new debug route and metrics keys; dependency: none; concurrency: thread-safe monitor with bounded state; state: process-local history only",
-        "mitigation": "Bounded history and keys, observational-only detection, injected observability hooks to avoid an import cycle, failing-first tests"
-      }
-    },
-    {
-      "task_id": "neurocore-node-stall",
       "phase": "phase 4",
       "phase_num": 4,
       "description": "[2/2] done: bounded per-node p99 stall monitor with injected metrics/logging hooks, per-attempt timing in both node paths, debug-mode report route, 6 tests, README/IDEAS/MODULE_GUIDE/ADR-061/map updated; checklists: passed; aikit check 4/4",
@@ -260,6 +243,17 @@
       "status": "in_progress",
       "timestamp": 1793295209.5737967,
       "timestamp_str": "2026-10-29 20:33:29",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 14",
+      "phase_num": 3,
+      "description": "Reforge stage 14: window 140, 10 commit(s), 13 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793295547.8635683,
+      "timestamp_str": "2026-10-29 20:39:07",
       "agent": "opencode"
     }
   ]
