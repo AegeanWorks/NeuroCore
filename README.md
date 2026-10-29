@@ -6,9 +6,6 @@
 <!-- aegean:media:end -->
 
 <p align="center">
-</p>
-
-<p align="center">
   <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"></a>
   <a href="https://htmx.org"><img src="https://img.shields.io/badge/HTMX-333333?style=for-the-badge&logo=htmx&logoColor=white" alt="HTMX"></a>
@@ -94,6 +91,7 @@ neurocore/
 ├── LICENSES/             <- REUSE license texts
 ├── REUSE.toml            <- Machine-readable SPDX metadata
 ├── README.md
+├── assets/               <- brand media (logo and social preview)
 ├── start.bat
 ├── docker-compose.yml
 ├── main.py               <- FastAPI application entrypoint
