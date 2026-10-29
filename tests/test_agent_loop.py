@@ -1519,6 +1519,29 @@ class TestBugFixes:
         # The huge tool_calls message must be absent from the result
         assert not any(m.get("tool_calls") for m in truncated)
 
+    def test_truncate_keeps_all_system_messages_and_tool_groups(self):
+        """Every system message survives, and a tool result never outlives its call."""
+        executor = make_executor()
+        persona = {"role": "system", "content": "P" * 120}
+        goal = {"role": "system", "content": "G" * 120}
+        call = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "1", "function": {"name": "Tool", "arguments": "x" * 4000}}
+            ],
+        }
+        result = {"role": "tool", "tool_call_id": "1", "content": "ok"}
+        user = {"role": "user", "content": "latest"}
+
+        messages = [persona, goal, call, result, user]
+        budget = executor._estimate_messages_tokens([persona, goal]) + 20
+        truncated = executor._truncate_messages(messages, max_context_tokens=budget)
+
+        assert persona in truncated
+        assert goal in truncated
+        assert not any(message.get("role") == "tool" for message in truncated)
+
     # ------------------------------------------------------------------
     # Bug 7: _DEFAULT_PLANNING_PROMPT used {{ }} which .replace() does not
     # convert, sending literal {{ to the LLM.

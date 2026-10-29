@@ -4,6 +4,28 @@ This document tracks brainstorming features, layout refinements, and long-term a
 
 ---
 
+## 🐞 0. Known Bugs & Gaps (found 2026-10-29)
+- **[x] Truncation drops the system prompt** *(bug, IDEA-370 + IDEA-120)*:
+  - `AgentLoopExecutor._truncate_messages` (`modules/agent_loop/node.py`) kept only the *last*
+    system message once a conversation exceeded `max_context_tokens`. A flow with the system-prompt
+    node followed by the memory goal node (`modules/memory/node.py`) sends two system messages, so
+    the persona prompt was silently dropped and only the goal survived.
+  - The same walk could keep a `tool` message whose assistant `tool_calls` message was cut, which
+    OpenAI-compatible APIs reject.
+  - Fixed: truncation now keeps every system message and treats an assistant tool call plus its
+    tool results as one atomic group; the dropped count is logged. Regression test added.
+- **[ ] DNS rebinding passes the SSRF check** *(IDEA-063)*: `_validate_url` in
+  `core/research_gateway.py` checks the resolved address, then httpx resolves again on connect.
+  Pin the vetted address; the skill URL importer now validates every resolved address but still
+  resolves again at connect time.
+- **[x] Token budget unenforced without provider usage** *(IDEA-369)*: `_charge_llm_usage` charged
+  0 tokens when a response had no `usage` (common on local servers). Fixed with a bounded
+  request-plus-response estimate when the provider omits usage.
+- **[ ] Step risk is fail-open** *(IDEA-060)*: the agent loop takes `risk`/`reversible` from the
+  model, defaults to `low`/`true` when missing, and only adds a prompt warning.
+
+---
+
 ## 🔬 1. Core Engine & DAG Runner
 - **[ ] Execution Trace Visual Replay**:
   - Build UI playback slider that reads `execution_trace.jsonl` to animate node transitions on visual maps, giving full debug walkthrough histories flawlessly flaws ok.

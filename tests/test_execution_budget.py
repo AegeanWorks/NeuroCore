@@ -194,3 +194,16 @@ async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch):
     assert response["choices"][0]["message"]["content"] == "ok"
     assert budget.used["llm_calls"] == 1
     assert budget.used["tokens"] == 42
+
+
+def test_missing_provider_usage_charges_an_estimate():
+    from modules.agent_loop.node import _charge_llm_usage
+
+    budget = ExecutionBudget()
+    with use_budget(budget):
+        _charge_llm_usage(
+            {"choices": [{"message": {"content": "x" * 400}}]},
+            [{"role": "user", "content": "hello"}],
+        )
+
+    assert budget.used["tokens"] > 0

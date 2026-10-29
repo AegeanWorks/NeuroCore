@@ -12,13 +12,18 @@ from modules.tools.sandbox import ToolSandbox
 from core.session_manager import session_manager, get_session_manager, EpisodeState
 
 
-def _charge_llm_usage(response) -> None:
-    """Charge the run budget with the tokens the provider reported."""
+def _charge_llm_usage(response, messages=None) -> None:
+    """Charge the run budget with provider usage, or a bounded estimate when it is absent."""
     usage = (response or {}).get("usage") or {}
     try:
         total = int(usage.get("total_tokens") or 0)
     except (TypeError, ValueError):
         total = 0
+    if total <= 0:
+        # Local and OpenAI-compatible servers often omit usage. Estimate from the request
+        # and the response so a token ceiling still applies instead of charging zero.
+        payload = json.dumps(messages or [], default=str) + json.dumps(response or {}, default=str)
+        total = max(1, len(payload) // 4)
     if total > 0:
         spend("tokens", total)
 
@@ -116,31 +121,52 @@ class AgentBaseExecutor:
         if total_tokens <= max_context_tokens:
             return messages
 
-        system_msg = None
-        non_system = []
-        for msg in messages:
-            if msg.get("role") == "system" and preserve_system:
-                system_msg = msg
-            else:
-                non_system.append(msg)
+        system_messages = [
+            msg for msg in messages
+            if preserve_system and msg.get("role") == "system"
+        ]
+        non_system = [
+            msg for msg in messages
+            if not (preserve_system and msg.get("role") == "system")
+        ]
 
-        system_tokens = (
-            self._estimate_messages_tokens([system_msg]) if system_msg else 0
-        )
-        available = max_context_tokens - system_tokens
+        system_tokens = self._estimate_messages_tokens(system_messages)
+        available = max(0, max_context_tokens - system_tokens)
 
-        result = []
+        # Keep an assistant tool-call message and its tool results together: sending a
+        # tool result whose assistant call was cut is rejected by OpenAI-compatible APIs.
+        groups = []
+        index = 0
+        while index < len(non_system):
+            message = non_system[index]
+            group = [message]
+            index += 1
+            if message.get("role") == "assistant" and message.get("tool_calls"):
+                while index < len(non_system) and non_system[index].get("role") == "tool":
+                    group.append(non_system[index])
+                    index += 1
+            groups.append(group)
+
+        selected = []
         used = 0
-        for msg in reversed(non_system):
-            t = self._estimate_messages_tokens([msg])
-            if used + t <= available:
-                result.append(msg)
-                used += t
+        for group in reversed(groups):
+            group_tokens = self._estimate_messages_tokens(group)
+            if used + group_tokens <= available:
+                selected.append(group)
+                used += group_tokens
             else:
                 break
-        result.reverse()
-        if system_msg:
-            result.insert(0, system_msg)
+        selected.reverse()
+
+        result = list(system_messages)
+        for group in selected:
+            result.extend(group)
+        dropped = len(messages) - len(result)
+        if dropped:
+            logger.warning(
+                "Truncated %d message(s) to fit the %d-token context budget",
+                dropped, max_context_tokens,
+            )
         return result
 
     async def _compact_messages(self, messages: list, keep_last: int) -> list:
@@ -204,7 +230,7 @@ class AgentBaseExecutor:
                 max_tokens=summary_max_tokens,
                 temperature=0.3,
             )
-            _charge_llm_usage(result)
+            _charge_llm_usage(result, summary_prompt)
             summary_text = result["choices"][0]["message"]["content"].strip()
         except Exception as e:
             logger.warning(f"[AgentLoop] Context compaction LLM call failed: {e}")
@@ -301,7 +327,7 @@ class AgentBaseExecutor:
                     max_tokens=max_tokens,
                     tools=tools if tools else None,
                 )
-                _charge_llm_usage(response)
+                _charge_llm_usage(response, messages)
                 if response and "choices" in response and not response.get("error"):
                     return response
                 last_error = (
@@ -505,7 +531,7 @@ class AgentBaseExecutor:
                 model=model,
                 max_tokens=max_tokens,
             )
-            _charge_llm_usage(response)
+            _charge_llm_usage(response, [{"role": "user", "content": prompt}])
             repl_state["recursion_depth"] = old_depth
             if response and "choices" in response:
                 content = response["choices"][0]["message"].get("content", "")
