@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-operator-controls",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] Fix budget exhaustion responses, add asymmetric kernel risk release, deterministic goal review, and metric-trend self-repair proposals with tests and docs",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793004046.2001512,
-      "timestamp_str": "2026-10-26 11:40:46",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The optional operator controls from the archived Tif report are the only open improvements, and the brain router currently raises NameError when a self-modification budget is exhausted",
-        "benefits": "Actionable budget errors instead of 500s, slower risk release without delaying SAFE escalation, deterministic goal hygiene, and reviewable drift repairs",
-        "risks": "contract: brain status fields and two new routes; dependency: none; concurrency: shared brain state writes stay under existing locks; state: kernel state gains smoothed_risk and a new trend ledger",
-        "mitigation": "Failing-first tests, bounded/persisted state with atomic writes, docs and ADR, full Phase 4 gates"
-      }
-    },
-    {
-      "task_id": "neurocore-operator-controls",
       "phase": "phase 3",
       "phase_num": 3,
       "description": "[2/3] M1 done: imported SelfBudgetExceeded (429 instead of NameError), added persisted asymmetric risk smoothing (raw escalation, alpha-0.1 release, stale reset, reset clears), and updated kernel/budget tests",
@@ -294,6 +277,17 @@
       "status": "in_progress",
       "timestamp": 1793290402.923801,
       "timestamp_str": "2026-10-29 19:13:22",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 3",
+      "phase_num": 3,
+      "description": "Reforge stage 3: window 30, 10 commit(s), 33 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793290616.3024359,
+      "timestamp_str": "2026-10-29 19:16:56",
       "agent": "opencode"
     }
   ]
