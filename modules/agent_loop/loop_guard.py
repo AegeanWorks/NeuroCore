@@ -38,7 +38,7 @@ def normalize_arguments(arguments: Any) -> str:
         if isinstance(value, list):
             return [clean(item) for item in value]
         if isinstance(value, str):
-            return _HEX_ID.sub("<id>", value)
+            return value
         return value
 
     try:

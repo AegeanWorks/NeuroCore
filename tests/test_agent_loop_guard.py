@@ -24,6 +24,11 @@ def test_domain_identifiers_remain_part_of_the_signature():
         assert guard.observe("get_user", {"id": index}) is None
 
 
+def test_hex_domain_identifiers_remain_part_of_the_signature():
+    assert normalize_arguments({"id": "deadbeefcafebabe"}) != normalize_arguments(
+        {"id": "0011223344556677"})
+
+
 def test_three_identical_calls_warn_then_abort():
     guard = LoopGuard()
     assert guard.observe("Shell", {"cmd": "ls"}) is None
