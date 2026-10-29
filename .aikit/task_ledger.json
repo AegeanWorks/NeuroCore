@@ -14,39 +14,6 @@
   "checkpoints": [
     {
       "task_id": "archive-tif-analysis",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/2] Preserve the Tif assessment before the reference folder is deleted: header archive status, Appendix C implementation map, remaining designs (metric-drift repair, goal review/clarity, destructive confirmation, asymmetric smoothing, gap-driven research), and rejected ideas. [2/2] Gates, commit and push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792969224.1565118,
-      "timestamp_str": "2026-10-26 02:00:24",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The reference folder is about to be deleted; the analysis and remaining designs must survive in the repository.",
-        "benefits": "A self-contained record with implementation status and enough design detail to continue without the source; confirms nothing depends on it.",
-        "risks": "contract: none (documentation); dependency: none; concurrency: none; state: one tracked document.",
-        "mitigation": "No runtime references exist; the note states the folder was unlicensed and records the deletion."
-      }
-    },
-    {
-      "task_id": "archive-tif-analysis",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[2/2] done: the report now carries archive status, a complete implementation map (ADR-039..055), four remaining designs, gap-driven research design, rejected ideas and a deletion-safety statement. checklists: passed (Track B; secrets and guidelines clean); aikit check 4/4.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1792969410.4494958,
-      "timestamp_str": "2026-10-26 02:03:30",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "durable record complete",
-        "next": "commit and push",
-        "open": "none besides the optional designs listed in Appendix C"
-      }
-    },
-    {
-      "task_id": "archive-tif-analysis",
       "phase": "completed",
       "phase_num": 5,
       "description": "Task 'archive-tif-analysis' completed successfully.",
@@ -296,6 +263,34 @@
       "timestamp": 1793031011.141356,
       "timestamp_str": "2026-10-26 19:10:11",
       "agent": "kilo:main"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge run",
+      "phase_num": 3,
+      "description": "run started (start=10, step=10, stop=None)",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793287529.4315004,
+      "timestamp_str": "2026-10-29 18:25:29",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 1",
+      "phase_num": 3,
+      "description": "Reforge stage 1: window 10, 10 commit(s), 3 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 5 binary not analysed",
+      "files_affected": [
+        "assets/artwork.jpg",
+        "assets/logo.jpg",
+        "assets/logo.png",
+        "assets/social-preview.jpg",
+        "assets/social-preview.png"
+      ],
+      "status": "in_progress",
+      "timestamp": 1793287536.103401,
+      "timestamp_str": "2026-10-29 18:25:36",
+      "agent": "opencode"
     }
   ]
 }
