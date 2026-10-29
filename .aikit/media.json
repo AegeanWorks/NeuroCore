@@ -31,12 +31,12 @@
       "path": "assets/social-preview.jpg",
       "status": "approved",
       "commit": "",
-      "generated_at": "2026-10-28T18:26:59",
+      "generated_at": "2026-10-29T19:07:58",
       "review": {
         "status": "approved",
         "reviewer": "human:user",
         "method": "human",
-        "notes": "The project's pre-existing banner was preferred by the user; it was moved to the current social-preview asset name.",
+        "notes": "The project's pre-existing banner was preferred by the user; it was moved to the current social-preview asset name and center-cropped to the required 1280x640.",
         "reviewed_at": "2026-10-28T18:26:59"
       }
     }
