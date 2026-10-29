@@ -139,11 +139,21 @@ class SkillService:
             if ':' in hostname:  # Contains colons, likely IPv6
                 raise ValueError(f"IPv6 address '{hostname}' is not allowed. Use a hostname instead.")
             
-            # Check if resolved IP matches blocked patterns
-            blocked_patterns_compiled = [re.compile(p) for p in blocked_ip_patterns]
-            for pattern in blocked_patterns_compiled:
-                if pattern.match(ip):
-                    raise ValueError(f"URL resolves to blocked IP address '{ip}' - internal/network addresses are not allowed")
+            # Check every resolved address with ipaddress, which also covers IPv4-mapped
+            # IPv6 forms and ranges the regex list does not name.
+            import ipaddress
+            for address in resolved_ips:
+                try:
+                    parsed_ip = ipaddress.ip_address(address.split("%", 1)[0])
+                except ValueError:
+                    raise ValueError(f"Invalid resolved address '{address}'")
+                if (parsed_ip.is_private or parsed_ip.is_loopback
+                        or parsed_ip.is_link_local or parsed_ip.is_reserved
+                        or parsed_ip.is_multicast or parsed_ip.is_unspecified):
+                    raise ValueError(
+                        f"URL resolves to blocked IP address '{address}' - internal/network "
+                        "addresses are not allowed"
+                    )
             
             # Make the HTTP request
             response = httpx.get(url, timeout=30.0)

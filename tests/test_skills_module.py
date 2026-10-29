@@ -546,5 +546,22 @@ def test_skill_content_sanitization():
         assert "alert" in skill["content"]
 
 
+def test_import_from_url_rejects_mixed_public_and_loopback_answers(monkeypatch):
+    import socket
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = SkillService(tmpdir)
+
+        def fake_getaddrinfo(*_args, **_kwargs):
+            return [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0)),
+                (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 0, 0, 0)),
+            ]
+
+        monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+        with pytest.raises(ValueError, match="blocked IP"):
+            service.import_from_url("http://example.com/skill.md")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
