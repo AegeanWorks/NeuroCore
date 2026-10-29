@@ -8,7 +8,7 @@
       "id": "run-1",
       "start": 10,
       "step": 10,
-      "stop": null,
+      "stop": 100,
       "stage": 6,
       "window": 60,
       "audited_commits": [
@@ -75,7 +75,7 @@
       ],
       "status": "active",
       "created": "2026-10-29T18:25:29",
-      "updated": "2026-10-29T20:07:17",
+      "updated": "2026-10-29T20:11:33",
       "last_audit": {
         "run": "run-1",
         "stage": 6,
@@ -2177,7 +2177,7 @@
     "counts": {},
     "reviewed": 50,
     "review": {
-      "status": "unreviewed",
+      "status": "reviewed",
       "rejected": [],
       "files": [
         ".aikit/codebase_map.md",
@@ -2233,7 +2233,7 @@
       ],
       "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-1-6-e606eb519f52.md",
       "redacted": 0,
-      "reason": "awaiting the reviewer's findings",
+      "reason": "the answer held no findings",
       "findings": []
     },
     "skipped": [],
@@ -3877,7 +3877,7 @@
       "counts": {},
       "reviewed": 50,
       "review": {
-        "status": "unreviewed",
+        "status": "reviewed",
         "rejected": [],
         "files": [
           ".aikit/codebase_map.md",
@@ -3933,7 +3933,7 @@
         ],
         "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-1-6-e606eb519f52.md",
         "redacted": 0,
-        "reason": "awaiting the reviewer's findings",
+        "reason": "the answer held no findings",
         "findings": []
       },
       "skipped": [],
