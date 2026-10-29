@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "next_run_id": 3,
-  "active_run": "run-2",
+  "active_run": null,
   "last_run": "run-2",
   "runs": [
     {
@@ -7225,7 +7225,7 @@
       "id": "run-2",
       "start": 230,
       "step": 30,
-      "stop": 500,
+      "stop": 497,
       "stage": 10,
       "window": 497,
       "audited_commits": [
@@ -7727,9 +7727,9 @@
         "51901c7323ef2cfa11d0dddd536333d5241011d2",
         "6be535eb220ef13645085b28ecb9989b09d6ad30"
       ],
-      "status": "active",
+      "status": "completed",
       "created": "2026-10-29T20:59:41",
-      "updated": "2026-10-29T22:16:15",
+      "updated": "2026-10-29T22:18:34",
       "last_audit": {
         "run": "run-2",
         "stage": 10,
@@ -18731,7 +18731,7 @@
     "counts": {},
     "reviewed": 92,
     "review": {
-      "status": "unreviewed",
+      "status": "reviewed",
       "rejected": [],
       "files": [
         "LICENSE",
@@ -18829,7 +18829,7 @@
       ],
       "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-2-10-da74fadb028a.md",
       "redacted": 0,
-      "reason": "awaiting the reviewer's findings",
+      "reason": "the answer held no findings",
       "findings": []
     },
     "skipped": [
@@ -27102,7 +27102,7 @@
       "counts": {},
       "reviewed": 92,
       "review": {
-        "status": "unreviewed",
+        "status": "reviewed",
         "rejected": [],
         "files": [
           "LICENSE",
@@ -27200,7 +27200,7 @@
         ],
         "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-2-10-da74fadb028a.md",
         "redacted": 0,
-        "reason": "awaiting the reviewer's findings",
+        "reason": "the answer held no findings",
         "findings": []
       },
       "skipped": [
