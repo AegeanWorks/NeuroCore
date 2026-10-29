@@ -158,3 +158,11 @@ def test_guardrail_routes_report_and_scan():
     assert scan.json()["blocked"] is True
     assert missing.status_code == 400
     assert bad_surface.status_code == 400
+
+
+def test_zero_width_splits_do_not_leave_a_credential_unredacted():
+    split = FAKE_KEY[:8] + "\u200b" + FAKE_KEY[8:]
+    verdict = scan_output(split)
+    assert verdict.redactions >= 1
+    assert "[REDACTED]" in verdict.text
+    assert "\u200b" not in verdict.text
