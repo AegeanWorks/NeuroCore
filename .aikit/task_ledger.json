@@ -13,16 +13,6 @@
   },
   "checkpoints": [
     {
-      "task_id": "archive-tif-analysis",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'archive-tif-analysis' completed successfully.",
-      "status": "completed",
-      "timestamp": 1792969410.7908251,
-      "timestamp_str": "2026-10-26 02:03:30",
-      "agent": "kilo:main"
-    },
-    {
       "task_id": "neurocore-operator-controls",
       "phase": "phase 2",
       "phase_num": 2,
@@ -290,6 +280,20 @@
       "status": "in_progress",
       "timestamp": 1793287536.103401,
       "timestamp_str": "2026-10-29 18:25:36",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 2",
+      "phase_num": 3,
+      "description": "Reforge stage 2: window 20, 10 commit(s), 13 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 2 binary not analysed",
+      "files_affected": [
+        "assets/social-preview.jpg",
+        "assets/social-preview.png"
+      ],
+      "status": "in_progress",
+      "timestamp": 1793290402.923801,
+      "timestamp_str": "2026-10-29 19:13:22",
       "agent": "opencode"
     }
   ]
