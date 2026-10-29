@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-node-retry",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/3] Add opt-in per-node retry policies with bounded exponential backoff and per-node timeouts, wired through both normal and bridge node execution; then document, verify and ship",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793009984.8920162,
-      "timestamp_str": "2026-10-26 13:19:44",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "A transient provider timeout or connection drop currently fails the whole node (and often the run) with no recovery, and node latency has no per-node ceiling",
-        "benefits": "Bounded, deterministic recovery from transient node failures without duplicating side effects by default, plus an optional per-node time ceiling",
-        "risks": "contract: node config gains retry_* and timeout_seconds, execution budget spending moves into the attempt; dependency: none; concurrency: retries happen in the same task; state: none beyond flow JSON",
-        "mitigation": "Opt-in defaults (attempts=1), transient-only classification, budget-aware attempts, failing-first tests for both paths"
-      }
-    },
-    {
-      "task_id": "neurocore-node-retry",
       "phase": "phase 3",
       "phase_num": 3,
       "description": "[2/3] M1 done: core/node_retry.py with opt-in bounded policy, transient-only classification, per-node timeout parsing and 22 unit tests",
@@ -271,6 +254,17 @@
       "status": "in_progress",
       "timestamp": 1793294222.6656506,
       "timestamp_str": "2026-10-29 20:17:02",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 10",
+      "phase_num": 3,
+      "description": "Reforge stage 10: window 100, 10 commit(s), 7 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "completed",
+      "timestamp": 1793294359.5554113,
+      "timestamp_str": "2026-10-29 20:19:19",
       "agent": "opencode"
     }
   ]
