@@ -1,14 +1,14 @@
 {
   "schema": 2,
   "next_run_id": 2,
-  "active_run": null,
+  "active_run": "run-1",
   "last_run": "run-1",
   "runs": [
     {
       "id": "run-1",
       "start": 10,
       "step": 10,
-      "stop": 100,
+      "stop": 200,
       "stage": 10,
       "window": 100,
       "audited_commits": [
@@ -113,9 +113,9 @@
         "852313167212e3650523d4255581148fb5ed5a61",
         "4b3b4224d17226cfff8d74a68f25bc3cba497b1c"
       ],
-      "status": "completed",
+      "status": "active",
       "created": "2026-10-29T18:25:29",
-      "updated": "2026-10-29T20:19:19",
+      "updated": "2026-10-29T20:26:36",
       "last_audit": {
         "run": "run-1",
         "stage": 10,
@@ -3574,13 +3574,60 @@
       "5099883a3094736660e4bf10bfc88603afe1544c",
       "0f76618479929412ad4f161a13f052874319cd88"
     ],
-    "findings": [],
+    "findings": [
+      {
+        "code": "review-none-substring-false-positive",
+        "category": "review",
+        "severity": "medium",
+        "path": "modules/agent_loop/node.py",
+        "line": 2198,
+        "message": "Stuck detection treats any result whose first 120 characters contain the substring 'none' as unhelpful, so a useful result such as 'Nonetheless, the study found a strong effect.' increments the stuck counter. Three such results abort the loop with a redirect. Match 'none' as a word (the short exact case is already covered by the length check) instead of a substring.",
+        "evidence": "\"no results\", \"not found\", \"no data\", \"empty\", \"none\",",
+        "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+        "hunk": "",
+        "symbol": "",
+        "introduced": true,
+        "reproducible": false,
+        "fixable": false,
+        "interaction": "",
+        "repaired": false,
+        "source": "review",
+        "patch_old": "",
+        "patch_new": ""
+      },
+      {
+        "code": "review-missing-none-word-test",
+        "category": "improvement",
+        "severity": "low",
+        "path": "tests/test_goal_pursuit.py",
+        "line": 2674,
+        "message": "The stuck-detection tests do not cover a useful word that contains 'none' as a substring, which is why the false positive is unguarded. Add the regression case.",
+        "evidence": "def test_is_unhelpful_result_useful_content():",
+        "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+        "hunk": "",
+        "symbol": "",
+        "introduced": true,
+        "reproducible": false,
+        "fixable": false,
+        "interaction": "",
+        "repaired": false,
+        "source": "review",
+        "patch_old": "",
+        "patch_new": ""
+      }
+    ],
     "repairs": [],
-    "counts": {},
+    "counts": {
+      "review": 1,
+      "improvement": 1
+    },
     "reviewed": 7,
     "review": {
-      "status": "unreviewed",
-      "rejected": [],
+      "status": "reviewed",
+      "rejected": [
+        "modules/agent_loop/node.py:2198: suggestion dropped (the quoted text occurs 0 times in the file)",
+        "tests/test_goal_pursuit.py:2674: suggestion dropped (the quoted text occurs 0 times in the file)"
+      ],
       "files": [
         "modules/agent_loop/node.py",
         "modules/planner/node.py",
@@ -3592,8 +3639,49 @@
       ],
       "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-1-10-c07dcab70cef.md",
       "redacted": 0,
-      "reason": "awaiting the reviewer's findings",
-      "findings": []
+      "reason": "",
+      "findings": [
+        {
+          "code": "review-none-substring-false-positive",
+          "category": "review",
+          "severity": "medium",
+          "path": "modules/agent_loop/node.py",
+          "line": 2198,
+          "message": "Stuck detection treats any result whose first 120 characters contain the substring 'none' as unhelpful, so a useful result such as 'Nonetheless, the study found a strong effect.' increments the stuck counter. Three such results abort the loop with a redirect. Match 'none' as a word (the short exact case is already covered by the length check) instead of a substring.",
+          "evidence": "\"no results\", \"not found\", \"no data\", \"empty\", \"none\",",
+          "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+          "hunk": "",
+          "symbol": "",
+          "introduced": true,
+          "reproducible": false,
+          "fixable": false,
+          "interaction": "",
+          "repaired": false,
+          "source": "review",
+          "patch_old": "",
+          "patch_new": ""
+        },
+        {
+          "code": "review-missing-none-word-test",
+          "category": "improvement",
+          "severity": "low",
+          "path": "tests/test_goal_pursuit.py",
+          "line": 2674,
+          "message": "The stuck-detection tests do not cover a useful word that contains 'none' as a substring, which is why the false positive is unguarded. Add the regression case.",
+          "evidence": "def test_is_unhelpful_result_useful_content():",
+          "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+          "hunk": "",
+          "symbol": "",
+          "introduced": true,
+          "reproducible": false,
+          "fixable": false,
+          "interaction": "",
+          "repaired": false,
+          "source": "review",
+          "patch_old": "",
+          "patch_new": ""
+        }
+      ]
     },
     "skipped": [],
     "tests": {},
@@ -6303,13 +6391,60 @@
         "5099883a3094736660e4bf10bfc88603afe1544c",
         "0f76618479929412ad4f161a13f052874319cd88"
       ],
-      "findings": [],
+      "findings": [
+        {
+          "code": "review-none-substring-false-positive",
+          "category": "review",
+          "severity": "medium",
+          "path": "modules/agent_loop/node.py",
+          "line": 2198,
+          "message": "Stuck detection treats any result whose first 120 characters contain the substring 'none' as unhelpful, so a useful result such as 'Nonetheless, the study found a strong effect.' increments the stuck counter. Three such results abort the loop with a redirect. Match 'none' as a word (the short exact case is already covered by the length check) instead of a substring.",
+          "evidence": "\"no results\", \"not found\", \"no data\", \"empty\", \"none\",",
+          "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+          "hunk": "",
+          "symbol": "",
+          "introduced": true,
+          "reproducible": false,
+          "fixable": false,
+          "interaction": "",
+          "repaired": false,
+          "source": "review",
+          "patch_old": "",
+          "patch_new": ""
+        },
+        {
+          "code": "review-missing-none-word-test",
+          "category": "improvement",
+          "severity": "low",
+          "path": "tests/test_goal_pursuit.py",
+          "line": 2674,
+          "message": "The stuck-detection tests do not cover a useful word that contains 'none' as a substring, which is why the false positive is unguarded. Add the regression case.",
+          "evidence": "def test_is_unhelpful_result_useful_content():",
+          "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+          "hunk": "",
+          "symbol": "",
+          "introduced": true,
+          "reproducible": false,
+          "fixable": false,
+          "interaction": "",
+          "repaired": false,
+          "source": "review",
+          "patch_old": "",
+          "patch_new": ""
+        }
+      ],
       "repairs": [],
-      "counts": {},
+      "counts": {
+        "review": 1,
+        "improvement": 1
+      },
       "reviewed": 7,
       "review": {
-        "status": "unreviewed",
-        "rejected": [],
+        "status": "reviewed",
+        "rejected": [
+          "modules/agent_loop/node.py:2198: suggestion dropped (the quoted text occurs 0 times in the file)",
+          "tests/test_goal_pursuit.py:2674: suggestion dropped (the quoted text occurs 0 times in the file)"
+        ],
         "files": [
           "modules/agent_loop/node.py",
           "modules/planner/node.py",
@@ -6321,8 +6456,49 @@
         ],
         "packet": "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore\\.aikit\\reforge.reviews\\stage-run-1-10-c07dcab70cef.md",
         "redacted": 0,
-        "reason": "awaiting the reviewer's findings",
-        "findings": []
+        "reason": "",
+        "findings": [
+          {
+            "code": "review-none-substring-false-positive",
+            "category": "review",
+            "severity": "medium",
+            "path": "modules/agent_loop/node.py",
+            "line": 2198,
+            "message": "Stuck detection treats any result whose first 120 characters contain the substring 'none' as unhelpful, so a useful result such as 'Nonetheless, the study found a strong effect.' increments the stuck counter. Three such results abort the loop with a redirect. Match 'none' as a word (the short exact case is already covered by the length check) instead of a substring.",
+            "evidence": "\"no results\", \"not found\", \"no data\", \"empty\", \"none\",",
+            "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+            "hunk": "",
+            "symbol": "",
+            "introduced": true,
+            "reproducible": false,
+            "fixable": false,
+            "interaction": "",
+            "repaired": false,
+            "source": "review",
+            "patch_old": "",
+            "patch_new": ""
+          },
+          {
+            "code": "review-missing-none-word-test",
+            "category": "improvement",
+            "severity": "low",
+            "path": "tests/test_goal_pursuit.py",
+            "line": 2674,
+            "message": "The stuck-detection tests do not cover a useful word that contains 'none' as a substring, which is why the false positive is unguarded. Add the regression case.",
+            "evidence": "def test_is_unhelpful_result_useful_content():",
+            "commit": "c07dcab70cef43304d86e2b3bec46de1aba5e936",
+            "hunk": "",
+            "symbol": "",
+            "introduced": true,
+            "reproducible": false,
+            "fixable": false,
+            "interaction": "",
+            "repaired": false,
+            "source": "review",
+            "patch_old": "",
+            "patch_new": ""
+          }
+        ]
       },
       "skipped": [],
       "tests": {},
