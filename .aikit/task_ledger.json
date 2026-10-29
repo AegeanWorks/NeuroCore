@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-node-retry",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: opt-in retry policy + per-node timeout wired through one _run_node path for regular and bridge nodes, 27 tests, README/IDEAS/MODULE_GUIDE/ADR-060/map updated; checklists: passed; aikit check 4/4",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793011318.6531923,
-      "timestamp_str": "2026-10-26 13:41:58",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "green and ready to commit",
-        "next": "commit and push",
-        "open": "node stall detector from IDEAS remains",
-        "evidence": "aikit check neurocore 4/4, full pytest pass (321s)"
-      }
-    },
-    {
-      "task_id": "neurocore-node-retry",
       "phase": "completed",
       "phase_num": 5,
       "description": "Task 'neurocore-node-retry' completed successfully.",
@@ -265,6 +248,17 @@
       "status": "in_progress",
       "timestamp": 1793294874.085227,
       "timestamp_str": "2026-10-29 20:27:54",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 12",
+      "phase_num": 3,
+      "description": "Reforge stage 12: window 120, 10 commit(s), 44 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793295033.0036318,
+      "timestamp_str": "2026-10-29 20:30:33",
       "agent": "opencode"
     }
   ]
