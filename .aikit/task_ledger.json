@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-node-stall",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[2/2] done: bounded per-node p99 stall monitor with injected metrics/logging hooks, per-attempt timing in both node paths, debug-mode report route, 6 tests, README/IDEAS/MODULE_GUIDE/ADR-061/map updated; checklists: passed; aikit check 4/4",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793028133.0809731,
-      "timestamp_str": "2026-10-26 18:22:13",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "green and ready to commit",
-        "next": "commit and push",
-        "open": "other IDEAS.md items (visual replay, memoization, parallel merge, streaming)",
-        "evidence": "aikit check neurocore 4/4, full pytest pass"
-      }
-    },
-    {
-      "task_id": "neurocore-node-stall",
       "phase": "completed",
       "phase_num": 5,
       "description": "Task 'neurocore-node-stall' completed successfully.",
@@ -254,6 +237,17 @@
       "status": "in_progress",
       "timestamp": 1793295547.8635683,
       "timestamp_str": "2026-10-29 20:39:07",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 15",
+      "phase_num": 3,
+      "description": "Reforge stage 15: window 150, 10 commit(s), 19 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793295938.159353,
+      "timestamp_str": "2026-10-29 20:45:38",
       "agent": "opencode"
     }
   ]
