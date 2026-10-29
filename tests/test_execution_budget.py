@@ -79,6 +79,18 @@ def test_flow_metadata_may_lower_but_not_raise_a_limit(monkeypatch):
     assert raised.limits["max_nodes"] == 50, "flow metadata cannot exceed the deployment cap"
 
 
+def test_non_finite_flow_budget_overrides_are_ignored():
+    flow = {"metadata": {"budget": {"max_nodes": float("inf"),
+                                  "max_tokens": float("nan")}}}
+
+    budget = budget_from_flow(flow)
+
+    default = ExecutionBudget().limits
+    assert budget.limits["max_nodes"] == default["max_nodes"]
+    assert budget.limits["max_tokens"] == default["max_tokens"]
+
+
+
 def test_pressure_reports_the_fullest_dimension():
     budget = ExecutionBudget(limits={"max_nodes": 10, "max_llm_calls": 4,
                                      "max_tokens": 100, "max_tool_calls": 10,

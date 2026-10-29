@@ -156,6 +156,6 @@ def budget_from_flow(flow: Optional[Dict[str, Any]] = None) -> ExecutionBudget:
     if isinstance(override, dict):
         for kind in DEFAULT_LIMITS:
             value = override.get(kind)
-            if isinstance(value, (int, float)) and value > 0:
+            if isinstance(value, (int, float)) and 0 < value < float("inf"):
                 limits[kind] = min(limits[kind], max(1, int(value)))
     return ExecutionBudget(limits=limits)

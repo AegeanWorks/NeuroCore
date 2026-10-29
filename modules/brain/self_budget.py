@@ -85,8 +85,10 @@ class SelfBudget:
                     logger.warning("Could not read the self-modification budget: %s", exc)
         if not isinstance(data, dict):
             data = {}
-        if data.get("date") != _today():
+        today = _today()
+        if data.get("date") != today:
             return
+        self._date = today
         stored = data.get("counts")
         if isinstance(stored, dict):
             for kind in KINDS:
@@ -112,6 +114,7 @@ class SelfBudget:
         if units < 1:
             raise ValueError("a reservation needs at least one unit")
         with self.lock.held():
+            self._load()
             self._roll()
             used = self.counts.get(kind, 0)
             cap = self.caps[kind]
@@ -132,12 +135,14 @@ class SelfBudget:
         if kind not in KINDS:
             raise ValueError(f"unknown self-modification kind {kind!r}")
         with self.lock.held():
+            self._load()
             self._roll()
             self.counts[kind] = max(0, self.counts.get(kind, 0) - max(0, int(units)))
             self._save()
 
     def snapshot(self) -> Dict[str, Any]:
         with self.lock.held():
+            self._load()
             self._roll()
             return {
                 "date": self._date,

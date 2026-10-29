@@ -185,6 +185,10 @@ def scan_text(text: Any, surface: str, mode: Optional[str] = None,
         ))
 
     redacted, redactions = redact_secrets(raw)
+    if surface == "output":
+        normalized_redacted, normalized_redactions = redact_secrets(_normalize(raw))
+        if normalized_redactions > redactions:
+            redacted, redactions = normalized_redacted, normalized_redactions
     for rule, pattern in _SECRET_RULES:
         if re.search(pattern, scanned):
             findings.append(Finding(

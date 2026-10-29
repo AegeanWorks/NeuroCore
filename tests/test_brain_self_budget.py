@@ -98,6 +98,21 @@ def test_the_budget_route_reports_counts():
     assert "counts" in body and "caps" in body and "remaining" in body
 
 
+def test_two_instances_share_one_persisted_ceiling(tmp_path):
+    path = str(tmp_path / "budget.json")
+    first = SelfBudget(path=path, caps={"candidate": 3})
+    second = SelfBudget(path=path, caps={"candidate": 3})
+
+    first.reserve("candidate")
+    second.reserve("candidate")
+    first.reserve("candidate")
+
+    assert SelfBudget(path=path, caps={"candidate": 3}).snapshot()["counts"]["candidate"] == 3
+    with pytest.raises(SelfBudgetExceeded):
+        second.reserve("candidate")
+
+
+
 def test_budget_exhaustion_returns_429_instead_of_a_name_error(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
