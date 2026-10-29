@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `286`
 - **Total Classes**: `403`
-- **Total Top-Level Functions**: `1881`
+- **Total Top-Level Functions**: `1882`
 - **Total Class Methods**: `2168`
-- **Total Source Lines**: `79687`
+- **Total Source Lines**: `79697`
 
 ---
 
@@ -1059,7 +1059,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5776` lines (`266519` bytes)
+**Size**: `5779` lines (`266604` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -5012,7 +5012,7 @@
 ### [`tests/test_goal_pursuit.py`](tests/test_goal_pursuit.py)
 > *Tests for GoalPursuitExecutor — integrated planning, step evaluation, replanning.*
 
-**Size**: `3811` lines (`151690` bytes)
+**Size**: `3818` lines (`151890` bytes)
 
 **Functions:**
 - `def make_executor()` - *Create a GoalPursuitExecutor with patched LLMBridge and sandbox.*
@@ -5126,6 +5126,7 @@
 - `def test_is_unhelpful_result_error()`
 - `def test_is_unhelpful_result_no_data_patterns()`
 - `def test_is_unhelpful_result_useful_content()`
+- `def test_is_unhelpful_result_does_not_match_none_inside_a_word()`
 - `async def test_stuck_detection_injects_redirect_after_threshold()` - *After max_consecutive_unhelpful iterations of empty results, a redirect is injected.*
 - `async def test_stuck_detection_resets_on_useful_result()` - *A useful result resets the consecutive counter — loop continues normally.*
 - `async def test_parse_plan_response_extracts_risk_and_reversible()` - *_parse_plan_response must extract risk and reversible from LLM JSON.*
