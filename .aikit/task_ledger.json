@@ -14,23 +14,6 @@
   "checkpoints": [
     {
       "task_id": "neurocore-operator-controls",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[3/3] done: budget 429 fix, asymmetric risk release, read-only goal review, bounded metric-trend proposals, and confirm-phrase gates on settings reset, KB delete-all, memory wipe, session delete, reasoning-book clear; checklists: passed; aikit check 4/4",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793007827.0427601,
-      "timestamp_str": "2026-10-26 12:43:47",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "green and ready to commit",
-        "next": "commit then check --strict and push",
-        "open": "C.2.5 optional product ideas",
-        "evidence": "aikit check neurocore 4/4, full pytest pass"
-      }
-    },
-    {
-      "task_id": "neurocore-operator-controls",
       "phase": "completed",
       "phase_num": 5,
       "description": "Task 'neurocore-operator-controls' completed successfully.",
@@ -276,6 +259,17 @@
       "status": "in_progress",
       "timestamp": 1793293962.9489248,
       "timestamp_str": "2026-10-29 20:12:42",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 8",
+      "phase_num": 3,
+      "description": "Reforge stage 8: window 80, 10 commit(s), 28 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793294110.6078706,
+      "timestamp_str": "2026-10-29 20:15:10",
       "agent": "opencode"
     }
   ]
