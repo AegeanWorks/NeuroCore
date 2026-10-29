@@ -224,7 +224,7 @@ class ReflectionExecutor:
                         cleaned = raw
 
                     # Strip JavaScript-style comments
-                    cleaned = re.sub(r'//.*', '', cleaned)
+                    cleaned = re.sub(r'(?m)^\s*//.*$', '', cleaned)
                     cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
                     parsed = json.loads(cleaned.strip())
 

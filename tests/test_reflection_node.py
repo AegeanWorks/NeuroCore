@@ -167,6 +167,22 @@ class TestReflectionBasic:
         assert result["reflection"]["reason"] == "Correctly parsed from markdown wrapper"
 
     @pytest.mark.asyncio
+    async def test_https_url_in_reason_is_not_stripped_as_a_comment(self):
+        executor = make_executor()
+        raw_response = (
+            '{"satisfied": true, "reason": "See https://example.com/report", '
+            '"needs_improvement": null}'
+        )
+        executor.llm.chat_completion = AsyncMock(
+            return_value={"choices": [{"message": {"role": "assistant", "content": raw_response}}]}
+        )
+
+        result = await executor.receive(make_input())
+
+        assert result["reflection"]["satisfied"] is True
+        assert "https://example.com/report" in result["reflection"]["reason"]
+
+    @pytest.mark.asyncio
     async def test_reflection_key_always_present(self):
         """Output must always contain a 'reflection' dict."""
         executor = make_executor()
