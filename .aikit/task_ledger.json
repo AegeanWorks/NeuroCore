@@ -16,17 +16,6 @@
       "task_id": "neurocore-operator-controls",
       "phase": "phase 3",
       "phase_num": 3,
-      "description": "[2/3] M1 done: imported SelfBudgetExceeded (429 instead of NameError), added persisted asymmetric risk smoothing (raw escalation, alpha-0.1 release, stale reset, reset clears), and updated kernel/budget tests",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793004957.8746696,
-      "timestamp_str": "2026-10-26 11:55:57",
-      "agent": "kilo:main"
-    },
-    {
-      "task_id": "neurocore-operator-controls",
-      "phase": "phase 3",
-      "phase_num": 3,
       "description": "[2/3] M2 done: deterministic read-only POST /brain/goals/review reports overdue, stale, low-clarity and near-duplicate active goals with a bounded clarity score; pure and route tests pass",
       "files_affected": [],
       "status": "in_progress",
@@ -288,6 +277,17 @@
       "status": "in_progress",
       "timestamp": 1793290616.3024359,
       "timestamp_str": "2026-10-29 19:16:56",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 4",
+      "phase_num": 3,
+      "description": "Reforge stage 4: window 40, 10 commit(s), 38 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793291245.9890337,
+      "timestamp_str": "2026-10-29 19:27:25",
       "agent": "opencode"
     }
   ]
