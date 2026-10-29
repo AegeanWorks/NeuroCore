@@ -57,17 +57,6 @@
     },
     {
       "task_id": "reforge:run-1",
-      "phase": "reforge run",
-      "phase_num": 3,
-      "description": "run started (start=10, step=10, stop=None)",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793287529.4315004,
-      "timestamp_str": "2026-10-29 18:25:29",
-      "agent": "opencode"
-    },
-    {
-      "task_id": "reforge:run-1",
       "phase": "reforge stage 1",
       "phase_num": 3,
       "description": "Reforge stage 1: window 10, 10 commit(s), 3 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 5 binary not analysed",
@@ -249,6 +238,17 @@
       "status": "in_progress",
       "timestamp": 1793296063.2279112,
       "timestamp_str": "2026-10-29 20:47:43",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 17",
+      "phase_num": 3,
+      "description": "Reforge stage 17: window 170, 10 commit(s), 51 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793296220.405954,
+      "timestamp_str": "2026-10-29 20:50:20",
       "agent": "opencode"
     }
   ]
