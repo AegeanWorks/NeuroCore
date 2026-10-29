@@ -2676,6 +2676,13 @@ def test_is_unhelpful_result_useful_content():
     assert ex._is_unhelpful_result("Here are the top 5 results: Python, Java, Go") is False
 
 
+def test_is_unhelpful_result_does_not_match_none_inside_a_word():
+    ex = make_executor()
+    assert ex._is_unhelpful_result(
+        "Nonetheless, the study found a strong effect."
+    ) is False
+
+
 async def test_stuck_detection_injects_redirect_after_threshold():
     """After max_consecutive_unhelpful iterations of empty results, a redirect is injected."""
     from modules.agent_loop.node import HybridAgentExecutor

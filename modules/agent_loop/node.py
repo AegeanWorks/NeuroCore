@@ -2195,8 +2195,11 @@ class HybridAgentExecutor(AgentBaseExecutor):
         if lower.startswith("error") or lower.startswith("traceback"):
             return True
         # Common "no data" patterns returned by search/read tools
+        words = set(lower[:120].split())
+        if "none" in words:
+            return True
         _NO_DATA = (
-            "no results", "not found", "no data", "empty", "none",
+            "no results", "not found", "no data", "empty",
             "0 results", "nothing found", "could not find",
         )
         return any(p in lower[:120] for p in _NO_DATA)
