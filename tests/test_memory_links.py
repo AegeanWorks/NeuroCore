@@ -356,3 +356,9 @@ def test_link_boost_respects_the_limit(store):
         store.add_link(seed, neighbour, relation="supports", status="accepted")
 
     assert len(keyword(store, "alpha", limit=3, link_boost=0.5)) == 3
+
+
+def test_contractions_count_as_negation():
+    assert MemoryStore._negated("This can't work") is True
+    assert MemoryStore._negated("This doesn't work") is True
+

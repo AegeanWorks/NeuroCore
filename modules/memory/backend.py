@@ -991,8 +991,9 @@ class MemoryStore:
 
     @classmethod
     def _content_tokens(cls, text: str) -> set:
+        normalized = str(text or "").lower().replace("'", "").replace("’", "")
         return {
-            token for token in re.findall(r"[a-z0-9_]+", str(text or "").lower())
+            token for token in re.findall(r"[a-z0-9_]+", normalized)
             if token not in cls._LINK_STOPWORDS
         }
 
