@@ -13,16 +13,6 @@
   },
   "checkpoints": [
     {
-      "task_id": "neurocore-operator-controls",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-operator-controls' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793007827.2460718,
-      "timestamp_str": "2026-10-26 12:43:47",
-      "agent": "kilo:main"
-    },
-    {
       "task_id": "neurocore-node-retry",
       "phase": "phase 2",
       "phase_num": 2,
@@ -270,6 +260,17 @@
       "status": "in_progress",
       "timestamp": 1793294110.6078706,
       "timestamp_str": "2026-10-29 20:15:10",
+      "agent": "opencode"
+    },
+    {
+      "task_id": "reforge:run-1",
+      "phase": "reforge stage 9",
+      "phase_num": 3,
+      "description": "Reforge stage 9: window 90, 10 commit(s), 94 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793294222.6656506,
+      "timestamp_str": "2026-10-29 20:17:02",
       "agent": "opencode"
     }
   ]
