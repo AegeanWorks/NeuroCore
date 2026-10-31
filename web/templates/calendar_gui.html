@@ -1,0 +1,153 @@
+<div class="p-8 h-full flex flex-col" 
+     hx-get="/calendar/gui?year={{ year }}&month={{ month }}" 
+     hx-trigger="eventsChanged from:body" 
+     hx-target="#module-content" 
+     hx-swap="innerHTML">
+    <div class="flex justify-between items-center mb-6">
+        <div class="flex items-center space-x-4">
+            <div>
+                <h2 class="text-2xl font-bold cursor-pointer hover:text-blue-400 transition-colors" onclick="openDatePicker()">{{ month_name }} {{ year }}</h2>
+            <p class="text-slate-400 text-sm">Manage your schedule.</p>
+        </div>
+            <div class="flex space-x-1 bg-slate-800 rounded-lg p-1">
+                <button hx-get="/calendar/gui?year={{ year }}&month={{ month - 1 }}" hx-target="#module-content" class="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors" title="Previous Month">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <button hx-get="/calendar/gui?year={{ year }}&month={{ month + 1 }}" hx-target="#module-content" class="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition-colors" title="Next Month">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex space-x-2">
+            <button hx-get="/calendar/gui" hx-target="#module-content" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                Today
+            </button>
+            <button onclick="openEventModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                + New Event
+            </button>
+        </div>
+    </div>
+
+    <div class="flex-grow bg-slate-900 rounded-xl border border-slate-800 p-6 overflow-hidden flex flex-col">
+        <!-- Days Header -->
+        <div class="grid grid-cols-7 gap-4 mb-4 text-center">
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Sun</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Mon</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Tue</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Wed</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Thu</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Fri</div>
+            <div class="font-bold text-slate-500 uppercase text-xs tracking-wider">Sat</div>
+        </div>
+        
+        <!-- Calendar Grid -->
+        <div class="grid grid-cols-7 gap-4 flex-grow auto-rows-fr">
+            {% for day in days %}
+            <div class="bg-slate-950/50 border {{ 'border-blue-500/50 bg-blue-900/10' if day.is_today else 'border-slate-800' }} rounded-lg p-2 hover:border-blue-500/50 transition-colors cursor-pointer relative group flex flex-col min-h-[80px]">
+                <span class="text-sm font-semibold {{ 'text-white' if day.is_current_month else 'text-slate-600' }}">{{ day.day }}</span>
+                <div class="mt-1 space-y-1 overflow-y-auto custom-scrollbar max-h-[60px]">
+                    {% for event in day.events %}
+                    <div class="group/event flex justify-between items-center text-[10px] bg-blue-900/30 text-blue-200 px-1.5 py-0.5 rounded border border-blue-800/50">
+                        <div class="truncate mr-1 flex items-center" title="{{ event.title }}">
+                            {% if event.time_display %}
+                            <span class="text-blue-400 font-mono mr-1 text-[9px]">{{ event.time_display }}</span>
+                            {% endif %}
+                            <span>{{ event.title }}</span>
+                        </div>
+                        <button hx-delete="/calendar/events/{{ event.id }}" hx-target="#module-content" hx-swap="innerHTML" class="hidden group-hover/event:block text-blue-400 hover:text-red-400">
+                            &times;
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Add Event Modal -->
+    <div id="event-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" style="z-index: 100;">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onclick="closeEventModal()"></div>
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100">
+            <h3 class="text-lg font-bold text-white mb-4">New Event</h3>
+            <form hx-post="/calendar/events/save" hx-target="#module-content" hx-swap="innerHTML">
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
+                    <input type="text" name="title" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                    <input type="date" name="date" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Time</label>
+                    <input type="time" name="time" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeEventModal()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Cancel</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Date/Month Picker Modal -->
+    <div id="date-picker-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" style="z-index: 100;">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onclick="closeDatePicker()"></div>
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100">
+            <h3 class="text-lg font-bold text-white mb-4">Select Month & Year</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Month</label>
+                    <select id="month-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                        <option value="1">January</option>
+                        <option value="2">February</option>
+                        <option value="3">March</option>
+                        <option value="4">April</option>
+                        <option value="5">May</option>
+                        <option value="6">June</option>
+                        <option value="7">July</option>
+                        <option value="8">August</option>
+                        <option value="9">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Year</label>
+                    <input type="number" id="year-input" min="1900" max="2100" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-white">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 mt-6">
+                <button onclick="closeDatePicker()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Cancel</button>
+                <button onclick="navigateToDate()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Go</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openEventModal() {
+            document.getElementById('event-modal').classList.remove('hidden');
+        }
+        function closeEventModal() {
+            document.getElementById('event-modal').classList.add('hidden');
+        }
+        function openDatePicker() {
+            document.getElementById('month-select').value = '{{ month }}';
+            document.getElementById('year-input').value = '{{ year }}';
+            document.getElementById('date-picker-modal').classList.remove('hidden');
+        }
+        function closeDatePicker() {
+            document.getElementById('date-picker-modal').classList.add('hidden');
+        }
+        function navigateToDate() {
+            const month = document.getElementById('month-select').value;
+            const year = document.getElementById('year-input').value;
+            if (month && year) {
+                htmx.ajax('GET', `/calendar/gui?year=${year}&month=${month}`, '#module-content');
+                closeDatePicker();
+            }
+        }
+    </script>
+</div>

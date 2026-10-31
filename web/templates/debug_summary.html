@@ -1,0 +1,151 @@
+<!-- Agent Summary Panel -->
+<!-- Time Window Filter -->
+<div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500 uppercase tracking-wider">Time Window:</span>
+        <div class="flex gap-1">
+            <button hx-get="/debug/summary" hx-target="#debug-summary" hx-swap="innerHTML"
+                    class="px-2 py-1 text-xs rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">
+                All
+            </button>
+            <button hx-get="/debug/summary?since=300" hx-target="#debug-summary" hx-swap="innerHTML"
+                    class="px-2 py-1 text-xs rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">
+                5m
+            </button>
+            <button hx-get="/debug/summary?since=900" hx-target="#debug-summary" hx-swap="innerHTML"
+                    class="px-2 py-1 text-xs rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">
+                15m
+            </button>
+            <button hx-get="/debug/summary?since=3600" hx-target="#debug-summary" hx-swap="innerHTML"
+                    class="px-2 py-1 text-xs rounded bg-slate-700 text-slate-300 hover:bg-slate-600 transition-all">
+                1h
+            </button>
+        </div>
+    </div>
+    <button onclick="copySummaryJson()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+        <span id="copy-btn-text">Copy Summary JSON</span>
+    </button>
+</div>
+
+<div class="grid grid-cols-4 gap-4 mb-4">
+    <!-- Session ID -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Session ID</div>
+        <div class="text-sm font-mono text-slate-300 truncate" title="{{ summary.session_id }}">{{ summary.session_id }}</div>
+    </div>
+    
+    <!-- LLM Calls -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">LLM Calls</div>
+            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-purple-400 mt-1">{{ summary.total_llm_calls }}</div>
+    </div>
+    
+    <!-- Tool Calls -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Tool Calls</div>
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-blue-400 mt-1">{{ summary.total_tool_calls }}</div>
+    </div>
+    
+    <!-- Tool Failures -->
+    <div class="bg-slate-800/50 rounded-lg border {% if summary.total_tool_failures > 0 %}border-red-500/50{% else %}border-slate-700/50{% endif %} p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Failures</div>
+            <svg class="w-4 h-4 {% if summary.total_tool_failures > 0 %}text-red-400{% else %}text-emerald-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold {% if summary.total_tool_failures > 0 %}text-red-400{% else %}text-emerald-400{% endif %} mt-1">{{ summary.total_tool_failures }}</div>
+    </div>
+</div>
+
+<!-- Token Usage Stats -->
+<div class="grid grid-cols-4 gap-4 mb-4">
+    <!-- Total Tokens -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Total Tokens</div>
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 20h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-amber-400 mt-1">{{ "{:,}".format(stats.total.total_tokens) }}</div>
+    </div>
+    <!-- Prompt Tokens -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Prompt</div>
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-sky-400 mt-1">{{ "{:,}".format(stats.total.prompt_tokens) }}</div>
+    </div>
+    <!-- Completion Tokens -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Completion</div>
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-emerald-400 mt-1">{{ "{:,}".format(stats.total.completion_tokens) }}</div>
+    </div>
+    <!-- Avg Tokens / Call -->
+    <div class="bg-slate-800/50 rounded-lg border border-slate-700/50 p-3">
+        <div class="flex items-center justify-between">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Avg / Call</div>
+            <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+        </div>
+        <div class="text-2xl font-bold text-rose-400 mt-1">
+            {% if stats.total.calls_success > 0 %}{{ "{:,}".format((stats.total.total_tokens // stats.total.calls_success)) }}{% else %}—{% endif %}
+        </div>
+        {% if stats.total.calls_failed > 0 %}<div class="text-xs text-red-400 mt-0.5">{{ stats.total.calls_failed }} failed</div>{% endif %}
+    </div>
+</div>
+
+<!-- Per-Model Breakdown -->
+{% if stats.by_model %}
+<div class="bg-slate-800/30 rounded-lg border border-slate-700/50 p-3 mb-4">
+    <div class="text-xs text-slate-500 uppercase tracking-wider mb-2">Tokens by Model</div>
+    <table class="w-full text-xs">
+        <thead>
+            <tr class="text-slate-500 uppercase tracking-wider">
+                <th class="text-left pb-2 pr-4">Model</th>
+                <th class="text-right pb-2 pr-4">Calls</th>
+                <th class="text-right pb-2 pr-4">Prompt</th>
+                <th class="text-right pb-2 pr-4">Completion</th>
+                <th class="text-right pb-2 pr-4">Total</th>
+                <th class="text-right pb-2">Avg / Call</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700/30">
+            {% for model, data in stats.by_model.items() | sort(attribute='1.total_tokens', reverse=True) %}
+            <tr class="text-slate-300">
+                <td class="py-1.5 pr-4 font-mono text-sky-300 truncate max-w-[160px]" title="{{ model }}">{{ model }}</td>
+                <td class="py-1.5 pr-4 text-right text-violet-400">{{ data.calls }}</td>
+                <td class="py-1.5 pr-4 text-right">{{ "{:,}".format(data.prompt_tokens) }}</td>
+                <td class="py-1.5 pr-4 text-right text-emerald-400">{{ "{:,}".format(data.completion_tokens) }}</td>
+                <td class="py-1.5 pr-4 text-right font-semibold text-amber-400">{{ "{:,}".format(data.total_tokens) }}</td>
+                <td class="py-1.5 text-right text-rose-400">{% if data.calls > 0 %}{{ "{:,}".format((data.total_tokens // data.calls)) }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Last Events -->
+{% if summary.last_events %}
+<div class="bg-slate-800/30 rounded-lg border border-slate-700/50 p-3 mb-4">
+    <div class="text-xs text-slate-500 uppercase tracking-wider mb-2">Last {{ summary.last_events|length }} Events</div>
+    <div class="space-y-1">
+        {% for event in summary.last_events %}
+        <div class="flex items-center gap-2 text-xs">
+            <span class="text-slate-500 font-mono">{{ event.tick }}</span>
+            <span class="px-1.5 py-0.5 rounded text-xs font-medium {% if event.event == 'llm_call' %}bg-purple-500/20 text-purple-400{% elif event.event == 'tool_call' %}bg-blue-500/20 text-blue-400{% elif event.event == 'tool_result' and event.success == false %}bg-red-500/20 text-red-400{% elif event.event == 'tool_result' %}bg-emerald-500/20 text-emerald-400{% else %}bg-slate-500/20 text-slate-400{% endif %}">{{ event.event }}</span>
+            {% if event.tool %}<span class="text-slate-400">{{ event.tool }}</span>{% endif %}
+            {% if event.error %}<span class="text-red-400 truncate">{{ event.error }}</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

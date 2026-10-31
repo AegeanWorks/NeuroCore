@@ -1,0 +1,8 @@
+{% for module in modules %}
+    {% if module.id == 'tools' and module.enabled %}
+    <a href="#" onclick="switchTab(event, 'tools')" class="settings-nav-link block px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Tools</a>
+    {% endif %}
+    {% if module.id == 'skills' and module.enabled %}
+    <a href="#" onclick="switchTab(event, 'skills')" class="settings-nav-link block px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Skills</a>
+    {% endif %}
+{% endfor %}

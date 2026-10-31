@@ -1,0 +1,62 @@
+<form hx-put="/research/hypotheses/{{ h.id }}"
+      hx-on::after-request="document.getElementById('modal-edit-hypothesis').close(); htmx.trigger(document.body, 'researchChanged', {type:'hypothesis'})"
+      class="flex flex-col">
+    <div class="flex items-center justify-between p-5 border-b border-slate-800">
+        <h2 class="text-lg font-bold">Edit Hypothesis</h2>
+        <button type="button" onclick="document.getElementById('modal-edit-hypothesis').close()" class="text-slate-500 hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+    </div>
+    <div class="p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar max-h-[60vh]">
+        <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Title *</label>
+            <input type="text" name="title" required value="{{ h.title }}"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+        </div>
+        <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Statement *</label>
+            <textarea name="statement" required rows="3"
+                      class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none">{{ h.statement }}</textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Status</label>
+                <select name="status" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                    {% for s in ['proposed','tested','supported','rejected','modified'] %}
+                    <option value="{{ s }}" {% if h.status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Type</label>
+                <select name="hypothesis_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                    {% for t in ['correlation','causal','directional','null'] %}
+                    <option value="{{ t }}" {% if h.hypothesis_type == t %}selected{% endif %}>{{ t | capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Independent Variable</label>
+                <input type="text" name="independent_variable" value="{{ h.independent_variable or '' }}"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Dependent Variable</label>
+                <input type="text" name="dependent_variable" value="{{ h.dependent_variable or '' }}"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+        </div>
+        <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Notes</label>
+            <textarea name="notes" rows="2"
+                      class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none">{{ h.notes or '' }}</textarea>
+        </div>
+    </div>
+    <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+        <button type="button" onclick="document.getElementById('modal-edit-hypothesis').close()"
+                class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-all">Save</button>
+    </div>
+</form>

@@ -1,0 +1,65 @@
+<div class="flex justify-between items-center px-2 mb-4">
+    <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chat Sessions</h2>
+    <button hx-post="/chat/sessions/new" 
+            class="text-blue-400 hover:text-blue-300 transition-colors"
+            title="New Chat">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+    </button>
+</div>
+<div class="flex-grow overflow-y-auto custom-scrollbar space-y-1">
+    {% if not sessions %}
+    <p class="text-slate-600 text-sm italic px-2">No active sessions</p>
+    {% else %}
+    {% for session in sessions %}
+    <div id="session-{{ session.id }}" class="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-all text-sm">
+        <div class="flex-grow truncate mr-2">
+            <button hx-get="/chat/gui?session_id={{ session.id }}" 
+                    hx-target="#module-content" 
+                    hx-swap="innerHTML"
+                    hx-indicator="#session-list-container .htmx-indicator"
+                    class="w-full text-left truncate session-name-{{ session.id }}">
+                {{ session.name }}
+            </button>
+            <form hx-post="/chat/sessions/{{ session.id }}/rename" class="hidden rename-form-{{ session.id }} flex items-center">
+                <input type="text" name="name" value="{{ session.name }}" class="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 w-full text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </form>
+        </div>
+        <div class="flex items-center space-x-1 flex-shrink-0">
+            <!-- Normal State Buttons -->
+            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-all action-btns-{{ session.id }}">
+                <button onclick="toggleRename('{{ session.id }}', true)" 
+                        class="text-slate-500 hover:text-blue-400">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
+                <button onclick="toggleConfirm('{{ session.id }}', true)" 
+                        class="text-slate-500 hover:text-red-400">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Confirmation State Buttons -->
+            <div class="hidden confirm-{{ session.id }} flex items-center space-x-2">
+                <button hx-post="/chat/sessions/{{ session.id }}/delete?confirm=delete+this+session"
+                        hx-target="#module-content"
+                        hx-swap="innerHTML"
+                        class="text-red-500 hover:text-red-400 font-bold text-[10px] uppercase">Del</button>
+                <button onclick="toggleConfirm('{{ session.id }}', false)" 
+                        class="text-slate-500 hover:text-slate-300 text-[10px] uppercase">Esc</button>
+            </div>
+
+            <!-- Rename Confirmation Buttons -->
+            <div class="hidden rename-confirm-{{ session.id }} flex items-center space-x-1">
+                <button onclick="submitRename('{{ session.id }}')" 
+                        class="text-emerald-500 hover:text-emerald-400">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                </button>
+                <button onclick="toggleRename('{{ session.id }}', false)" 
+                        class="text-slate-500 hover:text-slate-300">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>

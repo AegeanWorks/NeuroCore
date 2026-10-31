@@ -1,0 +1,147 @@
+<div class="flex flex-col gap-4">
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between gap-3">
+        <div class="relative flex-1 max-w-xs">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
+            <input type="text" id="article-search" placeholder="Search title or author…"
+                   oninput="searchArticles()"
+                   class="w-full bg-slate-950/60 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-600">
+        </div>
+        <button onclick="document.getElementById('modal-new-article').showModal()"
+                class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Add Article
+        </button>
+    </div>
+
+    <!-- List -->
+    <div id="articles-list" class="flex flex-col gap-3">
+        {% if articles %}
+            {% for a in articles %}
+            <div class="bg-slate-950/50 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all group">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 class="font-semibold text-slate-100">{{ a.title }}</h3>
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-blue-900/40 text-blue-300 border border-blue-700/40">{{ a.article_type | replace('_',' ') | title }}</span>
+                            {% if a.year %}<span class="text-xs text-slate-500">{{ a.year }}</span>{% endif %}
+                        </div>
+                        {% if a.authors %}<p class="text-xs text-slate-400 mb-1">{{ a.authors | join(', ') }}</p>{% endif %}
+                        {% if a.journal %}<p class="text-xs text-slate-500 italic">{{ a.journal }}</p>{% endif %}
+                        {% if a.abstract %}<p class="text-sm text-slate-400 line-clamp-2 mt-1">{{ a.abstract }}</p>{% endif %}
+                        {% if a.doi %}
+                        <p class="text-xs text-slate-500 mt-1">DOI: <span class="text-slate-400">{{ a.doi }}</span></p>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button hx-delete="/research/articles/{{ a.id }}"
+                                hx-confirm="Remove this article from your library?"
+                                hx-on::after-request="htmx.trigger(document.body, 'researchChanged', {type:'article'})"
+                                class="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition-all" title="Delete">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="flex flex-col items-center justify-center py-16 text-slate-500 gap-3">
+                <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                <p class="text-sm">No articles yet. Add papers to your literature library.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- New Article Modal -->
+<dialog id="modal-new-article" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-xl text-slate-100 shadow-2xl">
+    <form hx-post="/research/articles"
+          hx-on::after-request="document.getElementById('modal-new-article').close(); htmx.trigger(document.body, 'researchChanged', {type:'article'})"
+          class="flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-lg font-bold">Add Article</h2>
+            <button type="button" onclick="document.getElementById('modal-new-article').close()" class="text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar max-h-[60vh]">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Title *</label>
+                <input type="text" name="title" required placeholder="Article title"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Authors</label>
+                    <input type="text" name="authors" placeholder="Smith J., Doe A. (comma-separated)"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Year</label>
+                    <input type="number" name="year" min="1900" max="2100" placeholder="2024"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Journal</label>
+                    <input type="text" name="journal" placeholder="Nature, Science, etc."
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">DOI</label>
+                    <input type="text" name="doi" placeholder="10.xxxx/xxxxx"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Type</label>
+                    <select name="article_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="research">Research</option>
+                        <option value="review">Review</option>
+                        <option value="meta_analysis">Meta-Analysis</option>
+                        <option value="case_study">Case Study</option>
+                        <option value="commentary">Commentary</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Domain</label>
+                    <select name="domain" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="general">General</option>
+                        <option value="cognitive_science">Cognitive Science</option>
+                        <option value="neuroscience">Neuroscience</option>
+                        <option value="psychology">Psychology</option>
+                        <option value="biology">Biology</option>
+                        <option value="computer_science">Computer Science</option>
+                        <option value="physics">Physics</option>
+                        <option value="medicine">Medicine</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Abstract</label>
+                <textarea name="abstract" rows="3" placeholder="Article abstract…"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"></textarea>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Notes</label>
+                <textarea name="notes" rows="2" placeholder="Personal notes…"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('modal-new-article').close()"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all">Add to Library</button>
+        </div>
+    </form>
+</dialog>
+
+<script>
+function searchArticles() {
+    const q = document.getElementById('article-search').value;
+    htmx.ajax('GET', '/research/articles?q=' + encodeURIComponent(q), {target: '#view-literature', swap: 'innerHTML'});
+}
+</script>

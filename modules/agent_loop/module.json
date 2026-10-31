@@ -1,0 +1,95 @@
+{
+    "name": "Agent Loop",
+    "description": "A family of autonomous agent nodes -from a simple tool-calling loop up to a fully self-planning, self-evaluating Goal Pursuit agent.",
+    "enabled": true,
+    "id": "agent_loop",
+    "icon": "M4 4v5h.5m.5 5h11a2 2 0 002-2v-4.5m-9 9h5a2 2 0 012 2h-5a2 2 0 01-2-2v-5m0 0V7a2 2 0 002 2h5m-5-5H4m5 5h5a2 2 0 012 2h-5",
+    "is_flow_node": false,
+    "order": 1,
+    "config": {
+        "max_iterations": 10,
+        "max_tokens": 8200,
+        "temperature": 0.7,
+        "max_llm_retries": 3,
+        "retry_delay": 1.0,
+        "tool_error_strategy": "continue",
+        "timeout": 120,
+        "include_plan_in_context": true,
+        "include_memory_context": true,
+        "include_knowledge_context": true,
+        "include_reasoning_context": true,
+        "compact_threshold": 0,
+        "compact_keep_last": 6
+    },
+    "provides_nodes": [
+        {
+            "id": "agent_loop",
+            "name": "Agent Loop",
+            "description": "The standard agentic loop. The LLM picks tools, the tools run, results go back to the LLM, repeat -until the LLM stops calling tools and gives a final answer. Best for open-ended tasks that need tools but don't require a structured plan.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "recursive_lm",
+            "name": "RLM Agent Loop",
+            "description": "Like the Agent Loop, but designed for tasks where inputs or intermediate results are too large to fit in the context window. Works hand-in-hand with a REPL Environment node: data is stored as named variables outside the window, and the agent retrieves only what it needs via GetVariable/Peek/Search tools.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "repl_environment",
+            "name": "REPL Environment",
+            "description": "A setup node that must be placed before an RLM Agent Loop. It reads the user's input, stores it as a variable in shared memory (outside the LLM context window), and initializes the variable store so the RLM loop can operate on arbitrarily large inputs.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "hybrid_agent",
+            "name": "Hybrid Agent Loop",
+            "description": "An Agent Loop with automatic memory management for large outputs. When a tool returns a lot of data, the result is stored as a named variable instead of being dumped directly into the conversation -keeping the context lean. The agent can still access any stored result via GetVariable, Peek, Search, or Chunk tools.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "goal_pursuit",
+            "name": "Goal Pursuit Agent",
+            "description": "The most autonomous agent type. Given a goal, it first writes its own step-by-step plan, then executes each step using the Hybrid Agent Loop, grades each step's outcome with an LLM judge, and rewrites the remaining plan if a step fails -repeating until the goal is complete or the retry budget runs out. Supports step dependencies, mid-run clarification questions to the user, and a final synthesis pass that pulls all step outputs together into one answer.",
+            "singleton": false,
+            "configurable": true
+        }
+    ],
+    "hybrid_agent_config": {
+        "max_iterations": 15,
+        "max_tokens": 4096,
+        "temperature": 0.7,
+        "max_llm_retries": 3,
+        "retry_delay": 1.0,
+        "tool_error_strategy": "continue",
+        "timeout": 120,
+        "large_output_threshold": 3000
+    },
+    "goal_pursuit_config": {
+        "max_steps": 10,
+        "max_iterations_per_step": 10,
+        "max_tokens": 4096,
+        "temperature": 0.7,
+        "planning_temperature": 0.1,
+        "eval_temperature": 0.1,
+        "max_llm_retries": 3,
+        "retry_delay": 1.0,
+        "tool_error_strategy": "continue",
+        "timeout": 300,
+        "max_replan_depth": 3,
+        "large_output_threshold": 3000,
+        "enable_step_evaluation": true,
+        "enable_synthesis": true,
+        "max_step_retries": 2,
+        "step_timeout": 0,
+        "enable_dependency_graph": true,
+        "enable_ask_user": true,
+        "include_plan_in_context": true,
+        "include_memory_context": true,
+        "include_knowledge_context": true,
+        "include_reasoning_context": true
+    }
+}

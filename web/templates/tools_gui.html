@@ -1,0 +1,232 @@
+<div class="p-8">
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h2 class="text-2xl font-bold">Tool Library</h2>
+            <p class="text-slate-400 text-sm">Define functions that the AI can execute.</p>
+        </div>
+        <div class="flex items-center space-x-2">
+            <form id="import-form" hx-post="/tools/import" hx-encoding="multipart/form-data" hx-target="#tools-list" class="hidden">
+                <input type="file" name="file" accept=".json,.py" onchange="this.form.requestSubmit(); this.value=''">
+            </form>
+            <button onclick="document.querySelector('#import-form input').click()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                Import Tool
+            </button>
+            <button onclick="openExportModal()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                Export Tool
+            </button>
+            <button onclick="resetToolForm()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                + New Tool
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Tool Form -->
+        <div id="tool-form-wrapper" class="lg:col-span-1 bg-slate-900 rounded-xl border border-slate-800 p-6 h-fit hidden">
+            <h3 id="form-title" class="font-semibold mb-4">Add New Tool</h3>
+            <form id="tool-form" hx-post="/tools/save" hx-target="#tools-list" hx-on::after-request="if(event.detail.successful) toggleToolForm(false)" class="space-y-4">
+                <input type="hidden" id="original-tool-name" name="original_name">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Function Name</label>
+                    <input type="text" id="tool-name" name="name" placeholder="get_weather" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                    <input type="text" id="tool-desc" name="description" placeholder="Get current weather for a location" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Parameters (JSON Schema)</label>
+                    <textarea id="tool-params" name="parameters" rows="5" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none">
+{
+  "type": "object",
+  "properties": {
+    "location": { "type": "string" }
+  },
+  "required": ["location"]
+}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Python Logic</label>
+                    <textarea id="tool-code" name="code" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none" placeholder="# Use 'args' dict, set 'result'&#10;loc = args.get('location')&#10;result = f'Weather in {loc} is 72F'"></textarea>
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="toggleToolForm(false)" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-sm font-bold transition-colors">Cancel</button>
+                    <button type="submit" id="submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-sm font-bold transition-colors">Save Tool</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tools List -->
+        <div id="tools-list-wrapper" class="lg:col-span-3">
+            <div id="tools-list" hx-get="/tools/list" hx-trigger="load">
+                <div class="flex items-center justify-center py-20">
+                    <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Config Modal -->
+<div id="config-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="config-modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onclick="closeToolConfig()"></div>
+    <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl transform transition-all scale-100 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-6 sticky top-0 bg-slate-900 pb-4">
+            <h3 id="config-modal-title" class="text-lg font-bold text-white">Configure Tool</h3>
+            <button onclick="closeToolConfig()" class="text-slate-500 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div id="config-content" class="space-y-6">
+            <!-- Content loaded dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div id="export-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onclick="closeExportModal()"></div>
+    <div class="relative bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-white">Export Tools</h3>
+            <button onclick="closeExportModal()" class="text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div class="relative mb-3">
+            <input type="text" id="export-search" placeholder="Search tool to export..." 
+                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                   onkeyup="filterExportList()">
+            <svg class="w-4 h-4 text-slate-500 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+        
+        <div id="export-tool-list" class="max-h-60 overflow-y-auto custom-scrollbar space-y-1 pr-1 mb-4">
+            <!-- Populated by JS -->
+        </div>
+        
+        <a href="/tools/export" onclick="closeExportModal()" class="block w-full text-center bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition-colors shadow-lg shadow-blue-500/20">
+            Export Entire Library
+        </a>
+    </div>
+</div>
+
+<script>
+    function toggleToolForm(show) {
+        const formWrapper = document.getElementById('tool-form-wrapper');
+        const listWrapper = document.getElementById('tools-list-wrapper');
+        if (show) {
+            formWrapper.classList.remove('hidden');
+            listWrapper.classList.remove('lg:col-span-3');
+            listWrapper.classList.add('lg:col-span-2');
+        } else {
+            formWrapper.classList.add('hidden');
+            listWrapper.classList.remove('lg:col-span-2');
+            listWrapper.classList.add('lg:col-span-3');
+        }
+    }
+
+    async function loadToolForEdit(name) {
+        const response = await fetch(`/tools/edit/${encodeURIComponent(name)}`);
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('form-title').innerText = 'Edit Tool: ' + name;
+            document.getElementById('tool-name').value = data.name;
+            document.getElementById('tool-name').readOnly = false;
+            document.getElementById('original-tool-name').value = data.name;
+            document.getElementById('tool-desc').value = data.description;
+            document.getElementById('tool-params').value = data.parameters;
+            document.getElementById('tool-code').value = data.code;
+            document.getElementById('submit-btn').innerText = 'Update Tool';
+            toggleToolForm(true);
+            document.getElementById('tool-form-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    function resetToolForm() {
+        document.getElementById('form-title').innerText = 'Add New Tool';
+        document.getElementById('tool-name').value = '';
+        document.getElementById('tool-name').readOnly = false;
+        document.getElementById('original-tool-name').value = '';
+        document.getElementById('tool-desc').value = '';
+        document.getElementById('tool-params').value = '{\n  "type": "object",\n  "properties": {\n    "location": { "type": "string" }\n  },\n  "required": ["location"]\n}';
+        document.getElementById('tool-code').value = '';
+        document.getElementById('submit-btn').innerText = 'Save Tool';
+        toggleToolForm(true);
+        document.getElementById('tool-form-wrapper').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function openExportModal() {
+        const modal = document.getElementById('export-modal');
+        const listContainer = document.getElementById('export-tool-list');
+        
+        modal.classList.remove('hidden');
+        listContainer.innerHTML = '<div class="text-center py-4 text-slate-500 text-xs">Loading tools...</div>';
+        
+        // Fetch latest tool names
+        fetch('/tools/names')
+            .then(response => response.json())
+            .then(names => {
+                listContainer.innerHTML = '';
+                if (names.length === 0) {
+                    listContainer.innerHTML = '<div class="text-center py-4 text-slate-500 text-xs">No tools available.</div>';
+                    return;
+                }
+                
+                names.forEach(name => {
+                    const item = document.createElement('a');
+                    item.href = `/tools/export?name=${encodeURIComponent(name)}`;
+                    item.className = 'export-item block px-4 py-3 rounded-lg bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-700 text-slate-300 hover:text-white transition-all text-sm flex justify-between items-center group';
+                    item.innerHTML = `
+                        <span class="font-medium">${name}</span>
+                        <svg class="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    `;
+                    item.onclick = () => closeExportModal();
+                    listContainer.appendChild(item);
+                });
+            });
+    }
+
+    function closeExportModal() {
+        document.getElementById('export-modal').classList.add('hidden');
+    }
+
+    function filterExportList() {
+        const query = document.getElementById('export-search').value.toLowerCase();
+        const items = document.querySelectorAll('.export-item');
+        items.forEach(item => {
+            const name = item.querySelector('span').textContent.toLowerCase();
+            if (name.includes(query)) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    }
+
+    async function openToolConfig(name) {
+        const modal = document.getElementById('config-modal');
+        const content = document.getElementById('config-content');
+        
+        modal.classList.remove('hidden');
+        content.innerHTML = '<div class="flex items-center justify-center py-8"><div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>';
+        
+        try {
+            const response = await fetch(`/tools/config/${encodeURIComponent(name)}`);
+            if (response.ok) {
+                const html = await response.text();
+                content.innerHTML = html;
+                document.getElementById('config-modal-title').textContent = `Configure: ${name}`;
+            } else {
+                content.innerHTML = '<div class="text-red-500 text-center py-8">Failed to load configuration</div>';
+            }
+        } catch (e) {
+            content.innerHTML = '<div class="text-red-500 text-center py-8">Error loading configuration: ' + e.message + '</div>';
+        }
+    }
+
+    function closeToolConfig() {
+        document.getElementById('config-modal').classList.add('hidden');
+    }
+</script>

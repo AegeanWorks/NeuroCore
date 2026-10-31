@@ -1,0 +1,60 @@
+{
+    "name": "Logic & Flow",
+    "description": "Control flow nodes for branching, transformation, and scripting.",
+    "enabled": true,
+    "id": "logic",
+    "icon": "M4 6h16M4 12h16m-7 6h7",
+    "is_flow_node": false,
+    "order": 3,
+    "provides_nodes": [
+        {
+            "id": "trigger_node",
+            "name": "Trigger",
+            "description": "Pass-through node to manually trigger or continue a flow.",
+            "singleton": false,
+            "configurable": false
+        },
+        {
+            "id": "delay_node",
+            "name": "Delay",
+            "description": "Pauses the workflow execution for a configurable duration (in seconds) before passing data to the next node.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "script_node",
+            "name": "Python Script",
+            "description": "Executes a custom Python snippet. Variables 'data' (input) and 'result' (output) are available for complex logic.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "repeater_node",
+            "name": "Repeater",
+            "description": "Re-triggers the current flow after a delay. Set Max Repeats to 0 to run forever, or a positive number for a fixed count.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "conditional_router",
+            "name": "Conditional Router",
+            "description": "Routes data based on conditional logic. Checks if a specific field (e.g., tool_calls, satisfied) exists in the data stream. If the condition is met, the flow continues normally. If not, the flow can branch to alternate paths. Configure which nodes to connect for true/false branches.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "schedule_start_node",
+            "name": "Scheduled Start",
+            "description": "Waits until a specific time before allowing the flow to proceed. Use to schedule flow execution at a specific time.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "context_length_router",
+            "name": "Context Length Router",
+            "description": "Routes to RLM or standard LLM based on estimated token count. Automatically routes long inputs to RLM and short inputs to standard processing.",
+            "singleton": false,
+            "configurable": true
+        }
+    ]
+}

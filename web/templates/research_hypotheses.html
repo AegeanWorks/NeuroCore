@@ -1,0 +1,178 @@
+<div class="flex flex-col gap-4">
+
+    <!-- Toolbar -->
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            <select id="hyp-filter-status" onchange="filterHypotheses()"
+                    class="bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-600">
+                <option value="">All Statuses</option>
+                <option value="proposed">Proposed</option>
+                <option value="tested">Tested</option>
+                <option value="supported">Supported</option>
+                <option value="rejected">Rejected</option>
+                <option value="modified">Modified</option>
+            </select>
+            <select id="hyp-filter-domain" onchange="filterHypotheses()"
+                    class="bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-1 focus:ring-violet-600">
+                <option value="">All Domains</option>
+                <option value="general">General</option>
+                <option value="cognitive_science">Cognitive Science</option>
+                <option value="neuroscience">Neuroscience</option>
+                <option value="psychology">Psychology</option>
+                <option value="biology">Biology</option>
+                <option value="computer_science">Computer Science</option>
+                <option value="physics">Physics</option>
+                <option value="medicine">Medicine</option>
+            </select>
+        </div>
+        <button onclick="document.getElementById('modal-new-hypothesis').showModal()"
+                class="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-lg shadow-violet-500/20">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Hypothesis
+        </button>
+    </div>
+
+    <!-- List -->
+    <div id="hypotheses-list" class="flex flex-col gap-3">
+        {% if hypotheses %}
+            {% for h in hypotheses %}
+            <div class="bg-slate-950/50 border border-slate-800 rounded-xl p-5 flex flex-col gap-2 hover:border-slate-700 transition-all group">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-grow min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 class="font-semibold text-slate-100 truncate">{{ h.title }}</h3>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                                {% if h.status == 'supported' %}bg-emerald-900/60 text-emerald-300 border border-emerald-700/50
+                                {% elif h.status == 'rejected' %}bg-red-900/60 text-red-300 border border-red-700/50
+                                {% elif h.status == 'tested' %}bg-blue-900/60 text-blue-300 border border-blue-700/50
+                                {% elif h.status == 'modified' %}bg-amber-900/60 text-amber-300 border border-amber-700/50
+                                {% else %}bg-slate-800 text-slate-400 border border-slate-700{% endif %}">
+                                {{ h.status | capitalize }}
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-violet-900/40 text-violet-300 border border-violet-700/40">{{ h.hypothesis_type }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-400 border border-slate-700">{{ h.domain }}</span>
+                        </div>
+                        <p class="text-sm text-slate-400 line-clamp-2">{{ h.statement }}</p>
+                        {% if h.independent_variable or h.dependent_variable %}
+                        <div class="flex gap-4 mt-2 text-xs text-slate-500">
+                            {% if h.independent_variable %}<span>IV: <span class="text-slate-300">{{ h.independent_variable }}</span></span>{% endif %}
+                            {% if h.dependent_variable %}<span>DV: <span class="text-slate-300">{{ h.dependent_variable }}</span></span>{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button onclick="openEditHypothesis('{{ h.id }}')"
+                                class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all" title="Edit">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </button>
+                        <button hx-delete="/research/hypotheses/{{ h.id }}"
+                                hx-confirm="Delete this hypothesis?"
+                                hx-on::after-request="htmx.trigger(document.body, 'researchChanged', {type:'hypothesis'})"
+                                class="p-1.5 rounded-lg bg-slate-800 hover:bg-red-900/60 text-slate-400 hover:text-red-300 transition-all" title="Delete">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="flex flex-col items-center justify-center py-16 text-slate-500 gap-3">
+                <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <p class="text-sm">No hypotheses yet. Create your first one.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- New Hypothesis Modal -->
+<dialog id="modal-new-hypothesis" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-xl text-slate-100 shadow-2xl">
+    <form hx-post="/research/hypotheses"
+          hx-on::after-request="document.getElementById('modal-new-hypothesis').close(); htmx.trigger(document.body, 'researchChanged', {type:'hypothesis'})"
+          class="flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-lg font-bold">New Hypothesis</h2>
+            <button type="button" onclick="document.getElementById('modal-new-hypothesis').close()" class="text-slate-500 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar max-h-[60vh]">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Title *</label>
+                <input type="text" name="title" required placeholder="e.g. Effect of Sleep on Memory"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Statement *</label>
+                <textarea name="statement" required rows="3" placeholder="State your hypothesis clearly…"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Type</label>
+                    <select name="hypothesis_type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                        <option value="correlation">Correlation</option>
+                        <option value="causal">Causal</option>
+                        <option value="directional">Directional</option>
+                        <option value="null">Null</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Domain</label>
+                    <select name="domain" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                        <option value="general">General</option>
+                        <option value="cognitive_science">Cognitive Science</option>
+                        <option value="neuroscience">Neuroscience</option>
+                        <option value="psychology">Psychology</option>
+                        <option value="biology">Biology</option>
+                        <option value="computer_science">Computer Science</option>
+                        <option value="physics">Physics</option>
+                        <option value="medicine">Medicine</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Independent Variable</label>
+                    <input type="text" name="independent_variable" placeholder="What you manipulate"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Dependent Variable</label>
+                    <input type="text" name="dependent_variable" placeholder="What you measure"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Notes</label>
+                <textarea name="notes" rows="2" placeholder="Optional notes…"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('modal-new-hypothesis').close()"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-all">Create</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Edit Hypothesis Modal -->
+<dialog id="modal-edit-hypothesis" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-xl text-slate-100 shadow-2xl">
+    <div id="edit-hypothesis-content" class="flex flex-col"></div>
+</dialog>
+
+<script>
+function filterHypotheses() {
+    const status = document.getElementById('hyp-filter-status').value;
+    const domain = document.getElementById('hyp-filter-domain').value;
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (domain) params.set('domain', domain);
+    htmx.ajax('GET', '/research/hypotheses?' + params.toString(), {target: '#view-hypotheses', swap: 'innerHTML'});
+}
+
+function openEditHypothesis(id) {
+    htmx.ajax('GET', '/research/hypotheses/' + id + '/edit', {target: '#edit-hypothesis-content', swap: 'innerHTML'})
+        .then(() => document.getElementById('modal-edit-hypothesis').showModal());
+}
+</script>

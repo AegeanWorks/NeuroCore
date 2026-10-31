@@ -1,0 +1,1184 @@
+<div class="p-8">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-3">
+            <h2 class="text-2xl font-bold">{{ module.name }}</h2>
+            {% if module.load_error and module.enabled %}
+            <span class="text-xs font-mono px-2 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/50">Load Error</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center space-x-3">
+            <span class="text-sm text-slate-500 font-medium">{{ 'Enabled' if module.enabled else 'Disabled' }}</span>
+            <button hx-post="/modules/{{ module.id }}/{{ 'disable' if module.enabled else 'enable' }}" 
+                    hx-target="#module-content"
+                    hx-swap="innerHTML"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 {{ 'bg-emerald-500' if module.enabled else 'bg-slate-700' }}">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {{ 'translate-x-6' if module.enabled else 'translate-x-1' }}"></span>
+            </button>
+        </div>
+    </div>
+
+    {% if module.load_error and module.enabled %}
+    <div class="bg-red-900/20 border border-red-500/50 rounded-xl p-4 mb-6">
+        <h3 class="text-red-400 font-semibold mb-2 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Module Load Failed
+        </h3>
+        <pre class="text-xs text-red-300 overflow-x-auto whitespace-pre-wrap font-mono">{{ module.load_error }}</pre>
+    </div>
+    {% endif %}
+    
+    <p class="text-slate-400 mb-8">{{ module.description }}</p>
+
+    {% if module.id == 'agent_loop' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="font-semibold text-lg text-slate-200">Agent Loop Settings</h3>
+            <button type="button" 
+                    onclick="loadAgentLoopDefaults()"
+                    class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700">
+                ↺ Load Default Settings
+            </button>
+        </div>
+        <form id="agent-loop-settings-form" hx-post="/modules/{{ module.id }}/config"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Loop Control</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Iterations</label>
+                            <input type="number" name="max_iterations" value="{{ module.config.max_iterations }}" min="1" max="100"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Maximum number of LLM ↔ Tool loops per run. Higher values allow more complex tasks but may take longer. Default: 10</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                            <input type="number" name="max_tokens" value="{{ module.config.max_tokens }}" min="100" max="16000" step="100"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Maximum tokens per LLM response. Limits response length. Default: 2048</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                            <input type="number" name="temperature" value="{{ module.config.temperature }}" step="0.1" min="0.0" max="2.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Controls creativity (0.0 to 2.0). Lower = focused, higher = creative. Default: 0.7</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Retry & Timeout</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max LLM Retries</label>
+                            <input type="number" name="max_llm_retries" value="{{ module.config.max_llm_retries }}" min="0" max="10"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Retries on LLM failure with exponential backoff. Default: 3</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Retry Delay (seconds)</label>
+                            <input type="number" name="retry_delay" value="{{ module.config.retry_delay }}" step="0.5" min="0.5" max="10.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Base delay between retries. Doubles with each attempt. Default: 1.0</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Timeout (seconds)</label>
+                            <input type="number" name="timeout" value="{{ module.config.timeout }}" min="0" max="600" step="10"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Total timeout for the entire agent loop. Set to 0 to disable. Default: 120</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Context Inclusion</h4>
+                    <p class="text-xs text-slate-500 mb-4">Select which context sources to include in the agent's system prompt</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" name="include_plan_in_context" value="true" {% if module.config.include_plan_in_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300 group-hover:text-slate-200 transition-colors">Plan Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" name="include_memory_context" value="true" {% if module.config.include_memory_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300 group-hover:text-slate-200 transition-colors">Memory Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" name="include_knowledge_context" value="true" {% if module.config.include_knowledge_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300 group-hover:text-slate-200 transition-colors">Knowledge Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" name="include_reasoning_context" value="true" {% if module.config.include_reasoning_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300 group-hover:text-slate-200 transition-colors">Reasoning Context</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Context Compaction</h4>
+                    <p class="text-xs text-slate-500 mb-4">Automatically summarize old reasoning steps when the context window fills up, preserving recent turns verbatim. Set threshold to 0 to disable.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Compact Threshold (tokens)</label>
+                            <input type="number" name="compact_threshold" value="{{ module.config.compact_threshold }}" min="0" max="128000" step="500"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Trigger compaction when estimated token count exceeds this value. 0 = disabled. Recommended: 4000 (≈80% of a 6k context). Default: 0</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Keep Last (messages)</label>
+                            <input type="number" name="compact_keep_last" value="{{ module.config.compact_keep_last }}" min="2" max="50"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Number of most recent messages to preserve verbatim after compaction. Older messages are summarized. Default: 6</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Tool Error Strategy</h4>
+                    <p class="text-xs text-slate-500 mb-4">How to handle errors when tool execution fails</p>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <label class="flex items-center space-x-3 cursor-pointer group p-3 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors {% if module.config.tool_error_strategy == 'continue' %}bg-blue-900/20 border-blue-500/30{% endif %}">
+                            <input type="radio" name="tool_error_strategy" value="continue" {% if module.config.tool_error_strategy == 'continue' %}checked{% endif %}
+                                   class="w-5 h-5 border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm font-medium text-slate-300 group-hover:text-slate-200 transition-colors">Continue</span>
+                                <p class="text-xs text-slate-500">Skip failed tools and keep looping</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer group p-3 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors {% if module.config.tool_error_strategy == 'stop' %}bg-blue-900/20 border-blue-500/30{% endif %}">
+                            <input type="radio" name="tool_error_strategy" value="stop" {% if module.config.tool_error_strategy == 'stop' %}checked{% endif %}
+                                   class="w-5 h-5 border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm font-medium text-slate-300 group-hover:text-slate-200 transition-colors">Stop</span>
+                                <p class="text-xs text-slate-500">Abort the loop on first tool error</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Agent Loop Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'reflection' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <form hx-post="/modules/{{ module.id }}/config"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Reflection Prompt</h4>
+                        <button type="button" 
+                                hx-get="/modules/{{ module.id }}/default-prompt"
+                                hx-target="#reflection-prompt"
+                                hx-swap="textContent"
+                                class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700">
+                            ↺ Load Default Prompt
+                        </button>
+
+                    </div>
+                    <textarea id="reflection-prompt" name="reflection_prompt" rows="12" 
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar">{{ module.config.reflection_prompt or module.config.default_reflection_prompt }}</textarea>
+                    <p class="text-xs text-slate-500 mt-3">
+                        This prompt guides the reflection agent on how to evaluate responses. 
+                        The agent checks if the assistant's response satisfies the user's request.
+                        <span class="text-amber-400">⚠️ Modifying this may affect reflection accuracy.</span>
+                    </p>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Behavior Settings</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Reflection Retries</label>
+                            <input type="number" name="max_reflection_retries" value="{{ module.config.max_reflection_retries }}" min="0" max="10"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Maximum number of reflection-driven retry attempts when a response is not satisfactory. Set to 0 to disable retries. Default: 3</p>
+                        </div>
+                        <div class="flex items-center space-x-3 pt-8">
+                            <input type="checkbox" name="inject_improvement" value="true" {% if module.config.inject_improvement %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                   id="inject_improvement">
+                            <label for="inject_improvement" class="text-sm text-slate-300 cursor-pointer">
+                                Inject improvement feedback
+                            </label>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">
+                        When enabled, the reflection agent will add feedback messages to the conversation 
+                        when a response needs improvement, allowing the agent to retry with better results.
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Reflection Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'planner' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <form hx-post="/modules/{{ module.id }}/config"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Planner Prompt</h4>
+                        <button type="button" 
+                                hx-get="/modules/{{ module.id }}/default-prompt"
+                                hx-target="#planner-prompt"
+                                hx-swap="textContent"
+                                class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition-colors border border-slate-700">
+                            ↺ Load Default Prompt
+                        </button>
+
+                    </div>
+                    <textarea id="planner-prompt" name="planner_prompt" rows="12" 
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar">{{ module.config.planner_prompt or module.config.default_planner_prompt }}</textarea>
+                    <p class="text-xs text-slate-500 mt-3">
+                        This prompt guides the planner on how to break down complex requests into steps.
+                        Use <code class="text-blue-400">{request}</code> as a placeholder for the user's request.
+                        <span class="text-amber-400">⚠️ Modifying this may affect planning quality.</span>
+                    </p>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Planning Limits</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Maximum Steps</label>
+                            <input type="number" name="max_steps" value="{{ module.config.max_steps }}" min="1" max="50"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Maximum number of steps in a plan. Higher values allow more complex tasks. Default: 10</p>
+                        </div>
+                        <div class="flex items-center space-x-3 pt-8">
+                            <input type="checkbox" name="enabled" value="true" {% if module.config.enabled %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                   id="planner_enabled">
+                            <label for="planner_enabled" class="text-sm text-slate-300 cursor-pointer">
+                                Enable task planning
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Reasoning Book Integration</h4>
+                    <p class="text-xs text-slate-500 mb-4">Configure how the Planner interacts with the Reasoning Book module</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" name="log_to_reasoning_book" value="true" {% if module.config.log_to_reasoning_book %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                   id="log_to_reasoning_book">
+                            <div>
+                                <label for="log_to_reasoning_book" class="text-sm text-slate-300 cursor-pointer">
+                                    Log plans to Reasoning Book
+                                </label>
+                                <p class="text-xs text-slate-500">Records created plans for future reference</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" name="include_reasoning_context" value="true" {% if module.config.include_reasoning_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                                   id="include_reasoning_context">
+                            <div>
+                                <label for="include_reasoning_context" class="text-sm text-slate-300 cursor-pointer">
+                                    Include reasoning context
+                                </label>
+                                <p class="text-xs text-slate-500">Uses previous reasoning when creating plans</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Planner Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+
+    {% if module.id == 'system_prompt' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <form hx-post="/modules/{{ module.id }}/config"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-1 uppercase tracking-wider">Active System Instruction</h4>
+                    <p class="text-xs text-slate-500 mb-3">This is the <strong class="text-slate-400">live prompt</strong> currently injected into every conversation. Edit it here to change the AI's persona and behavior.</p>
+                    <textarea name="system_prompt" rows="8"
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar">{{ module.config.system_prompt }}</textarea>
+                    <p class="text-xs text-amber-400/80 mt-2">⚠️ Changes take effect immediately and affect all future conversations using this module.</p>
+                </div>
+
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-1 uppercase tracking-wider">Capability Restrictions</h4>
+                    <p class="text-xs text-slate-500 mb-4">Optionally restrict which tools and skills are available. Leave both fields empty to allow everything.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Restrict to Tools (optional)</label>
+                            <input type="text" name="enabled_tools" value="{{ module.config.enabled_tools | join(', ') if module.config.enabled_tools else '' }}" placeholder="Leave empty to allow all tools"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Enter tool names separated by commas, e.g. <code class="text-slate-400">web_search, calculator</code>. Empty = no restriction.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Inject Skills (optional)</label>
+                            <input type="text" name="enabled_skills" value="{{ module.config.enabled_skills | join(', ') if module.config.enabled_skills else '' }}" placeholder="Leave empty to disable skill injection"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Enter skill IDs separated by commas, e.g. <code class="text-slate-400">code_reviewer, summarizer</code>. Empty = no skills injected.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save System Prompt Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'skills' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <form hx-post="/modules/{{ module.id }}/config"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Storage Configuration</h4>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Storage Path</label>
+                        <input type="text" name="storage_path" value="{{ module.config.storage_path }}" placeholder="modules/skills/data"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">Directory path where skill files (SKILL.md) are stored. Relative to project root. Default: modules/skills/data</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Skills Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'email_bridge' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="text-base font-semibold text-white mb-4">Email Bridge Settings</h3>
+
+        <!-- Tab bar -->
+        <div class="flex space-x-1 mb-6 bg-slate-950 rounded-lg p-1">
+            <button type="button" onclick="ebShowTab('imap')" id="eb-tab-imap"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors bg-slate-700 text-white">
+                IMAP (Receive)
+            </button>
+            <button type="button" onclick="ebShowTab('smtp')" id="eb-tab-smtp"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-slate-400 hover:text-white">
+                SMTP (Send)
+            </button>
+        </div>
+
+        <!-- IMAP tab -->
+        <div id="eb-panel-imap">
+            <form hx-post="/modules/{{ module.id }}/config"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <input type="hidden" name="_section" value="imap">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-slate-400 mb-2">IMAP Server</label>
+                            <input type="text" name="imap_host" value="{{ module.config.imap_host }}" placeholder="imap.gmail.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Port</label>
+                            <input type="number" name="imap_port" value="{{ module.config.imap_port }}" placeholder="993"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Email Address</label>
+                            <input type="text" name="imap_username" value="{{ module.config.imap_username }}" placeholder="you@gmail.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Password / App Password</label>
+                            <input type="password" name="imap_password" value="{{ module.config.imap_password }}"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">For Gmail, use an App Password (not your account password).</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Folder / Mailbox</label>
+                            <input type="text" name="imap_folder" value="{{ module.config.imap_folder }}" placeholder="INBOX"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Filter by Sender (optional)</label>
+                            <input type="text" name="imap_filter_sender" value="{{ module.config.imap_filter_sender }}" placeholder="boss@company.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Only process emails from this address. Leave empty to accept all.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Poll Interval (seconds)</label>
+                            <input type="number" name="poll_interval" value="{{ module.config.poll_interval }}" min="10" placeholder="60"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">How often to check for new emails. Default: 60 seconds.</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" name="imap_use_ssl" value="true" {% if module.config.imap_use_ssl %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm font-medium text-slate-300">Use SSL/TLS</span>
+                                <p class="text-xs text-slate-500">Enable for port 993. Disable for port 143 with STARTTLS.</p>
+                            </div>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" name="mark_as_read" value="true" {% if module.config.mark_as_read %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm font-medium text-slate-300">Mark as Read after processing</span>
+                                <p class="text-xs text-slate-500">Prevents the same email from being processed again.</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save IMAP Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- SMTP tab -->
+        <div id="eb-panel-smtp" class="hidden">
+            <form hx-post="/modules/{{ module.id }}/config"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <input type="hidden" name="_section" value="smtp">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-slate-400 mb-2">SMTP Server</label>
+                            <input type="text" name="smtp_host" value="{{ module.config.smtp_host }}" placeholder="smtp.gmail.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Port</label>
+                            <input type="number" name="smtp_port" value="{{ module.config.smtp_port }}" placeholder="587"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Email Address</label>
+                            <input type="text" name="smtp_username" value="{{ module.config.smtp_username }}" placeholder="you@gmail.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Password / App Password</label>
+                            <input type="password" name="smtp_password" value="{{ module.config.smtp_password }}"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">From Address</label>
+                            <input type="text" name="smtp_from_address" value="{{ module.config.smtp_from_address }}" placeholder="you@gmail.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">The "From:" address on outgoing emails. Usually your email address.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Reply-To Address (optional)</label>
+                            <input type="text" name="reply_to_address" value="{{ module.config.reply_to_address }}" placeholder="another@email.com"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">If set, recipients will reply to this address instead of the From address.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" name="smtp_use_tls" value="true" {% if module.config.smtp_use_tls %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm font-medium text-slate-300">Use STARTTLS</span>
+                                <p class="text-xs text-slate-500">Enable for port 587 (recommended). Disable only for plain port 25.</p>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="mt-2 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gmail Quick Setup</h4>
+                        <ul class="text-sm text-slate-300 space-y-1">
+                            <li>• Go to your Google Account → Security → 2-Step Verification → App passwords.</li>
+                            <li>• Generate an App Password and use it in the Password fields above.</li>
+                            <li>• IMAP: <span class="font-mono text-blue-400">imap.gmail.com:993</span> SSL on &nbsp;|&nbsp; SMTP: <span class="font-mono text-blue-400">smtp.gmail.com:587</span> TLS on.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save SMTP Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function ebShowTab(name) {
+        ['imap', 'smtp'].forEach(function(p) {
+            var panel = document.getElementById('eb-panel-' + p);
+            var tab = document.getElementById('eb-tab-' + p);
+            if (p === name) {
+                panel.classList.remove('hidden');
+                tab.classList.add('bg-slate-700', 'text-white');
+                tab.classList.remove('text-slate-400', 'hover:text-white');
+            } else {
+                panel.classList.add('hidden');
+                tab.classList.remove('bg-slate-700', 'text-white');
+                tab.classList.add('text-slate-400', 'hover:text-white');
+            }
+        });
+    }
+    </script>
+    {% endif %}
+
+    {% if module.config and has_visible_config and module.id != 'agent_loop' and module.id != 'reflection' and module.id != 'planner' and module.id != 'system_prompt' and module.id != 'skills' and module.id != 'email_bridge' %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Configuration</h3>
+        <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <textarea name="config_json" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar h-64">{{ formatted_config }}</textarea>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Configuration</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+
+
+    {% if module.id == 'llm_module' and module.enabled %}
+
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Connection Settings</h3>
+        <form hx-post="/settings/save" 
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">LLM API URL</label>
+                    <input type="text" name="llm_api_url" value="{{ settings.llm_api_url }}" 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">LLM API Key</label>
+                    <input type="password" name="llm_api_key" value="{{ settings.llm_api_key }}" placeholder="sk-..."
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Default Chat Model</label>
+                    <input type="text" name="default_model" value="{{ settings.default_model }}" 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Request Timeout (Seconds)</label>
+                    <input type="number" name="request_timeout" value="{{ settings.request_timeout }}" min="1"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Connection</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Embeddings Settings</h3>
+        <form hx-post="/settings/save" 
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Embedding API URL</label>
+                    <input type="text" name="embedding_api_url" value="{{ settings.embedding_api_url }}" placeholder="Leave empty to use LLM API URL"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">If your embedding model is hosted on a different server (e.g., Ollama vs LM Studio), specify it here.</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Embedding Model</label>
+                    <input type="text" name="embedding_model" value="{{ settings.embedding_model }}" placeholder="e.g. text-embedding-nomic-embed-text-v1.5"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Embeddings</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Generation Settings</h3>
+        <form hx-post="/llm_module/settings/generation" 
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                    <input type="number" step="0.1" name="temperature" value="{{ module.config.temperature }}" 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Controls randomness (0.0 to 2.0). Lower values (e.g., 0.2) are focused and deterministic; higher values (e.g., 0.8) are more creative and varied.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                    <input type="number" name="max_tokens" value="{{ module.config.max_tokens }}" 
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">The maximum number of tokens to generate. Limits the length of the AI's response (1000 tokens ≈ 750 words).</p>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Generation Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'chat' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Chat Settings</h3>
+        <form hx-post="/chat/settings/save" 
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Auto-Rename Turns</label>
+                    <input type="number" name="auto_rename_turns" value="{{ module.config.auto_rename_turns }}" min="1" max="20"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Number of conversation turns (User + AI) before automatically generating a session title.</p>
+                </div>
+
+                <div class="border-t border-slate-800 pt-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Context Compaction</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Auto-Compact Threshold (tokens)</label>
+                            <input type="number" name="auto_compact_tokens" value="{{ module.config.auto_compact_tokens }}" min="0" step="1000"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Automatically compact the session when estimated token count exceeds this value. Set to <code>0</code> to disable. Suggested: <code>80000</code> for 128k-context models.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Keep Last N Messages</label>
+                            <input type="number" name="compact_keep_last" value="{{ module.config.compact_keep_last }}" min="2" max="50"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Number of recent messages to keep verbatim after compaction. Older messages are replaced with an LLM-generated summary. Default: <code>10</code>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Chat Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'memory' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Long-Term Memory Settings</h3>
+        <form hx-post="/memory/settings/save" 
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="space-y-6">
+                <div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Memory Extraction</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Save Confidence Threshold</label>
+                            <input type="number" name="save_confidence_threshold" value="{{ module.config.save_confidence_threshold }}" step="0.05" min="0.0" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Minimum confidence (0.0 to 1.0) required to save a memory. Lower values save more memories but may include noise. Higher values only save high-quality memories. Default: 0.75</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Similarity Threshold</label>
+                            <input type="number" name="similarity_threshold" value="{{ module.config.similarity_threshold }}" step="0.05" min="0.0" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Rejects new memories too similar to existing ones (0.0 to 1.0). Set to 1.0 to allow duplicates, lower to prevent redundancy. Default: 0.9</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Default Confidence</label>
+                            <input type="number" name="save_default_confidence" value="{{ module.config.save_default_confidence }}" step="0.05" min="0.0" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Default confidence value assigned to new memories when extraction confidence cannot be determined. Default: 1.0</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Save Delay (seconds)</label>
+                            <input type="number" name="save_delay" value="{{ module.config.save_delay }}" step="0.5" min="0.0" max="60.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Delay before saving memories after conversation ends. Allows time for context to settle. Default: 3.0</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Memory Recall</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Recall Limit</label>
+                            <input type="number" name="recall_limit" value="{{ module.config.recall_limit }}" min="1" max="20"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">How many memories to retrieve for each response (1 to 20). Higher values provide more context but may overwhelm the model. Default: 3</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Minimum Score</label>
+                            <input type="number" name="recall_min_score" value="{{ module.config.recall_min_score }}" step="0.05" min="0.0" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Minimum similarity (0.0 to 1.0) needed to retrieve a memory. Higher values return only very relevant memories. Lower returns more but may include noise. Default: 0.8</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Access Weight</label>
+                            <input type="number" name="recall_access_weight" value="{{ module.config.recall_access_weight }}" step="0.05" min="0.0" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">How much to boost frequently accessed memories (0.0 to 1.0). Set to 0.0 to disable. Higher values make popular memories appear more often. Default: 0.1</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Memory Database</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Consolidation Threshold</label>
+                            <input type="number" name="consolidation_threshold" value="{{ module.config.consolidation_threshold }}" step="0.01" min="0.5" max="1.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">How similar memories must be (0.5 to 1.0) to merge together. Higher values require near-exact matches. Lower values merge more loosely related memories. Default: 0.92</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Belief TTL (Days)</label>
+                            <input type="number" name="belief_ttl_days" value="{{ module.config.belief_ttl_days }}" min="1" max="365"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">How long temporary beliefs last before expiring (1 to 365 days). Set higher for longer memory persistence. Permanent facts use TTL of 0 or are not applied. Default: 30</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Extraction Model</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Arbiter Model (Optional)</label>
+                            <input type="text" name="arbiter_model" value="{{ module.config.arbiter_model }}" placeholder="e.g. qwen2.5-0.5b-instruct"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Model to use for extracting facts from conversation. Leave empty to use the default chat model. A smaller model can be used for faster extraction.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Arbiter Prompt</label>
+                            <textarea name="arbiter_prompt" rows="4" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar">{{ module.config.arbiter_prompt }}</textarea>
+                            <p class="text-xs text-slate-500 mt-2">Prompt used to extract facts from conversation. Use <code>{text}</code> for the conversation content and <code>{subject}</code> for the person (e.g., "User").</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Long-Term Memory Settings</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Maintenance</h3>
+        
+        <form hx-post="/memory/settings/save" hx-swap="none" class="mb-2">
+                <label class="block text-sm font-medium text-slate-400 mb-2">Auto-Consolidation (Hours)</label>
+                <div class="flex space-x-2">
+                    <input type="number" name="auto_consolidation_hours" value="{{ module.config.auto_consolidation_hours }}" step="0.5" min="0"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-colors border border-slate-700">Save</button>
+                </div>
+        </form>
+        <p class="text-xs text-slate-500">Merges semantically identical memories to improve recall quality and performance. Set hours to 0 to disable auto-run.</p>
+    </div>
+
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Memory Statistics</h3>
+        <div id="memory-stats-container" hx-get="/memory/stats" hx-trigger="load, memoryWiped from:body" class="min-h-[100px] flex items-center justify-center">
+            <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <button type="button" onclick="confirmWipe()" class="w-full bg-red-950/30 hover:bg-red-900/50 border-2 border-red-800/50 hover:border-red-500 text-red-500 hover:text-red-100 font-bold py-4 rounded-xl shadow-lg transition-all uppercase tracking-widest text-lg flex items-center justify-center space-x-3 group">
+            <svg class="w-6 h-6 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <span>Wipe All Memories</span>
+        </button>
+    </div>
+
+    <script>
+        function confirmWipe() {
+            const input = prompt("⚠️ DANGER ZONE ⚠️\n\nThis will permanently delete ALL stored memories. This action cannot be undone.\n\nTo confirm, type 'DELETE' in the box below:");
+            if (input === 'DELETE') {
+                htmx.ajax('POST', '/memory/wipe?confirm=wipe+all+memories', {swap: 'none'});
+            } else if (input !== null) {
+                alert("Incorrect confirmation code. Action cancelled.");
+            }
+        }
+    </script>
+    {% endif %}
+
+    {% if module.id == 'telegram' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <form hx-post="/telegram/settings/save"
+              hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
+                    <input type="password" name="bot_token" value="{{ module.config.bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Chat ID</label>
+                    <input type="number" name="chat_id" value="{{ module.config.chat_id }}" placeholder="123456789"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">The Chat ID where the bot will send messages.</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Available Commands</h4>
+                <ul class="text-sm text-slate-300 space-y-1 font-mono">
+                    <li><span class="text-blue-400">/new_session</span> - Start a fresh conversation</li>
+                    <li><span class="text-blue-400">/delete_session</span> - Delete current history</li>
+                    <li><span class="text-blue-400">/help</span> - Show command list</li>
+                </ul>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Telegram Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'messaging_bridge' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="text-base font-semibold text-white mb-4">Platform Settings</h3>
+
+        <!-- Tab bar -->
+        <div class="flex space-x-1 mb-6 bg-slate-950 rounded-lg p-1" id="mb-tabs">
+            <button type="button" onclick="mbShowTab('telegram')"
+                    id="mb-tab-telegram"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors bg-slate-700 text-white">
+                Telegram
+            </button>
+            <button type="button" onclick="mbShowTab('discord')"
+                    id="mb-tab-discord"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-slate-400 hover:text-white">
+                Discord
+            </button>
+            <button type="button" onclick="mbShowTab('signal')"
+                    id="mb-tab-signal"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-slate-400 hover:text-white">
+                Signal
+            </button>
+            <button type="button" onclick="mbShowTab('whatsapp')"
+                    id="mb-tab-whatsapp"
+                    class="flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors text-slate-400 hover:text-white">
+                WhatsApp
+            </button>
+        </div>
+
+        <!-- Telegram tab -->
+        <div id="mb-panel-telegram">
+            <form hx-post="/messaging_bridge/settings/save/telegram"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
+                        <input type="password" name="bot_token" value="{{ module.config.telegram_bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Chat ID</label>
+                        <input type="number" name="chat_id" value="{{ module.config.telegram_chat_id }}" placeholder="123456789"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">The Chat ID where the bot will send messages by default.</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Available Commands</h4>
+                    <ul class="text-sm text-slate-300 space-y-1 font-mono">
+                        <li><span class="text-blue-400">/new_session</span> — Start a fresh conversation</li>
+                        <li><span class="text-blue-400">/delete_session</span> — Delete current history</li>
+                        <li><span class="text-blue-400">/help</span> — Show command list</li>
+                    </ul>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Telegram Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Discord tab -->
+        <div id="mb-panel-discord" class="hidden">
+            <form hx-post="/messaging_bridge/settings/save/discord"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-indigo-600', 'hover:bg-indigo-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
+                        <input type="password" name="bot_token" value="{{ module.config.discord_bot_token }}" placeholder="OTk4..."
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Channel ID</label>
+                        <input type="text" name="channel_id" value="{{ module.config.discord_channel_id }}" placeholder="123456789012345678"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">The Discord channel the bot listens to and replies in.</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Setup Notes</h4>
+                    <ul class="text-sm text-slate-300 space-y-1">
+                        <li>• Enable <span class="font-mono text-indigo-400">MESSAGE CONTENT</span> privileged intent in the Discord Developer Portal.</li>
+                        <li>• Install <span class="font-mono text-slate-300">websockets</span> package for real-time message receiving.</li>
+                    </ul>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Discord Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Signal tab -->
+        <div id="mb-panel-signal" class="hidden">
+            <form hx-post="/messaging_bridge/settings/save/signal"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-500', 'hover:bg-blue-400'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-500', 'hover:bg-blue-400'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">signal-cli REST API URL</label>
+                        <input type="text" name="api_url" value="{{ module.config.signal_api_url }}" placeholder="http://localhost:8080"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">URL of your running signal-cli REST API instance.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Phone Number (E.164)</label>
+                        <input type="text" name="phone_number" value="{{ module.config.signal_phone_number }}" placeholder="+12025551234"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">The registered Signal account number in E.164 format.</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Setup Notes</h4>
+                    <ul class="text-sm text-slate-300 space-y-1">
+                        <li>• Requires <a href="https://github.com/bbernhard/signal-cli-rest-api" target="_blank" class="text-blue-400 hover:underline">signal-cli-rest-api</a> running separately.</li> <!-- hygiene: allow documentation link -->
+                        <li>• Run with Docker: <span class="font-mono text-slate-300 text-xs">docker run -p 8080:8080 bbernhard/signal-cli-rest-api</span></li>
+                        <li>• Register/link your number before connecting.</li>
+                    </ul>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" class="bg-blue-500 hover:bg-blue-400 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Signal Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- WhatsApp tab -->
+        <div id="mb-panel-whatsapp" class="hidden">
+            <form hx-post="/messaging_bridge/settings/save/whatsapp"
+                  hx-swap="none"
+                  hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-green-600', 'hover:bg-green-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-green-600', 'hover:bg-green-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Evolution API URL</label>
+                        <input type="text" name="api_url" value="{{ module.config.whatsapp_api_url }}" placeholder="http://localhost:8080"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">URL of your running Evolution API instance.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">API Key</label>
+                        <input type="password" name="api_key" value="{{ module.config.whatsapp_api_key }}" placeholder="your-evolution-api-key"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Instance Name</label>
+                        <input type="text" name="instance" value="{{ module.config.whatsapp_instance }}" placeholder="my-instance"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">The Evolution API instance name you created and linked to WhatsApp.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Your WhatsApp Number (E.164)</label>
+                        <input type="text" name="phone_number" value="{{ module.config.whatsapp_phone_number }}" placeholder="+12025551234"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">Used as the default recipient for flow-triggered output messages.</p>
+                    </div>
+                </div>
+                <div class="mt-6 bg-slate-950/50 rounded-lg p-4 border border-slate-700/50">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Setup Notes</h4>
+                    <ul class="text-sm text-slate-300 space-y-1">
+                        <li>• Requires <a href="https://github.com/EvolutionAPI/evolution-api" target="_blank" class="text-green-400 hover:underline">Evolution API</a> running separately.</li> <!-- hygiene: allow documentation link -->
+                        <li>• Run with Docker: <span class="font-mono text-slate-300 text-xs">docker run -p 8080:8080 atendai/evolution-api:latest</span></li>
+                        <li>• In Evolution API, set the webhook URL to: <span class="font-mono text-slate-300 text-xs">http://your-server/messaging_bridge/webhook/whatsapp</span></li> <!-- hygiene: allow cdn asset -->
+                        <li>• Scan the QR code in Evolution API to link your WhatsApp account.</li>
+                    </ul>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="submit" class="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save WhatsApp Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function mbShowTab(name) {
+        ['telegram', 'discord', 'signal', 'whatsapp'].forEach(function(p) {
+            var panel = document.getElementById('mb-panel-' + p);
+            var tab = document.getElementById('mb-tab-' + p);
+            if (p === name) {
+                panel.classList.remove('hidden');
+                tab.classList.add('bg-slate-700', 'text-white');
+                tab.classList.remove('text-slate-400', 'hover:text-white');
+            } else {
+                panel.classList.add('hidden');
+                tab.classList.remove('bg-slate-700', 'text-white');
+                tab.classList.add('text-slate-400', 'hover:text-white');
+            }
+        });
+    }
+    </script>
+    {% endif %}
+
+    {% if module.id == 'memory_browser' and module.enabled %}
+    <div class="mt-8">
+        <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden h-[700px] shadow-inner" 
+             hx-get="/memory_browser/gui" 
+             hx-trigger="load">
+            <div class="flex items-center justify-center h-full text-slate-500">
+                <div class="flex flex-col items-center space-y-3">
+                    <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-sm">Loading Memory Browser...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        function confirmWipe() {
+            const input = prompt("⚠️ DANGER ZONE ⚠️\n\nThis will permanently delete ALL stored memories. This action cannot be undone.\n\nTo confirm, type 'DELETE' in the box below:");
+            if (input === 'DELETE') {
+                htmx.ajax('POST', '/memory/wipe?confirm=wipe+all+memories', {swap: 'none'});
+            } else if (input !== null) {
+                alert("Incorrect confirmation code. Action cancelled.");
+            }
+        }
+
+        function loadAgentLoopDefaults() {
+            fetch('/modules/agent_loop/default-config')
+                .then(response => response.json())
+                .then(data => {
+                    const form = document.getElementById('agent-loop-settings-form');
+                    if (!form) return;
+                    
+                    // Update number/text inputs
+                    if (data.max_iterations !== undefined) {
+                        const el = form.querySelector('[name="max_iterations"]');
+                        if (el) el.value = data.max_iterations;
+                    }
+                    if (data.max_tokens !== undefined) {
+                        const el = form.querySelector('[name="max_tokens"]');
+                        if (el) el.value = data.max_tokens;
+                    }
+                    if (data.temperature !== undefined) {
+                        const el = form.querySelector('[name="temperature"]');
+                        if (el) el.value = data.temperature;
+                    }
+                    if (data.max_llm_retries !== undefined) {
+                        const el = form.querySelector('[name="max_llm_retries"]');
+                        if (el) el.value = data.max_llm_retries;
+                    }
+                    if (data.retry_delay !== undefined) {
+                        const el = form.querySelector('[name="retry_delay"]');
+                        if (el) el.value = data.retry_delay;
+                    }
+                    if (data.timeout !== undefined) {
+                        const el = form.querySelector('[name="timeout"]');
+                        if (el) el.value = data.timeout;
+                    }
+                    if (data.compact_threshold !== undefined) {
+                        const el = form.querySelector('[name="compact_threshold"]');
+                        if (el) el.value = data.compact_threshold;
+                    }
+                    if (data.compact_keep_last !== undefined) {
+                        const el = form.querySelector('[name="compact_keep_last"]');
+                        if (el) el.value = data.compact_keep_last;
+                    }
+
+                    // Update checkboxes
+                    const checkboxes = ['include_plan_in_context', 'include_memory_context', 'include_knowledge_context', 'include_reasoning_context'];
+                    checkboxes.forEach(name => {
+                        const el = form.querySelector('[name="' + name + '"]');
+                        if (el && data[name] !== undefined) {
+                            el.checked = data[name];
+                        }
+                    });
+                    
+                    // Update radio buttons for tool_error_strategy
+                    const radios = form.querySelectorAll('[name="tool_error_strategy"]');
+                    radios.forEach(el => {
+                        if (el.value === data.tool_error_strategy) {
+                            el.checked = true;
+                        }
+                    });
+                    
+                    // Show feedback
+                    const btn = document.querySelector('button[onclick="loadAgentLoopDefaults()"]');
+                    if (btn) {
+                        const origText = btn.innerText;
+                        btn.innerText = 'Loaded!';
+                        setTimeout(() => btn.innerText = origText, 1500);
+                    }
+                })
+                .catch(err => console.error('Error loading defaults:', err));
+        }
+    </script>
+</div>

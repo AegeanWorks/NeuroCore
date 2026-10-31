@@ -1,0 +1,114 @@
+{% set rlm_tools = {} %}
+{% set regular_tools = {} %}
+{% for name, data in tools.items() %}
+    {% if data.get('category') == 'rlm' %}
+        {% set _ = rlm_tools.update({name: data}) %}
+    {% else %}
+        {% set _ = regular_tools.update({name: data}) %}
+    {% endif %}
+{% endfor %}
+
+<!-- RLM Tools Section -->
+{% if rlm_tools %}
+<div class="mb-8">
+    <div class="flex items-center space-x-2 mb-2">
+        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+        <h3 class="text-lg font-bold text-purple-400">RLM Tools</h3>
+        <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Recursive Language Model</span>
+    </div>
+    <p class="text-sm text-slate-400 mb-4">Used with the Recursive LM agent loop for processing arbitrarily long inputs (100K+ tokens). These tools enable the LLM to examine, search, and chunk large content stored in REPL state without putting it all in the context window.</p>
+    <div class="space-y-3 bg-purple-500/5 rounded-xl p-4 border border-purple-500/20">
+        {% for name, data in rlm_tools.items() %}
+        <div class="bg-slate-900 rounded-lg border border-slate-800 p-4 flex justify-between items-center group">
+            <div class="flex-grow mr-4">
+                <div class="flex items-center space-x-2">
+                    <h4 class="font-bold {{ 'text-purple-400' if data.get('enabled', True) else 'text-slate-500' }}">{{ name }}</h4>
+                    {% if not data.get('enabled', True) %}
+                    <span class="text-[10px] uppercase bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700">Disabled</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-slate-400 mt-1">{{ data.definition.function.description }}</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {% if data.get('configurable', False) %}
+                    <button onclick='openToolConfig({{ name | tojson }})' class="text-slate-500 hover:text-amber-400 p-1" title="Configure">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </button>
+                    {% endif %}
+                    <button onclick='loadToolForEdit({{ name | tojson }})' class="text-slate-500 hover:text-blue-400 p-1" title="Edit">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                </div>
+                <button hx-delete="/tools/{{ name }}" hx-target="#tools-list" hx-confirm="Delete this tool?" class="text-slate-500 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+                <button hx-post="/tools/{{ name }}/toggle" 
+                        hx-target="#tools-list"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900 {{ 'bg-purple-500' if data.get('enabled', True) else 'bg-slate-700' }}"
+                        title="Toggle Tool">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {{ 'translate-x-6' if data.get('enabled', True) else 'translate-x-1' }}"></span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Regular Tools Section -->
+{% if regular_tools %}
+<div>
+    {% if rlm_tools %}
+    <div class="flex items-center space-x-2 mb-2">
+        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        <h3 class="text-lg font-bold text-slate-300">Standard Tools</h3>
+    </div>
+    <p class="text-sm text-slate-400 mb-4">Used with the standard Agent Loop. These tools are executed by the Tool Dispatcher and can access files, APIs, and system resources. Available to all agent loops unless restricted via allowed_tools config.</p>
+    {% endif %}
+    <div class="space-y-3">
+        {% for name, data in regular_tools.items() %}
+        <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex justify-between items-center group">
+            <div class="flex-grow mr-4">
+                <div class="flex items-center space-x-3">
+                    <h4 class="font-bold {{ 'text-blue-400' if data.get('enabled', True) else 'text-slate-500' }}">{{ name }}</h4>
+                    {% if not data.get('enabled', True) %}
+                    <span class="text-[10px] uppercase bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700">Disabled</span>
+                    {% endif %}
+                </div>
+                <p class="text-sm text-slate-400 mt-1">{{ data.definition.function.description }}</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {% if data.get('configurable', False) %}
+                    <button onclick='openToolConfig({{ name | tojson }})' class="text-slate-500 hover:text-amber-400 p-1" title="Configure">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </button>
+                    {% endif %}
+                    <button onclick='loadToolForEdit({{ name | tojson }})' class="text-slate-500 hover:text-blue-400 p-1" title="Edit">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                    <button hx-delete="/tools/{{ name }}" hx-target="#tools-list" hx-confirm="Delete this tool?" class="text-slate-500 hover:text-red-500 p-1" title="Delete">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Toggle Switch -->
+                <button hx-post="/tools/{{ name }}/toggle" 
+                        hx-target="#tools-list"
+                        class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-900 {{ 'bg-emerald-500' if data.get('enabled', True) else 'bg-slate-700' }}"
+                        title="Toggle Tool">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {{ 'translate-x-6' if data.get('enabled', True) else 'translate-x-1' }}"></span>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% if not tools %}
+<div class="text-center py-20 bg-slate-900/50 rounded-xl border border-slate-800 border-dashed">
+    <p class="text-slate-500 italic">No tools defined yet.</p>
+</div>
+{% endif %}

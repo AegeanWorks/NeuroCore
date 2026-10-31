@@ -1,0 +1,215 @@
+<div class="flex flex-col items-end space-y-1">
+    <div class="bg-blue-600 p-4 rounded-2xl rounded-tr-none max-w-[80%] text-white shadow-lg">
+        {% if user_message is string %}
+            <p class="text-sm">{{ user_message }}</p>
+        {% else %}
+            {% for part in user_message %}
+                {% if part.type == 'text' %}
+                    <p class="text-sm">{{ part.text }}</p>
+                {% elif part.type == 'image_url' %}
+                    <img src="{{ part.image_url.url }}" class="max-w-full h-auto rounded-lg mt-2 max-h-64 border border-blue-400/50">
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Thinking trace panel (populated by the 'thinking' SSE event) -->
+<div id="thinking-trace-{{ msg_id }}" class="max-w-[85%]" style="display:none;"></div>
+
+<div class="bg-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-lg border border-slate-700/50">
+    <div class="text-sm prose prose-invert" id="ai-content-{{ msg_id }}">
+        <span class="animate-pulse text-slate-500 stream-placeholder">Thinking...</span>
+    </div>
+    <div class="flex items-center justify-between mt-2 stream-status" style="display: none;">
+        <div class="flex items-center gap-2 flex-wrap text-xs">
+            <span class="text-slate-500">Time: <span class="stream-timer font-mono">0.0</span>s</span>
+            <span class="token-usage hidden">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-950/70 border border-sky-800/50 text-sky-300 font-semibold" title="Prompt tokens">&#8593; <span class="prompt-tokens">&#8212;</span></span>
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/50 text-emerald-300 font-semibold" title="Completion tokens">&#8595; <span class="completion-tokens">&#8212;</span></span>
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-950/80 border border-amber-700/60 text-amber-300 font-bold" title="Total tokens">&#931; <span class="total-tokens">&#8212;</span></span>
+            </span>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        const source = new EventSource('/chat/stream/{{ session_id }}');
+        const contentDiv = document.getElementById('ai-content-{{ msg_id }}');
+        const thinkingTrace = document.getElementById('thinking-trace-{{ msg_id }}');
+        const statusDiv = contentDiv.parentElement.querySelector('.stream-status');
+        const timerSpan = statusDiv.querySelector('.stream-timer');
+        const tokenUsageEl = statusDiv.querySelector('.token-usage');
+        const promptTokensEl = statusDiv.querySelector('.prompt-tokens');
+        const completionTokensEl = statusDiv.querySelector('.completion-tokens');
+        const totalTokensEl = statusDiv.querySelector('.total-tokens');
+
+        let firstTokenReceived = false;
+        let mdBuffer = '';
+        let startTime = Date.now();
+        let timerInterval = setInterval(() => {
+            timerSpan.innerText = ((Date.now() - startTime) / 1000).toFixed(1);
+        }, 100);
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function scrollToBottom() {
+            const c = document.getElementById('chat-messages');
+            if (c) c.scrollTop = c.scrollHeight;
+        }
+
+        // ── Streaming tokens ─────────────────────────────────────────────
+        source.onmessage = function(event) {
+            if (!firstTokenReceived) {
+                const ph = contentDiv.querySelector('.stream-placeholder');
+                if (ph) ph.remove();
+                firstTokenReceived = true;
+                statusDiv.style.display = 'flex';
+            }
+            const chunk = JSON.parse(event.data);
+            if (chunk.text) {
+                mdBuffer += chunk.text;
+                contentDiv.innerHTML = marked.parse(mdBuffer);
+                scrollToBottom();
+            }
+        };
+
+        // ── Thinking trace ────────────────────────────────────────────────
+        source.addEventListener('thinking', function(event) {
+            try {
+                const steps = JSON.parse(event.data);
+                if (!steps || steps.length === 0) return;
+
+                const details = document.createElement('details');
+                details.open = true;
+                details.className = 'w-full rounded-xl border border-slate-700/60 bg-slate-900/60 overflow-hidden text-xs';
+
+                const summary = document.createElement('summary');
+                summary.className = 'flex items-center gap-2 px-3 py-2 cursor-pointer text-slate-400 hover:text-slate-200 select-none';
+                summary.style.listStyle = 'none';
+                summary.innerHTML =
+                    '<svg class="w-3.5 h-3.5 text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">' +
+                    '<path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.5A3.498 3.498 0 0112 18.5a3.498 3.498 0 01-2.797-1.4l-.347-.5z"/>' +
+                    '</svg>' +
+                    '<span class="font-semibold text-violet-300">Thinking</span>' +
+                    '<span class="ml-auto text-slate-600">' + steps.length + ' step' + (steps.length !== 1 ? 's' : '') + '</span>';
+
+                const body = document.createElement('div');
+                body.className = 'border-t border-slate-700/40 divide-y divide-slate-800/60';
+
+                steps.forEach(function(step) {
+                    const row = document.createElement('div');
+                    row.className = 'px-3 py-2 flex gap-2 items-start';
+
+                    if (step.type === 'tool_call') {
+                        row.innerHTML =
+                            '<span class="shrink-0 mt-0.5 text-amber-400" title="Tool call">&#9881;</span>' +
+                            '<div class="min-w-0 flex-1">' +
+                            '<span class="font-semibold text-amber-300">' + escapeHtml(step.name) + '</span>' +
+                            '<code class="block text-slate-400 font-mono text-[10px] break-all whitespace-pre-wrap mt-0.5">' + escapeHtml(step.content) + '</code>' +
+                            '</div>';
+                    } else if (step.type === 'tool_result') {
+                        const ok = step.success !== false;
+                        row.innerHTML =
+                            '<span class="shrink-0 mt-0.5 ' + (ok ? 'text-emerald-400' : 'text-red-400') + '" title="Result">' + (ok ? '&#10003;' : '&#10007;') + '</span>' +
+                            '<div class="min-w-0 flex-1">' +
+                            '<span class="font-semibold ' + (ok ? 'text-emerald-300' : 'text-red-300') + '">' + escapeHtml(step.name) + '</span>' +
+                            '<code class="block text-slate-400 font-mono text-[10px] break-all whitespace-pre-wrap mt-0.5">' + escapeHtml(step.content) + '</code>' +
+                            '</div>';
+                    } else if (step.type === 'reflection') {
+                        row.innerHTML =
+                            '<span class="shrink-0 mt-0.5 text-sky-400" title="Reflection">&#8635;</span>' +
+                            '<span class="text-sky-300 italic">' + escapeHtml(step.content) + '</span>';
+                    } else if (step.type === 'assistant') {
+                        row.innerHTML =
+                            '<span class="shrink-0 mt-0.5 text-slate-500" title="Intermediate response">&#8230;</span>' +
+                            '<span class="text-slate-400 italic">' + escapeHtml(step.content) + '</span>';
+                    }
+                    body.appendChild(row);
+                });
+
+                details.appendChild(summary);
+                details.appendChild(body);
+                thinkingTrace.innerHTML = '';
+                thinkingTrace.appendChild(details);
+                thinkingTrace.style.display = 'block';
+
+                scrollToBottom();
+            } catch(e) {
+                console.warn('Failed to render thinking trace', e);
+            }
+        });
+
+        // ── Final replace (non-streamed response) ────────────────────────
+        source.addEventListener('replace', function(event) {
+            const chunk = JSON.parse(event.data);
+            if (chunk.text) {
+                const ph = contentDiv.querySelector('.stream-placeholder');
+                if (ph) ph.remove();
+                contentDiv.innerHTML = marked.parse(chunk.text);
+                statusDiv.style.display = 'flex';
+                scrollToBottom();
+            }
+        });
+
+        // ── Token usage ──────────────────────────────────────────────────
+        source.addEventListener('usage', function(event) {
+            try {
+                const usage = JSON.parse(event.data);
+                if (usage && usage.total_tokens !== undefined) {
+                    promptTokensEl.innerText = usage.prompt_tokens.toLocaleString();
+                    completionTokensEl.innerText = usage.completion_tokens.toLocaleString();
+                    totalTokensEl.innerText = usage.total_tokens.toLocaleString();
+                    tokenUsageEl.classList.remove('hidden');
+                    statusDiv.style.display = 'flex';
+                    const tokenCounter = document.getElementById('session-token-count');
+                    if (tokenCounter) {
+                        tokenCounter.dispatchEvent(new CustomEvent('tokenUsageUpdated', {
+                            bubbles: true,
+                            detail: { usage }
+                        }));
+                    }
+                }
+            } catch(e) {
+                console.warn('Failed to parse usage event', e);
+            }
+        });
+
+        // ── Session rename ───────────────────────────────────────────────
+        source.addEventListener('rename', function() {
+            htmx.trigger(document.body, 'sessionsChanged');
+        });
+
+        // ── Error ────────────────────────────────────────────────────────
+        source.addEventListener('error', function(e) {
+            if (e.data) {
+                try {
+                    const err = JSON.parse(e.data);
+                    if (!firstTokenReceived) {
+                        const ph = contentDiv.querySelector('.stream-placeholder');
+                        if (ph) ph.remove();
+                        statusDiv.style.display = 'flex';
+                    }
+                    contentDiv.innerText = 'Error: ' + (err.error || 'Unknown stream error');
+                } catch(ex) {
+                    console.error('Stream parse error', ex);
+                }
+            }
+        });
+
+        // ── Done ─────────────────────────────────────────────────────────
+        source.addEventListener('done', function() {
+            clearInterval(timerInterval);
+            timerSpan.innerText = ((Date.now() - startTime) / 1000).toFixed(1);
+            source.close();
+        });
+    })();
+</script>

@@ -1,0 +1,71 @@
+[project]
+name = "neurocore"
+version = "0.2.0"
+description = "A powerful, modular AI agent framework with visual flow editor, persistent memory, and autonomous agent capabilities."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "LicenseRef-AL-1.1"
+license-files = ["LICENSE"]
+authors = [
+    {name = "Aegean-E", email = "In the Future"}
+]
+keywords = ["ai", "agent", "llm", "autonomous", "memory", "rag", "faiss"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "python-multipart>=0.0.20",
+    "httpx>=0.28.0",
+    "jinja2>=3.1.0",
+    "numpy>=1.26.0",
+    "faiss-cpu>=1.8.0",
+    "pydantic>=2.10.0",
+    "filelock>=3.13.0",
+    # Built-in statistics routes (core/statistics_engine.py)
+    "scipy>=1.13.0",
+]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.40.0"]
+documents = [
+    "PyMuPDF>=1.23.0",
+    "python-docx>=1.1.0",
+    "Pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+]
+messaging = ["websockets>=12.0"]
+dev = [
+    "pytest>=8.0.0,<10",
+    "pytest-cov>=4.1.0",
+    "pytest-httpx>=0.27.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+pythonpath = ["."]
+markers = [
+    "e2e: end-to-end tests that require a running NeuroCore server",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]

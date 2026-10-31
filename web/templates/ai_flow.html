@@ -1,0 +1,2962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Flow - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .canvas-grid {
+            background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        .connecting {
+            animation: pulse-blue 1.5s infinite;
+        }
+        @keyframes pulse-blue {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+        }
+        .selected-node {
+            border-color: #3b82f6 !important; /* blue-500 */
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+            z-index: 20 !important;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .node-executing {
+            box-shadow: 0 0 15px 2px rgba(16, 185, 129, 0.6); /* emerald-500 */
+            border-color: #10b981 !important;
+            transition: all 0.3s ease;
+        }
+        .node-error {
+            box-shadow: 0 0 15px 2px rgba(239, 68, 68, 0.6); /* red-500 */
+            border-color: #ef4444 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+    
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow flex relative h-[calc(100vh-64px)] overflow-hidden min-w-0">
+    <!-- Sidebar -->
+        <aside class="w-72 flex-shrink-0 bg-slate-950/80 backdrop-blur-md border-r border-slate-800 flex flex-col h-full overflow-hidden z-10 relative">
+            <div class="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 custom-scrollbar" style="max-height: 100%;">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Available Functions</h2>
+                    <button onclick="toggleDisabledModules()" id="toggle-disabled-btn" class="text-slate-600 hover:text-blue-400 transition-colors" title="Show/Hide Disabled Modules">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    {% for module in modules %}
+                        {% if module.provides_nodes or module.get('is_flow_node') %}
+                            <div class="bg-slate-900/50 rounded-xl border border-slate-800 {{ 'opacity-50 disabled-module-item hidden' if not module.enabled else '' }}">
+                                <button onclick="toggleModuleFunctions('{{ module.id }}')" class="w-full text-left px-4 py-3 flex justify-between items-center hover:bg-slate-800/50 rounded-t-xl transition-colors">
+                                    <span class="font-semibold text-sm flex items-center">
+                                        {% if module.icon %}
+                                        <svg class="w-4 h-4 mr-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ module.icon }}"></path></svg>
+                                        {% endif %}
+                                        {{ module.name }}
+                                        {% if not module.enabled %}
+                                        <span class="ml-2 text-[10px] uppercase bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">Disabled</span>
+                                        {% endif %}
+                                    </span>
+                                    <svg id="arrow-{{ module.id }}" class="w-4 h-4 text-slate-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <div id="functions-{{ module.id }}" class="p-2 space-y-2 hidden border-t border-slate-800">
+                                    {% if module.provides_nodes %}
+                                        {% for node in module.provides_nodes %}
+                                            <div draggable="true" 
+                                                 ondragstart="onDragStart(event, '{{ module.id }}', '{{ node.name }}', '{{ node.id }}')"
+                                                 class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg cursor-grab active:cursor-grabbing transition-all text-xs flex flex-col items-start">
+                                                <div class="flex items-center w-full">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 flex-shrink-0"></span>
+                                                    <span class="font-semibold">{{ node.name }}</span>
+                                                </div>
+                                                {% if node.description %}
+                                                <p class="text-[10px] text-slate-400 mt-1 pl-3.5 leading-snug w-full break-words" title="{{ node.description }}">{{ node.description }}</p>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    {% elif module.get('is_flow_node') %}
+                                         <div draggable="true" 
+                                              ondragstart="onDragStart(event, '{{ module.id }}', '{{ module.name }}', '{{ module.id }}')"
+                                              class="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg cursor-grab active:cursor-grabbing transition-all text-xs flex flex-col items-start">
+                                             <div class="flex items-center w-full">
+                                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 flex-shrink-0"></span>
+                                                 <span class="font-semibold">{{ module.name }}</span>
+                                             </div>
+                                             {% if module.description %}
+                                             <p class="text-[10px] text-slate-400 mt-1 pl-3.5 leading-snug w-full break-words" title="{{ module.description }}">{{ module.description }}</p>
+                                             {% endif %}
+                                         </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            <div class="border-t border-slate-800 pt-4 mt-4">
+                <h2 class="text-sm font-bold mb-3 uppercase tracking-widest text-slate-500">Canvas Controls</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="openClearModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+                        Clear
+                    </button>
+                    <button onclick="centerCanvas()" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+                        Center
+                    </button>
+                    <button onclick="revertSelectedConnection()" id="btn-revert-line" class="w-full bg-slate-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all opacity-50 cursor-not-allowed" disabled>
+                        Revert
+                    </button>
+                    <button onclick="deleteSelectedConnection()" id="btn-break-line" class="w-full bg-slate-700 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all opacity-50 cursor-not-allowed" disabled>
+                        Break
+                    </button>
+                </div>
+            </div>
+            <div class="border-t border-slate-800 pt-4 mt-4">
+                <h2 class="text-sm font-bold mb-3 uppercase tracking-widest text-slate-500">Save Current Flow</h2>
+                <form id="save-flow-form" 
+                      hx-post="/ai-flow/save"
+                      hx-target="#saved-flows-list"
+                      hx-swap="innerHTML">
+                    <input type="text" name="name" placeholder="Enter flow name..." required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="hidden" name="nodes">
+                    <input type="hidden" name="connections">
+                    <input type="hidden" name="bridges">
+                    <input type="hidden" name="flow_id" id="current-flow-id">
+                    <div class="flex space-x-2">
+                        <button type="submit" onclick="document.getElementById('current-flow-id').value = ''; populateHiddenFields()" class="flex-grow bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+                            Save New
+                        </button>
+                        <button type="submit" id="update-flow-btn" onclick="populateHiddenFields()" class="flex-grow bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all hidden">
+                            Update
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div id="saved-flows-list" class="border-t border-slate-800 pt-4 mt-4 flex-grow">
+                {% include 'ai_flow_list.html' %}
+            </div>
+        </div>
+    </aside>
+
+        <!-- AI Flow Area -->
+        <div id="canvas" 
+             class="flex-1 canvas-grid relative overflow-hidden">
+            <svg id="canvas-svg" class="absolute inset-0 w-full h-full pointer-events-none overflow-visible"></svg>
+            <div id="selection-box" class="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-20 hidden"></div>
+            
+            <!-- Flow Validation Warning (inside canvas) -->
+            <div id="flow-validation-warning" class="absolute top-4 left-4 max-w-sm bg-yellow-900/90 backdrop-blur-sm border border-yellow-600/50 rounded-lg p-3 z-30 hidden">
+                <div class="flex items-start gap-2">
+                    <svg class="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-sm font-semibold text-yellow-400">Flow Issues</h4>
+                        <ul id="flow-validation-list" class="text-xs text-yellow-200 mt-1 space-y-1 max-h-24 overflow-y-auto custom-scrollbar"></ul>
+                    </div>
+                    <button onclick="closeFlowValidationWarning()" class="text-yellow-500 hover:text-yellow-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="canvas-bin" class="absolute bottom-5 right-5 w-20 h-20 bg-red-900/50 border-2 border-dashed border-red-700 rounded-full flex items-center justify-center text-red-500 opacity-50 transition-all pointer-events-none z-40">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+        </div>
+        <button id="help-btn" onclick="openHelpModal()" class="absolute top-4 right-4 p-3 rounded-lg bg-slate-800/60 border border-slate-700/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60 transition-all z-30" title="Help">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </button>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="delete-modal-backdrop"></div>
+
+        <!-- Modal Panel -->
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-md p-6" id="delete-modal-panel">
+            <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-900/30 text-red-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">Delete Flow</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-slate-400">Are you sure you want to delete the flow "<span id="delete-flow-name" class="font-bold text-slate-200"></span>"? This action cannot be undone.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeDeleteModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="button" id="confirm-delete-btn" class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Version Confirmation Modal -->
+    <div id="restore-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="restore-modal-backdrop"></div>
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-md p-6" id="restore-modal-panel">
+            <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-900/30 text-blue-400">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-semibold leading-6 text-white">Restore Version</h3>
+                    <p class="mt-2 text-sm text-slate-400" id="restore-modal-body">Restore this flow to the selected version?</p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeRestoreModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="button" id="confirm-restore-btn" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition-colors">Restore</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="help-modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="help-modal-backdrop"></div>
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-2xl max-h-[80vh]" id="help-modal-panel">
+            <div class="flex justify-between items-center p-4 border-b border-slate-800">
+                <h3 class="text-lg font-semibold leading-6 text-white" id="help-modal-title">AI Flow Help</h3>
+                <button onclick="closeHelpModal()" class="text-slate-500 hover:text-slate-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div id="help-content" class="overflow-y-auto max-h-[calc(80vh-60px)]">
+                {% include 'ai_flow_help.html' %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Configuration Modal -->
+    <div id="config-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="config-modal-backdrop"></div>
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-lg p-6" id="config-modal-panel">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold leading-6 text-white">Node Configuration</h3>
+                <button onclick="closeConfigModal()" class="text-slate-500 hover:text-slate-300">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="mb-4 max-h-[65vh] overflow-y-auto custom-scrollbar pr-2">
+                <div class="mb-4 pb-4 border-b border-slate-800">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Explanation (Optional)</label>
+                    <input type="text" id="node-explanation-input" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Short description of this step...">
+                </div>
+                <!-- Default JSON Editor -->
+                <div id="config-default">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Configuration (JSON)</label>
+                    <textarea id="node-config-input" rows="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar"></textarea>
+                    <p class="text-xs text-slate-500 mt-2">Enter valid JSON. Example: {"model": "gpt-4", "temperature": 0.5}</p>
+                </div>
+                <!-- Delay Node Editor -->
+                <div id="config-delay" class="hidden">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Delay Duration (Seconds)</label>
+                    <input type="number" id="delay-seconds-input" step="0.1" min="0" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Time to pause execution before proceeding.</p>
+                </div>
+                <!-- System Prompt Editor -->
+                <div id="config-system-prompt" class="hidden">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">System Prompt</label>
+                    <textarea id="system-prompt-input" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar" placeholder="You are a helpful AI..."></textarea>
+                    <p class="text-xs text-slate-500 mt-2">Define the persona and instructions for the AI.</p>
+                    
+                    <div class="mt-4 pt-4 border-t border-slate-800">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Token Budget</label>
+                        <input type="number" id="system-prompt-max-tokens" min="500" max="32000" step="100" value="4000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">Maximum tokens for context (plan + memory + knowledge + reasoning + skills). Lower priority content is dropped when budget is exceeded. Default: 4000</p>
+                    </div>
+                        
+                    <div class="mt-4 pt-4 border-t border-slate-800">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Available Tools</label>
+                        <p class="text-xs text-slate-500 mb-3">Select which tools to include in the system prompt:</p>
+                        <div id="system-prompt-tools-checklist" class="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-950 border border-slate-700 rounded-xl p-3"></div>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-slate-800">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Available Skills</label>
+                        <p class="text-xs text-slate-500 mb-3">Select which skills/guidelines to include:</p>
+                        <div id="system-prompt-skills-checklist" class="space-y-2 max-h-32 overflow-y-auto custom-scrollbar bg-slate-950 border border-slate-700 rounded-xl p-3">
+                            <div class="animate-pulse text-slate-600 text-xs">Loading skills...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Python Script Editor -->
+                <div id="config-script" class="hidden">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Python Code</label>
+                    <textarea id="script-code-input" rows="15" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all custom-scrollbar whitespace-pre" placeholder="# Write your Python code here...&#10;# Available variables: data (input), result (output), json, re&#10;result['processed'] = True" spellcheck="false"></textarea>
+                    <p class="text-xs text-slate-500 mt-2">Write valid Python code. Input data is in `data` dict. Assign output to `result` dict.</p>
+                </div>
+                <!-- LLM Node Editor -->
+                <div id="config-llm" class="hidden">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Model Override</label>
+                            <input type="text" id="llm-model-input" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Default (from Settings)">
+                            <p class="text-xs text-slate-500 mt-2">Override the system default model for this specific step.</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                                <input type="number" id="llm-temperature-input" step="0.1" min="0" max="2" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Default">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                                <input type="number" id="llm-max-tokens-input" step="1" min="1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Default">
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-800 pt-4">
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Reasoning Effort</label>
+                            <select id="llm-reasoning-effort-input" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                <option value="">None (Default)</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                            <p class="text-xs text-slate-500 mt-2">For reasoning models (e.g. o1). Controls the effort spent thinking.</p>
+                        </div>
+                        
+                        <div class="border-t border-slate-800 pt-4">
+                            <label class="flex items-center space-x-3 cursor-pointer">
+                                <input type="checkbox" id="llm-json-mode-input" class="form-checkbox h-5 w-5 text-blue-600 bg-slate-950 border-slate-700 rounded focus:ring-blue-500">
+                                <span class="text-sm font-medium text-slate-400">JSON Mode</span>
+                            </label>
+                            <p class="text-xs text-slate-500 mt-1 pl-8">Forces the model to output valid JSON (requires compatible model).</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Repeater Node Editor -->
+                <div id="config-repeater" class="hidden">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-3">Delay Interval</label>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Hours</label>
+                                    <input type="number" id="repeater-hours-input" min="0" max="23" value="0" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Minutes</label>
+                                    <input type="number" id="repeater-minutes-input" min="0" max="59" value="0" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-500 mb-1">Seconds</label>
+                                    <input type="number" id="repeater-seconds-input" min="0" max="59" value="5" step="0.1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-2">Time to wait before re-triggering the flow.</p>
+                        </div>
+                        
+                        <div class="border-t border-slate-800 pt-4">
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Repeats</label>
+                            <input type="number" id="repeater-count-input" min="0" value="1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Maximum number of times to repeat. Set to 0 to loop indefinitely.</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Scheduled Start Node Editor -->
+                <div id="config-schedule-start" class="hidden">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Schedule Date (Optional)</label>
+                            <input type="date" id="schedule-date-input" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Leave empty to schedule for today/tomorrow.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Schedule Time</label>
+                            <input type="time" id="schedule-time-input" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">The flow will wait until this time before proceeding.</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Reasoning Load Node Editor -->
+                <div id="config-reasoning-load" class="hidden">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Last N Reasonings</label>
+                    <input type="number" id="reasoning-load-n-input" min="1" value="5" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Number of recent reasoning steps to retain.</p>
+                </div>
+        <!-- Tool Dispatcher Editor -->
+        <div id="config-tools" class="hidden">
+            <label class="block text-sm font-medium text-slate-400 mb-2">Enabled Tools</label>
+            <div id="tools-checklist" class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar bg-slate-950 border border-slate-700 rounded-xl p-4"></div>
+            <p class="text-xs text-slate-500 mt-2">Select which tools this dispatcher is allowed to execute. Leave all unchecked to allow all.</p>
+        </div>
+        <!-- Agent Loop Node Editor -->
+        <div id="config-agent-loop" class="hidden">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Iterations</label>
+                    <input type="number" id="agent-loop-max-iterations" min="1" max="50" value="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Maximum number of LLM ↔ Tool loops.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                    <input type="number" id="agent-loop-temperature" min="0" max="2" step="0.1" value="0.7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">LLM temperature (0-2).</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                    <input type="number" id="agent-loop-max-tokens" min="100" max="32000" step="100" value="2048" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Maximum tokens in LLM response.</p>
+                </div>
+                <div class="border-t border-slate-800 pt-4">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Include in Context</p>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="agent-loop-include-plan" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Execution Plan (from Planner)</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="agent-loop-include-memory" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Memory Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="agent-loop-include-knowledge" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Knowledge Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="agent-loop-include-reasoning" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Reasoning Context</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Hybrid Agent Loop Node Editor -->
+        <div id="config-hybrid-agent" class="hidden">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Iterations</label>
+                    <input type="number" id="hybrid-agent-max-iterations" min="1" max="50" value="15" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Maximum number of LLM ↔ Tool loops.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                    <input type="number" id="hybrid-agent-temperature" min="0" max="2" step="0.1" value="0.7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">LLM temperature (0-2).</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                    <input type="number" id="hybrid-agent-max-tokens" min="100" max="32000" step="100" value="4096" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Maximum tokens in LLM response.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Large Output Threshold (chars)</label>
+                    <input type="number" id="hybrid-agent-large-output-threshold" min="100" max="50000" step="100" value="3000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Tool outputs larger than this are stored as variables instead of injected inline.</p>
+                </div>
+                <div class="border-t border-slate-800 pt-4">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Include in Context</p>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="hybrid-agent-include-plan" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Execution Plan (from Planner)</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="hybrid-agent-include-memory" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Memory Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="hybrid-agent-include-knowledge" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Knowledge Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="hybrid-agent-include-reasoning" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Reasoning Context</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Goal Pursuit Agent Node Editor -->
+        <div id="config-goal-pursuit" class="hidden">
+            <div class="space-y-4">
+                <div class="bg-slate-900 border border-blue-900/40 rounded-xl p-3">
+                    <p class="text-xs text-blue-400">Self-planning agent: creates its own step-by-step plan, executes each step via the hybrid tool loop, evaluates outcomes with an LLM judge, and replans when steps fail. Inherits full RLM variable-storage capabilities.</p>
+                </div>
+                <div class="border-t border-slate-800 pt-3">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Planning</p>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Steps</label>
+                            <input type="number" id="gp-max-steps" min="1" max="30" value="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Maximum steps in the generated plan.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Planning Temperature</label>
+                            <input type="number" id="gp-planning-temperature" min="0" max="2" step="0.05" value="0.1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Lower = more deterministic plans (default 0.1).</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Replan Depth</label>
+                            <input type="number" id="gp-max-replan-depth" min="0" max="10" value="3" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">How many times the agent may revise the plan before giving up. 0 = unlimited.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-3">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Execution</p>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Iterations per Step</label>
+                            <input type="number" id="gp-max-iterations-per-step" min="1" max="50" value="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Hybrid loop LLM ↔ Tool iterations per plan step.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Temperature</label>
+                            <input type="number" id="gp-temperature" min="0" max="2" step="0.1" value="0.7" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">LLM temperature during step execution.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Tokens</label>
+                            <input type="number" id="gp-max-tokens" min="100" max="32000" step="100" value="4096" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Maximum tokens per LLM response.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Large Output Threshold (chars)</label>
+                            <input type="number" id="gp-large-output-threshold" min="100" max="50000" step="100" value="3000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Tool outputs larger than this are stored as named variables (RLM-style) rather than injected inline.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Timeout (seconds)</label>
+                            <input type="number" id="gp-timeout" min="0" max="3600" step="30" value="300" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Total timeout for the full goal pursuit run. 0 = disabled.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-3">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Evaluation</p>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Eval Temperature</label>
+                            <input type="number" id="gp-eval-temperature" min="0" max="2" step="0.05" value="0.1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-1">Temperature for the LLM step-outcome judge (default 0.1).</p>
+                        </div>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" id="gp-enable-step-evaluation" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Enable Step Evaluation</span>
+                        </label>
+                        <p class="text-xs text-slate-500 pl-7">When enabled, an LLM judge call decides if each step truly succeeded. When disabled, falls back to structural checks (content exists + no tool errors).</p>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" id="gp-enable-synthesis" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Enable Final Synthesis</span>
+                        </label>
+                        <p class="text-xs text-slate-500 pl-7">After all steps complete, synthesize results into a single coherent answer. Disable for single-step tasks or when the last step already produces the final output.</p>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-3">
+                    <p class="text-sm text-slate-300 font-semibold mb-3">Include in Context</p>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="gp-include-memory" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Memory Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="gp-include-knowledge" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Knowledge Context</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="gp-include-reasoning" checked class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                            <span class="text-sm text-slate-300">Reasoning Context</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Planner Node Editor -->
+        <div id="config-planner" class="hidden">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Steps</label>
+                    <input type="number" id="planner-max-steps" min="1" max="20" value="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Maximum number of steps in a plan.</p>
+                </div>
+                <div class="border-t border-slate-800 pt-4">
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="checkbox" id="planner-auto-track" class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm font-medium text-slate-300">Auto Track</span>
+                    </label>
+                    <p class="text-xs text-slate-500 mt-2 pl-8">Enable to automatically track plan progress in the same node. When enabled, the planner will handle both planning and step progression.</p>
+                </div>
+            </div>
+        </div>
+        <!-- Messaging Input Node Editor -->
+        <div id="config-messaging-input" class="hidden">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-3">Accept messages from</label>
+                    <div id="messaging-input-platforms" class="space-y-2 bg-slate-950 border border-slate-700 rounded-xl p-4"></div>
+                    <p class="text-xs text-slate-500 mt-2">Leave all unchecked to accept messages from any platform.</p>
+                </div>
+            </div>
+        </div>
+        <!-- Messaging Output Node Editor -->
+        <div id="config-messaging-output" class="hidden">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-3">Send reply via</label>
+                    <div id="messaging-output-platform" class="space-y-2 bg-slate-950 border border-slate-700 rounded-xl p-4"></div>
+                    <p class="text-xs text-slate-500 mt-2">Auto routes the reply back to the same platform the message came from.</p>
+                </div>
+            </div>
+        </div>
+        <!-- Conditional Router Editor -->
+        <div id="config-conditional-router" class="hidden">
+            <div class="space-y-4">
+                <div class="bg-slate-950 border border-slate-700 rounded-xl p-4">
+                    <p class="text-sm text-slate-300 font-semibold mb-1">Check Field Options</p>
+                    <p class="text-xs text-slate-500 mb-2">• tool_calls - check if LLM returned tool calls</p>
+                    <p class="text-xs text-slate-500 mb-2">• requires_continuation - check if tool dispatcher has more tools pending</p>
+                    <p class="text-xs text-slate-500 mb-2">• max_tools_per_turn - limit tools per turn with max_tools_per_turn value</p>
+                    <p class="text-xs text-slate-500">• satisfied - check if reflection/agent was satisfied (from reflection node)</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Field to Check</label>
+                    <select id="router-check-field" onchange="toggleMaxToolsField()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <option value="tool_calls">tool_calls - check if LLM returned tool calls</option>
+                        <option value="requires_continuation">requires_continuation - check if tool dispatcher has more tools pending</option>
+                        <option value="max_tools_per_turn">max_tools_per_turn - limit tools per turn</option>
+                        <option value="satisfied">satisfied - check if reflection/agent was satisfied</option>
+                    </select>
+                    <p class="text-xs text-slate-500 mt-2">The field name to check for existence in the data.</p>
+                </div>
+
+                <div id="router-max-tools-container" class="hidden">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Tools Per Turn</label>
+                    <input type="number" id="router-max-tools" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="5" min="1" max="20">
+                    <p class="text-xs text-slate-500 mt-2">Max tools to allow per turn.</p>
+                </div>
+                
+                <div class="border-t border-slate-800 pt-4 mt-4">
+                    <label class="block text-sm font-medium text-slate-400 mb-3">Route to Multiple Nodes</label>
+                    <p class="text-xs text-slate-500 mb-4">Select which nodes receive data for each condition result (true/false). A node can receive data from both.</p>
+                    
+                    <div id="router-branches-container" class="space-y-4">
+                        Loading connected nodes...
+                    </div>
+                </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="closeConfigModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="button" onclick="saveNodeConfig()" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 transition-colors">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Canvas Confirmation Modal -->
+    <div id="clear-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="clear-modal-backdrop"></div>
+
+        <!-- Modal Panel -->
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-md p-6" id="clear-modal-panel">
+            <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-900/30 text-yellow-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">New Flow</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-slate-400">Any unsaved changes in the canvas will be lost. Are you sure you want to create a new flow?</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeClearModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="button" onclick="confirmClearCanvas()" class="rounded-xl bg-yellow-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-yellow-500 transition-colors">Create New Flow</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+    (function() {
+        const canvas = document.getElementById('canvas');
+        // If the canvas element doesn't exist, or if this script has already run on it,
+        // don't re-initialize. This prevents issues with HTMX navigation.
+        if (!canvas || canvas.dataset.initialized === 'true') {
+            return;
+        }
+        canvas.dataset.initialized = 'true';
+
+        // --- Configuration from Server ---
+        const singletonNodeTypeIds = new Set();
+        {% for module in modules %}
+            {% if module.provides_nodes %}
+                {% for node in module.provides_nodes %}
+                    {% if node.singleton and node.id != 'llm_module' and node.id != 'system_prompt' and node.id != 'telegram_output' %}
+                        singletonNodeTypeIds.add('{{ node.id }}');
+                    {% endif %}
+                {% endfor %}
+            {% elif module.get('is_flow_node') and module.singleton and module.id != 'llm_module' and module.id != 'system_prompt' %}
+                singletonNodeTypeIds.add('{{ module.id }}');
+            {% endif %}
+        {% endfor %}
+
+        const configurableNodeTypeIds = new Set();
+        {% for module in modules %}
+            {% if module.provides_nodes %}
+                {% for node in module.provides_nodes %}
+                    {% if node.get('configurable') %}
+                        configurableNodeTypeIds.add('{{ node.id }}');
+                    {% endif %}
+                {% endfor %}
+            {% elif module.get('is_flow_node') and module.get('configurable') %}
+                configurableNodeTypeIds.add('{{ module.id }}');
+            {% endif %}
+        {% endfor %}
+
+        const moduleIcons = {};
+        {% for module in modules %}
+            {% if module.icon %}
+                moduleIcons['{{ module.id }}'] = '{{ module.icon }}';
+            {% endif %}
+        {% endfor %}
+
+        // --- State Variables ---
+        let nodes = [];
+        let connections = [];
+        let bridges = [];
+        let nextNodeId = 0;
+        let activeConfigNodeId = null;
+        let selectedConnection = null;
+        let selectedNodeId = null;
+        let copiedNodeData = null;
+        
+        let panX = 0, panY = 0, zoom = 1;
+        let isPanning = false;
+        let isSelecting = false;
+        let selectionStart = { x: 0, y: 0 };
+        let selectedNodeIds = new Set();
+        let lastMouseX = 0, lastMouseY = 0;
+
+        let isDrawingConnection = false;
+        let connectionStart = { node: null, element: null };
+        let isDrawingBridge = false;
+        let activeDrawingLine = null;
+
+        const svg = document.getElementById('canvas-svg');
+        const bin = document.getElementById('canvas-bin');
+        
+        // Create a container for all transformable elements (nodes and svg lines)
+        const nodeAndSvgContainer = document.createElement('div');
+        nodeAndSvgContainer.id = 'node-container';
+        nodeAndSvgContainer.style.position = 'absolute';
+        nodeAndSvgContainer.style.transformOrigin = '0 0';
+        nodeAndSvgContainer.style.inset = '0'; // Make it fill the parent canvas
+        canvas.appendChild(nodeAndSvgContainer);
+        nodeAndSvgContainer.appendChild(svg);
+
+        // The canvas (viewport) must be the target for drag and drop events
+        canvas.addEventListener('dragover', onDragOver);
+        canvas.addEventListener('drop', onDrop);
+
+        // --- Core Canvas and Interaction Functions ---
+
+        function toggleMaxToolsField() {
+            const checkField = document.getElementById('router-check-field');
+            const maxToolsContainer = document.getElementById('router-max-tools-container');
+            if (checkField && maxToolsContainer) {
+                if (checkField.value === 'max_tools_per_turn') {
+                    maxToolsContainer.classList.remove('hidden');
+                } else {
+                    maxToolsContainer.classList.add('hidden');
+                }
+            }
+        }
+
+        function updateCanvasTransform() {
+            nodeAndSvgContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+            canvas.style.backgroundSize = `${30 * zoom}px ${30 * zoom}px`;
+            canvas.style.backgroundPosition = `${panX}px ${panY}px`;
+        }
+
+        function clearConnectionState() {
+            if (connectionStart.element) {
+                connectionStart.element.classList.remove('connecting');
+            }
+            // Also clear bridge connecting state
+            document.querySelectorAll('.sync-point').forEach(el => el.classList.remove('connecting'));
+            if (activeDrawingLine) {
+                activeDrawingLine.remove();
+                activeDrawingLine = null;
+            }
+            document.onmousemove = null;
+            isDrawingConnection = false;
+            isDrawingBridge = false;
+            connectionStart = { node: null, element: null };
+        }
+        
+        function clearNodeSelection() {
+            selectedNodeIds = new Set();
+            nodes.forEach(node => {
+                const nodeEl = document.getElementById(node.id);
+                if (nodeEl) {
+                    nodeEl.classList.remove('selected-node');
+                }
+            });
+            selectedNodeId = null;
+        }
+
+        // --- Event Listeners for Pan, Zoom, and Interaction ---
+        canvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const zoomSpeed = 0.1;
+            const oldZoom = zoom;
+            
+            if (event.deltaY < 0) {
+                zoom = Math.min(2, zoom + zoomSpeed); // Zoom in, max 2x
+            } else {
+                zoom = Math.max(0.2, zoom - zoomSpeed); // Zoom out, min 0.2x
+            }
+
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const contentMouseX = (mouseX - panX) / oldZoom;
+            const contentMouseY = (mouseY - panY) / oldZoom;
+
+            panX = mouseX - contentMouseX * zoom;
+            panY = mouseY - contentMouseY * zoom;
+
+            updateCanvasTransform();
+        });
+
+        canvas.addEventListener('mousedown', (event) => {
+            // Check if clicking on empty canvas area
+            const isEmptySpace = event.target === canvas || event.target === svg || event.target.id === 'node-container';
+            
+            // Clear drawing connection on empty space
+            if ((isDrawingConnection || isDrawingBridge) && isEmptySpace) {
+                clearConnectionState();
+                event.preventDefault();
+                return;
+            }
+            
+            // Deselect on left click on empty space
+            if (event.button === 0 && isEmptySpace) {
+                if (selectedNodeId || selectedNodeIds.size > 0) {
+                    clearNodeSelection();
+                    selectedConnection = null;
+                    drawConnections();
+                }
+            }
+            
+            // Ctrl + Left click for selection box
+            if (event.ctrlKey && event.button === 0 && isEmptySpace) {
+                isSelecting = true;
+                const rect = canvas.getBoundingClientRect();
+                selectionStart = {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top
+                };
+                
+                const selectionBox = document.getElementById('selection-box');
+                selectionBox.style.left = selectionStart.x + 'px';
+                selectionBox.style.top = selectionStart.y + 'px';
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.classList.remove('hidden');
+                
+                // Deselect previous selections
+                clearNodeSelection();
+                
+                event.preventDefault();
+                return;
+            }
+            
+            // Allow panning with Middle mouse (1) OR Left mouse (0) on empty space
+            if (event.button === 1 || (event.button === 0 && isEmptySpace)) {
+                isPanning = true;
+                canvas.style.cursor = 'grabbing';
+                
+                // Deselect connection if clicking on empty space
+                if (selectedConnection) {
+                    selectedConnection = null;
+                    drawConnections();
+                }
+
+                // Deselect node if clicking on empty space
+                if (selectedNodeId) {
+                    const prevNode = document.getElementById(selectedNodeId);
+                    if (prevNode) {
+                        prevNode.classList.remove('selected-node');
+                    }
+                    selectedNodeId = null;
+                }
+                
+                event.preventDefault();
+            }
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            lastMouseX = event.clientX - rect.left;
+            lastMouseY = event.clientY - rect.top;
+
+            if (isPanning) {
+                panX += event.movementX;
+                panY += event.movementY;
+                updateCanvasTransform();
+            }
+            
+            if (isSelecting) {
+                // Get current mouse position in screen coordinates
+                const currentScreenX = event.clientX - rect.left;
+                const currentScreenY = event.clientY - rect.top;
+                
+                const selectionBox = document.getElementById('selection-box');
+                const left = Math.min(selectionStart.x, currentScreenX);
+                const top = Math.min(selectionStart.y, currentScreenY);
+                const width = Math.abs(currentScreenX - selectionStart.x);
+                const height = Math.abs(currentScreenY - selectionStart.y);
+                
+                selectionBox.style.left = left + 'px';
+                selectionBox.style.top = top + 'px';
+                selectionBox.style.width = width + 'px';
+                selectionBox.style.height = height + 'px';
+            }
+        });
+
+        window.addEventListener('mouseup', (event) => {
+            if (isPanning) {
+                isPanning = false;
+                canvas.style.cursor = 'default';
+            }
+            
+            if (isSelecting) {
+                isSelecting = false;
+                const selectionBox = document.getElementById('selection-box');
+                const boxLeft = parseInt(selectionBox.style.left);
+                const boxTop = parseInt(selectionBox.style.top);
+                const boxWidth = parseInt(selectionBox.style.width);
+                const boxHeight = parseInt(selectionBox.style.height);
+                
+                // Convert selection box from screen coordinates to canvas coordinates
+                const canvasBoxRect = {
+                    left: (boxLeft - panX) / zoom,
+                    top: (boxTop - panY) / zoom,
+                    right: (boxLeft + boxWidth - panX) / zoom,
+                    bottom: (boxTop + boxHeight - panY) / zoom
+                };
+                
+                // If Ctrl is not held, clear previous selection first
+                if (!event.ctrlKey && !event.metaKey) {
+                    clearNodeSelection();
+                }
+                
+                // Check which nodes are within the selection box
+                const newlySelected = [];
+                nodes.forEach(node => {
+                    const nodeEl = document.getElementById(node.id);
+                    if (nodeEl) {
+                        const nodeRect = {
+                            left: parseInt(nodeEl.style.left),
+                            top: parseInt(nodeEl.style.top),
+                            right: parseInt(nodeEl.style.left) + nodeEl.offsetWidth,
+                            bottom: parseInt(nodeEl.style.top) + nodeEl.offsetHeight
+                        };
+                        
+                        // Check intersection
+                        if (!(canvasBoxRect.right < nodeRect.left || 
+                              canvasBoxRect.left > nodeRect.right || 
+                              canvasBoxRect.bottom < nodeRect.top || 
+                              canvasBoxRect.top > nodeRect.bottom)) {
+                            if (!selectedNodeIds.has(node.id)) {
+                                newlySelected.push(node.id);
+                            }
+                            selectedNodeIds.add(node.id);
+                            nodeEl.classList.add('selected-node');
+                        }
+                    }
+                });
+                
+                selectionBox.classList.add('hidden');
+                
+                if (selectedNodeIds.size > 0) {
+                    selectedNodeId = Array.from(selectedNodeIds)[0];
+                }
+            }
+        });
+
+        // Global Keydown for Deletion
+        window.addEventListener('keydown', (event) => {
+            const activeEl = document.activeElement;
+            const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+            if (isInputFocused) return;
+
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                if (selectedConnection) {
+                    deleteSelectedConnection();
+                }
+                if (selectedNodeIds.size > 0) {
+                    // Delete all selected nodes
+                    [...selectedNodeIds].forEach(nodeId => deleteNode(nodeId));
+                    selectedNodeIds = new Set();
+                    selectedNodeId = null;
+                } else if (selectedNodeId) {
+                    deleteNode(selectedNodeId);
+                    selectedNodeId = null;
+                }
+            }
+
+            // Copy (Ctrl+C)
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+                const nodesToCopy = selectedNodeIds.size > 0 ? [...selectedNodeIds] : (selectedNodeId ? [selectedNodeId] : []);
+                
+                if (nodesToCopy.length > 0) {
+                    const nodeObjects = nodesToCopy.map(nodeId => nodes.find(n => n.id === nodeId)).filter(n => n !== undefined);
+                    
+                    if (nodeObjects.length > 0) {
+                        const minX = Math.min(...nodeObjects.map(n => n.x));
+                        const minY = Math.min(...nodeObjects.map(n => n.y));
+                        
+                        const nodeIdToIndex = {};
+                        copiedNodeData = {
+                            nodes: nodeObjects.map((node, index) => {
+                                nodeIdToIndex[node.id] = index;
+                                return {
+                                    moduleId: node.moduleId,
+                                    name: node.name,
+                                    nodeTypeId: node.nodeTypeId,
+                                    config: JSON.parse(JSON.stringify(node.config || {})),
+                                    isReverted: node.isReverted,
+                                    relX: node.x - minX,
+                                    relY: node.y - minY
+                                };
+                            }),
+                            connections: []
+                        };
+                        
+                        if (nodeObjects.length > 1) {
+                            const nodeIdSet = new Set(nodeObjects.map(n => n.id));
+                            connections.forEach(conn => {
+                                const fromIndex = nodeIdToIndex[conn.from.node];
+                                const toIndex = nodeIdToIndex[conn.to.node];
+                                if (fromIndex !== undefined && toIndex !== undefined) {
+                                    copiedNodeData.connections.push({
+                                        from: { index: fromIndex, port: conn.from.port },
+                                        to: { index: toIndex, port: conn.to.port }
+                                    });
+                                }
+                            });
+                        }
+                        
+                        showToast(`${nodeObjects.length} node(s) copied`, 'info');
+                    }
+                }
+            }
+
+            // Paste (Ctrl+V)
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+                if (copiedNodeData && copiedNodeData.nodes && copiedNodeData.nodes.length > 0) {
+                    const x = (lastMouseX - panX) / zoom;
+                    const y = (lastMouseY - panY) / zoom;
+                    
+                    const newNodes = [];
+                    
+                    copiedNodeData.nodes.forEach(nodeData => {
+                        const newNode = createNode(
+                            nodeData.moduleId,
+                            nodeData.name,
+                            nodeData.nodeTypeId,
+                            x + nodeData.relX,
+                            y + nodeData.relY,
+                            null,
+                            nodeData.config,
+                            nodeData.isReverted
+                        );
+                        if (newNode) {
+                            newNodes.push(newNode);
+                        }
+                    });
+                    
+                    if (copiedNodeData.connections && copiedNodeData.connections.length > 0 && newNodes.length > 0) {
+                        copiedNodeData.connections.forEach(conn => {
+                            const fromNodeId = newNodes[conn.from.index]?.id;
+                            const toNodeId = newNodes[conn.to.index]?.id;
+                            
+                            if (fromNodeId && toNodeId) {
+                                connections.push({
+                                    from: { node: fromNodeId, port: conn.from.port },
+                                    to: { node: toNodeId, port: conn.to.port }
+                                });
+                            }
+                        });
+                        drawConnections();
+                    }
+                    
+                    showToast(`${copiedNodeData.nodes.length} node(s) pasted`, 'info');
+                }
+            }
+
+            // Select All (Ctrl+A)
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+                event.preventDefault();
+                selectedNodeIds = new Set(nodes.map(n => n.id));
+                nodes.forEach(node => {
+                    const nodeEl = document.getElementById(node.id);
+                    if (nodeEl) nodeEl.classList.add('selected-node');
+                });
+                showToast(`Selected ${selectedNodeIds.size} nodes`, 'info');
+            }
+        });
+
+        window.populateHiddenFields = function(event) {
+            document.querySelector('#save-flow-form input[name="nodes"]').value = JSON.stringify(nodes);
+            document.querySelector('#save-flow-form input[name="connections"]').value = JSON.stringify(connections);
+            document.querySelector('#save-flow-form input[name="bridges"]').value = JSON.stringify(bridges);
+        }
+
+        window.onDragStart = function(event, moduleId, nodeName, nodeTypeId) {
+            event.dataTransfer.setData('text/plain', JSON.stringify({ moduleId, nodeName, nodeTypeId }));
+        }
+
+        function onDragOver(event) {
+            event.preventDefault();
+        }
+
+        function onDrop(event) {
+            event.preventDefault();
+            const data = JSON.parse(event.dataTransfer.getData('text/plain'));
+            const rect = canvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left - panX) / zoom;
+            const y = (event.clientY - rect.top - panY) / zoom;
+
+            createNode(data.moduleId, data.nodeName, data.nodeTypeId, x, y);
+        }
+
+        function createNode(moduleId, name, nodeTypeId, x, y, existingId = null, existingConfig = {}, isReverted = false) {
+            // Rule: If a node is marked as a singleton, only one can exist in the flow.
+            // We check !existingId to ensure this rule only applies when a user drags a new node.
+            if (!existingId && singletonNodeTypeIds.has(nodeTypeId)) {
+                if (nodes.some(n => n.nodeTypeId === nodeTypeId)) {
+                    showToast(`Only one "${name}" node can be added to a flow.`, 'error');
+                    return;
+                }
+            }
+
+            let nodeId;
+            if (existingId) {
+                nodeId = existingId;
+                const numericId = parseInt(existingId.split('-')[1]);
+                if (!isNaN(numericId) && numericId >= nextNodeId) {
+                    nextNodeId = numericId + 1;
+                }
+            } else {
+                nodeId = `node-${nextNodeId++}`;
+            }
+
+            const isConfigurable = configurableNodeTypeIds.has(nodeTypeId);
+            const isTriggerable = nodeTypeId === 'trigger_node' || nodeTypeId === 'repeater_node';
+            const isSyncNode = ['reasoning_load', 'reasoning_save', 'memory_recall', 'memory_save', 'knowledge_query', 'query_knowledge', 'system_prompt', 'check_goal'].includes(nodeTypeId);
+            const iconPath = moduleIcons[moduleId];
+
+            const nodeElement = document.createElement('div');
+            nodeElement.id = nodeId;
+            
+            // Special handling for comment nodes
+            if (nodeTypeId === 'comment_node') {
+                const width = existingConfig.width || 200;
+                const height = existingConfig.height || 100;
+                const bgColor = existingConfig.bgColor || '#713f12';
+                const textColor = existingConfig.textColor || '#fde047';
+                const textAlign = existingConfig.textAlign || 'left';
+                const fontSize = existingConfig.fontSize || '14';
+                const fontStyle = existingConfig.fontStyle || 'normal';
+                const fontWeight = existingConfig.fontWeight || 'normal';
+                
+                nodeElement.className = 'absolute bg-yellow-900/40 border-2 border-dashed border-yellow-600/50 rounded-xl shadow-lg flex flex-col cursor-move';
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                nodeElement.style.width = `${width}px`;
+                nodeElement.style.height = `${height}px`;
+                nodeElement.innerHTML = `
+                    <div class="comment-toolbar hidden flex items-center justify-center px-2 py-1 bg-yellow-900/60 border-b border-yellow-600/30 text-xs">
+                        <div class="flex items-center space-x-1">
+                            <button type="button" class="toolbar-btn p-1 hover:bg-yellow-700/50 rounded" data-align="left" title="Align Left">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h14"></path></svg>
+                            </button>
+                            <button type="button" class="toolbar-btn p-1 hover:bg-yellow-700/50 rounded" data-align="center" title="Align Center">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M5 18h14"></path></svg>
+                            </button>
+                            <button type="button" class="toolbar-btn p-1 hover:bg-yellow-700/50 rounded" data-align="right" title="Align Right">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M6 18h14"></path></svg>
+                            </button>
+                            <div class="w-px h-4 bg-yellow-600/30 mx-1"></div>
+                            <button type="button" class="toolbar-btn p-1 hover:bg-yellow-700/50 rounded" data-fontstyle="italic" title="Italic">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 4h4m-2 0v16m-4 0h8"></path></svg>
+                            </button>
+                            <button type="button" class="toolbar-btn p-1 hover:bg-yellow-700/50 rounded" data-fontweight="bold" title="Bold">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6zM6 12h9a4 4 0 014 4 4 4 0 01-4 4H6z"></path></svg>
+                            </button>
+                            <div class="w-px h-4 bg-yellow-600/30 mx-1"></div>
+                            <select class="toolbar-select bg-yellow-900/50 text-yellow-200 text-xs px-1 py-0.5 rounded border border-yellow-600/30 focus:outline-none">
+                                <option value="12" ${fontSize === '12' ? 'selected' : ''}>Small</option>
+                                <option value="14" ${fontSize === '14' ? 'selected' : ''}>Medium</option>
+                                <option value="16" ${fontSize === '16' ? 'selected' : ''}>Large</option>
+                                <option value="18" ${fontSize === '18' ? 'selected' : ''}>XL</option>
+                            </select>
+                            <div class="w-px h-4 bg-yellow-600/30 mx-1"></div>
+                            <input type="color" class="toolbar-color w-5 h-5 rounded cursor-pointer bg-transparent border-0" value="${bgColor}" title="Background Color">
+                            <div class="w-px h-4 bg-yellow-600/30 mx-1"></div>
+                            <input type="color" class="toolbar-text-color w-5 h-5 rounded cursor-pointer bg-transparent border-0" value="${textColor}" title="Text Color">
+                        </div>
+                    </div>
+                    <textarea class="comment-textarea flex-grow w-full h-full bg-transparent p-2 resize-none focus:outline-none custom-scrollbar" 
+                        placeholder="Type your comment..."
+                        style="text-align: ${textAlign}; font-size: ${fontSize}px; font-style: ${fontStyle}; font-weight: ${fontWeight}; color: ${textColor};">${existingConfig.text || ''}</textarea>
+                    <div class="comment-resize-handle absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"></div>
+                `;
+            } else {
+                const displayTitle = name;
+                
+                let nodeWidthClass = 'w-48';
+
+                nodeElement.className = `absolute bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-2xl cursor-move ${nodeWidthClass}`;
+                nodeElement.style.left = `${x}px`;
+                nodeElement.style.top = `${y}px`;
+                nodeElement.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-start max-w-[90%]">
+                            ${iconPath ? `<svg class="w-4 h-4 text-slate-400 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"></path></svg>` : ''}
+                            <div class="overflow-hidden w-full">
+                                <div class="font-bold text-xs uppercase text-slate-200 pointer-events-none truncate" id="title-${nodeId}">${displayTitle}</div>
+                                <div id="explanation-${nodeId}" class="text-[10px] text-slate-500 mt-0.5 leading-tight w-full line-clamp-3 break-words ${existingConfig.explanation ? '' : 'hidden'}">${existingConfig.explanation || ''}</div>
+                                ${nodeTypeId === 'system_prompt' ? `
+                                <div id="prompt-preview-${nodeId}" class="text-[9px] text-slate-400 mt-1 line-clamp-2 break-words">${existingConfig.system_prompt ? existingConfig.system_prompt.substring(0, 50) + (existingConfig.system_prompt.length > 50 ? '...' : '') : 'No prompt'}</div>
+                                ${(existingConfig.enabled_tools || []).length > 0 ? `
+                                <div id="tools-badge-${nodeId}" class="text-[9px] text-blue-400 mt-1">
+                                    <span class="bg-blue-900/30 px-2 py-0.5 rounded">${(existingConfig.enabled_tools || []).length} tools</span>
+                                </div>
+                                ` : ''}
+                                ` : ''}
+                                ${nodeTypeId === 'tool_dispatcher' && (existingConfig.allowed_tools || []).length > 0 ? `
+                                <div id="tools-badge-${nodeId}" class="text-[9px] text-purple-400 mt-1 flex flex-wrap gap-1">
+                                    ${(existingConfig.allowed_tools || []).slice(0, 5).map(t => `<span class="bg-purple-900/30 px-1.5 py-0.5 rounded">${t}</span>`).join('')}
+                                    ${(existingConfig.allowed_tools || []).length > 5 ? `<span class="bg-purple-900/30 px-1.5 py-0.5 rounded" title="${(existingConfig.allowed_tools || []).slice(5).join(', ')}">...</span>` : ''}
+                                </div>
+                                ` : ''}
+                                ${nodeTypeId === 'messaging_input' ? (() => {
+                                    const platforms = existingConfig.platforms || [];
+                                    const label = platforms.length === 0 ? 'All Platforms' : platforms.map(id => MESSAGING_PLATFORMS.find(p => p.id === id)?.label || id).join(', ');
+                                    return `<div id="tools-badge-${nodeId}" class="text-[9px] text-blue-400 mt-1"><span class="bg-blue-900/30 px-2 py-0.5 rounded">${label}</span></div>`;
+                                })() : ''}
+                                ${nodeTypeId === 'messaging_output' ? (() => {
+                                    const plat = existingConfig.platform || 'auto';
+                                    const platLabel = plat === 'auto' ? 'Auto' : (MESSAGING_PLATFORMS.find(p => p.id === plat)?.label || plat);
+                                    return `<div id="tools-badge-${nodeId}" class="text-[9px] text-emerald-400 mt-1"><span class="bg-emerald-900/30 px-2 py-0.5 rounded">${platLabel}</span></div>`;
+                                })() : ''}
+                            </div>
+                        </div>
+                        <div class="flex space-x-1">
+                            ${isTriggerable ? `
+                            <button class="text-slate-400 hover:text-emerald-400 transition-colors fire-btn" title="Trigger Node">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>` : ''}
+                            ${isConfigurable ? `
+                            <button class="text-slate-400 hover:text-blue-400 transition-colors config-btn" title="Configure Node">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            </button>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-slate-300 relative">
+                        <div class="input-area flex items-center space-x-2 p-1 -m-1 rounded-md hover:bg-slate-700 transition-colors cursor-pointer">
+                            <div class="w-2.5 h-2.5 bg-blue-500 rounded-full input-dot" title="Input"></div>
+                            <span>Input</span>
+                        </div>
+                        ${isSyncNode ? `
+                        <div class="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 sync-point cursor-pointer" title="Sync: Click to bridge with other sync nodes">
+                             <div class="w-5 h-5 rounded-full bg-slate-900 border border-blue-500/50 flex items-center justify-center text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)] hover:bg-blue-900/50 transition-colors">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                            </div>
+                        </div>
+                        ` : ''}
+                        <div class="output-area flex items-center space-x-2 p-1 -m-1 rounded-md hover:bg-slate-700 transition-colors cursor-pointer">
+                            <span>Output</span>
+                            <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full output-dot" title="Output"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            const nodeData = { id: nodeId, moduleId: moduleId, nodeTypeId: nodeTypeId, name: name, x: x, y: y, config: existingConfig, isReverted: isReverted };
+            
+            // Initialize default configs for specific node types
+            if (nodeTypeId === 'system_prompt' && !nodeData.config.enabled_tools) {
+                nodeData.config.enabled_tools = [];
+            }
+            if (nodeTypeId === 'tool_dispatcher' && !nodeData.config.allowed_tools) {
+                nodeData.config.allowed_tools = [];
+            }
+            if (nodeTypeId === 'comment_node') {
+                if (!nodeData.config.bgColor) nodeData.config.bgColor = '#713f12';
+                if (!nodeData.config.textColor) nodeData.config.textColor = '#fde047';
+                if (!nodeData.config.textAlign) nodeData.config.textAlign = 'left';
+                if (!nodeData.config.fontSize) nodeData.config.fontSize = '14';
+                if (!nodeData.config.fontStyle) nodeData.config.fontStyle = 'normal';
+                if (!nodeData.config.fontWeight) nodeData.config.fontWeight = 'normal';
+            }
+            
+            nodes.push(nodeData);
+
+            let isDragging = false;
+            const bin = document.getElementById('canvas-bin');
+            
+            // Logic specific to comment nodes
+            if (nodeTypeId === 'comment_node') {
+                const textarea = nodeElement.querySelector('.comment-textarea');
+                textarea.addEventListener('input', () => {
+                    nodeData.config.text = textarea.value;
+                });
+                // Prevent node drag when interacting with textarea
+                textarea.addEventListener('mousedown', (e) => e.stopPropagation());
+
+                // Toolbar event handlers
+                const toolbarBtns = nodeElement.querySelectorAll('.toolbar-btn');
+                toolbarBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const align = btn.dataset.align;
+                        const fontstyle = btn.dataset.fontstyle;
+                        const fontweight = btn.dataset.fontweight;
+                        
+                        if (align) {
+                            textarea.style.textAlign = align;
+                            nodeData.config.textAlign = align;
+                            toolbarBtns.forEach(b => {
+                                if (b.dataset.align) b.classList.remove('bg-yellow-600', 'text-white');
+                            });
+                            btn.classList.add('bg-yellow-600', 'text-white');
+                        }
+                        if (fontstyle) {
+                            const newStyle = textarea.style.fontStyle === 'italic' ? 'normal' : 'italic';
+                            textarea.style.fontStyle = newStyle;
+                            nodeData.config.fontStyle = newStyle;
+                            btn.classList.toggle('bg-yellow-600');
+                            btn.classList.toggle('text-white');
+                        }
+                        if (fontweight) {
+                            const newWeight = textarea.style.fontWeight === 'bold' ? 'normal' : 'bold';
+                            textarea.style.fontWeight = newWeight;
+                            nodeData.config.fontWeight = newWeight;
+                            btn.classList.toggle('bg-yellow-600');
+                            btn.classList.toggle('text-white');
+                        }
+                    });
+                });
+
+                // Set initial toolbar states
+                const currentAlign = nodeData.config.textAlign || 'left';
+                toolbarBtns.forEach(btn => {
+                    if (btn.dataset.align === currentAlign) {
+                        btn.classList.add('bg-yellow-600', 'text-white');
+                    }
+                    if (btn.dataset.fontstyle === 'italic' && textarea.style.fontStyle === 'italic') {
+                        btn.classList.add('bg-yellow-600', 'text-white');
+                    }
+                    if (btn.dataset.fontweight === 'bold' && textarea.style.fontWeight === 'bold') {
+                        btn.classList.add('bg-yellow-600', 'text-white');
+                    }
+                });
+
+                const fontSelect = nodeElement.querySelector('.toolbar-select');
+                if (fontSelect) {
+                    fontSelect.addEventListener('change', (e) => {
+                        e.stopPropagation();
+                        const size = e.target.value;
+                        textarea.style.fontSize = size + 'px';
+                        nodeData.config.fontSize = size;
+                    });
+                    fontSelect.addEventListener('mousedown', (e) => e.stopPropagation());
+                }
+
+                const colorInput = nodeElement.querySelector('.toolbar-color');
+                if (colorInput) {
+                    colorInput.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                        const color = e.target.value;
+                        nodeElement.style.backgroundColor = color + '40';
+                        nodeData.config.bgColor = color;
+                    });
+                    colorInput.addEventListener('mousedown', (e) => e.stopPropagation());
+                }
+
+                const textColorInput = nodeElement.querySelector('.toolbar-text-color');
+                if (textColorInput) {
+                    textColorInput.addEventListener('input', (e) => {
+                        e.stopPropagation();
+                        const color = e.target.value;
+                        textarea.style.color = color;
+                        nodeData.config.textColor = color;
+                    });
+                    textColorInput.addEventListener('mousedown', (e) => e.stopPropagation());
+                }
+
+                // Prevent toolbar interactions from triggering node drag
+                const toolbar = nodeElement.querySelector('.comment-toolbar');
+                if (toolbar) {
+                    toolbar.addEventListener('mousedown', (e) => e.stopPropagation());
+                }
+
+                const resizeHandle = nodeElement.querySelector('.comment-resize-handle');
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startWidth = parseInt(document.defaultView.getComputedStyle(nodeElement).width, 10);
+                    const startHeight = parseInt(document.defaultView.getComputedStyle(nodeElement).height, 10);
+
+                    function doResize(e) {
+                        const newWidth = startWidth + (e.clientX - startX) / zoom;
+                        const newHeight = startHeight + (e.clientY - startY) / zoom;
+                        if (newWidth > 100) { nodeElement.style.width = newWidth + 'px'; nodeData.config.width = newWidth; }
+                        if (newHeight > 50) { nodeElement.style.height = newHeight + 'px'; nodeData.config.height = newHeight; }
+                    }
+
+                    function stopResize() {
+                        document.removeEventListener('mousemove', doResize);
+                        document.removeEventListener('mouseup', stopResize);
+                    }
+                    document.addEventListener('mousemove', doResize);
+                    document.addEventListener('mouseup', stopResize);
+                });
+
+                // Click to show/hide toolbar
+                nodeElement.addEventListener('click', (e) => {
+                    if (e.target.closest('.toolbar-btn') || e.target.closest('.toolbar-select') || e.target.closest('.toolbar-color')) return;
+                    const toolbar = nodeElement.querySelector('.comment-toolbar');
+                    if (toolbar) {
+                        toolbar.classList.toggle('hidden');
+                    }
+                });
+            }
+
+            // Config Button Logic
+            const configBtn = nodeElement.querySelector('.config-btn');
+            if (configBtn) {
+                configBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    openConfigModal(nodeId);
+                };
+            }
+
+            // Fire Button Logic
+            const fireBtn = nodeElement.querySelector('.fire-btn');
+            if (fireBtn) {
+                fireBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    const flowId = document.getElementById('current-flow-id').value;
+                    if (!flowId) {
+                        showToast("Please save the flow before triggering nodes.", "error");
+                        return;
+                    }
+                    
+                    // Visual feedback
+                    fireBtn.classList.add('text-emerald-300', 'scale-110');
+                    setTimeout(() => fireBtn.classList.remove('text-emerald-300', 'scale-110'), 200);
+
+                    // Prepare current flow state to ensure unsaved connections work
+                    const payload = {
+                        nodes: nodes,
+                        connections: connections,
+                        bridges: bridges
+                    };
+
+                    fetch(`/ai-flow/${flowId}/run-node/${nodeId}`, { 
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(r => {
+                            if (r.ok) {
+                                const triggerHeader = r.headers.get("HX-Trigger");
+                                if (triggerHeader) {
+                                    const data = JSON.parse(triggerHeader);
+                                    if (data.showMessage) showToast(data.showMessage.message, data.showMessage.level);
+                                } else showToast("Node triggered", "success");
+                            } else showToast("Failed to trigger node", "error");
+                        })
+                        .catch(err => showToast("Network error: " + err, "error"));
+                };
+            }
+
+            nodeElement.onmousedown = (e) => {
+                // Only allow dragging/selection with the left mouse button
+                 if (e.button !== 0) return;
+
+                 // Stop this event from bubbling up to the canvas, which would trigger
+                 // the pan/deselect logic and interfere with selection.
+                 e.stopPropagation();
+
+                // Check for specific interactive elements before starting drag
+                if (e.target.closest('.input-area') || e.target.closest('.output-area') || e.target.closest('.sync-point') || e.target.closest('.config-btn') || e.target.tagName.toLowerCase() === 'textarea' || e.target.classList.contains('comment-resize-handle')) {
+                    return;
+                }
+                isDragging = true;
+
+                // Handle node selection with Ctrl toggle
+                if (e.ctrlKey || e.metaKey) {
+                    if (selectedNodeIds.has(nodeId)) {
+                        // Deselect if already selected
+                        nodeElement.classList.remove('selected-node');
+                        selectedNodeIds.delete(nodeId);
+                        if (selectedNodeId === nodeId) {
+                            selectedNodeId = selectedNodeIds.size > 0 ? Array.from(selectedNodeIds)[0] : null;
+                        }
+                    } else {
+                        // Select new node while keeping existing selection
+                        nodeElement.classList.add('selected-node');
+                        selectedNodeIds.add(nodeId);
+                        selectedNodeId = nodeId;
+                    }
+                } else {
+                    // Normal click - clear selection and select this node
+                    if (!selectedNodeIds.has(nodeId)) {
+                        clearNodeSelection();
+                        nodeElement.classList.add('selected-node');
+                        selectedNodeIds.add(nodeId);
+                    }
+                    selectedNodeId = nodeId;
+                }
+                
+                // Also deselect any selected connection
+                if (selectedConnection) {
+                    selectedConnection = null;
+                    drawConnections();
+                } else {
+                    updateButtonStates();
+                }
+
+                document.onmousemove = (e) => {
+                    bin.style.opacity = '1';
+                    bin.style.pointerEvents = 'auto';
+
+                    if (!isDragging) return;
+                    const dx = e.movementX / zoom;
+                    const dy = e.movementY / zoom;
+                    
+                    // Get all nodes to move (current node + any other selected nodes)
+                    const nodesToMove = selectedNodeIds.has(nodeId) 
+                        ? Array.from(selectedNodeIds) 
+                        : [nodeId];
+                    
+                    nodesToMove.forEach(id => {
+                        const nodeDataToMove = nodes.find(n => n.id === id);
+                        const nodeElToMove = document.getElementById(id);
+                        if (nodeDataToMove && nodeElToMove) {
+                            nodeDataToMove.x += dx;
+                            nodeDataToMove.y += dy;
+                            nodeElToMove.style.left = `${nodeDataToMove.x}px`;
+                            nodeElToMove.style.top = `${nodeDataToMove.y}px`;
+                        }
+                    });
+                    
+                    drawConnections();
+
+                    const binRect = bin.getBoundingClientRect();
+                    if (e.clientX >= binRect.left && e.clientX <= binRect.right &&
+                        e.clientY >= binRect.top && e.clientY <= binRect.bottom) {
+                        bin.classList.add('bg-red-900');
+                        bin.classList.remove('bg-red-900/50');
+                    } else {
+                        bin.classList.remove('bg-red-900');
+                        bin.classList.add('bg-red-900/50');
+                    }
+                };
+
+                document.onmouseup = (e) => {
+                    isDragging = false; 
+                    bin.style.opacity = '0.5';
+                    bin.style.pointerEvents = 'none';
+                    bin.classList.remove('bg-red-900');
+                    bin.classList.add('bg-red-900/50');
+
+                    const binRect = bin.getBoundingClientRect();
+                    if (e.clientX >= binRect.left && e.clientX <= binRect.right &&
+                        e.clientY >= binRect.top && e.clientY <= binRect.bottom) {
+                        // Delete all selected nodes if multiple are selected
+                        if (selectedNodeIds.size > 0) {
+                            [...selectedNodeIds].forEach(id => deleteNode(id));
+                            selectedNodeIds = new Set();
+                            selectedNodeId = null;
+                        } else {
+                            deleteNode(nodeData.id);
+                        }
+                    }
+
+                    document.onmousemove = null; 
+                    document.onmouseup = null; 
+                };
+            };
+
+            nodeElement.addEventListener('dragover', (e) => e.preventDefault());
+            nodeElement.addEventListener('drop', (e) => {
+                e.stopPropagation();
+                onDrop(e);
+            });
+
+            // --- Bridge Logic ---
+            const syncPoint = nodeElement.querySelector('.sync-point');
+            if (syncPoint) {
+                syncPoint.onclick = (e) => {
+                    e.stopPropagation();
+                    
+                    if (isDrawingConnection) { clearConnectionState(); return; }
+
+                    if (isDrawingBridge) {
+                        // Complete bridge
+                        if (connectionStart.node.id !== nodeData.id) {
+                            createBridge(connectionStart.node, nodeData);
+                        }
+                        clearConnectionState();
+                    } else {
+                        // Start bridge
+                        isDrawingBridge = true;
+                        connectionStart.node = nodeData;
+                        connectionStart.element = syncPoint;
+                        syncPoint.classList.add('connecting');
+
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const dotRect = syncPoint.getBoundingClientRect();
+                        const startX = (dotRect.left + dotRect.width / 2 - canvasRect.left - panX) / zoom;
+                        const startY = (dotRect.top + dotRect.height / 2 - canvasRect.top - panY) / zoom;
+
+                        activeDrawingLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        activeDrawingLine.setAttribute('stroke', '#60a5fa'); // blue-400
+                        activeDrawingLine.setAttribute('stroke-width', '2');
+                        activeDrawingLine.setAttribute('fill', 'none');
+                        activeDrawingLine.setAttribute('stroke-dasharray', '2,4');
+                        activeDrawingLine.style.pointerEvents = 'none';
+                        svg.appendChild(activeDrawingLine);
+
+                        document.onmousemove = (move_e) => {
+                            if (!isDrawingBridge) return;
+                            const endX = (move_e.clientX - canvasRect.left - panX) / zoom;
+                            const endY = (move_e.clientY - canvasRect.top - panY) / zoom;
+                            activeDrawingLine.setAttribute('d', `M ${startX} ${startY} L ${endX} ${endY}`);
+                        };
+                    }
+                };
+            }
+
+            // --- Connection Logic ---
+            const inputArea = nodeElement.querySelector('.input-area');
+            const outputArea = nodeElement.querySelector('.output-area');
+            
+            // Only add connection logic for non-comment nodes
+            if (inputArea && outputArea) {
+                const outputDot = nodeElement.querySelector('.output-dot');
+                const inputDot = nodeElement.querySelector('.input-dot');
+                
+                nodeData.outputDot = outputDot;
+                nodeData.inputDot = inputDot;
+                
+                const startConnectionHandler = (e) => {
+                    e.stopPropagation();
+                    if (isDrawingConnection || isDrawingBridge) {
+                        clearConnectionState();
+                        return;
+                    }
+                    // If reverted, start from input-dot; otherwise from output-dot
+                    const startDot = nodeData.isReverted ? inputDot : outputDot;
+                    
+                    isDrawingConnection = true;
+                    connectionStart.node = nodeData;
+                    connectionStart.element = startDot;
+                    startDot.classList.add('connecting');
+
+                    const canvasRect = canvas.getBoundingClientRect();
+                    const fromDotRect = startDot.getBoundingClientRect();
+                    const startX = (fromDotRect.left + fromDotRect.width / 2 - canvasRect.left - panX) / zoom;
+                    const startY = (fromDotRect.top + fromDotRect.height / 2 - canvasRect.top - panY) / zoom;
+
+                    activeDrawingLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    activeDrawingLine.setAttribute('stroke', '#3b82f6');
+                    activeDrawingLine.setAttribute('stroke-width', '2');
+                    activeDrawingLine.setAttribute('fill', 'none');
+                    activeDrawingLine.setAttribute('stroke-dasharray', '5,5');
+                    activeDrawingLine.style.pointerEvents = 'none';
+                    svg.appendChild(activeDrawingLine);
+
+                    document.onmousemove = (move_e) => {
+                        if (!isDrawingConnection) return;
+                        const endX = (move_e.clientX - canvasRect.left - panX) / zoom;
+                        const endY = (move_e.clientY - canvasRect.top - panY) / zoom;
+                        const d = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
+                        activeDrawingLine.setAttribute('d', d);
+                    };
+                };
+                
+                const endConnectionHandler = (e) => {
+                    e.stopPropagation();
+                    if (isDrawingConnection && !isDrawingBridge) {
+                        // If reverted, end at output-dot; otherwise at input-dot
+                        const endDot = nodeData.isReverted ? outputDot : inputDot;
+                        const connectionEnd = { node: nodeData, element: endDot };
+                        createConnection(connectionStart, connectionEnd);
+                        clearConnectionState();
+                    }
+                };
+                
+                outputArea.onclick = startConnectionHandler;
+                inputArea.onclick = endConnectionHandler;
+            }
+
+            nodeAndSvgContainer.appendChild(nodeElement);
+            
+            // Restore visual state if node was reverted
+            if (isReverted && !nodeTypeId.includes('comment')) {
+                const inputDot = nodeElement.querySelector('.input-dot');
+                const outputDot = nodeElement.querySelector('.output-dot');
+                
+                if (inputDot && outputDot) {
+                    inputDot.classList.toggle('bg-blue-500');
+                    inputDot.classList.toggle('bg-emerald-500');
+                    
+                    outputDot.classList.toggle('bg-emerald-500');
+                    outputDot.classList.toggle('bg-blue-500');
+                    
+                    const inputText = nodeElement.querySelector('.input-area span');
+                    const outputText = nodeElement.querySelector('.output-area span');
+                    if (inputText && outputText) {
+                        const temp = inputText.textContent;
+                        inputText.textContent = outputText.textContent;
+                        outputText.textContent = temp;
+                    }
+                }
+                
+                // For reverted nodes, swap the click handlers since the visual layout is reversed
+                if (inputArea && outputArea) {
+                    const originalOutputHandler = outputArea.onclick;
+                    const originalInputHandler = inputArea.onclick;
+                    outputArea.onclick = originalInputHandler;
+                    inputArea.onclick = originalOutputHandler;
+                }
+            }
+            
+            return nodeData;
+        }
+
+        window.loadFlowById = async function(flowId) {
+            try {
+                const response = await fetch(`/ai-flow/${flowId}`, { cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to load flow.');
+                const flowData = await response.json();
+
+                clearCanvas(false); 
+
+                const nameInput = document.querySelector('#save-flow-form input[name="name"]');
+                if(nameInput) nameInput.value = flowData.name;
+
+                const flowIdInput = document.getElementById('current-flow-id');
+                const updateBtn = document.getElementById('update-flow-btn');
+                if (flowIdInput) flowIdInput.value = flowData.id;
+                if (updateBtn) updateBtn.classList.remove('hidden');
+
+                if (flowData.nodes) {
+                    flowData.nodes.forEach(node => {
+                        createNode(node.moduleId, node.name, node.nodeTypeId, node.x, node.y, node.id, node.config || {}, node.isReverted || false);
+                    });
+                }
+
+                connections = flowData.connections || [];
+                bridges = flowData.bridges || [];
+                drawConnections();
+
+                centerCanvas();
+
+                // Re-draw connections after layout updates to ensure correct positions
+                requestAnimationFrame(() => {
+                    drawConnections();
+                    setTimeout(drawConnections, 100);
+                });
+            } catch (error) {
+                console.error(error);
+                showToast(error.message, 'error');
+            }
+        }
+
+        window.createNewFlow = function() {
+            if (nodes.length > 0) {
+                openClearModal();
+            } else {
+                const nameInput = document.querySelector('#save-flow-form input[name="name"]');
+                if(nameInput) nameInput.value = '';
+                const flowIdInput = document.getElementById('current-flow-id');
+                const updateBtn = document.getElementById('update-flow-btn');
+                if (flowIdInput) flowIdInput.value = '';
+                if (updateBtn) updateBtn.classList.add('hidden');
+                showToast('New flow ready', 'info');
+            }
+        }
+
+        window.clearCanvas = function(withConfirmation = true) {
+            if (withConfirmation) {
+                openClearModal();
+                return;
+            }
+            nodes = [];
+            connections = [];
+            bridges = [];
+            selectedConnection = null;
+            nodeAndSvgContainer.querySelectorAll('div[id^="node-"]').forEach(el => el.remove());
+            drawConnections();
+            nextNodeId = 0;
+            document.querySelector('#save-flow-form input[name="name"]').value = '';
+            
+            const flowIdInput = document.getElementById('current-flow-id');
+            const updateBtn = document.getElementById('update-flow-btn');
+            if (flowIdInput) flowIdInput.value = '';
+            if (updateBtn) updateBtn.classList.add('hidden');
+        }
+
+        function deleteNode(nodeId) {
+            // Remove node from array
+            const nodeIndex = nodes.findIndex(n => n.id === nodeId);
+            if (nodeIndex > -1) {
+                nodes.splice(nodeIndex, 1);
+            }
+
+            const nodeEl = document.getElementById(nodeId);
+            if (nodeEl) {
+                nodeEl.remove();
+            }
+
+            connections = connections.filter(c => c.from !== nodeId && c.to !== nodeId);
+            bridges = bridges.filter(b => b.from !== nodeId && b.to !== nodeId);
+            if (selectedConnection && (selectedConnection.from === nodeId || selectedConnection.to === nodeId)) selectedConnection = null;
+            drawConnections();
+        }
+
+        window.centerCanvas = function() {
+            if (nodes.length === 0) {
+                zoom = 1;
+                panX = 0;
+                panY = 0;
+                updateCanvasTransform();
+                return;
+            };
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const nodeWidth = 192; // w-48
+            const nodeHeight = 100; // approx
+
+            nodes.forEach(node => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                
+                maxX = Math.max(maxX, node.x + nodeWidth);
+                maxY = Math.max(maxY, node.y + nodeHeight);
+            });
+
+            const nodesWidth = maxX - minX;
+            const nodesHeight = maxY - minY;
+            const nodesCenterX = minX + nodesWidth / 2;
+            const nodesCenterY = minY + nodesHeight / 2;
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const viewportCenterX = canvasRect.width / 2;
+            const viewportCenterY = canvasRect.height / 2;
+
+            const zoomX = canvasRect.width / (nodesWidth + 150);
+            const zoomY = canvasRect.height / (nodesHeight + 150);
+            zoom = Math.min(1, zoomX, zoomY);
+
+            panX = viewportCenterX - (nodesCenterX * zoom);
+            panY = viewportCenterY - (nodesCenterY * zoom);
+
+            updateCanvasTransform();
+        }
+
+        window.openDeleteModal = function(flowId, flowName) {
+            const modal = document.getElementById('delete-modal');
+            const backdrop = document.getElementById('delete-modal-backdrop');
+            const panel = document.getElementById('delete-modal-panel');
+            const nameSpan = document.getElementById('delete-flow-name');
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+
+            nameSpan.textContent = flowName;
+            
+            // Setup HTMX on the confirm button
+            confirmBtn.setAttribute('hx-post', `/ai-flow/${flowId}/delete`);
+            confirmBtn.setAttribute('hx-target', '#saved-flows-list');
+            confirmBtn.setAttribute('hx-swap', 'innerHTML');
+            htmx.process(confirmBtn);
+
+            // Close modal on click (HTMX will handle the request)
+            confirmBtn.onclick = function() {
+                closeDeleteModal();
+            };
+
+            modal.classList.remove('hidden');
+            // Trigger transitions
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        window.closeDeleteModal = function() {
+            const modal = document.getElementById('delete-modal');
+            const backdrop = document.getElementById('delete-modal-backdrop');
+            const panel = document.getElementById('delete-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200); // Match transition duration
+        }
+
+        window.openRestoreModal = function(flowId, version, date) {
+            const modal = document.getElementById('restore-modal');
+            const backdrop = document.getElementById('restore-modal-backdrop');
+            const panel = document.getElementById('restore-modal-panel');
+            const body = document.getElementById('restore-modal-body');
+            const confirmBtn = document.getElementById('confirm-restore-btn');
+
+            body.textContent = `Restore this flow to version ${version} (saved ${date})? The current state will be replaced.`;
+
+            confirmBtn.setAttribute('hx-post', `/ai-flow/${flowId}/rollback/${version}`);
+            confirmBtn.setAttribute('hx-target', '#saved-flows-list');
+            confirmBtn.setAttribute('hx-swap', 'innerHTML');
+            htmx.process(confirmBtn);
+
+            confirmBtn.onclick = function() {
+                closeRestoreModal();
+            };
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        window.closeRestoreModal = function() {
+            const modal = document.getElementById('restore-modal');
+            const backdrop = document.getElementById('restore-modal-backdrop');
+            const panel = document.getElementById('restore-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        window.openHelpModal = function() {
+            const modal = document.getElementById('help-modal');
+            const backdrop = document.getElementById('help-modal-backdrop');
+            const panel = document.getElementById('help-modal-panel');
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        window.closeHelpModal = function() {
+            const modal = document.getElementById('help-modal');
+            const backdrop = document.getElementById('help-modal-backdrop');
+            const panel = document.getElementById('help-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        window.openClearModal = function() {
+            const modal = document.getElementById('clear-modal');
+            const backdrop = document.getElementById('clear-modal-backdrop');
+            const panel = document.getElementById('clear-modal-panel');
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        window.closeClearModal = function() {
+            const modal = document.getElementById('clear-modal');
+            const backdrop = document.getElementById('clear-modal-backdrop');
+            const panel = document.getElementById('clear-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        window.confirmClearCanvas = function() {
+            clearCanvas(false);
+            closeClearModal();
+        }
+
+        window.revertSelectedConnection = function() {
+            if (selectedNodeId) {
+                const nodeData = nodes.find(n => n.id === selectedNodeId);
+                if (nodeData) {
+                    nodeData.isReverted = !nodeData.isReverted;
+                }
+                
+                const nodeElement = document.getElementById(selectedNodeId);
+                if (nodeElement) {
+                    const inputArea = nodeElement.querySelector('.input-area');
+                    const outputArea = nodeElement.querySelector('.output-area');
+                    const inputDot = nodeElement.querySelector('.input-dot');
+                    const outputDot = nodeElement.querySelector('.output-dot');
+                    
+                    if (inputDot && outputDot && inputArea && outputArea) {
+                        // Swap colors
+                        inputDot.classList.toggle('bg-blue-500');
+                        inputDot.classList.toggle('bg-emerald-500');
+                        
+                        outputDot.classList.toggle('bg-emerald-500');
+                        outputDot.classList.toggle('bg-blue-500');
+                        
+                        // Swap text labels
+                        const inputText = inputArea?.querySelector('span');
+                        const outputText = outputArea?.querySelector('span');
+                        if (inputText && outputText) {
+                            const temp = inputText.textContent;
+                            inputText.textContent = outputText.textContent;
+                            outputText.textContent = temp;
+                        }
+                        
+                        // Swap the click handlers since areas visually switched positions
+                        const temp = inputArea.onclick;
+                        inputArea.onclick = outputArea.onclick;
+                        outputArea.onclick = temp;
+                    }
+                    
+                    drawConnections();
+                    showToast('Input/Output positions swapped.', 'success');
+                }
+            }
+        }
+
+        window.deleteSelectedConnection = function() {
+            if (selectedConnection) {
+                connections = connections.filter(c => c !== selectedConnection);
+                selectedConnection = null;
+                drawConnections();
+                showToast('Connection removed', 'info');
+            }
+        }
+
+        function updateButtonStates() {
+            const breakBtn = document.getElementById('btn-break-line');
+            const revertBtn = document.getElementById('btn-revert-line');
+            
+            const isNodeSelected = !!selectedNodeId;
+            const isConnectionSelected = !!selectedConnection;
+            
+            if (revertBtn) {
+                revertBtn.disabled = !isNodeSelected;
+                revertBtn.classList.toggle('opacity-50', !isNodeSelected);
+                revertBtn.classList.toggle('cursor-not-allowed', !isNodeSelected);
+            }
+            
+            if (breakBtn) {
+                breakBtn.disabled = !isConnectionSelected;
+                breakBtn.classList.toggle('opacity-50', !isConnectionSelected);
+                breakBtn.classList.toggle('cursor-not-allowed', !isConnectionSelected);
+            }
+        }
+        
+        function loadConnectedNodes(routerNodeId) {
+            // Find all connections FROM this router node
+            const connectedNodeIds = connections
+                .filter(c => c.from === routerNodeId)
+                .map(c => c.to);
+            
+            // Get node details for connected nodes
+            const connectedNodesList = connectedNodeIds
+                .map(id => {
+                    const node = nodes.find(n => n.id === id);
+                    return node ? { id, name: node.name } : null;
+                })
+                .filter(n => n !== null);
+            
+            const container = document.getElementById('router-branches-container');
+            
+            if (connectedNodesList.length === 0) {
+                container.innerHTML = '<div class="text-slate-500 italic text-sm">No connected output nodes yet. Create connections first.</div>';
+                return;
+            }
+            
+            // Build the UI with checkboxes for each connected node
+            let html = '<div class="space-y-3">';
+            
+            connectedNodesList.forEach(node => {
+                html += `
+                    <div class="border border-slate-700 rounded-xl p-3 bg-slate-950/50">
+                        <div class="font-semibold text-sm text-slate-300 mb-2">${node.name}</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center space-x-2 cursor-pointer hover:bg-slate-900 p-2 rounded transition-colors">
+                                <input type="checkbox" 
+                                       class="router-true-branch h-4 w-4 text-blue-600 bg-slate-900 border-slate-600 rounded focus:ring-blue-500"
+                                       value="${node.id}"
+                                       data-node-id="${node.id}">
+                                <span class="text-xs text-slate-400">True Path</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer hover:bg-slate-900 p-2 rounded transition-colors">
+                                <input type="checkbox" 
+                                       class="router-false-branch h-4 w-4 text-emerald-600 bg-slate-900 border-slate-600 rounded focus:ring-emerald-500"
+                                       value="${node.id}"
+                                       data-node-id="${node.id}">
+                                <span class="text-xs text-slate-400">False Path</span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+            
+            // Get the current node's config and check the appropriate boxes
+            const node = nodes.find(n => n.id === activeConfigNodeId);
+            if (node) {
+                const trueBranches = node.config.true_branches || [];
+                const falseBranches = node.config.false_branches || [];
+                
+                document.querySelectorAll('.router-true-branch').forEach(checkbox => {
+                    if (trueBranches.includes(checkbox.value)) {
+                        checkbox.checked = true;
+                    }
+                });
+                
+                document.querySelectorAll('.router-false-branch').forEach(checkbox => {
+                    if (falseBranches.includes(checkbox.value)) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+        }
+
+        // Platform registry — extend this list to support future messaging platforms.
+        // Each entry: { id: string (matches _messaging_platform values), label: string (display name) }
+        const MESSAGING_PLATFORMS = [
+            { id: 'telegram',  label: 'Telegram'  },
+            { id: 'discord',   label: 'Discord'   },
+            { id: 'signal',    label: 'Signal'    },
+            { id: 'whatsapp',  label: 'WhatsApp'  },
+        ];
+
+        // --- Config Modal Logic ---
+        window.openConfigModal = function(nodeId) {
+            activeConfigNodeId = nodeId;
+            const node = nodes.find(n => n.id === nodeId);
+            if (!node) return;
+
+            document.getElementById('node-explanation-input').value = node.config.explanation || '';
+
+            // Reset visibility
+            document.getElementById('config-default').classList.add('hidden');
+            document.getElementById('config-delay').classList.add('hidden');
+            document.getElementById('config-system-prompt').classList.add('hidden');
+            document.getElementById('config-script').classList.add('hidden');
+            document.getElementById('config-llm').classList.add('hidden');
+            document.getElementById('config-repeater').classList.add('hidden');
+            document.getElementById('config-tools').classList.add('hidden');
+            document.getElementById('config-reasoning-load').classList.add('hidden');
+            document.getElementById('config-conditional-router').classList.add('hidden');
+            document.getElementById('config-schedule-start').classList.add('hidden');
+            document.getElementById('config-agent-loop').classList.add('hidden');
+            document.getElementById('config-hybrid-agent').classList.add('hidden');
+            document.getElementById('config-goal-pursuit').classList.add('hidden');
+            document.getElementById('config-planner').classList.add('hidden');
+            document.getElementById('config-messaging-input').classList.add('hidden');
+            document.getElementById('config-messaging-output').classList.add('hidden');
+
+            if (node.nodeTypeId === 'delay_node') {
+                document.getElementById('config-delay').classList.remove('hidden');
+                document.getElementById('delay-seconds-input').value = node.config.seconds || 1.0;
+            } else if (node.nodeTypeId === 'system_prompt') {
+                document.getElementById('config-system-prompt').classList.remove('hidden');
+                document.getElementById('system-prompt-input').value = node.config.system_prompt || '';
+                document.getElementById('system-prompt-max-tokens').value = node.config.max_token_budget || 4000;
+                
+                const toolsChecklist = document.getElementById('system-prompt-tools-checklist');
+                toolsChecklist.innerHTML = '<div class="animate-pulse text-slate-600 text-xs">Loading tools...</div>';
+                
+                fetch('/tools/names').then(r => r.json()).then(names => {
+                    toolsChecklist.innerHTML = '';
+                    const enabled = node.config.enabled_tools || [];
+                    names.forEach(name => {
+                        const checked = enabled.includes(name) ? 'checked' : '';
+                        toolsChecklist.innerHTML += `
+                            <label class="flex items-center space-x-3 cursor-pointer hover:bg-slate-900 p-1 rounded transition-colors">
+                                <input type="checkbox" value="${name}" ${checked} class="form-checkbox h-4 w-4 text-blue-600 bg-slate-900 border-slate-700 rounded focus:ring-blue-500">
+                                <span class="text-sm text-slate-300">${name}</span>
+                            </label>`;
+                    });
+                });
+
+            } else if (node.nodeTypeId === 'script_node') {
+                document.getElementById('config-script').classList.remove('hidden');
+                document.getElementById('script-code-input').value = node.config.code || '';
+            } else if (node.nodeTypeId === 'llm_module') {
+                document.getElementById('config-llm').classList.remove('hidden');
+                document.getElementById('llm-model-input').value = node.config.model || '';
+                document.getElementById('llm-temperature-input').value = node.config.temperature || '';
+                document.getElementById('llm-max-tokens-input').value = node.config.max_tokens || '';
+                document.getElementById('llm-reasoning-effort-input').value = node.config.reasoning_effort || '';
+                document.getElementById('llm-json-mode-input').checked = !!node.config.json_mode;
+            } else if (node.nodeTypeId === 'repeater_node') {
+                document.getElementById('config-repeater').classList.remove('hidden');
+                
+                // Convert delay to hours, minutes, seconds
+                const totalSeconds = (node.config.delay !== undefined) ? node.config.delay : 5.0;
+                const hours = Math.floor(totalSeconds / 3600);
+                const minutes = Math.floor((totalSeconds % 3600) / 60);
+                const seconds = (totalSeconds % 60);
+                
+                document.getElementById('repeater-hours-input').value = hours;
+                document.getElementById('repeater-minutes-input').value = minutes;
+                document.getElementById('repeater-seconds-input').value = seconds.toFixed(1);
+                document.getElementById('repeater-count-input').value = (node.config.max_repeats !== undefined && node.config.max_repeats !== null) ? node.config.max_repeats : 1;
+            } else if (node.nodeTypeId === 'reasoning_load') {
+                document.getElementById('config-reasoning-load').classList.remove('hidden');
+                document.getElementById('reasoning-load-n-input').value = node.config.last_n || 5;
+            } else if (node.nodeTypeId === 'agent_loop') {
+                document.getElementById('config-agent-loop').classList.remove('hidden');
+                document.getElementById('agent-loop-max-iterations').value = node.config.max_iterations || 10;
+                document.getElementById('agent-loop-temperature').value = node.config.temperature || 0.7;
+                document.getElementById('agent-loop-max-tokens').value = node.config.max_tokens || 2048;
+                document.getElementById('agent-loop-include-plan').checked = node.config.include_plan_in_context !== false;
+                document.getElementById('agent-loop-include-memory').checked = node.config.include_memory_context !== false;
+                document.getElementById('agent-loop-include-knowledge').checked = node.config.include_knowledge_context !== false;
+                document.getElementById('agent-loop-include-reasoning').checked = node.config.include_reasoning_context !== false;
+            } else if (node.nodeTypeId === 'hybrid_agent') {
+                document.getElementById('config-hybrid-agent').classList.remove('hidden');
+                document.getElementById('hybrid-agent-max-iterations').value = node.config.max_iterations || 15;
+                document.getElementById('hybrid-agent-temperature').value = node.config.temperature || 0.7;
+                document.getElementById('hybrid-agent-max-tokens').value = node.config.max_tokens || 4096;
+                document.getElementById('hybrid-agent-large-output-threshold').value = node.config.large_output_threshold || 3000;
+                document.getElementById('hybrid-agent-include-plan').checked = node.config.include_plan_in_context !== false;
+                document.getElementById('hybrid-agent-include-memory').checked = node.config.include_memory_context !== false;
+                document.getElementById('hybrid-agent-include-knowledge').checked = node.config.include_knowledge_context !== false;
+                document.getElementById('hybrid-agent-include-reasoning').checked = node.config.include_reasoning_context !== false;
+            } else if (node.nodeTypeId === 'goal_pursuit') {
+                document.getElementById('config-goal-pursuit').classList.remove('hidden');
+                document.getElementById('gp-max-steps').value = node.config.max_steps || 10;
+                document.getElementById('gp-planning-temperature').value = node.config.planning_temperature !== undefined ? node.config.planning_temperature : 0.1;
+                document.getElementById('gp-max-replan-depth').value = node.config.max_replan_depth !== undefined ? node.config.max_replan_depth : 3;
+                document.getElementById('gp-max-iterations-per-step').value = node.config.max_iterations_per_step || 10;
+                document.getElementById('gp-temperature').value = node.config.temperature || 0.7;
+                document.getElementById('gp-max-tokens').value = node.config.max_tokens || 4096;
+                document.getElementById('gp-large-output-threshold').value = node.config.large_output_threshold || 3000;
+                document.getElementById('gp-timeout').value = node.config.timeout !== undefined ? node.config.timeout : 300;
+                document.getElementById('gp-eval-temperature').value = node.config.eval_temperature !== undefined ? node.config.eval_temperature : 0.1;
+                document.getElementById('gp-enable-step-evaluation').checked = node.config.enable_step_evaluation !== false;
+                document.getElementById('gp-enable-synthesis').checked = node.config.enable_synthesis !== false;
+                document.getElementById('gp-include-memory').checked = node.config.include_memory_context !== false;
+                document.getElementById('gp-include-knowledge').checked = node.config.include_knowledge_context !== false;
+                document.getElementById('gp-include-reasoning').checked = node.config.include_reasoning_context !== false;
+            } else if (node.nodeTypeId === 'planner') {
+                document.getElementById('config-planner').classList.remove('hidden');
+                document.getElementById('planner-max-steps').value = node.config.max_steps || 10;
+            } else if (node.nodeTypeId === 'tool_dispatcher') {
+                document.getElementById('config-tools').classList.remove('hidden');
+                const checklist = document.getElementById('tools-checklist');
+                checklist.innerHTML = '<div class="animate-pulse text-slate-600 text-xs">Loading tools...</div>';
+                
+                fetch('/tools/with-descriptions').then(r => r.json()).then(tools => {
+                    checklist.innerHTML = '';
+                    const allowed = node.config.allowed_tools || [];
+                    tools.forEach(tool => {
+                        const checked = allowed.includes(tool.name) ? 'checked' : '';
+                        checklist.innerHTML += `
+                            <label class="flex items-start space-x-3 cursor-pointer hover:bg-slate-900 p-2 rounded transition-colors">
+                                <input type="checkbox" value="${tool.name}" ${checked} class="form-checkbox h-4 w-4 text-blue-600 bg-slate-900 border-slate-700 rounded focus:ring-blue-500 mt-0.5 flex-shrink-0">
+                                <div class="flex-1">
+                                    <div class="text-sm text-slate-300">${tool.name}</div>
+                                    ${tool.description ? `<div class="text-xs text-slate-500 mt-0.5">${tool.description}</div>` : ''}
+                                </div>
+                            </label>`;
+                    });
+                });
+            } else if (node.nodeTypeId === 'conditional_router') {
+                document.getElementById('config-conditional-router').classList.remove('hidden');
+                document.getElementById('router-check-field').value = node.config.check_field || 'tool_calls';
+                toggleMaxToolsField();
+                document.getElementById('router-max-tools').value = node.config.max_tools_per_turn || '';
+                
+                // Load connected nodes and restore saved selections
+                loadConnectedNodes(node.id);
+            } else if (node.nodeTypeId === 'schedule_start_node') {
+                document.getElementById('config-schedule-start').classList.remove('hidden');
+                document.getElementById('schedule-date-input').value = node.config.schedule_date || '';
+                document.getElementById('schedule-time-input').value = node.config.schedule_time || '';
+            } else if (node.nodeTypeId === 'messaging_input') {
+                document.getElementById('config-messaging-input').classList.remove('hidden');
+                const allowedPlatforms = node.config.platforms || [];
+                const inputContainer = document.getElementById('messaging-input-platforms');
+                inputContainer.innerHTML = MESSAGING_PLATFORMS.map(p => {
+                    const checked = allowedPlatforms.includes(p.id) ? 'checked' : '';
+                    return `<label class="flex items-center space-x-3 cursor-pointer hover:bg-slate-900 px-2 py-2 rounded transition-colors">
+                        <input type="checkbox" value="${p.id}" ${checked} class="messaging-input-platform w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-slate-300">${p.label}</span>
+                    </label>`;
+                }).join('');
+            } else if (node.nodeTypeId === 'messaging_output') {
+                document.getElementById('config-messaging-output').classList.remove('hidden');
+                const selectedPlatform = node.config.platform || 'auto';
+                const outputContainer = document.getElementById('messaging-output-platform');
+                const outputOptions = [{ id: 'auto', label: 'Auto — reply to originating platform' }, ...MESSAGING_PLATFORMS];
+                outputContainer.innerHTML = outputOptions.map(p => {
+                    const checked = selectedPlatform === p.id ? 'checked' : '';
+                    return `<label class="flex items-center space-x-3 cursor-pointer hover:bg-slate-900 px-2 py-2 rounded transition-colors">
+                        <input type="radio" name="messaging-output-platform-radio" value="${p.id}" ${checked} class="w-4 h-4 border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-slate-300">${p.label}</span>
+                    </label>`;
+                }).join('');
+            } else {
+                document.getElementById('config-default').classList.remove('hidden');
+                document.getElementById('node-config-input').value = JSON.stringify(node.config || {}, null, 4);
+            }
+            
+            const modal = document.getElementById('config-modal');
+            const backdrop = document.getElementById('config-modal-backdrop');
+            const panel = document.getElementById('config-modal-panel');
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        window.closeConfigModal = function() {
+            const modal = document.getElementById('config-modal');
+            const backdrop = document.getElementById('config-modal-backdrop');
+            const panel = document.getElementById('config-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                activeConfigNodeId = null;
+            }, 200);
+        }
+
+        window.saveNodeConfig = function() {
+            const node = nodes.find(n => n.id === activeConfigNodeId);
+            if (!node) return;
+
+            try {
+                let newConfig = {};
+                if (node.nodeTypeId === 'delay_node') {
+                    const val = parseFloat(document.getElementById('delay-seconds-input').value);
+                    newConfig = { seconds: isNaN(val) ? 0 : val };
+                } else if (node.nodeTypeId === 'system_prompt') {
+                    const checkboxes = document.querySelectorAll('#system-prompt-tools-checklist input:checked');
+                    const enabled = Array.from(checkboxes).map(cb => cb.value);
+                    const maxTokens = parseInt(document.getElementById('system-prompt-max-tokens').value) || 4000;
+                    newConfig = { 
+                        system_prompt: document.getElementById('system-prompt-input').value,
+                        enabled_tools: enabled,
+                        max_token_budget: maxTokens
+                    };
+                    console.log('System Prompt Config Saved:', newConfig);
+
+                } else if (node.nodeTypeId === 'script_node') {
+                    newConfig = { code: document.getElementById('script-code-input').value };
+                } else if (node.nodeTypeId === 'llm_module') {
+                    newConfig = {
+                        model: document.getElementById('llm-model-input').value,
+                        temperature: document.getElementById('llm-temperature-input').value ? parseFloat(document.getElementById('llm-temperature-input').value) : null,
+                        max_tokens: document.getElementById('llm-max-tokens-input').value ? parseInt(document.getElementById('llm-max-tokens-input').value) : null,
+                        reasoning_effort: document.getElementById('llm-reasoning-effort-input').value,
+                        json_mode: document.getElementById('llm-json-mode-input').checked
+                    };
+                    if (!newConfig.model) delete newConfig.model;
+                    if (newConfig.temperature === null || isNaN(newConfig.temperature)) delete newConfig.temperature;
+                    if (newConfig.max_tokens === null || isNaN(newConfig.max_tokens)) delete newConfig.max_tokens;
+                    if (!newConfig.reasoning_effort) delete newConfig.reasoning_effort;
+                    if (!newConfig.json_mode) delete newConfig.json_mode;
+                } else if (node.nodeTypeId === 'repeater_node') {
+                    const hours = parseInt(document.getElementById('repeater-hours-input').value) || 0;
+                    const minutes = parseInt(document.getElementById('repeater-minutes-input').value) || 0;
+                    const seconds = parseFloat(document.getElementById('repeater-seconds-input').value) || 0;
+                    const c = parseInt(document.getElementById('repeater-count-input').value);
+                    
+                    // Convert to total seconds
+                    const totalDelay = (hours * 3600) + (minutes * 60) + seconds;
+                    newConfig = { 
+                        delay: totalDelay, 
+                        max_repeats: (isNaN(c) || c < 0) ? 1 : c
+                    };
+                } else if (node.nodeTypeId === 'reasoning_load') {
+                    const n = parseInt(document.getElementById('reasoning-load-n-input').value);
+                    newConfig = { last_n: (isNaN(n) || n < 1) ? 5 : n };
+                } else if (node.nodeTypeId === 'agent_loop') {
+                    const maxIterations = parseInt(document.getElementById('agent-loop-max-iterations').value) || 10;
+                    const temperature = parseFloat(document.getElementById('agent-loop-temperature').value) || 0.7;
+                    const maxTokens = parseInt(document.getElementById('agent-loop-max-tokens').value) || 2048;
+                    newConfig = {
+                        max_iterations: maxIterations,
+                        temperature: temperature,
+                        max_tokens: maxTokens,
+                        include_plan_in_context: document.getElementById('agent-loop-include-plan').checked,
+                        include_memory_context: document.getElementById('agent-loop-include-memory').checked,
+                        include_knowledge_context: document.getElementById('agent-loop-include-knowledge').checked,
+                        include_reasoning_context: document.getElementById('agent-loop-include-reasoning').checked
+                    };
+                } else if (node.nodeTypeId === 'hybrid_agent') {
+                    newConfig = {
+                        max_iterations: parseInt(document.getElementById('hybrid-agent-max-iterations').value) || 15,
+                        temperature: parseFloat(document.getElementById('hybrid-agent-temperature').value) || 0.7,
+                        max_tokens: parseInt(document.getElementById('hybrid-agent-max-tokens').value) || 4096,
+                        large_output_threshold: parseInt(document.getElementById('hybrid-agent-large-output-threshold').value) || 3000,
+                        include_plan_in_context: document.getElementById('hybrid-agent-include-plan').checked,
+                        include_memory_context: document.getElementById('hybrid-agent-include-memory').checked,
+                        include_knowledge_context: document.getElementById('hybrid-agent-include-knowledge').checked,
+                        include_reasoning_context: document.getElementById('hybrid-agent-include-reasoning').checked
+                    };
+                } else if (node.nodeTypeId === 'goal_pursuit') {
+                    newConfig = {
+                        max_steps: parseInt(document.getElementById('gp-max-steps').value) || 10,
+                        planning_temperature: parseFloat(document.getElementById('gp-planning-temperature').value) ?? 0.1,
+                        max_replan_depth: parseInt(document.getElementById('gp-max-replan-depth').value) ?? 3,
+                        max_iterations_per_step: parseInt(document.getElementById('gp-max-iterations-per-step').value) || 10,
+                        temperature: parseFloat(document.getElementById('gp-temperature').value) || 0.7,
+                        max_tokens: parseInt(document.getElementById('gp-max-tokens').value) || 4096,
+                        large_output_threshold: parseInt(document.getElementById('gp-large-output-threshold').value) || 3000,
+                        timeout: parseFloat(document.getElementById('gp-timeout').value) ?? 300,
+                        eval_temperature: parseFloat(document.getElementById('gp-eval-temperature').value) ?? 0.1,
+                        enable_step_evaluation: document.getElementById('gp-enable-step-evaluation').checked,
+                        enable_synthesis: document.getElementById('gp-enable-synthesis').checked,
+                        include_memory_context: document.getElementById('gp-include-memory').checked,
+                        include_knowledge_context: document.getElementById('gp-include-knowledge').checked,
+                        include_reasoning_context: document.getElementById('gp-include-reasoning').checked
+                    };
+                } else if (node.nodeTypeId === 'planner') {
+                    const maxSteps = parseInt(document.getElementById('planner-max-steps').value) || 10;
+                    newConfig = { max_steps: maxSteps };
+                } else if (node.nodeTypeId === 'tool_dispatcher') {
+                    const checkboxes = document.querySelectorAll('#tools-checklist input:checked');
+                    const allowed = Array.from(checkboxes).map(cb => cb.value);
+                    newConfig = { allowed_tools: allowed };
+                } else if (node.nodeTypeId === 'conditional_router') {
+                    const checkField = document.getElementById('router-check-field').value || 'tool_calls';
+                    const maxTools = parseInt(document.getElementById('router-max-tools').value) || 0;
+                    
+                    // Collect all selected true branches
+                    const trueBranches = Array.from(document.querySelectorAll('.router-true-branch:checked'))
+                        .map(cb => cb.value);
+                    
+                    // Collect all selected false branches
+                    const falseBranches = Array.from(document.querySelectorAll('.router-false-branch:checked'))
+                        .map(cb => cb.value);
+                    
+                    newConfig = {
+                        check_field: checkField
+                    };
+
+                    if (maxTools > 0) {
+                        newConfig.max_tools_per_turn = maxTools;
+                    }
+                    
+                    if (trueBranches.length > 0) {
+                        newConfig.true_branches = trueBranches;
+                    }
+                    if (falseBranches.length > 0) {
+                        newConfig.false_branches = falseBranches;
+                    }
+                } else if (node.nodeTypeId === 'messaging_input') {
+                    const checked = Array.from(document.querySelectorAll('.messaging-input-platform:checked')).map(cb => cb.value);
+                    newConfig = { platforms: checked };
+                } else if (node.nodeTypeId === 'messaging_output') {
+                    const radio = document.querySelector('input[name="messaging-output-platform-radio"]:checked');
+                    newConfig = { platform: radio ? radio.value : 'auto' };
+                } else if (node.nodeTypeId === 'schedule_start_node') {
+                    newConfig = {
+                        schedule_date: document.getElementById('schedule-date-input').value,
+                        schedule_time: document.getElementById('schedule-time-input').value
+                    };
+                } else {
+                    newConfig = JSON.parse(document.getElementById('node-config-input').value);
+                }
+                
+                const explanation = document.getElementById('node-explanation-input').value;
+                newConfig.explanation = explanation;
+                
+                const explEl = document.getElementById(`explanation-${node.id}`);
+                if (explEl) {
+                    explEl.textContent = explanation;
+                    if (explanation) explEl.classList.remove('hidden'); else explEl.classList.add('hidden');
+                }
+
+                node.config = newConfig;
+                console.log('Node Config Updated:', node.id, node.config);
+                
+                // Update visual badges for system_prompt and tool_dispatcher nodes
+                const nodeElement = document.getElementById(node.id);
+                if (nodeElement) {
+                    const existingBadge = nodeElement.querySelector('[id^="tools-badge-"]');
+                    const existingPromptPreview = nodeElement.querySelector('[id^="prompt-preview-"]');
+                    if (existingBadge) existingBadge.remove();
+                    if (existingPromptPreview) existingPromptPreview.remove();
+                    
+                    if (node.nodeTypeId === 'system_prompt') {
+                        // Update prompt preview
+                        const promptText = newConfig.system_prompt ? newConfig.system_prompt.substring(0, 50) + (newConfig.system_prompt.length > 50 ? '...' : '') : 'No prompt';
+                        const promptPreviewHtml = `
+                            <div id="prompt-preview-${node.id}" class="text-[9px] text-slate-400 mt-1 line-clamp-2 break-words">${promptText}</div>
+                        `;
+                        const titleEl = nodeElement.querySelector('[id^="explanation-"]');
+                        if (titleEl) {
+                            titleEl.insertAdjacentHTML('afterend', promptPreviewHtml);
+                        }
+                        
+                        // Update tools badge
+                        if (newConfig.enabled_tools && newConfig.enabled_tools.length > 0) {
+                            const badgeHtml = `
+                                <div id="tools-badge-${node.id}" class="text-[9px] text-blue-400 mt-1">
+                                    <span class="bg-blue-900/30 px-2 py-0.5 rounded">${newConfig.enabled_tools.length} tools</span>
+                                </div>
+                            `;
+                            const promptPreviewEl = nodeElement.querySelector('[id^="prompt-preview-"]');
+                            if (promptPreviewEl) {
+                                promptPreviewEl.insertAdjacentHTML('afterend', badgeHtml);
+                            }
+                        }
+                    } else if (node.nodeTypeId === 'tool_dispatcher' && newConfig.allowed_tools && newConfig.allowed_tools.length > 0) {
+                        const badgeHtml = `
+                            <div id="tools-badge-${node.id}" class="text-[9px] text-purple-400 mt-1 flex flex-wrap gap-1">
+                                ${newConfig.allowed_tools.slice(0, 5).map(t => `<span class="bg-purple-900/30 px-1.5 py-0.5 rounded">${t}</span>`).join('')}
+                                ${newConfig.allowed_tools.length > 5 ? `<span class="bg-purple-900/30 px-1.5 py-0.5 rounded" title="${newConfig.allowed_tools.slice(5).join(', ')}">...</span>` : ''}
+                            </div>
+                        `;
+                        const titleEl = nodeElement.querySelector('[id^="explanation-"]');
+                        if (titleEl) {
+                            titleEl.insertAdjacentHTML('afterend', badgeHtml);
+                        }
+                    } else if (node.nodeTypeId === 'messaging_input') {
+                        const platforms = newConfig.platforms || [];
+                        const label = platforms.length === 0
+                            ? 'All Platforms'
+                            : platforms.map(id => MESSAGING_PLATFORMS.find(p => p.id === id)?.label || id).join(', ');
+                        const badgeHtml = `
+                            <div id="tools-badge-${node.id}" class="text-[9px] text-blue-400 mt-1">
+                                <span class="bg-blue-900/30 px-2 py-0.5 rounded">${label}</span>
+                            </div>
+                        `;
+                        const titleEl = nodeElement.querySelector('[id^="explanation-"]');
+                        if (titleEl) titleEl.insertAdjacentHTML('afterend', badgeHtml);
+                    } else if (node.nodeTypeId === 'messaging_output') {
+                        const plat = newConfig.platform || 'auto';
+                        const platLabel = plat === 'auto' ? 'Auto' : (MESSAGING_PLATFORMS.find(p => p.id === plat)?.label || plat);
+                        const badgeHtml = `
+                            <div id="tools-badge-${node.id}" class="text-[9px] text-emerald-400 mt-1">
+                                <span class="bg-emerald-900/30 px-2 py-0.5 rounded">${platLabel}</span>
+                            </div>
+                        `;
+                        const titleEl = nodeElement.querySelector('[id^="explanation-"]');
+                        if (titleEl) titleEl.insertAdjacentHTML('afterend', badgeHtml);
+                    }
+                }
+                
+                closeConfigModal();
+            } catch (e) {
+                showToast("Invalid Configuration: " + e.message, 'error');
+            }
+        }
+
+        window.toggleFlowRename = function(id, show) {
+            const nameBtn = document.querySelector(`.flow-name-${id}`);
+            const renameForm = document.querySelector(`.rename-form-${id}`);
+            const actionBtns = document.querySelector(`.action-btns-${id}`);
+            const renameConfirm = document.querySelector(`.rename-confirm-${id}`);
+
+            if (nameBtn && renameForm && actionBtns && renameConfirm) {
+                if (show) {
+                    nameBtn.classList.add('hidden');
+                    renameForm.classList.remove('hidden');
+                    actionBtns.classList.add('hidden');
+                    renameConfirm.classList.remove('hidden');
+                    renameForm.querySelector('input').focus();
+                } else {
+                    nameBtn.classList.remove('hidden');
+                    renameForm.classList.add('hidden');
+                    actionBtns.classList.remove('hidden');
+                    renameConfirm.classList.add('hidden');
+                }
+            }
+        }
+
+        window.submitFlowRename = function(id) {
+            htmx.trigger(`.rename-form-${id}`, 'submit');
+        }
+
+        window._versionsOpen = {};
+        window.toggleVersionsPanel = function(id) {
+            if (window._versionsOpen[id]) {
+                closeVersionsPanel(id);
+            } else {
+                window._versionsOpen[id] = true;
+                // HTMX will handle the load; just track state
+            }
+        }
+        window.closeVersionsPanel = function(id) {
+            const container = document.getElementById(`versions-container-${id}`);
+            if (container) container.innerHTML = '';
+            window._versionsOpen[id] = false;
+        }
+
+        function createConnection(start, end) {
+            if (start.node.id === end.node.id) return;
+            const newConnection = { from: start.node.id, to: end.node.id };
+            if (connections.some(c => c.from === newConnection.from && c.to === newConnection.to)) return;
+            connections.push(newConnection);
+            drawConnections();
+        }
+
+        function createBridge(nodeA, nodeB) {
+            // Check duplicates (undirected)
+            if (bridges.some(b => (b.from === nodeA.id && b.to === nodeB.id) || (b.from === nodeB.id && b.to === nodeA.id))) return;
+            bridges.push({ from: nodeA.id, to: nodeB.id });
+            drawConnections();
+        }
+
+        window.toggleModuleFunctions = function(moduleId) {
+            const functionsDiv = document.getElementById(`functions-${moduleId}`);
+            const arrowIcon = document.getElementById(`arrow-${moduleId}`);
+            if (functionsDiv && arrowIcon) {
+                const isHidden = functionsDiv.classList.contains('hidden');
+                if (isHidden) {
+                    functionsDiv.classList.remove('hidden');
+                    arrowIcon.classList.add('rotate-180');
+                } else {
+                    functionsDiv.classList.add('hidden');
+                    arrowIcon.classList.remove('rotate-180');
+                }
+            }
+        }
+
+        window.toggleDisabledModules = function() {
+            const disabledItems = document.querySelectorAll('.disabled-module-item');
+            const btn = document.getElementById('toggle-disabled-btn');
+            
+            disabledItems.forEach(item => {
+                item.classList.toggle('hidden');
+            });
+            
+            if (btn) {
+                btn.classList.toggle('text-blue-400');
+                btn.classList.toggle('text-slate-600');
+            }
+        }
+
+        function drawConnections() {
+            svg.innerHTML = '';
+            const canvasRect = canvas.getBoundingClientRect();
+            
+            // Draw Bridges
+            bridges.forEach(bridge => {
+                const nodeA = document.getElementById(bridge.from);
+                const nodeB = document.getElementById(bridge.to);
+                if (!nodeA || !nodeB) return;
+                
+                const syncA = nodeA.querySelector('.sync-point');
+                const syncB = nodeB.querySelector('.sync-point');
+                if (!syncA || !syncB) return;
+                
+                const rectA = syncA.getBoundingClientRect();
+                const rectB = syncB.getBoundingClientRect();
+                
+                const x1 = (rectA.left + rectA.width/2 - canvasRect.left - panX) / zoom;
+                const y1 = (rectA.top + rectA.height/2 - canvasRect.top - panY) / zoom;
+                const x2 = (rectB.left + rectB.width/2 - canvasRect.left - panX) / zoom;
+                const y2 = (rectB.top + rectB.height/2 - canvasRect.top - panY) / zoom;
+                
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+                path.setAttribute('stroke', '#60a5fa'); // blue-400
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('stroke-dasharray', '4,4');
+                path.setAttribute('fill', 'none');
+                
+                // Hit area for deleting bridges
+                const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hitPath.setAttribute('d', `M ${x1} ${y1} L ${x2} ${y2}`);
+                hitPath.setAttribute('stroke', 'transparent');
+                hitPath.setAttribute('stroke-width', '15');
+                hitPath.setAttribute('fill', 'none');
+                hitPath.style.cursor = 'pointer';
+                hitPath.onclick = (e) => {
+                    e.stopPropagation();
+                    bridges = bridges.filter(b => b !== bridge);
+                    drawConnections();
+                };
+                
+                svg.appendChild(path);
+                svg.appendChild(hitPath);
+            });
+
+            connections.forEach(conn => {
+                const fromNodeEl = document.getElementById(conn.from);
+                const toNodeEl = document.getElementById(conn.to);
+                if (!fromNodeEl || !toNodeEl) return;
+
+                const fromNodeData = nodes.find(n => n.id === conn.from);
+                const toNodeData = nodes.find(n => n.id === conn.to);
+                
+                // If node is reverted, visual output is on the left (input-dot), visual input is on the right (output-dot)
+                const fromDot = fromNodeEl.querySelector(fromNodeData?.isReverted ? '.input-dot' : '.output-dot').getBoundingClientRect();
+                const toDot = toNodeEl.querySelector(toNodeData?.isReverted ? '.output-dot' : '.input-dot').getBoundingClientRect();
+
+                const startX = (fromDot.left + fromDot.width / 2 - canvasRect.left - panX) / zoom;
+                const startY = (fromDot.top + fromDot.height / 2 - canvasRect.top - panY) / zoom;
+                const endX = (toDot.left + toDot.width / 2 - canvasRect.left - panX) / zoom;
+                const endY = (toDot.top + toDot.height / 2 - canvasRect.top - panY) / zoom;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                
+                // Get node centers to determine which side the dots are on
+                const fromNodeRect = fromNodeEl.getBoundingClientRect();
+                const toNodeRect = toNodeEl.getBoundingClientRect();
+                const fromNodeCenterX = fromNodeRect.left + fromNodeRect.width / 2;
+                const toNodeCenterX = toNodeRect.left + toNodeRect.width / 2;
+                
+                // Check if dots are on the same side relative to their node centers
+                const fromDotOnRight = fromDot.left + fromDot.width / 2 > fromNodeCenterX;
+                const toDotOnRight = toDot.left + toDot.width / 2 > toNodeCenterX;
+                const sameSide = fromDotOnRight === toDotOnRight;
+                
+                let cp1x, cp2x;
+                const distance = Math.abs(endX - startX);
+                
+                if (sameSide) {
+                    // Dots on same side, curve outward
+                    cp1x = startX + (fromDotOnRight ? 80 : -80);
+                    cp2x = endX + (toDotOnRight ? 80 : -80);
+                } else {
+                    // Dots on opposite sides, curve inward normally
+                    cp1x = startX + 50;
+                    cp2x = endX - 50;
+                }
+                
+                const d = `M ${startX} ${startY} C ${cp1x} ${startY}, ${cp2x} ${endY}, ${endX} ${endY}`;
+                path.setAttribute('d', d);
+                
+                // Styling based on selection
+                if (selectedConnection === conn) {
+                    path.setAttribute('stroke', '#ef4444'); // Red
+                    path.setAttribute('stroke-dasharray', '5,5');
+                } else {
+                    path.setAttribute('stroke', '#475569'); // Slate-600
+                }
+                
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                path.style.pointerEvents = 'none';
+                svg.appendChild(path);
+
+                // Invisible Hit Path for Selection
+                const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                hitPath.setAttribute('d', d);
+                hitPath.setAttribute('stroke', 'transparent');
+                hitPath.setAttribute('stroke-width', '20');
+                hitPath.setAttribute('fill', 'none');
+                hitPath.style.cursor = 'pointer';
+                hitPath.style.pointerEvents = 'stroke';
+                // Use onmousedown for consistency with node selection and to stop event propagation early.
+                 hitPath.onmousedown = (e) => {
+                     // Only handle left-clicks
+                     if (e.button !== 0) return;
+
+                    e.stopPropagation();
+                    selectedConnection = conn;
+
+                    // Deselect any selected node
+                    if (selectedNodeId) {
+                        const prevNode = document.getElementById(selectedNodeId);
+                        if (prevNode) {
+                            prevNode.classList.remove('selected-node');
+                        }
+                        selectedNodeId = null;
+                    }
+                    drawConnections();
+                };
+                svg.appendChild(hitPath);
+            });
+            
+            updateButtonStates();
+        }
+
+        // Flow Validation Functions
+        let currentFlowId = null;
+        
+        window.validateCurrentFlow = async function() {
+            const flowIdInput = document.getElementById('current-flow-id');
+            if (!flowIdInput || !flowIdInput.value) return;
+            
+            currentFlowId = flowIdInput.value;
+            try {
+                const response = await fetch(`/ai-flow/${currentFlowId}/validate`);
+                const result = await response.json();
+                
+                if (!result.valid || result.issues.length > 0 || result.warnings.length > 0) {
+                    showFlowValidationWarning(result);
+                } else {
+                    closeFlowValidationWarning();
+                }
+            } catch (e) {
+                console.error('Flow validation failed:', e);
+            }
+        }
+
+        window.showFlowValidationWarning = function(result) {
+            const warningEl = document.getElementById('flow-validation-warning');
+            const listEl = document.getElementById('flow-validation-list');
+            
+            let messages = [];
+            
+            result.issues.forEach(issue => {
+                messages.push(`⚠️ ${issue.message}`);
+            });
+            
+            result.warnings.forEach(warning => {
+                messages.push(`ℹ️ ${warning.message}`);
+            });
+            
+            if (result.error) {
+                messages.push(`❌ ${result.error}`);
+            }
+            
+            listEl.innerHTML = messages.map(m => `<li>${m}</li>`).join('');
+            warningEl.classList.remove('hidden');
+        }
+
+        window.closeFlowValidationWarning = function() {
+            document.getElementById('flow-validation-warning').classList.add('hidden');
+        }
+
+        // Auto-validate when flow is loaded
+        const originalLoadFlowById = window.loadFlowById;
+        window.loadFlowById = async function(flowId) {
+            await originalLoadFlowById.apply(this, arguments);
+            // Wait for DOM to update then validate
+            setTimeout(() => validateCurrentFlow(), 50);
+        };
+
+        // Validate on page load if flow is already loaded
+        window.addEventListener('load', () => {
+            setTimeout(() => validateCurrentFlow(), 100);
+        });
+
+        // Validate when flow is saved
+        const originalSaveFlow = window.saveFlow;
+        window.saveFlow = async function() {
+            await originalSaveFlow.apply(this, arguments);
+            setTimeout(() => validateCurrentFlow(), 50);
+        };
+
+    })();
+    </script>
+
+    <!-- Visual Debugger -->
+    <script>
+    (function() {
+        const debugMode = {{ 'true' if settings.debug_mode else 'false' }};
+        if (!debugMode) return;
+
+        // Initialize to 0 to sync with server time on first poll
+        let lastTimestamp = 0;
+        let isFirstPoll = true;
+
+        function pollDebugEvents() {
+            fetch(`/debug/events?since=${lastTimestamp}`)
+                .then(r => r.json())
+                .then(events => {
+                    if (events.length > 0) {
+                        lastTimestamp = events[events.length - 1].timestamp_raw;
+                        
+                        // Skip visualization on first poll to avoid flashing old history
+                        if (!isFirstPoll) {
+                            events.forEach(event => {
+                                const nodeEl = document.getElementById(event.node_id);
+                                if (nodeEl) {
+                                    if (event.event === 'start') {
+                                        nodeEl.classList.add('node-executing');
+                                        nodeEl.classList.remove('node-error');
+                                    } else if (event.event === 'end') {
+                                        setTimeout(() => {
+                                            nodeEl.classList.remove('node-executing');
+                                        }, 500); 
+                                    } else if (event.event === 'error') {
+                                        nodeEl.classList.remove('node-executing');
+                                        nodeEl.classList.add('node-error');
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    isFirstPoll = false;
+                })
+                .catch(console.error)
+                .finally(() => {
+                    setTimeout(pollDebugEvents, 500);
+                });
+        }
+
+        pollDebugEvents();
+    })();
+    </script>
+
+    <script>
+        const activeFlowIds = {{ active_flow_ids | tojson }};
+        if (activeFlowIds && activeFlowIds.length > 0) {
+            window.addEventListener('load', () => loadFlowById(activeFlowIds[0]));
+        }
+    </script>
+</body>
+</html>

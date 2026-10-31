@@ -1,0 +1,124 @@
+<header id="main-navbar" class="border-b border-slate-800 bg-slate-950 p-4 shadow-xl" 
+        hx-get="/navbar" hx-trigger="modulesChanged from:body, settingsChanged from:body" hx-swap="outerHTML">
+    <div class="container mx-auto flex justify-between items-center">
+        {% set ns = namespace(chat_enabled=false) %}
+        {% for module in modules %}
+            {% if module.id == 'chat' and module.enabled %}
+                {% set ns.chat_enabled = true %}
+            {% endif %}
+        {% endfor %}
+        <a href="/" class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity">NeuroCore</a>
+        <nav>
+            <ul class="flex space-x-6 text-sm font-medium text-slate-400">
+                <!-- Home -->
+                <li><a href="/" class="hover:text-blue-400 transition-colors">Home</a></li>
+
+                <!-- Chat -->
+                {% for module in modules %}
+                    {% if module.id == 'chat' and module.enabled %}
+                    <li><a href="/chat" class="hover:text-blue-400 transition-colors">Chat</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Calendar -->
+                {% for module in modules %}
+                    {% if module.id == 'calendar' and module.enabled %}
+                    <li><a href="/calendar" class="hover:text-blue-400 transition-colors">Calendar</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Data Dropdown -->
+                <li class="relative group">
+                    <button class="hover:text-blue-400 transition-colors cursor-pointer">Data</button>
+                    <ul class="absolute left-0 mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        {% for module in modules %}
+                            {% if module.id == 'knowledge_base' and module.enabled %}
+                            <li><a href="/knowledge_base" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-blue-400 first:rounded-t-lg">Knowledge</a></li>
+                            {% endif %}
+                        {% endfor %}
+                        {% for module in modules %}
+                            {% if module.id == 'memory_browser' and module.enabled %}
+                            <li><a href="/memory_browser" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-blue-400">Memory</a></li>
+                            {% endif %}
+                        {% endfor %}
+                        <li><a href="/goals" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-blue-400">Goals</a></li>
+                        {% for module in modules %}
+                            {% if module.id == 'reasoning_book' and module.enabled %}
+                            <li><a href="/reasoning_book" class="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-blue-400 last:rounded-b-lg">Reasoning</a></li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </li>
+
+                <!-- AI Flow -->
+                <li><a href="/ai-flow" class="hover:text-blue-400 transition-colors">AI Flow</a></li>
+
+                <!-- Brain -->
+                {% for module in modules %}
+                    {% if module.id == 'brain' and module.enabled %}
+                    <li><a href="/brain/ui" class="hover:text-blue-400 transition-colors">Brain</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                <!-- Marketplace -->
+                <li><a href="/marketplace" class="hover:text-blue-400 transition-colors">Marketplace</a></li>
+
+                <!-- Research -->
+                <li><a href="/research" class="hover:text-blue-400 transition-colors">Research</a></li>
+
+                <!-- Debug -->
+                {% if settings.debug_mode %}
+                <li><a href="/debug" class="hover:text-blue-400 transition-colors">Debug</a></li>
+                {% endif %}
+
+                <!-- Settings -->
+                <li><a href="/settings" class="hover:text-blue-400 transition-colors">Settings</a></li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- Global Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        // Global Toast Function
+        window.showToast = function(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            // Colors based on type
+            const colors = {
+                'success': 'bg-emerald-600 text-white border-emerald-500',
+                'error': 'bg-red-600 text-white border-red-500',
+                'info': 'bg-blue-600 text-white border-blue-500'
+            };
+            const colorClass = colors[type] || colors['info'];
+
+            toast.className = `${colorClass} px-4 py-3 rounded-xl shadow-lg border flex items-center space-x-2 transform transition-all duration-300 translate-y-10 opacity-0 pointer-events-auto min-w-[200px]`;
+            toast.innerHTML = `
+                <span class="text-sm font-semibold">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-10', 'opacity-0');
+            });
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Listen for HTMX events from the backend
+        if (!window.htmxMessageListenerAttached) {
+            document.body.addEventListener("showMessage", function(evt){
+                window.showToast(evt.detail.message, evt.detail.level);
+            });
+            window.htmxMessageListenerAttached = true;
+        }
+    </script>
+</header>

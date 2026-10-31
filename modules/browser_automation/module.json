@@ -1,0 +1,19 @@
+{
+    "name": "Browser Automation",
+    "description": "Provides a managed headless browser instance for visual automation, screenshots, and dynamic DOM interaction.",
+    "enabled": true,
+    "id": "browser_automation",
+    "icon": "M3 3h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2zm0 2v14h18V5H3zm2 2h14v2H5V7zm0 4h14v8H5v-8z",
+    
+    "is_flow_node": false,
+    "singleton": true,
+    "order": 15,
+    
+    "config": {
+        "headless": true,
+        "timeout": 30000,
+        "default_viewport": {"width": 1280, "height": 720}
+    },
+    
+    "provides_nodes": []
+}

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroCore - Modular LLM GUI</title>
+    <!-- Tailwind CSS (CDN for minimal setup, PurgeCSS will make it tiny in production) -->
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <!-- HTMX (Fast and less memory than React/Vue/Svelte) -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <!-- Sortable.js for drag-and-drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+    
+    <!-- Navbar -->
+    {% include 'navbar.html' %}
+
+    <!-- Main Layout -->
+    <main class="flex-grow {{ 'w-full px-6' if settings.ui_wide_mode else 'container mx-auto' }} flex p-6 {{ 'space-x-6' if not full_width_content else '' }} h-[calc(100vh-80px)] overflow-hidden">
+        
+        <!-- Sidebar -->
+        {% if not full_width_content %}
+        <aside class="w-64 flex flex-col space-y-4 border-r border-slate-800 pr-4">
+            {% if sidebar_template or not hide_module_list %}
+            <div class="flex-grow bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden flex flex-col relative">
+                {% if sidebar_template %}
+                    {% include sidebar_template %}
+                {% else %}
+                <div id="module-list-container"
+                     hx-get="/modules/list"
+                     hx-trigger="load, modulesChanged from:body"
+                     class="flex flex-col flex-grow py-3">
+                    <!-- This will be filled by HTMX -->
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Connection Status -->
+            {% if not hide_status_panel %}
+            <div class="mt-auto p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 space-y-2">
+                <div class="flex items-center space-x-2">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span class="text-xs text-slate-400">Core Status: Online</span>
+                </div>
+                <div id="llm-status-container" hx-get="/llm-status" hx-trigger="load">
+                    <div class="flex items-center space-x-2 opacity-50">
+                        <div class="w-2 h-2 rounded-full bg-slate-500"></div>
+                        <span class="text-xs text-slate-500">LLM Status: Checking...</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+
+        </aside>
+        {% endif %}
+
+        <!-- Dynamic Content Area -->
+        <section class="flex-grow flex flex-col bg-slate-950/50 rounded-2xl border border-slate-800 shadow-2xl relative overflow-hidden">
+            <div id="module-content" class="absolute inset-0 p-6 overflow-y-auto custom-scrollbar">
+                {% if active_module and active_module != 'dashboard' %}
+                <div hx-get="/{{ active_module }}/gui" hx-trigger="load" hx-swap="outerHTML">
+                    <div class="flex items-center justify-center h-full">
+                        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                </div>
+                {% elif active_module == 'dashboard' %}
+                <div hx-get="/dashboard/gui" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="flex items-center justify-center h-full">
+                        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
+                    <svg class="w-16 h-16 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <p class="text-slate-500">Select a module from the sidebar to begin</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Global Session UI Helpers
+        function toggleConfirm(id, show) {
+            const confirmUi = document.querySelector(`.confirm-${id}`);
+            const actionBtns = document.querySelector(`.action-btns-${id}`);
+            if (confirmUi && actionBtns) {
+                if (show) {
+                    confirmUi.classList.remove('hidden');
+                    actionBtns.classList.add('hidden');
+                } else {
+                    confirmUi.classList.add('hidden');
+                    actionBtns.classList.remove('hidden');
+                }
+            }
+        }
+
+        function toggleRename(id, show) {
+            const nameBtn = document.querySelector(`.session-name-${id}`);
+            const renameForm = document.querySelector(`.rename-form-${id}`);
+            const actionBtns = document.querySelector(`.action-btns-${id}`);
+            const renameConfirm = document.querySelector(`.rename-confirm-${id}`);
+
+            if (nameBtn && renameForm && actionBtns && renameConfirm) {
+                if (show) {
+                    nameBtn.classList.add('hidden');
+                    renameForm.classList.remove('hidden');
+                    actionBtns.classList.add('hidden');
+                    renameConfirm.classList.remove('hidden');
+                    renameForm.querySelector('input').focus();
+                } else {
+                    nameBtn.classList.remove('hidden');
+                    renameForm.classList.add('hidden');
+                    actionBtns.classList.remove('hidden');
+                    renameConfirm.classList.add('hidden');
+                }
+            }
+        }
+
+        function submitRename(id) {
+            htmx.trigger(`.rename-form-${id}`, 'submit');
+        }
+
+        // Handle auto-navigation to new sessions
+        document.body.addEventListener('newSessionCreated', function(evt) {
+            const sessionId = evt.detail.id;
+            if (sessionId) {
+                htmx.ajax('GET', '/chat/gui?session_id=' + sessionId, '#module-content');
+            }
+        });
+    </script>
+
+    <!-- Footer -->
+    <div id="main-footer" hx-get="/footer" hx-trigger="settingsChanged from:body" hx-swap="innerHTML">
+        {% include 'footer.html' %}
+    </div>
+
+</body>
+</html>

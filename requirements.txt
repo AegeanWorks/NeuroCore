@@ -1,0 +1,36 @@
+# NeuroCore runtime dependencies plus the optional capabilities the README advertises.
+# Mirrors pyproject.toml (dependencies + browser, documents, messaging extras);
+# tests/test_packaging.py keeps them in sync. Test tools live in requirements-dev.txt.
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.20
+
+# HTTP Client
+httpx>=0.28.0
+
+# WebSocket client (used by Discord Bridge for Gateway connection)
+websockets>=12.0
+
+# File Locking
+filelock>=3.13.0
+
+# Templating
+jinja2>=3.1.0
+
+# Data & AI
+numpy>=1.26.0
+scipy>=1.13.0
+faiss-cpu>=1.8.0
+
+# Data Validation
+pydantic>=2.10.0
+
+# Optional capabilities advertised in the README
+playwright>=1.40.0
+PyMuPDF>=1.23.0
+python-docx>=1.1.0
+Pillow>=10.0.0
+pytesseract>=0.3.10
+

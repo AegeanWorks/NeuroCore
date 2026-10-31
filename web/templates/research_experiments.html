@@ -1,0 +1,557 @@
+<div class="flex flex-col gap-4 h-full" id="experiments-workspace">
+
+    <!-- ── Interventions table ── -->
+    <div class="bg-slate-950/50 border border-slate-800 rounded-xl flex flex-col flex-shrink-0">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-800">
+            <h3 class="font-semibold text-slate-200 text-sm">Interventions</h3>
+            <div class="flex gap-2">
+                <button onclick="closeSelectedIntervention()"
+                        class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-all">
+                    End Selected (Today)
+                </button>
+                <button onclick="document.getElementById('modal-new-intervention').showModal()"
+                        class="bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add Intervention
+                </button>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-xs text-slate-500 uppercase tracking-wider border-b border-slate-800">
+                        <th class="text-left px-5 py-2 font-medium">Name</th>
+                        <th class="text-left px-4 py-2 font-medium">Start</th>
+                        <th class="text-left px-4 py-2 font-medium">Projected End</th>
+                        <th class="text-left px-4 py-2 font-medium">Actual End</th>
+                        <th class="text-left px-4 py-2 font-medium">Status</th>
+                        <th class="px-4 py-2"></th>
+                    </tr>
+                </thead>
+                <tbody id="interventions-tbody">
+                    {% if interventions %}
+                        {% for iv in interventions %}
+                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/40 cursor-pointer transition-all intervention-row"
+                            data-id="{{ iv.id }}" data-start="{{ iv.start_date }}"
+                            onclick="selectIntervention('{{ iv.id }}', '{{ iv.name }}', '{{ iv.start_date }}')">
+                            <td class="px-5 py-2.5 font-medium text-slate-200">{{ iv.name }}</td>
+                            <td class="px-4 py-2.5 text-slate-400">{{ iv.start_date }}</td>
+                            <td class="px-4 py-2.5 text-slate-400">{{ iv.end_date_projected or '—' }}</td>
+                            <td class="px-4 py-2.5 text-slate-400">{{ iv.end_date_actual or '—' }}</td>
+                            <td class="px-4 py-2.5">
+                                {% if iv.end_date_actual %}
+                                <span class="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-slate-400 border border-slate-700">Ended</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-900/50 text-emerald-300 border border-emerald-700/50">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5">
+                                <button hx-delete="/research/interventions/{{ iv.id }}"
+                                        hx-confirm="Delete this intervention and all its data?"
+                                        hx-on::after-request="htmx.ajax('GET','/research/experiments',{target:'#view-experiments',swap:'innerHTML'})"
+                                        onclick="event.stopPropagation()"
+                                        class="p-1 rounded text-slate-600 hover:text-red-400 transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="6" class="px-5 py-8 text-center text-slate-500 text-sm">No interventions yet. Add one to get started.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ── Workspace tabs (scoped to selected intervention) ── -->
+    <div class="flex-grow flex flex-col min-h-0 bg-slate-950/50 border border-slate-800 rounded-xl overflow-hidden">
+
+        <!-- Workspace header -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-800 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-slate-500 uppercase tracking-wider">Selected:</span>
+                <span id="ws-intervention-name" class="text-sm font-semibold text-violet-300">None</span>
+            </div>
+            <div class="flex gap-2">
+                <!-- Export CSV -->
+                <a id="btn-export-csv" href="#" target="_blank"
+                   class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-all flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Export CSV
+                </a>
+                <!-- Inner workspace tabs -->
+                <div class="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                    <button onclick="switchWsTab('metric-setup')" id="wstab-metric-setup" class="wstab-btn active text-xs px-3 py-1 rounded font-medium transition-all">Metric Setup</button>
+                    <button onclick="switchWsTab('logging')" id="wstab-logging" class="wstab-btn text-xs px-3 py-1 rounded text-slate-400 hover:text-white transition-all">Logging</button>
+                    <button onclick="switchWsTab('events')" id="wstab-events" class="wstab-btn text-xs px-3 py-1 rounded text-slate-400 hover:text-white transition-all">Events</button>
+                    <button onclick="switchWsTab('analysis')" id="wstab-analysis" class="wstab-btn text-xs px-3 py-1 rounded text-slate-400 hover:text-white transition-all">Analysis</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workspace content area -->
+        <div class="flex-grow overflow-y-auto custom-scrollbar p-5 min-h-0">
+
+            <!-- No selection state -->
+            <div id="ws-no-selection" class="flex flex-col items-center justify-center h-full text-slate-500 gap-3">
+                <svg class="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
+                <p class="text-sm">Select an intervention above to begin.</p>
+            </div>
+
+            <!-- Metric Setup -->
+            <div id="wsview-metric-setup" class="wsview hidden flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-slate-400">Define the metrics you will measure. These are shared across all experiments.</p>
+                    <button onclick="document.getElementById('modal-new-metric').showModal()"
+                            class="bg-violet-600 hover:bg-violet-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Add Metric
+                    </button>
+                </div>
+                <div id="metrics-list"
+                     hx-get="/research/metrics"
+                     hx-trigger="load, metricsChanged from:body"
+                     hx-swap="innerHTML">
+                </div>
+            </div>
+
+            <!-- Logging -->
+            <div id="wsview-logging" class="wsview hidden flex flex-col gap-4">
+                <div class="grid grid-cols-2 gap-6">
+                    <!-- Log form -->
+                    <div class="flex flex-col gap-3">
+                        <h4 class="text-sm font-semibold text-slate-300">Log a Value</h4>
+                        <form id="log-form" onsubmit="submitLog(event)" class="flex flex-col gap-3">
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Date</label>
+                                <input type="date" id="log-date"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Metric</label>
+                                <select id="log-metric-name"
+                                        class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                    <option value="">— choose metric —</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Value</label>
+                                <input type="number" step="any" id="log-value" placeholder="0.0"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Notes (optional)</label>
+                                <input type="text" id="log-notes" placeholder="Any context…"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </div>
+                            <button type="submit"
+                                    class="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+                                Log Metric
+                            </button>
+                        </form>
+                    </div>
+                    <!-- Logged data -->
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-slate-300">Logged Data</h4>
+                            <select id="view-log-metric" onchange="reloadLogs()"
+                                    class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300 focus:outline-none">
+                                <option value="">All metrics</option>
+                            </select>
+                        </div>
+                        <div id="logs-list" class="flex flex-col gap-2 overflow-y-auto custom-scrollbar max-h-72"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Events -->
+            <div id="wsview-events" class="wsview hidden flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-slate-400">Record confounding events that could affect your metrics.</p>
+                    <button onclick="document.getElementById('modal-new-event').showModal()"
+                            class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Log Event
+                    </button>
+                </div>
+                <div id="events-list" class="flex flex-col gap-2"></div>
+            </div>
+
+            <!-- Analysis -->
+            <div id="wsview-analysis" class="wsview hidden flex flex-col gap-4">
+                <div class="grid grid-cols-3 gap-4">
+                    <!-- Config panel -->
+                    <div class="flex flex-col gap-3 col-span-1">
+                        <h4 class="text-sm font-semibold text-slate-300">Analysis Settings</h4>
+                        <div>
+                            <label class="text-xs text-slate-500 mb-1 block">Metric</label>
+                            <select id="analysis-metric"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                <option value="">— choose metric —</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Baseline days</label>
+                                <input type="number" id="analysis-baseline-days" value="14" min="3"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </div>
+                            <div>
+                                <label class="text-xs text-slate-500 mb-1 block">Intervention days</label>
+                                <input type="number" id="analysis-intervention-days" value="14" min="3"
+                                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 mb-1 block">Alpha (α)</label>
+                            <select id="analysis-alpha"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                <option value="0.05" selected>0.05 (standard)</option>
+                                <option value="0.01">0.01 (strict)</option>
+                                <option value="0.10">0.10 (lenient)</option>
+                            </select>
+                        </div>
+                        <button onclick="runAnalysis()"
+                                class="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            Run Analysis
+                        </button>
+                    </div>
+                    <!-- Results -->
+                    <div id="analysis-results" class="col-span-2 flex flex-col gap-3">
+                        <div class="flex flex-col items-center justify-center h-40 text-slate-600 gap-2">
+                            <svg class="w-8 h-8 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            <p class="text-sm">Configure and run analysis.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- New Intervention Modal -->
+<dialog id="modal-new-intervention" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-md text-slate-100 shadow-2xl">
+    <form hx-post="/research/interventions"
+          hx-on::after-request="document.getElementById('modal-new-intervention').close(); htmx.ajax('GET','/research/experiments',{target:'#view-experiments',swap:'innerHTML'})"
+          class="flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-lg font-bold">Add Intervention</h2>
+            <button type="button" onclick="document.getElementById('modal-new-intervention').close()" class="text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Name *</label>
+                <input type="text" name="name" required placeholder="e.g. Vitamin D Supplement"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Description</label>
+                <input type="text" name="description" placeholder="What are you testing?"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Start Date *</label>
+                <input type="date" name="start_date" required
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Projected End</label>
+                    <input type="date" name="end_date_projected"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Actual End</label>
+                    <input type="date" name="end_date_actual"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Notes</label>
+                <textarea name="notes" rows="2"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('modal-new-intervention').close()"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-all">Create</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- New Metric Modal -->
+<dialog id="modal-new-metric" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-md text-slate-100 shadow-2xl">
+    <form hx-post="/research/metrics"
+          hx-on::after-request="document.getElementById('modal-new-metric').close(); htmx.trigger(document.body,'metricsChanged'); refreshMetricSelects()"
+          class="flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-lg font-bold">Add Metric</h2>
+            <button type="button" onclick="document.getElementById('modal-new-metric').close()" class="text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Name *</label>
+                <input type="text" name="name" required placeholder="e.g. Sleep Quality"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Description</label>
+                <input type="text" name="description" placeholder="Subjective rating 1-10"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Unit</label>
+                <input type="text" name="unit" placeholder="score, mg, hours…"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('modal-new-metric').close()"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-all">Add</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- New Event Modal -->
+<dialog id="modal-new-event" class="bg-slate-900 border border-slate-700 rounded-2xl p-0 w-full max-w-md text-slate-100 shadow-2xl">
+    <form id="event-form" onsubmit="submitEvent(event)" class="flex flex-col">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-lg font-bold">Log Event</h2>
+            <button type="button" onclick="document.getElementById('modal-new-event').close()" class="text-slate-500 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="p-5 flex flex-col gap-4">
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Event Name *</label>
+                <input type="text" id="ev-name" required placeholder="e.g. High Stress Day"
+                       class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Date & Time</label>
+                    <input type="datetime-local" id="ev-datetime"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Severity</label>
+                    <select id="ev-severity"
+                            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Notes</label>
+                <textarea id="ev-notes" rows="2"
+                          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"></textarea>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 p-5 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('modal-new-event').close()"
+                    class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 transition-all">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-all">Log</button>
+        </div>
+    </form>
+</dialog>
+
+<style>
+.wstab-btn.active { background: #7c3aed; color: #fff; }
+.wsview { display: none; }
+.wsview.active-ws { display: flex; }
+.intervention-row.selected { background: rgba(124,58,237,0.12); border-left: 2px solid #7c3aed; }
+</style>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let _selectedInterventionId = null;
+let _selectedInterventionStart = null;
+let _allMetrics = [];
+
+// ── Workspace tab switching ──────────────────────────────────────────────
+function switchWsTab(name) {
+    document.querySelectorAll('.wstab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.wsview').forEach(v => v.classList.remove('active-ws'));
+    document.getElementById('wstab-' + name).classList.add('active');
+    const view = document.getElementById('wsview-' + name);
+    view.classList.add('active-ws');
+    if (name === 'logging') reloadLogs();
+    if (name === 'events') reloadEvents();
+}
+
+// ── Select intervention ──────────────────────────────────────────────────
+function selectIntervention(id, name, startDate) {
+    _selectedInterventionId = id;
+    _selectedInterventionStart = startDate;
+    document.querySelectorAll('.intervention-row').forEach(r => r.classList.remove('selected'));
+    const row = document.querySelector(`.intervention-row[data-id="${id}"]`);
+    if (row) row.classList.add('selected');
+    document.getElementById('ws-intervention-name').textContent = name;
+    document.getElementById('ws-no-selection').classList.add('hidden');
+    document.querySelectorAll('.wsview').forEach(v => v.classList.remove('active-ws'));
+    document.getElementById('wsview-metric-setup').classList.add('active-ws');
+    document.querySelectorAll('.wstab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('wstab-metric-setup').classList.add('active');
+    // Show export button
+    const exportBtn = document.getElementById('btn-export-csv');
+    exportBtn.href = '/research/interventions/' + id + '/export';
+    exportBtn.classList.remove('hidden');
+    refreshMetricSelects();
+}
+
+function closeSelectedIntervention() {
+    if (!_selectedInterventionId) { window.showToast('Select an intervention first.', 'error'); return; }
+    const today = new Date().toISOString().split('T')[0];
+    fetch('/research/interventions/' + _selectedInterventionId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: 'end_date_actual=' + encodeURIComponent(today)
+    }).then(() => htmx.ajax('GET', '/research/experiments', {target: '#view-experiments', swap: 'innerHTML'}));
+}
+
+// ── Metric selects ───────────────────────────────────────────────────────
+async function refreshMetricSelects() {
+    const resp = await fetch('/research/metrics/json');
+    if (!resp.ok) return;
+    _allMetrics = await resp.json();
+    const options = _allMetrics.map(m => `<option value="${m.name}">${m.name}${m.unit ? ' (' + m.unit + ')' : ''}</option>`).join('');
+    document.getElementById('log-metric-name').innerHTML = '<option value="">— choose metric —</option>' + options;
+    document.getElementById('view-log-metric').innerHTML = '<option value="">All metrics</option>' + options;
+    document.getElementById('analysis-metric').innerHTML = '<option value="">— choose metric —</option>' + options;
+}
+
+// ── Metric log submit ────────────────────────────────────────────────────
+async function submitLog(e) {
+    e.preventDefault();
+    if (!_selectedInterventionId) { window.showToast('Select an intervention first.', 'error'); return; }
+    const date = document.getElementById('log-date').value;
+    const metric = document.getElementById('log-metric-name').value;
+    const value = document.getElementById('log-value').value;
+    const notes = document.getElementById('log-notes').value;
+    if (!date || !metric || value === '') { window.showToast('Date, metric, and value are required.', 'error'); return; }
+    const body = new URLSearchParams({ intervention_id: _selectedInterventionId, metric_name: metric, log_date: date, value, notes });
+    const resp = await fetch('/research/metric-logs', { method: 'POST', body });
+    if (resp.ok) { window.showToast('Logged.', 'success'); document.getElementById('log-form').reset(); reloadLogs(); }
+    else { window.showToast('Failed to log.', 'error'); }
+}
+
+async function reloadLogs() {
+    if (!_selectedInterventionId) return;
+    const metric = document.getElementById('view-log-metric')?.value || '';
+    const url = '/research/metric-logs/' + _selectedInterventionId + (metric ? '?metric=' + encodeURIComponent(metric) : '');
+    htmx.ajax('GET', url, {target: '#logs-list', swap: 'innerHTML'});
+}
+
+// ── Event submit ─────────────────────────────────────────────────────────
+async function submitEvent(e) {
+    e.preventDefault();
+    if (!_selectedInterventionId) { window.showToast('Select an intervention first.', 'error'); return; }
+    const name = document.getElementById('ev-name').value;
+    const dt = document.getElementById('ev-datetime').value;
+    const severity = document.getElementById('ev-severity').value;
+    const notes = document.getElementById('ev-notes').value;
+    if (!name || !dt) { window.showToast('Name and date are required.', 'error'); return; }
+    const body = new URLSearchParams({ intervention_id: _selectedInterventionId, name, event_datetime: dt, severity, notes });
+    const resp = await fetch('/research/events', { method: 'POST', body });
+    if (resp.ok) {
+        document.getElementById('modal-new-event').close();
+        document.getElementById('event-form').reset();
+        reloadEvents();
+    } else { window.showToast('Failed to log event.', 'error'); }
+}
+
+async function reloadEvents() {
+    if (!_selectedInterventionId) return;
+    htmx.ajax('GET', '/research/events/' + _selectedInterventionId, {target: '#events-list', swap: 'innerHTML'});
+}
+
+// ── Analysis ─────────────────────────────────────────────────────────────
+async function runAnalysis() {
+    if (!_selectedInterventionId) { window.showToast('Select an intervention first.', 'error'); return; }
+    const metric = document.getElementById('analysis-metric').value;
+    if (!metric) { window.showToast('Choose a metric to analyse.', 'error'); return; }
+    const baselineDays = document.getElementById('analysis-baseline-days').value;
+    const interventionDays = document.getElementById('analysis-intervention-days').value;
+    const alpha = document.getElementById('analysis-alpha').value;
+    const el = document.getElementById('analysis-results');
+    el.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><svg class="w-5 h-5 animate-spin text-violet-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Running analysis…</div>';
+    const body = new URLSearchParams({
+        intervention_id: _selectedInterventionId, metric_name: metric,
+        start_date: _selectedInterventionStart, baseline_days: baselineDays,
+        intervention_days: interventionDays, alpha
+    });
+    const resp = await fetch('/research/experiments/analyze', { method: 'POST', body });
+    const data = await resp.json();
+    if (data.error) { el.innerHTML = `<div class="text-red-400 text-sm">${data.error}</div>`; return; }
+    el.innerHTML = renderAnalysisResult(data);
+}
+
+function renderAnalysisResult(r) {
+    const sig = r.significant;
+    const sigColor = sig ? 'text-emerald-400' : 'text-slate-400';
+
+    const warnHtml = (r.warnings || []).length > 0
+        ? `<div class="bg-amber-900/30 border border-amber-700/50 rounded-xl p-4 flex flex-col gap-1">
+            <p class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-1">Warnings</p>
+            ${r.warnings.map(w => `<p class="text-xs text-amber-300">⚠ ${w}</p>`).join('')}
+           </div>`
+        : '';
+
+    return `
+    <div class="flex flex-col gap-3 text-sm">
+        ${warnHtml}
+        <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-2 font-semibold">Baseline (n=${r.baseline.n})</p>
+                <p class="text-slate-200">Mean: <span class="font-mono font-bold">${r.baseline.mean}</span></p>
+                <p class="text-slate-400 text-xs">SD: ${r.baseline.std}</p>
+                ${r.baseline.trend ? `<p class="text-xs mt-1 ${r.baseline.trend.significant ? 'text-amber-400' : 'text-slate-500'}">Trend: slope=${r.baseline.trend.slope}, p=${r.baseline.trend.p_value} ${r.baseline.trend.significance_stars}</p>` : ''}
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-2 font-semibold">Intervention (n=${r.intervention.n})</p>
+                <p class="text-slate-200">Mean: <span class="font-mono font-bold">${r.intervention.mean}</span></p>
+                <p class="text-slate-400 text-xs">SD: ${r.intervention.std}</p>
+            </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+            <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Effect</p>
+            <div class="flex flex-wrap gap-4">
+                <div><p class="text-xs text-slate-500">Mean Difference</p><p class="font-mono font-bold text-slate-200 ${r.mean_difference > 0 ? 'text-emerald-300' : 'text-red-300'}">${r.mean_difference > 0 ? '+' : ''}${r.mean_difference}</p></div>
+                <div><p class="text-xs text-slate-500">Cohen's d</p><p class="font-mono font-bold text-slate-200">${r.cohen_d} <span class="text-xs font-normal text-slate-400">(${r.effect_interpretation})</span></p></div>
+                <div><p class="text-xs text-slate-500">Bootstrap 95% CI</p><p class="font-mono font-bold text-slate-200">[${r.bootstrap_ci.lower}, ${r.bootstrap_ci.upper}]</p></div>
+            </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+            <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Significance</p>
+            <div class="flex flex-wrap gap-4">
+                <div><p class="text-xs text-slate-500">Welch's t-test</p><p class="font-mono text-sm">p = ${r.welch_ttest.p_value} <span class="text-violet-300">${r.welch_ttest.significance_stars}</span></p></div>
+                <div><p class="text-xs text-slate-500">Mann-Whitney U</p><p class="font-mono text-sm">p = ${r.mann_whitney.p_value} <span class="text-violet-300">${r.mann_whitney.significance_stars}</span></p></div>
+            </div>
+            <p class="text-xs mt-2 font-semibold ${sigColor}">${sig ? '✓ Result is statistically significant at α = ' + r.alpha : '✗ Result is not statistically significant at α = ' + r.alpha}</p>
+        </div>
+        <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+            <p class="text-xs text-slate-400 font-mono leading-relaxed">${r.summary}</p>
+        </div>
+    </div>`;
+}
+
+// Set today as default for log date and event datetime
+(function() {
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('log-date');
+    if (dateInput) dateInput.value = today;
+    const dtInput = document.getElementById('ev-datetime');
+    if (dtInput) dtInput.value = new Date().toISOString().slice(0, 16);
+})();
+</script>

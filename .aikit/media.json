@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "name": "neurocore",
+  "repo": "Neurocore",
+  "has_ui": true,
+  "ui_kind": "web",
+  "palette": [
+    "#120f0a",
+    "#2a2113",
+    "#f59e0b",
+    "#93c5fd"
+  ],
+  "motif": "brain",
+  "layout": "grid",
+  "assets": {
+    "logo": {
+      "path": "assets/logo.jpg",
+      "status": "approved",
+      "commit": "",
+      "generated_at": "2026-10-28T16:27:48",
+      "review": {
+        "status": "approved",
+        "reviewer": "subagent:vision-review",
+        "method": "vision",
+        "notes": "Neurocore\nNEUROSCIENCE none",
+        "score": 88,
+        "reviewed_at": "2026-10-28T17:52:09"
+      }
+    },
+    "social_preview": {
+      "path": "assets/social-preview.jpg",
+      "status": "approved",
+      "commit": "",
+      "generated_at": "2026-10-29T19:07:58",
+      "review": {
+        "status": "approved",
+        "reviewer": "human:user",
+        "method": "human",
+        "notes": "The project's pre-existing banner was preferred by the user; it was moved to the current social-preview asset name and center-cropped to the required 1280x640.",
+        "reviewed_at": "2026-10-28T18:26:59"
+      }
+    }
+  },
+  "screenshots": [],
+  "model": "community/scriptsnsenses-sys/flux-2-dev-free"
+}

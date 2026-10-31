@@ -1,0 +1,18 @@
+{
+    "id": "calendar",
+    "name": "Calendar",
+    "description": "Event scheduling and reminders.",
+    "enabled": true,
+    "order": 13,
+    "icon": "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    "provides_nodes": [
+        {
+            "id": "calendar_watcher",
+            "name": "Calendar Watcher",
+            "description": "Checks for events scheduled at the current time. Stops flow if no events found.",
+            "singleton": false,
+            "configurable": true
+        }
+    ]
+}
+

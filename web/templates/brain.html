@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Brain - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .brain-card { background: rgb(15 23 42 / 0.8); border: 1px solid #1e293b; border-radius: 1rem; }
+        .brain-scroll::-webkit-scrollbar { width: 4px; }
+        .brain-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+{% include 'navbar.html' %}
+<main class="flex-grow container mx-auto p-6 space-y-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">AI Brain</h1>
+            <p class="text-sm text-slate-400">Observe, governed proposals and event reactions. No autonomous execution.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button data-action="start" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Start</button>
+            <button data-action="stop" class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm">Stop</button>
+            <button data-action="cycle" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm">Run cycle</button>
+            <button data-action="kill" class="px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-sm">Kill switch</button>
+            <button data-action="reset" class="px-3 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-sm">Reset kernel</button>
+        </div>
+    </div>
+
+    <div id="error" class="hidden rounded-xl border border-red-700 bg-red-950/50 p-3 text-sm text-red-200"></div>
+
+    <section class="grid gap-4 md:grid-cols-4">
+        <div class="brain-card p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Kernel</div>
+            <div id="kernel-mode" class="text-2xl font-bold">—</div>
+            <div id="kernel-risk" class="text-xs text-slate-400"></div>
+        </div>
+        <div class="brain-card p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Health</div>
+            <div id="health" class="text-2xl font-bold">—</div>
+            <div id="confidence" class="text-xs text-slate-400"></div>
+        </div>
+        <div class="brain-card p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Cycles</div>
+            <div id="cycles" class="text-2xl font-bold">0</div>
+            <div id="throttle" class="text-xs text-slate-400"></div>
+        </div>
+        <div class="brain-card p-4">
+            <div class="text-xs uppercase tracking-wide text-slate-500">Reactions</div>
+            <div id="reaction-count" class="text-2xl font-bold">0</div>
+            <div id="reactivity-state" class="text-xs text-slate-400"></div>
+        </div>
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+        <div class="brain-card p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold">Proposals</h2>
+                <span class="text-xs text-slate-500">advisory only</span>
+            </div>
+            <div id="proposals" class="brain-scroll max-h-80 overflow-y-auto space-y-2 text-sm"></div>
+        </div>
+        <div class="brain-card p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold">Reactions</h2>
+                <div class="flex gap-2">
+                    <button data-action="react-start" class="px-2 py-1 rounded bg-slate-700 text-xs">Start polling</button>
+                    <button data-action="react-stop" class="px-2 py-1 rounded bg-slate-700 text-xs">Stop</button>
+                    <button data-action="react-poll" class="px-2 py-1 rounded bg-blue-700 text-xs">Poll now</button>
+                </div>
+            </div>
+            <div id="reactions" class="brain-scroll max-h-80 overflow-y-auto space-y-2 text-sm"></div>
+        </div>
+    </section>
+
+    <section class="brain-card p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 class="font-semibold">Evaluation scorecard</h2>
+            <div class="flex gap-2">
+                <button data-action="eval-run" class="px-3 py-1.5 rounded bg-blue-700 text-xs">Run suite</button>
+                <button data-action="eval-baseline" class="px-3 py-1.5 rounded bg-slate-700 text-xs">Promote baseline</button>
+            </div>
+        </div>
+        <pre id="eval-result" class="text-xs text-slate-400 whitespace-pre-wrap">No evaluation loaded.</pre>
+    </section>
+</main>
+
+<script>{% include '_utils.html' %}</script>
+<script>
+    const $ = (id) => document.getElementById(id);
+    let lastState = null;
+
+    function showError(message) {
+        const box = $('error');
+        box.textContent = message;
+        box.classList.toggle('hidden', !message);
+    }
+
+    async function request(url, options = {}) {
+        const response = await fetch(url, {
+            headers: {'Content-Type': 'application/json', ...(options.headers || {})},
+            ...options,
+        });
+        if (!response.ok) {
+            let detail = `${response.status} ${response.statusText}`;
+            try { detail = (await response.json()).detail || detail; } catch (_) {}
+            throw new Error(detail);
+        }
+        return response.json();
+    }
+
+    function renderProposal(item) {
+        return `<div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+            <div class="flex justify-between gap-2"><span class="font-medium">${escapeHtml(item.title || item.kind || 'Proposal')}</span>
+            <span class="text-xs text-slate-500">${escapeHtml(item.confidence ?? '')}</span></div>
+            <p class="text-xs text-slate-400 mt-1">${escapeHtml(item.rationale || '')}</p>
+        </div>`;
+    }
+
+    function renderReaction(item) {
+        return `<div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+            <div class="flex items-start justify-between gap-2">
+                <div><div class="font-medium">${escapeHtml(item.title || item.kind || 'Reaction')}</div>
+                <div class="text-xs text-slate-500">${escapeHtml(item.event_type || '')} · ${escapeHtml(item.source || '')}</div></div>
+                <span class="text-xs text-slate-500">${escapeHtml(item.status || '')}</span>
+            </div>
+            <div class="mt-2 flex gap-2">
+                <button data-dismiss="${escapeHtml(item.id)}" class="px-2 py-1 rounded bg-slate-700 text-xs">Dismiss</button>
+                <button data-mute="${escapeHtml(item.key)}" class="px-2 py-1 rounded bg-slate-800 text-xs">Mute 1h</button>
+            </div>
+        </div>`;
+    }
+
+    function render() {
+        if (!lastState) return;
+        const state = lastState.state || {};
+        const self = lastState.self || {};
+        const kernel = self.kernel || state.last_snapshot?.kernel || {};
+        const reactivity = self.reactivity || {};
+        $('kernel-mode').textContent = String(kernel.mode || '—').toUpperCase();
+        $('kernel-risk').textContent = `risk ${kernel.risk_score ?? 0} · ${kernel.reason || ''}`;
+        $('health').textContent = String(self.health || '—').toUpperCase();
+        $('health').className = `text-2xl font-bold ${self.health === 'ok' ? 'text-emerald-400' : 'text-amber-400'}`;
+        $('confidence').textContent = `confidence ${self.confidence ?? '—'}`;
+        $('cycles').textContent = state.cycle_count ?? 0;
+        $('throttle').textContent = state.throttled ? 'throttled' : (state.last_error ? `error: ${state.last_error}` : '');
+        $('reaction-count').textContent = reactivity.reactions ?? 0;
+        $('reactivity-state').textContent = reactivity.running ? `polling · ${reactivity.pending || 0} pending` : 'polling off';
+        $('proposals').innerHTML = (state.proposals || []).map(renderProposal).join('') || '<p class="text-slate-500">No proposals.</p>';
+        const evaluation = self.evaluation || {};
+        $('eval-result').textContent = Object.keys(evaluation).length ? JSON.stringify(evaluation, null, 2) : 'No evaluation loaded.';
+    }
+
+    async function refresh() {
+        try {
+            lastState = await request('/brain/state');
+            const reactions = await request('/brain/reactions');
+            render();
+            $('reactions').innerHTML = (reactions.items || []).slice(0, 20).map(renderReaction).join('') || '<p class="text-slate-500">No reactions.</p>';
+            showError('');
+        } catch (error) {
+            showError(error.message);
+        }
+    }
+
+    async function action(name) {
+        try {
+            if (name === 'start') await request('/brain/start', {method: 'POST'});
+            else if (name === 'stop') await request('/brain/stop', {method: 'POST'});
+            else if (name === 'cycle') await request('/brain/cycle', {method: 'POST'});
+            else if (name === 'kill') await request('/brain/kernel/kill', {method: 'POST', body: JSON.stringify({reason: 'dashboard'})});
+            else if (name === 'reset') await request('/brain/kernel/reset', {method: 'POST'});
+            else if (name === 'react-start') await request('/brain/react/start', {method: 'POST'});
+            else if (name === 'react-stop') await request('/brain/react/stop', {method: 'POST'});
+            else if (name === 'react-poll') await request('/brain/react/poll', {method: 'POST'});
+            else if (name === 'eval-run') await request('/brain/eval/run', {method: 'POST', body: '{}'});
+            else if (name === 'eval-baseline') await request('/brain/eval/baseline', {method: 'POST'});
+            window.showToast?.('Brain action completed', 'success');
+            await refresh();
+        } catch (error) {
+            showError(error.message);
+        }
+    }
+
+    document.addEventListener('click', async (event) => {
+        const actionButton = event.target.closest('[data-action]');
+        if (actionButton) { await action(actionButton.dataset.action); return; }
+        const dismiss = event.target.closest('[data-dismiss]');
+        if (dismiss) {
+            try { await request('/brain/reactions/dismiss', {method: 'POST', body: JSON.stringify({reaction_id: dismiss.dataset.dismiss})}); await refresh(); }
+            catch (error) { showError(error.message); }
+            return;
+        }
+        const mute = event.target.closest('[data-mute]');
+        if (mute) {
+            try { await request('/brain/reactions/mute', {method: 'POST', body: JSON.stringify({key: mute.dataset.mute, minutes: 60})}); await refresh(); }
+            catch (error) { showError(error.message); }
+        }
+    });
+
+    refresh();
+    setInterval(refresh, 5000);
+</script>
+</body>
+</html>

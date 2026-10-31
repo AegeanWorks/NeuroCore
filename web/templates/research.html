@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+        .tab-btn.active { background: #2563eb; color: #fff; }
+        .view-content { display: none; }
+        .view-content.active { display: block; }
+        dialog::backdrop { background: rgba(0,0,0,0.6); }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow container mx-auto p-6 flex flex-col gap-6 h-[calc(100vh-80px)] overflow-hidden">
+
+        <!-- Header -->
+        <div class="flex justify-between items-center bg-slate-950/50 rounded-2xl border border-slate-800 p-6 shadow-xl flex-shrink-0">
+            <div>
+                <h1 class="text-3xl font-bold bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">Research</h1>
+                <p class="text-sm text-slate-400 mt-1">Manage hypotheses, literature, study designs, findings, and draft papers.</p>
+            </div>
+            <!-- Stats row -->
+            <div id="research-stats"
+                 hx-get="/research/stats"
+                 hx-trigger="load, researchChanged from:body"
+                 class="flex items-center gap-4">
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex space-x-2 bg-slate-950/40 p-1.5 rounded-xl border border-slate-800 self-start flex-shrink-0 flex-wrap gap-y-1">
+            <button onclick="switchTab('experiments')" id="tab-experiments" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Experiments</button>
+            <button onclick="switchTab('hypotheses')" id="tab-hypotheses" class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all">Hypotheses</button>
+            <button onclick="switchTab('literature')" id="tab-literature" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Literature</button>
+            <button onclick="switchTab('studies')" id="tab-studies" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Studies</button>
+            <button onclick="switchTab('findings')" id="tab-findings" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Findings</button>
+            <button onclick="switchTab('statistics')" id="tab-statistics" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Statistics</button>
+            <button onclick="switchTab('paper-writer')" id="tab-paper-writer" class="tab-btn px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Paper Writer</button>
+        </div>
+
+        <!-- Content area -->
+        <div class="flex-grow overflow-y-auto custom-scrollbar pb-6 min-h-0">
+
+            <!-- Experiments Tab -->
+            <div id="view-experiments" class="view-content"
+                 hx-get="/research/experiments"
+                 hx-trigger="tabLoad, researchChanged from:body[detail.type=='intervention']"
+                 hx-swap="innerHTML">
+            </div>
+
+            <!-- Hypotheses Tab -->
+            <div id="view-hypotheses" class="view-content active"
+                 hx-get="/research/hypotheses"
+                 hx-trigger="load, researchChanged from:body[detail.type=='hypothesis']"
+                 hx-swap="innerHTML">
+                <div class="flex items-center justify-center h-32 text-slate-500">Loading…</div>
+            </div>
+
+            <!-- Literature Tab -->
+            <div id="view-literature" class="view-content"
+                 hx-get="/research/articles"
+                 hx-trigger="tabLoad, researchChanged from:body[detail.type=='article']"
+                 hx-swap="innerHTML">
+            </div>
+
+            <!-- Studies Tab -->
+            <div id="view-studies" class="view-content"
+                 hx-get="/research/study-designs"
+                 hx-trigger="tabLoad, researchChanged from:body[detail.type=='study']"
+                 hx-swap="innerHTML">
+            </div>
+
+            <!-- Findings Tab -->
+            <div id="view-findings" class="view-content"
+                 hx-get="/research/findings"
+                 hx-trigger="tabLoad, researchChanged from:body[detail.type=='finding']"
+                 hx-swap="innerHTML">
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="view-statistics" class="view-content">
+                {% include 'research_statistics.html' %}
+            </div>
+
+            <!-- Paper Writer Tab -->
+            <div id="view-paper-writer" class="view-content">
+                {% include 'research_paper_writer.html' %}
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+                b.classList.add('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+            });
+            document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+            const btn = document.getElementById('tab-' + name);
+            btn.classList.add('active');
+            btn.classList.remove('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+            const view = document.getElementById('view-' + name);
+            view.classList.add('active');
+            htmx.trigger(view, 'tabLoad');
+        }
+
+        // Global toast (reuse from navbar if available, else define fallback)
+        if (!window.showToast) {
+            window.showToast = function(msg, type) {
+                console.log('[Toast]', type, msg);
+            };
+        }
+    </script>
+</body>
+</html>

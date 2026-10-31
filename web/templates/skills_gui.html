@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills Management</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+        
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
+        .skill-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .skill-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .skill-card .category {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        
+        .skill-card h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .skill-card .description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .skill-card .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .skill-card .tag {
+            background: #f0f0f0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .skill-card .meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #999;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        
+        .skill-card .actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .skill-card .actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            font-size: 1.8em;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close-btn:hover {
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            min-height: 300px;
+            resize: vertical;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+        
+        .empty-state h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 2000;
+        }
+        
+        .toast.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .import-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .import-option {
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .import-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .import-option.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Skills</h1>
+            <p>Manage instruction files containing best practices, patterns, and guidelines for AI tasks. Skills are automatically injected into the system prompt when enabled.</p>
+        </div>
+        
+        <div class="actions-bar">
+            <button class="btn btn-primary" onclick="openCreateModal()">
+                <span>+</span> Create Skill
+            </button>
+            <button class="btn btn-secondary" onclick="openImportModal()">
+                <span>↓</span> Import
+            </button>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label>Category</label>
+                <select id="categoryFilter" onchange="loadSkills()">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Search</label>
+                <input type="text" id="searchFilter" placeholder="Search skills..." onkeyup="loadSkills()">
+            </div>
+        </div>
+        
+        <div id="skillsContainer" class="skills-grid">
+            <!-- Skills will be loaded here -->
+        </div>
+    </div>
+    
+    <!-- Create/Edit Modal -->
+    <div id="skillModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Create Skill</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="skillForm" onsubmit="saveSkill(event)">
+                <input type="hidden" id="skillId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name *</label>
+                        <input type="text" id="skillName" required placeholder="e.g., Python Best Practices">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <input type="text" id="skillCategory" placeholder="e.g., coding, writing, design">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description *</label>
+                    <input type="text" id="skillDescription" required placeholder="Brief description of what this skill covers">
+                </div>
+                <div class="form-group">
+                    <label>Tags (comma-separated)</label>
+                    <input type="text" id="skillTags" placeholder="e.g., python, clean-code, guidelines">
+                </div>
+                <div class="form-group">
+                    <label>Content (Markdown) *</label>
+                    <textarea id="skillContent" required placeholder="# Skill Title
+
+## Overview
+Describe what this skill covers...
+
+## Best Practices
+- Practice 1
+- Practice 2
+
+## Guidelines
+1. Guideline 1
+2. Guideline 2
+
+## Examples
+Provide examples here..."></textarea>
+                </div>
+                <div class="actions-bar">
+                    <button type="submit" class="btn btn-primary">Save Skill</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Import Modal -->
+    <div id="importModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Import Skill</h2>
+                <button class="close-btn" onclick="closeImportModal()">&times;</button>
+            </div>
+            <div class="import-options">
+                <div class="import-option" onclick="selectImportMethod('file')">
+                    <h3>📁 From File</h3>
+                    <p>Upload a .md file</p>
+                </div>
+                <div class="import-option" onclick="selectImportMethod('url')">
+                    <h3>🔗 From URL</h3>
+                    <p>Import from a web URL</p>
+                </div>
+            </div>
+            <div id="fileImportSection" style="display: none;">
+                <div class="form-group">
+                    <label>Select File (.md)</label>
+                    <input type="file" id="importFile" accept=".md">
+                </div>
+                <button class="btn btn-primary" onclick="importFromFile()">Import</button>
+            </div>
+            <div id="urlImportSection" style="display: none;">
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="url" id="importUrl" placeholder="https://example.com/skill.md"> <!-- hygiene: allow example placeholder URL -->
+                </div>
+                <button class="btn btn-primary" onclick="importFromUrl()">Import</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+    
+    <script>
+        let currentSkills = [];
+        
+        // Load skills on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSkills();
+            loadCategories();
+        });
+        
+        async function loadSkills() {
+            const container = document.getElementById('skillsContainer');
+            const categoryFilter = document.getElementById('categoryFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+            
+            try {
+                let url = '/skills/api/skills';
+                if (categoryFilter) {
+                    url += `?category=${encodeURIComponent(categoryFilter)}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                currentSkills = data.skills;
+                
+                // Filter by search
+                let filteredSkills = currentSkills;
+                if (searchFilter) {
+                    filteredSkills = currentSkills.filter(s => 
+                        s.name.toLowerCase().includes(searchFilter) ||
+                        s.description.toLowerCase().includes(searchFilter) ||
+                        s.tags.some(t => t.toLowerCase().includes(searchFilter))
+                    );
+                }
+                
+                if (filteredSkills.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="grid-column: 1 / -1;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <h3>No Skills Found</h3>
+                            <p>Create your first skill or adjust your filters</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = filteredSkills.map(skill => `
+                    <div class="skill-card" onclick="viewSkill('${skill.id}')">
+                        <span class="category">${skill.category || 'general'}</span>
+                        <h3>${escapeHtml(skill.name)}</h3>
+                        <p class="description">${escapeHtml(skill.description)}</p>
+                        <div class="tags">
+                            ${skill.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                        </div>
+                        <div class="meta">
+                            <span>Updated: ${formatDate(skill.updated_at || skill.created_at)}</span>
+                            <div class="actions" onclick="event.stopPropagation()">
+                                <button class="btn btn-secondary" onclick="editSkill('${skill.id}')">Edit</button>
+                                <button class="btn btn-secondary" onclick="exportSkill('${skill.id}')">Export</button>
+                                <button class="btn btn-danger" onclick="deleteSkill('${skill.id}')">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                showToast('Error loading skills: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadCategories() {
+            try {
+                const response = await fetch('/skills/api/skills/categories');
+                const data = await response.json();
+                const select = document.getElementById('categoryFilter');
+                
+                // Keep "All Categories" option
+                const allOption = select.options[0];
+                select.innerHTML = '';
+                select.appendChild(allOption);
+                
+                data.categories.forEach(cat => {
+                    const option = document.createElement('option');
+                    option.value = cat;
+                    option.textContent = cat;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
+        }
+        
+        function openCreateModal() {
+            document.getElementById('modalTitle').textContent = 'Create Skill';
+            document.getElementById('skillForm').reset();
+            document.getElementById('skillId').value = '';
+            document.getElementById('skillModal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('skillModal').classList.remove('active');
+        }
+        
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            document.getElementById('fileImportSection').style.display = 'none';
+            document.getElementById('urlImportSection').style.display = 'none';
+        }
+        
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+        }
+        
+        function selectImportMethod(method) {
+            document.querySelectorAll('.import-option').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            if (method === 'file') {
+                document.getElementById('fileImportSection').style.display = 'block';
+                document.getElementById('urlImportSection').style.display = 'none';
+            } else {
+                document.getElementById('fileImportSection').style.display = 'none';
+                document.getElementById('urlImportSection').style.display = 'block';
+            }
+        }
+        
+        async function saveSkill(event) {
+            event.preventDefault();
+            
+            const skillId = document.getElementById('skillId').value;
+            const skillData = {
+                name: document.getElementById('skillName').value,
+                description: document.getElementById('skillDescription').value,
+                content: document.getElementById('skillContent').value,
+                category: document.getElementById('skillCategory').value || 'general',
+                tags: document.getElementById('skillTags').value.split(',').map(t => t.trim()).filter(t => t)
+            };
+            
+            try {
+                const url = skillId ? `/skills/api/skills/${skillId}` : '/skills/api/skills';
+                const method = skillId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(skillData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to save skill');
+                }
+                
+                showToast(skillId ? 'Skill updated successfully!' : 'Skill created successfully!');
+                closeModal();
+                loadSkills();
+                loadCategories();
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function editSkill(skillId) {
+            const skill = currentSkills.find(s => s.id === skillId);
+            if (!skill) return;
+            
+            document.getElementById('modalTitle').textContent = 'Edit Skill';
+            document.getElementById('skillId').value = skill.id;
+            document.getElementById('skillName').value = skill.name;
+            document.getElementById('skillDescription').value = skill.description;
+            document.getElementById('skillCategory').value = skill.category || 'general';
+            document.getElementById('skillTags').value = (skill.tags || []).join(', ');
+            
+            // Fetch full content
+            try {
+                const response = await fetch(`/skills/api/skills/${skillId}`);
+                const fullSkill = await response.json();
+                document.getElementById('skillContent').value = fullSkill.content;
+            } catch (error) {
+                showToast('Error loading skill content', 'error');
+                return;
+            }
+            
+            document.getElementById('skillModal').classList.add('active');
+        }
+        
+        async function viewSkill(skillId) {
+            // For now, just edit the skill to view it
+            editSkill(skillId);
+        }
+        
+        async function deleteSkill(skillId) {
+            if (!confirm('Are you sure you want to delete this skill?')) return;
+            
+            try {
+                const response = await fetch(`/skills/api/skills/${skillId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to delete skill');
+                }
+                
+                showToast('Skill deleted successfully!');
+                loadSkills();
+                loadCategories();
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function exportSkill(skillId) {
+            try {
+                const response = await fetch(`/skills/api/skills/${skillId}/export?format=markdown`);
+                const blob = await response.blob();
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${skillId}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showToast('Skill exported successfully!');
+            } catch (error) {
+                showToast('Error exporting skill: ' + error.message, 'error');
+            }
+        }
+        
+        async function importFromFile() {
+            const fileInput = document.getElementById('importFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('Please select a file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/skills/api/skills/import/file', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to import');
+                }
+                
+                showToast('Skill imported successfully!');
+                closeImportModal();
+                loadSkills();
+                loadCategories();
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function importFromUrl() {
+            const url = document.getElementById('importUrl').value;
+            
+            if (!url) {
+                showToast('Please enter a URL', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/skills/api/skills/import/url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to import');
+                }
+                
+                showToast('Skill imported successfully!');
+                closeImportModal();
+                loadSkills();
+                loadCategories();
+                
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.background = type === 'error' ? '#e74c3c' : '#333';
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        // Close modals on outside click
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

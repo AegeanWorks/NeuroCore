@@ -1,0 +1,43 @@
+{
+    "name": "Email Bridge",
+    "description": "Email bridge: polls an IMAP inbox and routes incoming emails through the active AI flow, then sends replies via SMTP.",
+    "enabled": true,
+    "id": "email_bridge",
+    "icon": "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    "is_flow_node": false,
+    "order": 16,
+    "config": {
+        "imap_host": "imap.gmail.com",
+        "imap_port": 993,
+        "imap_use_ssl": true,
+        "imap_username": "user@gmail.com",
+        "imap_password": "pass",
+        "imap_folder": "INBOX",
+        "imap_filter_sender": "",
+        "poll_interval": 60,
+        "mark_as_read": true,
+        "smtp_host": "smtp.gmail.com",
+        "smtp_port": 587,
+        "smtp_use_tls": true,
+        "smtp_username": "user@gmail.com",
+        "smtp_password": "pass",
+        "smtp_from_address": "user@gmail.com",
+        "reply_to_address": ""
+    },
+    "provides_nodes": [
+        {
+            "id": "email_input",
+            "name": "Email Input",
+            "description": "Gates flow execution to emails received via IMAP polling. Populates _email_from, _email_subject, _email_message_id flow keys.",
+            "singleton": true,
+            "configurable": true
+        },
+        {
+            "id": "email_output",
+            "name": "Email Output",
+            "description": "Sends the flow response as a reply email to the originating sender via SMTP.",
+            "singleton": true,
+            "configurable": true
+        }
+    ]
+}

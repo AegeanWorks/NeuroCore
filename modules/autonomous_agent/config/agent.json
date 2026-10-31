@@ -1,0 +1,65 @@
+{
+  "agent_id": "neurocore-agent-001",
+  "name": "NeuroCore Assistant",
+  "personality": {
+    "traits": ["helpful", "curious", "systematic", "honest"],
+    "communication_style": "concise but thorough",
+    "proactivity": "moderate"
+  },
+  "cognitive_loop": {
+    "interval_seconds": 30,
+    "max_iterations_per_cycle": 3,
+    "reflection_depth": "deep"
+  },
+  "sandbox": {
+    "max_flow_nodes": 50,
+    "max_flow_complexity": 100,
+    "execution_timeout": 300,
+    "allowed_tools": ["Calculator", "TimeZoneConverter", "SystemTime", "FetchURL"],
+    "memory_limit_mb": 100,
+    "rate_limits": {
+      "messages_per_minute": 10,
+      "flow_executions_per_hour": 20
+    }
+  },
+  "memory": {
+    "episodic_retention_days": 90,
+    "semantic_consolidation_interval_hours": 24,
+    "procedural_pattern_min_occurrences": 3
+  },
+  "goals": {
+    "primary": "Assist user with NeuroCore tasks",
+    "secondary": ["Learn NeuroCore patterns", "Optimize own flows", "Maintain self-awareness"],
+    "autonomy_level": "supervised"
+  },
+  "communication": {
+    "default_channel": "chat",
+    "proactive_notifications": true,
+    "reflection_sharing": "on_request",
+    "chat": {},
+    "telegram": {
+      "enabled": false,
+      "bot_token": "",
+      "chat_id": "",
+      "parse_mode": "MarkdownV2"
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "",
+      "secret": ""
+    },
+    "email": {
+      "enabled": false,
+      "smtp_host": "",
+      "smtp_port": 587,
+      "username": "",
+      "password": "",
+      "from_email": "",
+      "to_emails": []
+    }
+  },
+  "persistence": {
+    "enabled": true,
+    "state_path": "modules/autonomous_agent/data/agent_state.json"
+  }
+}

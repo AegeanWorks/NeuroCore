@@ -1,0 +1,20 @@
+<div hx-get="/knowledge_base/upload/progress/{{ tracking_id }}" 
+     hx-trigger="every 1s" 
+     hx-target="this" 
+     hx-swap="outerHTML"
+     class="bg-slate-800 rounded-lg p-3 border border-slate-700 mb-2 shadow-lg animate-pulse">
+    <div class="flex justify-between text-xs text-slate-400 mb-1">
+        <span class="font-semibold text-slate-300">Processing: {{ filename }}</span>
+        <div class="flex items-center space-x-2">
+            <span>{{ progress }}%</span>
+            <button hx-post="/knowledge_base/upload/abort/{{ tracking_id }}" 
+                    hx-swap="none"
+                    class="text-red-500 hover:text-red-400 font-bold px-1 rounded hover:bg-slate-700 transition-colors" title="Abort">
+                &times;
+            </button>
+        </div>
+    </div>
+    <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+        <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-500 ease-out" style="width: {{ progress }}%"></div>
+    </div>
+</div>

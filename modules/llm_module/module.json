@@ -1,0 +1,15 @@
+{
+    "name": "LLM Core",
+    "description": "Sends a single message to the LLM and returns its reply. No tools, no loops - just one request and one response. The building block every other agent type builds on top of.",
+    "enabled": true,
+    "id": "llm_module",
+    "icon": "M13 10V3L4 14h7v7l9-11h-7z",
+    "is_flow_node": true,
+    "order": 0,
+    "config": {
+        "temperature": 0.7,
+        "max_tokens": 8192
+    },
+    "singleton": true,
+    "configurable": false
+}

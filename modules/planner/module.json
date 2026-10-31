@@ -1,0 +1,35 @@
+{
+    "name": "Task Planner",
+    "description": "Breaks down complex user requests into actionable steps using LLM.",
+    "enabled": true,
+    "id": "planner",
+    "icon": "M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h6a2 2 0 002-2V7a2 2 0 00-2-2H9m4 2h4a2 2 0 012 2h2a2 2 0 012-2h-2m-6 4l3 3 3-3m-3 3l3-3",
+    "is_flow_node": false,
+    "order": 5,
+    "config": {
+        "max_steps": 20,
+        "enabled": true,
+        "auto_track": false,
+        "default_planner_prompt": "You are a task planner. Analyze the user's request and create a step-by-step execution plan if needed.\n\nRules:\n- If the request is simple (one question, greeting, or single action), return an empty JSON array: []\n- If the request requires multiple steps, return a JSON array with each step: [{\"action\": \"step description\", \"target\": \"what it applies to\"}]\n- Keep plans simple and actionable\n- Maximum {max_steps} steps\n\nRequest: {request}\n\nRespond with JSON array only.",
+        "planner_prompt": "You are a task planner. Analyze the user's request and create a step-by-step execution plan if needed.\n\nRules:\n- If the request is simple (one question, greeting, or single action), return an empty JSON array: []\n- If the request requires multiple steps, return a JSON array with each step: [{\"action\": \"step description\", \"target\": \"what it applies to\"}]\n- Keep plans simple and actionable\n- Maximum {max_steps} steps\n\nRequest: {request}\n\nRespond with JSON array only.",
+        "log_to_reasoning_book": true,
+        "include_reasoning_context": true
+    },
+    "provides_nodes": [
+        {
+            "id": "planner",
+            "name": "Task Planner",
+            "description": "Analyzes user request and creates a step-by-step execution plan.",
+            "singleton": false,
+            "configurable": true
+        },
+        {
+            "id": "plan_step_tracker",
+            "name": "Plan Step Tracker",
+            "description": "Tracks progress through a plan by incrementing current_step and marking steps as completed.",
+            "singleton": false,
+            "configurable": false
+        }
+    ]
+}
+

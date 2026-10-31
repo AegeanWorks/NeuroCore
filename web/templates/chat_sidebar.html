@@ -1,0 +1,6 @@
+<div id="session-list-container" hx-get="/chat/sessions" hx-trigger="load, sessionsChanged from:body" hx-swap="innerHTML" class="flex flex-col h-full relative py-3">
+    <div class="htmx-indicator absolute inset-0 bg-slate-900/50 flex items-center justify-center z-10">
+        <div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+    {% include 'chat_session_list.html' %}
+</div>

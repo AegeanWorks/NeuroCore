@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goals - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow container mx-auto p-6 overflow-y-auto custom-scrollbar">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-white mb-2">Goals</h1>
+                <p class="text-slate-400">Manage your active goals and track progress</p>
+            </div>
+            <button onclick="showCreateGoalModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                <span>New Goal</span>
+            </button>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Total Goals</div>
+                <div class="text-2xl font-bold text-white" id="total-goals">0</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Active</div>
+                <div class="text-2xl font-bold text-blue-400" id="active-goals">0</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Completed</div>
+                <div class="text-2xl font-bold text-emerald-400" id="completed-goals">0</div>
+            </div>
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
+                <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">High Priority</div>
+                <div class="text-2xl font-bold text-amber-400" id="high-priority-goals">0</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <button onclick="filterGoals('all')" class="filter-btn active px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white" data-filter="all">All</button>
+            <button onclick="filterGoals('active')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 text-slate-300 hover:bg-slate-700" data-filter="active">Active</button>
+            <button onclick="filterGoals('completed')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 text-slate-300 hover:bg-slate-700" data-filter="completed">Completed</button>
+            <button onclick="filterGoals('pending')" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-800 text-slate-300 hover:bg-slate-700" data-filter="pending">Pending</button>
+        </div>
+
+        <!-- Goals List -->
+        <div id="goals-list" class="space-y-3">
+            <div class="flex items-center justify-center h-64 text-slate-500">
+                <div class="flex flex-col items-center space-y-3">
+                    <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-sm">Loading goals...</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<!-- Create Goal Modal -->
+<div id="create-goal-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md mx-4 p-6">
+        <h2 class="text-xl font-bold text-white mb-4">Create New Goal</h2>
+        <form id="create-goal-form" onsubmit="createGoal(event)">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Description</label>
+                    <textarea name="description" rows="3" required
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                              placeholder="What do you want to achieve?"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Priority</label>
+                        <select name="priority" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <option value="0">Low</option>
+                            <option value="1" selected>Normal</option>
+                            <option value="2">High</option>
+                            <option value="3">Critical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Deadline (optional)</label>
+                        <input type="datetime-local" name="deadline"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="hideCreateGoalModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Create Goal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Goal Modal -->
+<div id="edit-goal-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+    <div class="bg-slate-900 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md mx-4 p-6">
+        <h2 class="text-xl font-bold text-white mb-4">Edit Goal</h2>
+        <form id="edit-goal-form" onsubmit="updateGoal(event)">
+            <input type="hidden" name="goal_id" id="edit-goal-id">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Description</label>
+                    <textarea name="description" id="edit-goal-description" rows="3" required
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Priority</label>
+                        <select name="priority" id="edit-goal-priority" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <option value="0">Low</option>
+                            <option value="1">Normal</option>
+                            <option value="2">High</option>
+                            <option value="3">Critical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Status</label>
+                        <select name="status" id="edit-goal-status" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <option value="pending">Pending</option>
+                            <option value="active">Active</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Context (optional)</label>
+                    <textarea name="context" id="edit-goal-context" rows="2"
+                              class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                              placeholder="Additional context or notes..."></textarea>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" onclick="hideEditGoalModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-colors">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Update Goal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let allGoals = [];
+let currentFilter = 'all';
+
+document.addEventListener('DOMContentLoaded', loadGoals);
+
+async function loadGoals() {
+    try {
+        const response = await fetch('/memory/goals');
+        const data = await response.json();
+        allGoals = data.goals || [];
+        updateStats();
+        renderGoals();
+    } catch (error) {
+        console.error('Failed to load goals:', error);
+        document.getElementById('goals-list').innerHTML = `
+            <div class="text-center text-red-400 py-8">Failed to load goals. Please try again.</div>
+        `;
+    }
+}
+
+function updateStats() {
+    document.getElementById('total-goals').textContent = allGoals.length;
+    document.getElementById('active-goals').textContent = allGoals.filter(g => g.status === 'active').length;
+    document.getElementById('completed-goals').textContent = allGoals.filter(g => g.status === 'completed').length;
+    document.getElementById('high-priority-goals').textContent = allGoals.filter(g => g.priority >= 2).length;
+}
+
+function renderGoals() {
+    const filteredGoals = currentFilter === 'all' ? allGoals : allGoals.filter(g => g.status === currentFilter);
+
+    if (filteredGoals.length === 0) {
+        document.getElementById('goals-list').innerHTML = `
+            <div class="text-center text-slate-500 py-12 bg-slate-800/30 rounded-xl border border-slate-700/30">
+                <svg class="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+                <p class="text-sm">No ${currentFilter === 'all' ? '' : currentFilter} goals found</p>
+            </div>
+        `;
+        return;
+    }
+
+    const priorityColors = { 0: 'bg-slate-600', 1: 'bg-blue-600', 2: 'bg-amber-600', 3: 'bg-red-600' };
+    const priorityLabels = { 0: 'Low', 1: 'Normal', 2: 'High', 3: 'Critical' };
+    const statusColors = { 'pending': 'text-slate-400', 'active': 'text-blue-400', 'completed': 'text-emerald-400' };
+
+    const html = filteredGoals.map(goal => {
+        const deadlineText = goal.deadline ? new Date(goal.deadline * 1000).toLocaleString() : null;
+        const isOverdue = goal.deadline && goal.deadline < Date.now() / 1000 && goal.status !== 'completed';
+        const actionBtns = goal.status !== 'completed' ? `
+            <button onclick="runGoalWithAgent(${goal.id})" class="p-2 rounded-lg text-violet-400 hover:bg-violet-900/30 transition-colors" title="Run with Goal Pursuit Agent">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </button>
+            <button onclick="completeGoal(${goal.id})" class="p-2 rounded-lg text-emerald-400 hover:bg-emerald-900/30 transition-colors" title="Mark complete">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </button>
+        ` : '';
+        return `
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 hover:border-slate-600/50 transition-all group">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white ${priorityColors[goal.priority] || 'bg-slate-600'}">${priorityLabels[goal.priority] || 'Normal'}</span>
+                            <span class="text-xs ${statusColors[goal.status] || 'text-slate-400'} font-medium capitalize">${goal.status}</span>
+                            ${isOverdue ? '<span class="text-xs text-red-400 font-medium">Overdue</span>' : ''}
+                        </div>
+                        <p class="text-white font-medium mb-1">${escapeHtml(goal.description)}</p>
+                        ${goal.context ? `<p class="text-sm text-slate-400 mb-2">${escapeHtml(goal.context)}</p>` : ''}
+                        ${deadlineText ? `<p class="text-xs text-slate-500">Deadline: ${deadlineText}</p>` : ''}
+                    </div>
+                    <div class="flex items-center space-x-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        ${actionBtns}
+                        <button onclick="showEditGoalModal(${goal.id})" class="p-2 rounded-lg text-blue-400 hover:bg-blue-900/30 transition-colors" title="Edit">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        </button>
+                        <button onclick="deleteGoal(${goal.id})" class="p-2 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors" title="Delete">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('goals-list').innerHTML = html;
+}
+
+function filterGoals(status) {
+    currentFilter = status;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const active = btn.dataset.filter === status;
+        btn.classList.toggle('bg-blue-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-slate-800', !active);
+        btn.classList.toggle('text-slate-300', !active);
+    });
+    renderGoals();
+}
+
+function showCreateGoalModal() {
+    document.getElementById('create-goal-modal').classList.remove('hidden');
+    document.getElementById('create-goal-modal').classList.add('flex');
+}
+
+function hideCreateGoalModal() {
+    document.getElementById('create-goal-modal').classList.add('hidden');
+    document.getElementById('create-goal-modal').classList.remove('flex');
+    document.getElementById('create-goal-form').reset();
+}
+
+function showEditGoalModal(goalId) {
+    const goal = allGoals.find(g => g.id === goalId);
+    if (!goal) return;
+    document.getElementById('edit-goal-id').value = goalId;
+    document.getElementById('edit-goal-description').value = goal.description;
+    document.getElementById('edit-goal-priority').value = goal.priority;
+    document.getElementById('edit-goal-status').value = goal.status;
+    document.getElementById('edit-goal-context').value = goal.context || '';
+    document.getElementById('edit-goal-modal').classList.remove('hidden');
+    document.getElementById('edit-goal-modal').classList.add('flex');
+}
+
+function hideEditGoalModal() {
+    document.getElementById('edit-goal-modal').classList.add('hidden');
+    document.getElementById('edit-goal-modal').classList.remove('flex');
+}
+
+async function createGoal(event) {
+    event.preventDefault();
+    try {
+        const response = await fetch('/memory/goals', { method: 'POST', body: new FormData(event.target) });
+        if (response.ok) { hideCreateGoalModal(); loadGoals(); }
+        else throw new Error('Failed to create goal');
+    } catch (error) { console.error('Error creating goal:', error); }
+}
+
+async function updateGoal(event) {
+    event.preventDefault();
+    const goalId = document.getElementById('edit-goal-id').value;
+    try {
+        const response = await fetch(`/memory/goals/${goalId}`, { method: 'PUT', body: new FormData(event.target) });
+        if (response.ok) { hideEditGoalModal(); loadGoals(); }
+        else throw new Error('Failed to update goal');
+    } catch (error) { console.error('Error updating goal:', error); }
+}
+
+async function completeGoal(goalId) {
+    try {
+        const response = await fetch(`/memory/goals/${goalId}/complete`, { method: 'POST' });
+        if (response.ok) loadGoals();
+    } catch (error) { console.error('Error completing goal:', error); }
+}
+
+function runGoalWithAgent(goalId) {
+    const goal = allGoals.find(g => g.id === goalId);
+    if (!goal) return;
+    window.location.href = '/chat?' + new URLSearchParams({ goal: goal.description, goal_id: goalId }).toString();
+}
+
+async function deleteGoal(goalId) {
+    if (!confirm('Are you sure you want to delete this goal?')) return;
+    try {
+        const response = await fetch(`/memory/goals/${goalId}`, { method: 'DELETE' });
+        if (response.ok) loadGoals();
+    } catch (error) { console.error('Error deleting goal:', error); }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+document.getElementById('create-goal-modal').addEventListener('click', e => { if (e.target === e.currentTarget) hideCreateGoalModal(); });
+document.getElementById('edit-goal-modal').addEventListener('click', e => { if (e.target === e.currentTarget) hideEditGoalModal(); });
+</script>
+
+</body>
+</html>

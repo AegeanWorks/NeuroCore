@@ -1,0 +1,23 @@
+{
+    "example_python_skill": {
+        "name": "Python Best Practices",
+        "description": "Guidelines for writing clean, maintainable, and Pythonic code following PEP 8 and community standards",
+        "category": "coding",
+        "tags": [
+            "python",
+            "pep8",
+            "clean-code",
+            "guidelines"
+        ],
+        "created_at": "2025-01-01T00:00:00",
+        "updated_at": "2025-01-01T00:00:00"
+    },
+    "test_flow_writer": {
+        "name": "Test Flow Writer",
+        "description": "A skill that writes flows",
+        "category": "general",
+        "tags": [],
+        "created_at": "2026-03-19T21:42:29.715660",
+        "updated_at": "2026-03-19T21:42:29.715660"
+    }
+}

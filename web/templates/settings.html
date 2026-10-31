@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <!-- Sortable.js for module reordering -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+    
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow container mx-auto p-6 flex gap-6 h-[calc(100vh-80px)] overflow-hidden">
+        
+        <!-- Settings Sidebar -->
+        <aside class="w-64 flex-shrink-0 bg-slate-950/50 rounded-xl border border-slate-800 p-4 flex flex-col gap-2">
+            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-2">Configuration</h3>
+            <a href="#" onclick="switchTab(event, 'general')" class="settings-nav-link block px-3 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium transition-all">General</a>
+            <a href="#" onclick="switchTab(event, 'flow-execution')" class="settings-nav-link block px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Flow Execution</a>
+            <a href="#" onclick="switchTab(event, 'modules')" class="settings-nav-link block px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm font-medium transition-all">Modules</a>
+            <div id="settings-modules-nav" class="flex flex-col gap-2" hx-get="/settings/modules-nav" hx-trigger="modulesChanged from:body">
+                {% include 'settings_modules_nav.html' %}
+            </div>
+        </aside>
+
+        <!-- Settings Content -->
+        <div class="flex-grow bg-slate-950/50 rounded-xl border border-slate-800 shadow-2xl relative overflow-hidden flex flex-col">
+            
+            <!-- General Section -->
+            <div id="general" class="settings-tab flex flex-col h-full relative">
+                <div class="overflow-y-auto custom-scrollbar flex-grow p-8 scroll-smooth pb-24" id="settings-scroll-container">
+                    <form id="general-settings-form" hx-post="/settings/save" hx-swap="none" class="max-w-3xl">
+                        <div class="mb-6">
+                            <h2 class="text-xl font-bold text-white">General Settings</h2>
+                            <p class="text-sm text-slate-500">System-wide configurations.</p>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <div class="text-xs text-slate-500 uppercase font-bold mb-1">System Time</div>
+                                <div class="text-sm text-slate-300 font-mono" hx-get="/system-time" hx-trigger="every 1s" hx-swap="innerHTML">{{ system_time }}</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                    <div class="text-xs text-slate-500 uppercase font-bold mb-1">Environment</div>
+                                    <div class="text-sm text-slate-300 font-mono truncate" title="{{ system_info.platform }}">{{ system_info.platform }}</div>
+                                </div>
+                                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                    <div class="text-xs text-slate-500 uppercase font-bold mb-1">Python Version</div>
+                                    <div class="text-sm text-slate-300 font-mono">{{ system_info.python_version }}</div>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-slate-800 pt-6">
+                                <h3 class="text-lg font-bold text-white mb-4">Interface Preferences</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="flex items-center space-x-3 cursor-pointer">
+                                            <div class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" name="ui_wide_mode" class="sr-only peer" {% if settings.ui_wide_mode %}checked{% endif %}>
+                                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </div>
+                                            <span class="text-sm font-medium text-slate-400">Wide Layout</span>
+                                        </label>
+                                        <input type="hidden" name="save_ui_wide_mode" value="1">
+                                        <p class="text-xs text-slate-600 mt-2 pl-14">Expands the main content area to fill the screen width.</p>
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center space-x-3 cursor-pointer">
+                                            <div class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" name="ui_show_footer" class="sr-only peer" {% if settings.ui_show_footer %}checked{% endif %}>
+                                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </div>
+                                            <span class="text-sm font-medium text-slate-400">Show Footer</span>
+                                        </label>
+                                        <input type="hidden" name="save_ui_show_footer" value="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-slate-800 pt-6">
+                                <h3 class="text-lg font-bold text-white mb-4">System Debugging</h3>
+                                <div>
+                                    <label class="flex items-center space-x-3 cursor-pointer">
+                                        <div class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" name="debug_mode" class="sr-only peer" {% if settings.debug_mode %}checked{% endif %}>
+                                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </div>
+                                        <span class="text-sm font-medium text-slate-400">Enable Debug Mode</span>
+                                    </label>
+                                    <input type="hidden" name="save_debug_mode" value="1">
+                                    <p class="text-xs text-slate-600 mt-2 pl-14">Enables detailed logging of AI Flow execution and shows the Debug tab.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <div class="mt-8 border-t border-slate-800 pt-6">
+                        <h3 class="text-lg font-bold text-white mb-4">Marketplace Identity</h3>
+                        <div class="space-y-3">
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <div class="text-xs text-slate-500 uppercase font-bold mb-1">Instance ID</div>
+                                <div class="text-sm text-blue-400 font-mono font-bold select-all">{{ hardware_id }}</div>
+                                <p class="text-xs text-slate-600 mt-1">Your unique hardware-derived identifier. Private — never shared with other users.</p>
+                            </div>
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                <div class="text-xs text-slate-500 uppercase font-bold mb-1">Public Handle</div>
+                                <div class="text-sm text-slate-300 font-mono font-bold select-all">{{ public_handle }}</div>
+                                <p class="text-xs text-slate-600 mt-1">What others see as your identity in the Marketplace. Derived from your decoder key — changes if you import a different key.</p>
+                            </div>
+                            <div class="bg-slate-900 border border-amber-800/40 rounded-xl p-4">
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="text-xs text-amber-500 uppercase font-bold">Marketplace Decoder Key</div>
+                                    <button onclick="copyDecoderKey()" class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded-lg transition-all font-semibold">Copy</button>
+                                </div>
+                                <div id="decoder-key-display" class="text-xs text-amber-400/70 font-mono select-all tracking-wider break-all">{{ decoder_key[:16] }}••••••••••••••••••••••••••••••••••••••••••••••••</div>
+                                <div class="flex items-start space-x-1.5 mt-2">
+                                    <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <p class="text-xs text-amber-700">Back this up. If lost you permanently lose the ability to edit or delete your marketplace items. Do not share it.</p>
+                                </div>
+                                <details class="mt-3">
+                                    <summary class="text-xs text-slate-500 hover:text-slate-400 cursor-pointer font-semibold select-none">Import key from another machine…</summary>
+                                    <div class="mt-2 flex items-center space-x-2">
+                                        <input id="decoder-import-input" type="text" placeholder="Paste 64-char hex key" maxlength="64"
+                                               class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-600">
+                                        <button onclick="importDecoderKey()" class="text-xs font-bold bg-amber-950/40 text-amber-400 hover:bg-amber-950/60 border border-amber-800/40 px-3 py-1.5 rounded-lg transition-all">Import</button>
+                                    </div>
+                                    <p class="text-xs text-red-800 mt-1">Warning: this overwrites your current key. Make sure you copied the old one first.</p>
+                                </details>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 border-t border-slate-800 pt-6">
+                        <h3 class="text-lg font-bold text-white mb-4">Data Management</h3>
+                        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4 flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="font-semibold text-slate-300">Flows Backup</h4>
+                                <p class="text-xs text-slate-500 mt-1">Export your flows to JSON or restore from a backup.</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <form id="import-flows-form" hx-post="/settings/import/flows" hx-encoding="multipart/form-data" hx-swap="none" class="hidden">
+                                    <input type="file" name="file" accept=".json" onchange="if(confirm('This will overwrite all current flows. Continue?')) this.form.requestSubmit(); this.value=''">
+                                </form>
+                                <button onclick="document.querySelector('#import-flows-form input').click()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                                    Import
+                                </button>
+                                <a href="/settings/export/flows" target="_blank" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                                    Export
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4 flex items-center justify-between mb-4">
+                            <div>
+                                <h4 class="font-semibold text-slate-300">Configuration Backup</h4>
+                                <p class="text-xs text-slate-500 mt-1">Save your API keys and preferences.</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <form id="import-config-form" hx-post="/settings/import/config" hx-encoding="multipart/form-data" hx-swap="none" class="hidden">
+                                    <input type="file" name="file" accept=".json" onchange="if(confirm('This will overwrite current settings. Continue?')) this.form.requestSubmit(); this.value=''">
+                                </form>
+                                <button onclick="document.querySelector('#import-config-form input').click()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                                    Import
+                                </button>
+                                <a href="/settings/export/config" target="_blank" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                                    Export
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900 rounded-xl border border-slate-800 p-4 flex items-center justify-between">
+                            <div>
+                                <h4 class="font-semibold text-slate-300">Default Flow</h4>
+                                <p class="text-xs text-slate-500 mt-1">Overwrite the default flow with the currently active flow.</p>
+                            </div>
+                            <button type="button" hx-post="/ai-flow/make-default" hx-swap="none" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                                Set as Default
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 border-t border-slate-800 pt-6">
+                        <div class="bg-red-950/20 rounded-xl border border-red-900/30 p-4 flex items-center justify-between">
+                            <div>
+                                <h4 class="font-semibold text-red-400">Factory Reset</h4>
+                                <p class="text-xs text-red-300/70 mt-1">Reset all settings to default values. Data is preserved.</p>
+                            </div>
+                            <button onclick="openResetModal()"
+                                    class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-4 py-2 rounded-lg text-sm font-bold transition-all border border-red-900/50">
+                                Reset Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Sticky Footer for General -->
+                <div class="p-6 border-t border-slate-800 bg-slate-950/80 backdrop-blur absolute bottom-0 left-0 right-0 flex justify-end">
+                    <button onclick="document.getElementById('general-settings-form').requestSubmit()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+
+            <!-- Skills Section -->
+            <div id="skills" class="settings-tab hidden flex flex-col h-full relative">
+                <div class="flex-grow overflow-y-auto custom-scrollbar p-8 scroll-smooth pb-24">
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold text-white">Skills</h2>
+                        <p class="text-sm text-slate-500">View current skills and their content.</p>
+                    </div>
+
+                    <!-- Toast Notification Container -->
+                    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+                    {% if skills %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {% for id, skill in skills.items() %}
+                                {% set ns = namespace(is_uploaded=False, needs_update=False) %}
+                                {% if marketplace_catalog %}
+                                    {% for m_item in marketplace_catalog %}
+                                        {% if m_item.type|lower == 'skill' and m_item.filename == id ~ '.md' %}
+                                            {% set ns.is_uploaded = True %}
+                                            {% if skill.content_hash and m_item.content_hash and skill.content_hash != m_item.content_hash %}
+                                                {% set ns.needs_update = True %}
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <div id="skill-card-{{ id }}" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 hover:bg-slate-900/80 transition-all flex flex-col justify-between skills-card">
+                                    <div>
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h3 class="text-base font-bold text-white">{{ skill.name or id }}</h3>
+                                            <button onclick="confirmDeleteSkill('{{ id }}', '{{ (skill.name or id)|replace('\'', '\\\'') }}')" class="text-red-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-all" title="Delete Skill">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6M1 7h22M10 11V7a4 4 0 014-4h4a4 4 0 014 4v4"></path></svg>
+                                            </button>
+                                        </div>
+                                        <p class="text-xs text-slate-400 mb-4 line-clamp-3">{{ skill.description }}</p>
+                                    </div>
+                                    {% if skill.instructions %}
+                                        <div id="skill-instructions-{{ id }}" class="hidden">{{ skill.instructions }}</div>
+                                        <div class="flex space-x-2 mt-3">
+                                            {% if ns.needs_update %}
+                                            <button id="card-upload-btn-{{ id }}" onclick="uploadToMarketplaceOnCard('{{ id }}')" class="flex-1 bg-amber-950/30 hover:bg-amber-900/50 text-amber-500 hover:text-amber-400 text-xs font-bold py-2 rounded-lg border border-amber-900/30 transition-all flex items-center justify-center space-x-1" title="Update in Marketplace (local changes found)">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m13 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                                <span>Update</span>
+                                            </button>
+                                            {% elif ns.is_uploaded %}
+                                            <button id="card-upload-btn-{{ id }}" class="flex-1 bg-green-950/20 text-green-400/80 text-xs font-bold py-2 rounded-lg border border-green-900/20 flex items-center justify-center space-x-1 cursor-default" title="Uploaded to Marketplace">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 8"></path></svg>
+                                                <span>Uploaded</span>
+                                            </button>
+                                            {% else %}
+                                            <button id="card-upload-btn-{{ id }}" onclick="uploadToMarketplaceOnCard('{{ id }}')" class="flex-1 bg-blue-950/30 hover:bg-blue-950/50 text-blue-400 text-xs font-bold py-2 rounded-lg border border-blue-900/30 transition-all flex items-center justify-center space-x-1" title="Upload to Marketplace">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                                <span>Upload to Marketplace</span>
+                                            </button>
+                                            {% endif %}
+                                            <button onclick="openSkillModal('{{ (skill.name or id)|replace('\'', '\\\'') }}', document.getElementById('skill-instructions-{{ id }}').innerText, '{{ id }}', {{ 'true' if ns.is_uploaded else 'false' }}, {{ 'true' if ns.needs_update else 'false' }})" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2 rounded-lg border border-slate-700 transition-all">
+                                                View Instructions
+                                            </button>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            
+                            <!-- Create Skill Card -->
+                            <button onclick="openCreateSkillModal()" class="bg-slate-900/40 border-2 border-dashed border-slate-800 hover:border-indigo-500/40 hover:bg-slate-900/60 rounded-2xl p-6 flex flex-col items-center justify-center transition-all group min-h-[160px]">
+                                <div class="p-3 rounded-full bg-slate-800/80 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 text-slate-500 transition-all mb-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                </div>
+                                <span class="text-sm font-bold text-slate-300 group-hover:text-indigo-400 transition-all">Create New Skill</span>
+                                <p class="text-xs text-slate-500 mt-1">Add custom prompt assets</p>
+                            </button>
+                        </div>
+                        
+                        <!-- Floating Create Trigger -->
+                        <button onclick="openCreateSkillModal()" class="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 z-30" title="Create New Skill">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        </button>
+
+                        <!-- Skill Modal -->
+                        <div id="skill-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 flex items-center justify-center p-4" onclick="if(event.target === this) { closeSkillModal(); cancelEdit(); }">
+                            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+                                <div class="p-6 border-b border-slate-800 flex justify-between items-center">
+                                    <h3 id="modal-skill-title" class="text-lg font-bold text-white"></h3>
+                                    <div class="flex items-center space-x-2">
+                                        <button id="modal-edit-btn" onclick="startEdit()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition-all">Edit</button>
+                                        <button id="modal-save-btn" onclick="saveEdit()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all shadow-lg shadow-indigo-500/20">Save</button>
+                                        <button id="modal-cancel-edit-btn" onclick="cancelEdit()" class="hidden bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-700 transition-all">Cancel</button>
+                                        <button onclick="closeSkillModal(); cancelEdit();" class="text-slate-500 hover:text-white text-xl font-bold pl-2">&times;</button>
+                                    </div>
+                                </div>
+                                <div id="modal-skill-content" class="p-6 overflow-y-auto custom-scrollbar text-sm text-slate-300 whitespace-pre-wrap leading-relaxed"></div>
+                                <textarea id="modal-skill-edit-content" class="hidden p-6 w-full flex-grow bg-slate-950 text-slate-300 font-mono text-sm border-t border-slate-800 focus:outline-none resize-none custom-scrollbar leading-relaxed"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Delete Confirmation Modal -->
+                        <div id="delete-skill-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeDeleteModal()">
+                            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 flex flex-col shadow-2xl">
+                                <div class="flex items-center space-x-3 text-red-500 mb-4">
+                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                     <h3 class="text-lg font-bold text-white">Delete Skill?</h3>
+                                </div>
+                                <p class="text-sm text-slate-400 mb-6">Are you sure you want to delete <span id="delete-skill-name" class="font-semibold text-white"></span>? This action cannot be undone.</p>
+                                <div class="flex space-x-3 justify-end">
+                                     <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                                     <button id="confirm-delete-btn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-red-500/20">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Create Skill Modal -->
+                        <div id="create-skill-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onclick="if(event.target === this) closeCreateSkillModal()">
+                            <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 flex flex-col shadow-2xl">
+                                <div class="flex justify-between items-center mb-4">
+                                     <h3 class="text-lg font-bold text-white">Create New Skill</h3>
+                                     <button onclick="closeCreateSkillModal()" class="text-slate-500 hover:text-white text-xl">&times;</button>
+                                </div>
+                                <form id="create-skill-form" class="space-y-4">
+                                     <div>
+                                         <label class="block text-xs font-bold text-slate-400 mb-1">Name</label>
+                                         <input type="text" name="name" required placeholder="e.g. Code Reviewer" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                                     </div>
+                                     <div>
+                                         <label class="block text-xs font-bold text-slate-400 mb-1">Description</label>
+                                         <input type="text" name="description" required placeholder="Short summary..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+                                     </div>
+                                     <div>
+                                         <label class="block text-xs font-bold text-slate-400 mb-1">Instructions / Prompt</label>
+                                         <textarea name="instructions" required rows="6" placeholder="Enter full instructions here..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-indigo-500 custom-scrollbar"></textarea>
+                                     </div>
+                                     <div class="flex justify-end space-x-3 pt-2">
+                                         <button type="button" onclick="closeCreateSkillModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                                         <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-lg shadow-indigo-500/20">Create</button>
+                                     </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <script>
+                        let activeDeleteId = '';
+                        let activeSkillId = '';
+
+                        function openSkillModal(title, content, id) {
+                            activeSkillId = id;
+                            document.getElementById('modal-skill-title').innerText = title;
+                            document.getElementById('modal-skill-content').innerText = content;
+                            document.getElementById('skill-modal').classList.remove('hidden');
+                        }
+                        function closeSkillModal() {
+                            document.getElementById('skill-modal').classList.add('hidden');
+                            activeSkillId = '';
+                        }
+
+                        function uploadToMarketplaceOnCard(id) {
+                            const btn = document.getElementById('card-upload-btn-' + id);
+                            const originalHTML = btn.innerHTML;
+                            btn.innerHTML = '<span>Uploading...</span>';
+                            btn.disabled = true;
+                            
+                            fetch('/settings/skills/upload_to_marketplace/' + id, {
+                                method: 'POST'
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    showToast('Skill uploaded to Marketplace!');
+                                    btn.innerHTML = '<span>Uploaded</span>';
+                                    btn.classList.remove('bg-blue-950/30', 'text-blue-400');
+                                    btn.classList.add('bg-green-950/30', 'text-green-400', 'border-green-900/30');
+                                } else {
+                                    showToast('Upload failed: ' + (data.message || 'Unknown error'), 'error');
+                                    btn.innerHTML = originalHTML;
+                                    btn.disabled = false;
+                                }
+                            })
+                            .catch(err => {
+                                showToast('Upload failed', 'error');
+                                btn.innerHTML = originalHTML;
+                                btn.disabled = false;
+                            });
+                        }
+
+                        function copyDecoderKey() {
+                            const key = '{{ decoder_key }}';
+                            navigator.clipboard.writeText(key).then(() => {
+                                showToast('Decoder key copied — store it somewhere safe!', 'success');
+                            }).catch(() => {
+                                const el = document.createElement('textarea');
+                                el.value = key;
+                                document.body.appendChild(el);
+                                el.select();
+                                document.execCommand('copy');
+                                document.body.removeChild(el);
+                                showToast('Decoder key copied!', 'success');
+                            });
+                        }
+
+                        function importDecoderKey() {
+                            const key = document.getElementById('decoder-import-input').value.trim();
+                            if (key.length !== 64) {
+                                showToast('Key must be exactly 64 hex characters.', 'error');
+                                return;
+                            }
+                            const fd = new FormData();
+                            fd.append('key', key);
+                            fetch('/settings/decoder/import', { method: 'POST', body: fd })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    showToast('Decoder key imported successfully. Reloading…', 'success');
+                                    setTimeout(() => location.reload(), 1500);
+                                } else {
+                                    showToast('Import failed: ' + (data.message || 'Unknown error'), 'error');
+                                }
+                            })
+                            .catch(() => showToast('Import request failed.', 'error'));
+                        }
+
+                        function showToast(message, type = 'success') {
+                            const container = document.getElementById('toast-container');
+                            const toast = document.createElement('div');
+                            toast.className = `p-3 rounded-xl border text-xs font-bold shadow-2xl backdrop-blur-md flex items-center space-x-2 transition-all duration-300 transform translate-y-4 opacity-0 pointer-events-auto`;
+                            
+                            if (type === 'success') {
+                                toast.className += ' bg-green-950/80 border-green-800/30 text-green-400';
+                                toast.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 8"></path></svg><span>${message}</span>`;
+                            } else {
+                                toast.className += ' bg-red-950/80 border-red-800/30 text-red-500';
+                                toast.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg><span>${message}</span>`;
+                            }
+                            
+                            container.appendChild(toast);
+                            setTimeout(() => {
+                                toast.classList.remove('translate-y-4', 'opacity-0');
+                            }, 50);
+                            
+                            setTimeout(() => {
+                                toast.classList.add('translate-y-4', 'opacity-0');
+                                setTimeout(() => toast.remove(), 300);
+                            }, 3000);
+                        }
+
+                        function startEdit() {
+                            const view = document.getElementById('modal-skill-content');
+                            const edit = document.getElementById('modal-skill-edit-content');
+                            edit.value = view.innerText;
+                            view.classList.add('hidden');
+                            edit.classList.remove('hidden');
+                            document.getElementById('modal-edit-btn').classList.add('hidden');
+                            document.getElementById('modal-save-btn').classList.remove('hidden');
+                            document.getElementById('modal-cancel-edit-btn').classList.remove('hidden');
+                        }
+
+                        function cancelEdit() {
+                            document.getElementById('modal-skill-content').classList.remove('hidden');
+                            document.getElementById('modal-skill-edit-content').classList.add('hidden');
+                            document.getElementById('modal-edit-btn').classList.remove('hidden');
+                            document.getElementById('modal-save-btn').classList.add('hidden');
+                            document.getElementById('modal-cancel-edit-btn').classList.add('hidden');
+                        }
+
+                        function saveEdit() {
+                            const instructions = document.getElementById('modal-skill-edit-content').value;
+                            if (!activeSkillId) return;
+                            
+                            const formData = new FormData();
+                            formData.append('instructions', instructions);
+
+                            fetch('/settings/skills/save/' + activeSkillId, {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'success') {
+                                    document.getElementById('modal-skill-content').innerText = instructions;
+                                    const hiddenDiv = document.getElementById('skill-instructions-' + activeSkillId);
+                                    if (hiddenDiv) hiddenDiv.innerText = instructions;
+                                    cancelEdit();
+                                    showToast('Skill saved successfully');
+                                } else {
+                                    showToast('Failed to save skill', 'error');
+                                }
+                            })
+                            .catch(err => {
+                                showToast('Error saving skill', 'error');
+                            });
+                        }
+                        
+                        function openCreateSkillModal() {
+                            document.getElementById('create-skill-modal').classList.remove('hidden');
+                        }
+                        function closeCreateSkillModal() {
+                            document.getElementById('create-skill-modal').classList.add('hidden');
+                            document.getElementById('create-skill-form').reset();
+                        }
+
+                        document.getElementById('create-skill-form')?.addEventListener('submit', function(e) {
+                            e.preventDefault();
+                            const submitBtn = this.querySelector('[type="submit"]');
+                            const originalText = submitBtn.textContent;
+                            submitBtn.textContent = 'Creating...';
+                            submitBtn.disabled = true;
+
+                            fetch('/settings/skills/create', {
+                                method: 'POST',
+                                body: new FormData(this)
+                            })
+                            .then(r => r.json())
+                            .then(data => {
+                                submitBtn.textContent = originalText;
+                                submitBtn.disabled = false;
+                                if (data.status === 'success') {
+                                    closeCreateSkillModal();
+                                    location.reload();
+                                } else {
+                                    showToast('Failed to create skill: ' + (data.detail || data.message || 'Unknown error'), 'error');
+                                }
+                            })
+                            .catch(() => {
+                                submitBtn.textContent = originalText;
+                                submitBtn.disabled = false;
+                                showToast('Failed to create skill', 'error');
+                            });
+                        });
+
+                        function confirmDeleteSkill(id, name) {
+                            activeDeleteId = id;
+                            document.getElementById('delete-skill-name').innerText = name;
+                            document.getElementById('delete-skill-modal').classList.remove('hidden');
+                        }
+
+                        function closeDeleteModal() {
+                            document.getElementById('delete-skill-modal').classList.add('hidden');
+                            activeDeleteId = '';
+                        }
+
+                        document.getElementById('confirm-delete-btn').addEventListener('click', function() {
+                            if (!activeDeleteId) return;
+                            const idToDelete = activeDeleteId;
+                            const btn = this;
+                            btn.disabled = true;
+                            btn.textContent = 'Deleting...';
+
+                            fetch('/settings/skills/delete/' + idToDelete, { method: 'POST' })
+                            .then(r => r.json())
+                            .then(data => {
+                                btn.disabled = false;
+                                btn.textContent = 'Delete';
+                                if (data.status === 'success') {
+                                    const card = document.getElementById('skill-card-' + idToDelete);
+                                    if (card) card.remove();
+                                    closeDeleteModal();
+                                } else {
+                                    showToast('Failed to delete: ' + (data.detail || data.message || 'Unknown error'), 'error');
+                                }
+                            })
+                            .catch(() => {
+                                btn.disabled = false;
+                                btn.textContent = 'Delete';
+                                showToast('Failed to delete skill', 'error');
+                            });
+                        });
+                        </script>
+                    {% else %}
+                        <div class="flex flex-col items-center justify-center h-64 text-center">
+                            <svg class="w-16 h-16 text-slate-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.723 5.832 18.333 7.5 18.333c1.667 0 3.254.39 4.5 1.12m0-13.111C13.168 5.477 14.754 5 16.5 5c1.75 0 3.332.477 4.5 1.253v13C19.832 18.723 18.168 18.333 16.5 18.333c-1.667 0-3.254.39-4.5 1.12"></path></svg>
+                            <p class="text-slate-500">No skills currently available.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Flow Execution Section -->
+            <div id="flow-execution" class="settings-tab hidden flex flex-col h-full">
+                <form id="flow-settings-form" hx-post="/settings/save" hx-swap="none" class="max-w-3xl">
+                    <div class="overflow-y-auto custom-scrollbar flex-grow p-8 scroll-smooth pb-24">
+                        <div class="mb-6">
+                            <h2 class="text-xl font-bold text-white">Flow Execution</h2>
+                            <p class="text-sm text-slate-500">Configure AI Flow execution behavior.</p>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                                <h3 class="text-lg font-bold text-white mb-4">Loop Protection</h3>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-400 mb-2">Max Node Loops</label>
+                                    <input type="number" name="max_node_loops" value="{{ settings.max_node_loops }}" min="0"
+                                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                    <p class="text-xs text-slate-600 mt-2">Maximum number of times a single node can execute in one flow run. Set to 0 for infinite loops.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 border-t border-slate-800 bg-slate-950/80 backdrop-blur absolute bottom-0 left-0 right-0 flex justify-end">
+                        <button onclick="document.getElementById('flow-settings-form').requestSubmit()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">
+                            Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Modules Section -->
+            <div id="modules" class="settings-tab hidden flex h-full">
+                <!-- Module List Sidebar -->
+                <aside class="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/30 flex flex-col">
+                     <div id="module-list-container" hx-get="/modules/list" hx-trigger="load, modulesChanged from:body" class="flex-grow overflow-y-auto custom-scrollbar py-3"></div>
+                </aside>
+
+                <!-- Module Details Content -->
+                <section class="flex-grow relative bg-slate-950/30">
+                    <div id="module-content" class="absolute inset-0 p-6 overflow-y-auto custom-scrollbar">
+                        <div class="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
+                            <svg class="w-16 h-16 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                            <p class="text-slate-500">Select a module to configure</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tools Section -->
+            <div id="tools" class="settings-tab hidden flex flex-col h-full relative">
+                <div class="flex-grow overflow-y-auto custom-scrollbar" hx-get="/tools/gui" hx-trigger="revealed">
+                    <div class="flex items-center justify-center h-full">
+                        <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function switchTab(event, tabId) {
+            event.preventDefault();
+            const element = event.currentTarget;
+            
+            document.querySelectorAll('.settings-nav-link').forEach(el => {
+                el.classList.remove('bg-slate-800', 'text-white');
+                el.classList.add('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+            });
+            element.classList.remove('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+            element.classList.add('bg-slate-800', 'text-white');
+            
+            document.querySelectorAll('.settings-tab').forEach(el => {
+                el.classList.add('hidden');
+            });
+            document.getElementById(tabId).classList.remove('hidden');
+        }
+
+        // Auto-navigate to tab from URL ?tab= param
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab) {
+                const link = document.querySelector(`a[onclick*="'${tab}'"]`);
+                if (link) link.click();
+            }
+        });
+
+        function openResetModal() {
+            const modal = document.getElementById('reset-modal');
+            const backdrop = document.getElementById('reset-modal-backdrop');
+            const panel = document.getElementById('reset-modal-panel');
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                panel.classList.remove('opacity-0', 'scale-95');
+                panel.classList.add('opacity-100', 'scale-100');
+            });
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('reset-modal');
+            const backdrop = document.getElementById('reset-modal-backdrop');
+            const panel = document.getElementById('reset-modal-panel');
+
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('opacity-100', 'scale-100');
+            panel.classList.add('opacity-0', 'scale-95');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+    </script>
+
+    <!-- Factory Reset Confirmation Modal -->
+    <div id="reset-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity opacity-0" id="reset-modal-backdrop" onclick="closeResetModal()"></div>
+        <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-95 opacity-0 sm:w-full sm:max-w-md p-6" id="reset-modal-panel">
+            <div class="flex items-start space-x-4">
+                <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-900/30 text-red-500">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                </div>
+                <div class="flex-grow">
+                    <h3 class="text-lg font-semibold leading-6 text-white" id="modal-title">Factory Reset</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-slate-400">Are you sure you want to reset all settings to default values? This action cannot be undone.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                <button type="button" onclick="closeResetModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                <button hx-post="/settings/reset?confirm=reset+all+settings" 
+                        hx-swap="none"
+                        onclick="closeResetModal()"
+                        class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors">
+                    Reset Settings
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-footer" hx-get="/footer" hx-trigger="settingsChanged from:body" hx-swap="innerHTML">
+        {% include 'footer.html' %}
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ handle }} — Uploader Profile</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow container mx-auto p-6 flex flex-col gap-6">
+
+        <!-- Header -->
+        <div class="flex items-start justify-between bg-slate-950/50 border border-slate-800 rounded-2xl p-6 shadow-xl">
+            <div class="flex items-center space-x-5">
+                <a href="/marketplace" class="flex items-center space-x-1.5 text-slate-400 hover:text-white text-sm transition-colors flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    <span>Marketplace</span>
+                </a>
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-900 to-indigo-900 border border-blue-800/50 flex items-center justify-center flex-shrink-0">
+                    <span class="text-lg font-black text-blue-300 font-mono">{{ handle[:2] }}</span>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+                        <h1 class="text-2xl font-black font-mono text-white">{{ handle }}</h1>
+                        {% if uploader_username %}<span class="text-slate-400 font-semibold text-lg">({{ uploader_username }})</span>{% endif %}
+                        {% if is_me %}<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-900/50 text-blue-300 border border-blue-700/50">You</span>{% endif %}
+                        {% if total_reports >= report_threshold %}
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-red-900/50 text-red-400 border border-red-700/50">⚠ {{ total_reports }} report{{ 's' if total_reports != 1 }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-slate-500 mt-1">{{ items | length }} item{{ 's' if items | length != 1 }} uploaded to the Marketplace</p>
+                    {% if uploader_description %}<p class="text-sm text-slate-400 mt-1.5 max-w-lg">{{ uploader_description }}</p>{% endif %}
+                </div>
+            </div>
+            {% if not is_me %}
+            <button id="block-btn" onclick="toggleBlock('{{ handle }}', {{ 'true' if is_blocked else 'false' }})"
+                    class="{{ 'bg-orange-900/30 text-orange-400 border-orange-700/30 hover:bg-orange-900/50' if is_blocked else 'bg-slate-800 text-slate-400 border-slate-700 hover:text-orange-400 hover:border-orange-700/40' }} px-4 py-2 rounded-lg text-sm font-bold border transition-all">
+                {{ '🚫 Unblock' if is_blocked else '⊘ Block Uploader' }}
+            </button>
+            {% endif %}
+        </div>
+
+        {% if is_me %}
+        <!-- Profile editor + stats side by side (own profile) -->
+        <div class="flex flex-col lg:flex-row gap-4 items-start">
+            <!-- Profile editor -->
+            <div class="bg-slate-950/40 border border-blue-900/30 rounded-2xl p-5 w-full lg:max-w-lg flex flex-col gap-4 flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    <span class="text-sm font-bold text-slate-300">Profile Settings</span>
+                </div>
+                <!-- Display name -->
+                <div>
+                    <div class="flex items-center space-x-1.5 mb-1.5">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Display Name</span>
+                        <span class="text-xs text-slate-600">(optional)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="username-input" maxlength="30"
+                               value="{{ uploader_username }}"
+                               placeholder="e.g. CoolDeveloper"
+                               class="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all">
+                        <button onclick="saveUsername()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0">Save</button>
+                    </div>
+                </div>
+                <!-- Bio/description -->
+                <div>
+                    <div class="flex items-center space-x-1.5 mb-1.5">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Bio</span>
+                        <span class="text-xs text-slate-600">(max 200 chars)</span>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <textarea id="description-input" maxlength="200" rows="3"
+                                  placeholder="Tell the community a bit about yourself…"
+                                  class="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-600 transition-all resize-none">{{ uploader_description }}</textarea>
+                        <button onclick="saveDescription()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all flex-shrink-0 mt-0.5">Save</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Stats box (right of editor on own profile) -->
+            <div class="bg-slate-950/40 border border-slate-800/60 rounded-2xl p-5 flex-1 flex flex-col justify-center gap-3">
+                <span class="text-xs font-bold uppercase tracking-widest text-slate-600">Your Stats</span>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-white">{{ items | length }}</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Uploads</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-blue-400">{{ total_downloads }}</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Downloads</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-emerald-400">▲ {{ total_upvotes }}</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Upvotes</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-black text-red-400">▼ {{ total_downvotes }}</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Downvotes</div>
+                    </div>
+                    <div class="text-center col-span-2">
+                        <div class="text-2xl font-black {{ 'text-red-400' if total_reports >= report_threshold else 'text-slate-400' }}">{{ total_reports }}</div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wider mt-0.5">Reports</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- Stats row (other profiles) -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-black text-white">{{ items | length }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wider mt-1">Uploads</div>
+            </div>
+            <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-black text-blue-400">{{ total_downloads }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wider mt-1">Downloads</div>
+            </div>
+            <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-black text-emerald-400">▲ {{ total_upvotes }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wider mt-1">Upvotes</div>
+            </div>
+            <div class="bg-slate-950/40 border border-slate-800/60 rounded-xl p-4 text-center">
+                <div class="text-2xl font-black text-red-400">▼ {{ total_downvotes }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wider mt-1">Downvotes</div>
+            </div>
+            <div class="bg-slate-950/40 border {{ 'border-red-800/40' if total_reports >= report_threshold else 'border-slate-800/60' }} rounded-xl p-4 text-center">
+                <div class="text-2xl font-black {{ 'text-red-400' if total_reports >= report_threshold else 'text-slate-400' }}">{{ total_reports }}</div>
+                <div class="text-xs text-slate-500 uppercase tracking-wider mt-1">Reports</div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if is_me or is_preview %}
+        <div class="flex justify-end">
+            {% if is_preview %}
+            <a href="?" class="flex items-center space-x-1.5 text-xs text-blue-400 hover:text-blue-300 border border-blue-700/40 rounded-lg px-3 py-1.5 transition-colors bg-blue-900/20 hover:bg-blue-900/30">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                <span>Back to profile editor</span>
+            </a>
+            {% else %}
+            <a href="?preview=1" class="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700/50 rounded-lg px-3 py-1.5 transition-colors bg-slate-800/30 hover:bg-slate-800/60">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                <span>Preview as visitor</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Left: items list -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+                <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Uploaded Items</h2>
+                {% if items %}
+                <div class="flex flex-col divide-y divide-slate-800/60 border border-slate-800/60 rounded-xl overflow-hidden">
+                    {% for item in items %}
+                    {% set item_reports = item.reports | length if item.reports is defined else 0 %}
+                    {% set dl_ver = dl_history.get(item.id, 0) %}
+                    {% set item_ver = item.version if item.version is defined else 1 %}
+                    <a href="/marketplace/item/{{ item.id }}"
+                       class="flex items-center justify-between px-4 py-3.5 bg-slate-950/30 hover:bg-slate-950/60 transition-colors group">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-900/40 text-indigo-300 border border-indigo-800/40 flex-shrink-0">{{ item.type }}</span>
+                            <span class="text-sm font-semibold text-white group-hover:text-blue-400 transition-colors truncate">{{ item.name }}</span>
+                            {% if item_reports >= report_threshold %}
+                            <span class="text-[10px] text-red-400 flex-shrink-0">⚠ {{ item_reports }}</span>
+                            {% endif %}
+                            {% if item.id in owned_ids %}
+                            <span class="text-[10px] text-emerald-600 flex-shrink-0">✓ yours</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center space-x-4 flex-shrink-0 ml-3 text-xs text-slate-500">
+                            {% if dl_ver > 0 and item_ver > dl_ver %}
+                            <span class="text-amber-400 font-bold">↑ v{{ item_ver }}</span>
+                            {% endif %}
+                            <span>↓ {{ item.download_count if item.download_count is defined else 0 }}</span>
+                            <span class="text-emerald-500">▲ {{ item.upvotes if item.upvotes is defined else 0 }}</span>
+                            <span class="text-xs font-mono text-slate-600">v{{ item_ver }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="flex flex-col items-center justify-center py-16 opacity-40">
+                    <p class="text-slate-400">No items uploaded yet.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Right: reports -->
+            <div class="flex flex-col gap-4">
+                <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Community Reports</h2>
+                {% if all_reports %}
+                <div class="flex flex-col gap-2">
+                    {% for report in all_reports %}
+                    <div class="bg-red-950/20 border border-red-900/30 rounded-xl p-3.5">
+                        <div class="flex items-start justify-between mb-1.5">
+                            <a href="/marketplace/item/{{ report.item_id }}" class="text-xs font-bold text-red-400 hover:text-red-300 transition-colors truncate max-w-[160px]">{{ report.item_name }}</a>
+                            <span class="text-[10px] text-slate-600 flex-shrink-0 ml-2">{{ report.timestamp }}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 leading-relaxed">{{ report.reason }}</p>
+                        <p class="text-[10px] text-slate-600 mt-1.5 font-mono">by {{ report.reporter_handle }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-slate-950/30 border border-slate-800/60 rounded-xl px-4 py-8 text-center">
+                    <p class="text-sm text-slate-600">No reports against this uploader.</p>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+    function saveUsername() {
+        const val = document.getElementById('username-input')?.value.trim() ?? '';
+        const fd = new FormData();
+        fd.append('username', val);
+        fetch('/marketplace/profile/username', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const t = document.createElement('div');
+                t.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-2xl bg-emerald-800 text-emerald-100 border border-emerald-700';
+                t.textContent = 'Display name saved!';
+                document.body.appendChild(t);
+                setTimeout(() => { t.remove(); window.location.reload(); }, 1500);
+            } else {
+                alert(data.detail || 'Failed to save');
+            }
+        })
+        .catch(() => alert('Failed to save display name.'));
+    }
+
+    function saveDescription() {
+        const val = document.getElementById('description-input')?.value.trim() ?? '';
+        const fd = new FormData();
+        fd.append('description', val);
+        fetch('/marketplace/profile/description', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const t = document.createElement('div');
+                t.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-2xl bg-emerald-800 text-emerald-100 border border-emerald-700';
+                t.textContent = 'Bio saved!';
+                document.body.appendChild(t);
+                setTimeout(() => { t.remove(); window.location.reload(); }, 1500);
+            } else {
+                alert(data.detail || 'Failed to save');
+            }
+        })
+        .catch(() => alert('Failed to save bio.'));
+    }
+
+    function toggleBlock(handle, isCurrentlyBlocked) {
+        const url = isCurrentlyBlocked ? '/marketplace/unblock' : '/marketplace/block';
+        const fd = new FormData();
+        fd.append('handle', handle);
+        fetch(url, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') window.location.reload();
+        })
+        .catch(() => alert('Action failed.'));
+    }
+    </script>
+
+</body>
+</html>

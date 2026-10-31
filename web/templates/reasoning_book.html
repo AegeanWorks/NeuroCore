@@ -1,0 +1,65 @@
+<div class="p-8 h-full flex flex-col">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h2 class="text-2xl font-bold">Reasoning Book</h2>
+            <p class="text-slate-400 text-sm">A log of the AI's internal thoughts and reasoning steps.</p>
+        </div>
+        <div class="flex space-x-2">
+            <button hx-get="/reasoning_book/gui" 
+                    hx-target="#module-content" 
+                    class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all border border-slate-700">
+                Refresh
+            </button>
+            <button onclick="openWipeModal()"
+                    class="bg-red-900/30 hover:bg-red-900/50 text-red-400 px-4 py-2 rounded-lg text-sm font-bold transition-all border border-red-900/50">
+                Wipe Reasoning Book
+            </button>
+        </div>
+    </div>
+
+    <div id="thoughts-container" 
+         class="flex-grow overflow-y-auto custom-scrollbar space-y-4"
+         hx-get="/reasoning_book/thoughts"
+         hx-trigger="every 2s"
+         hx-swap="innerHTML">
+        {% include 'reasoning_thoughts.html' %}
+    </div>
+</div>
+
+<!-- Wipe Confirmation Modal -->
+<div id="wipe-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onclick="closeWipeModal()"></div>
+    <div class="relative transform overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 text-left shadow-2xl transition-all scale-100 sm:w-full sm:max-w-md p-6">
+        <div class="flex items-start space-x-4">
+            <div class="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-900/30 text-red-500">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+            </div>
+            <div class="flex-grow">
+                <h3 class="text-lg font-semibold leading-6 text-white">Wipe Reasoning Book</h3>
+                <div class="mt-2">
+                    <p class="text-sm text-slate-400">Are you sure you want to wipe the reasoning book? This action cannot be undone.</p>
+                </div>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end space-x-3">
+            <button type="button" onclick="closeWipeModal()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+            <button hx-post="/reasoning_book/clear?confirm=wipe+the+reasoning+book" 
+                    hx-target="#thoughts-container" 
+                    onclick="closeWipeModal()"
+                    class="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 transition-colors">
+                Wipe
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.openWipeModal = function() {
+        document.getElementById('wipe-modal').classList.remove('hidden');
+    }
+    window.closeWipeModal = function() {
+        document.getElementById('wipe-modal').classList.add('hidden');
+    }
+</script>

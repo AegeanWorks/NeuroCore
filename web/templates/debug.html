@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - NeuroCore</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+    <script>
+    function copySummaryJson() {
+        // Get the summary data from the DOM
+        const summaryElement = document.querySelector('#debug-summary');
+        if (!summaryElement) return;
+        
+        // Extract the data from the rendered template
+        // We need to fetch it from the API endpoint instead
+        fetch('/debug/agent-summary')
+            .then(response => response.json())
+            .then(data => {
+                navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+                    .then(() => {
+                        const btnText = document.getElementById('copy-btn-text');
+                        if (btnText) {
+                            btnText.textContent = 'Copied!';
+                            setTimeout(() => {
+                                btnText.textContent = 'Copy Summary JSON';
+                            }, 2000);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy:', err);
+                        alert('Failed to copy to clipboard');
+                    });
+            })
+            .catch(err => {
+                console.error('Failed to fetch summary:', err);
+                alert('Failed to fetch summary data');
+            });
+    }
+    </script>
+    
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow container mx-auto p-6 flex flex-col h-[calc(100vh-80px)] overflow-hidden">
+        <!-- Agent Summary Panel - Auto-refreshing -->
+        <div id="debug-summary" 
+             hx-get="/debug/summary" 
+             hx-trigger="load, every 2s"
+             hx-swap="innerHTML">
+            <!-- Summary will be loaded here -->
+        </div>
+
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold">Action Flow Debugger</h1>
+            <div class="flex space-x-2">
+                <button hx-post="/debug/clear" hx-target="#debug-logs" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+                    Clear Logs
+                </button>
+                <div class="flex items-center space-x-2 bg-slate-800 px-3 py-2 rounded-lg">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span class="text-xs text-slate-400">Live Updates</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-grow bg-slate-950/50 rounded-xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+            <div class="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-900 border-b border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <div class="col-span-2">Time</div>
+                <div class="col-span-2">Node</div>
+                <div class="col-span-1">Event</div>
+                <div class="col-span-7">Details</div>
+            </div>
+            
+            <div id="debug-logs" 
+                 hx-get="/debug/logs" 
+                 hx-trigger="load, every 1s" 
+                 class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-2">
+                <!-- Logs will be loaded here -->
+            </div>
+        </div>
+    </main>
+</body>
+</html>

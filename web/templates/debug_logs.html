@@ -1,0 +1,54 @@
+{% if not logs %}
+<div class="text-center py-12 opacity-50">
+    <p class="text-sm">No logs captured yet.</p>
+</div>
+{% else %}
+{% for log in logs %}
+<div class="grid grid-cols-12 gap-4 items-start p-3 rounded-lg border border-slate-800/50 hover:bg-slate-800/50 transition-colors text-sm font-mono">
+    <div class="col-span-2 text-purple-400 font-semibold">{{ log.timestamp }}</div>
+    <div class="col-span-2 font-semibold text-blue-400">{{ log.node_name }}</div>
+    <div class="col-span-1">
+        {% if log.event == 'start' %}
+        <span class="text-yellow-500">START</span>
+        {% elif log.event == 'end' %}
+        <span class="text-emerald-500">END</span>
+        {% elif log.event == 'error' %}
+        <span class="text-red-500">ERROR</span>
+        {% else %}
+        <span class="text-slate-500">{{ log.event|upper }}</span>
+        {% endif %}
+    </div>
+    <div class="col-span-7 space-y-1.5">
+        {# Extract token usage from either output.response.usage (LLM node) or output (agent loop which passes response inline) #}
+        {% set ns = namespace(usage=None) %}
+        {% if log.details is mapping %}
+            {% if log.details.output is mapping %}
+                {% if log.details.output.response is mapping and log.details.output.response.usage is mapping %}
+                    {% set ns.usage = log.details.output.response.usage %}
+                {% endif %}
+            {% endif %}
+        {% endif %}
+
+        {% if ns.usage %}
+        <div class="flex items-center gap-2 flex-wrap pb-0.5">
+            <span class="text-xs text-slate-500 font-sans">Tokens</span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-950/70 border border-sky-800/50 text-sky-300 text-xs font-bold font-sans"
+                  title="Prompt tokens (input)">
+                ↑ {{ "{:,}".format(ns.usage.prompt_tokens) }} prompt
+            </span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-800/50 text-emerald-300 text-xs font-bold font-sans"
+                  title="Completion tokens (output)">
+                ↓ {{ "{:,}".format(ns.usage.completion_tokens) }} completion
+            </span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-950/80 border border-amber-700/60 text-amber-300 text-xs font-bold font-sans"
+                  title="Total tokens used">
+                Σ {{ "{:,}".format(ns.usage.total_tokens) }} total
+            </span>
+        </div>
+        {% endif %}
+
+        <div class="text-slate-300 break-all whitespace-pre-wrap text-xs bg-slate-950 p-2 rounded border border-slate-800">{{ log.details | tojson(indent=2) }}</div>
+    </div>
+</div>
+{% endfor %}
+{% endif %}

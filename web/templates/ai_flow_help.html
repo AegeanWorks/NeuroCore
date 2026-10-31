@@ -1,0 +1,102 @@
+<div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+    <div>
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Quick Start</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p>1. <strong class="text-white">Drag</strong> functions from the sidebar onto the canvas</p>
+            <p>2. <strong class="text-white">Connect</strong> nodes by dragging from output dots to input dots</p>
+            <p>3. <strong class="text-white">Click</strong> a node to configure it</p>
+            <p>4. <strong class="text-white">Save</strong> your flow and run it from the Chat</p>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Node Types</h3>
+        <div class="space-y-3 text-sm">
+            <div>
+                <h4 class="font-semibold text-white">Input Nodes</h4>
+                <p class="text-slate-400 text-xs">Chat Input, Telegram Input - Start of conversation flow</p>
+            </div>
+            <div>
+                <h4 class="font-semibold text-white">Processing Nodes</h4>
+                <p class="text-slate-400 text-xs">LLM Core, System Prompt, Memory, Knowledge - Transform and process data</p>
+            </div>
+            <div>
+                <h4 class="font-semibold text-white">Logic Nodes</h4>
+                <p class="text-slate-400 text-xs">Delay, Repeater, Conditional Router - Control flow execution</p>
+            </div>
+            <div>
+                <h4 class="font-semibold text-white">Output Nodes</h4>
+                <p class="text-slate-400 text-xs">Chat Output, Telegram Output, Tool Dispatcher - Send results</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Keyboard Shortcuts</h3>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Delete</span> <span class="text-slate-400">Remove selected</span></div>
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Ctrl+A</span> <span class="text-slate-400">Select all</span></div>
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Ctrl+Z</span> <span class="text-slate-400">Undo</span></div>
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Space+Drag</span> <span class="text-slate-400">Pan canvas</span></div>
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Scroll</span> <span class="text-slate-400">Zoom in/out</span></div>
+            <div><span class="text-white font-mono bg-slate-800 px-1 rounded">Double-click</span> <span class="text-slate-400">Edit annotation</span></div>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Goal System</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p>The <strong class="text-white">Goals</strong> feature enables autonomous agents:</p>
+            <ul class="list-disc list-inside text-slate-400 text-xs space-y-1">
+                <li>Use <strong class="text-emerald-400">SetGoal</strong> tool to create a goal</li>
+                <li>Use <strong class="text-blue-400">Check Goal</strong> node to inject goal into context</li>
+                <li>Use <strong class="text-emerald-400">MarkGoalComplete</strong> tool when done</li>
+                <li>Use <strong class="text-red-400">DeleteGoal</strong> tool to remove a goal</li>
+            </ul>
+            <p class="text-xs text-slate-500 mt-2">Example flow: Chat Input → Check Goal → LLM Core → Tool Dispatcher → Chat Output</p>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Memory System</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p><strong class="text-white">Memory Recall</strong> - Searches vector database for relevant context</p>
+            <p><strong class="text-white">Memory Save</strong> - Stores interactions to long-term memory</p>
+            <p class="text-xs text-slate-500">Configure thresholds in Settings → Modules → Memory</p>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Tools</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p>Enable tools in <strong class="text-white">System Prompt</strong> node config:</p>
+            <p class="text-xs text-slate-500">1. Click System Prompt node → 2. Select tools → 3. Save</p>
+            <p>Custom tools can be created in <strong class="text-white">Settings → Tools</strong></p>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Tool Dispatcher</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p>Executes tools enabled in <strong class="text-white">System Prompt</strong>:</p>
+            <div class="bg-slate-800/50 rounded-lg p-3">
+                <p class="text-xs text-slate-400 mb-1">Flow order:</p>
+                <p class="text-xs text-white">System Prompt → LLM Core → Tool Dispatcher → (Tool executes) → LLM Core → ...</p>
+                <p class="text-xs text-slate-500 mt-2">LLM decides which tool to call, Tool Dispatcher executes it, result returns to LLM.</p>
+            </div>
+            <p class="text-xs text-slate-500">Available: SetGoal, MarkGoalComplete, Weather, Calculator, etc.</p>
+        </div>
+    </div>
+
+    <div class="border-t border-slate-700 pt-4">
+        <h3 class="text-lg font-bold text-blue-400 mb-2">Multiple Active Flows</h3>
+        <div class="space-y-2 text-sm text-slate-300">
+            <p>Run multiple flows simultaneously:</p>
+            <ol class="list-decimal list-inside text-xs text-slate-400 space-y-1">
+                <li>Set a flow as active in <strong class="text-white">Settings → AI Flow</strong></li>
+                <li>Use <strong class="text-white">Repeater</strong> node for scheduled tasks</li>
+                <li>Each flow runs independently</li>
+            </ol>
+        </div>
+    </div>
+</div>

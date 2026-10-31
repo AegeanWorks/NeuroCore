@@ -1,0 +1,22 @@
+{
+    "name": "Meta-Flow",
+    "description": "Runs stored flows as ganglion nodes and joins them with pathways.",
+    "enabled": true,
+    "id": "meta",
+    "icon": "M4 4h6v6H4zM14 14h6v6h-6zM10 7h4v7h-4z",
+    "is_flow_node": false,
+    "order": 12,
+    "provides_nodes": [
+        {
+            "id": "subflow",
+            "name": "Subflow (Ganglion)",
+            "description": "Runs a stored flow and passes its output downstream. Uses flow_id and an optional max_depth.",
+            "singleton": false,
+            "configurable": true,
+            "config": {
+                "flow_id": "",
+                "max_depth": 8
+            }
+        }
+    ]
+}

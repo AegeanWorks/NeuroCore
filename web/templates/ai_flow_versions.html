@@ -1,0 +1,27 @@
+<div class="mt-1 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden text-xs" id="versions-panel-{{ flow_id }}">
+    <div class="flex items-center justify-between px-3 py-1.5 border-b border-slate-700 bg-slate-800">
+        <span class="font-semibold text-slate-300">Version History — {{ flow_name }}</span>
+        <button onclick="closeVersionsPanel('{{ flow_id }}')" class="text-slate-500 hover:text-slate-300">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+    </div>
+    {% if versions %}
+    <ul class="divide-y divide-slate-800 max-h-48 overflow-y-auto">
+        {% for v in versions %}
+        <li class="flex items-center justify-between px-3 py-1.5 hover:bg-slate-800/50">
+            <div class="truncate mr-2">
+                <span class="font-mono text-slate-400">v{{ v.version }}</span>
+                <span class="ml-2 text-slate-500">{{ v.saved_at[:16].replace('T', ' ') }}</span>
+                <span class="ml-1 text-slate-600">· {{ v.node_count }}n / {{ v.connection_count }}c</span>
+            </div>
+            <button onclick="openRestoreModal('{{ flow_id }}', {{ v.version }}, '{{ v.saved_at[:10] }}')"
+                    class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded transition-colors">
+                Restore
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="px-3 py-2 text-slate-600 italic">No saved versions yet. Versions are created automatically when you save an existing flow.</p>
+    {% endif %}
+</div>

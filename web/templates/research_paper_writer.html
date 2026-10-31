@@ -1,0 +1,161 @@
+<div class="flex flex-col gap-6 h-full">
+
+    <div class="flex items-start gap-6 flex-grow min-h-0">
+
+        <!-- Left: Config panel -->
+        <div class="w-80 flex-shrink-0 flex flex-col gap-4">
+            <div class="bg-slate-950/50 border border-slate-800 rounded-xl p-5 flex flex-col gap-4">
+                <h3 class="font-semibold text-slate-200 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Paper Configuration
+                </h3>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Paper Title</label>
+                    <input type="text" id="paper-title" placeholder="Your paper title…"
+                           class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Research Domain</label>
+                    <select id="paper-domain" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                        <option value="general">General</option>
+                        <option value="cognitive_science">Cognitive Science</option>
+                        <option value="neuroscience">Neuroscience</option>
+                        <option value="psychology">Psychology</option>
+                        <option value="biology">Biology</option>
+                        <option value="computer_science">Computer Science</option>
+                        <option value="physics">Physics</option>
+                        <option value="medicine">Medicine</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Section to Draft</label>
+                    <select id="paper-section" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                        <option value="abstract">Abstract</option>
+                        <option value="introduction">Introduction</option>
+                        <option value="literature_review">Literature Review</option>
+                        <option value="methodology">Methodology</option>
+                        <option value="results">Results</option>
+                        <option value="discussion">Discussion</option>
+                        <option value="conclusion">Conclusion</option>
+                        <option value="full_paper">Full Paper</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Context / Key Points</label>
+                    <textarea id="paper-context" rows="5" placeholder="Describe what this paper is about, key findings to include, your hypothesis, methodology…"
+                              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Writing Style</label>
+                    <select id="paper-style" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
+                        <option value="academic">Academic / Formal</option>
+                        <option value="technical">Technical</option>
+                        <option value="concise">Concise</option>
+                        <option value="detailed">Detailed / Comprehensive</option>
+                    </select>
+                </div>
+
+                <button onclick="draftPaper()"
+                        class="w-full bg-violet-600 hover:bg-violet-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Generate Draft
+                </button>
+            </div>
+        </div>
+
+        <!-- Right: Output area -->
+        <div class="flex-grow flex flex-col gap-3 min-h-0 min-w-0">
+            <div class="flex items-center justify-between">
+                <h3 class="font-semibold text-slate-200">Draft Output</h3>
+                <div class="flex gap-2">
+                    <button onclick="copyDraft()" id="btn-copy-draft"
+                            class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-all flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        Copy
+                    </button>
+                    <button onclick="clearDraft()" id="btn-clear-draft"
+                            class="hidden px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-400 hover:text-red-300 transition-all">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Draft display -->
+            <div id="paper-draft-container"
+                 class="flex-grow bg-slate-950/60 border border-slate-800 rounded-xl p-6 overflow-y-auto custom-scrollbar min-h-0 font-mono text-sm leading-relaxed text-slate-300">
+                <div id="paper-draft-empty" class="flex flex-col items-center justify-center h-full text-slate-600 gap-3">
+                    <svg class="w-12 h-12 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <p class="text-sm">Configure and click Generate Draft to begin.</p>
+                </div>
+                <div id="paper-draft-content" class="hidden whitespace-pre-wrap"></div>
+                <div id="paper-draft-spinner" class="hidden flex items-center gap-3 text-slate-500">
+                    <svg class="w-5 h-5 animate-spin text-violet-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Drafting…
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function draftPaper() {
+    const title = document.getElementById('paper-title').value.trim();
+    const domain = document.getElementById('paper-domain').value;
+    const section = document.getElementById('paper-section').value;
+    const context = document.getElementById('paper-context').value.trim();
+    const style = document.getElementById('paper-style').value;
+
+    if (!context) {
+        window.showToast('Please provide context / key points.', 'error');
+        return;
+    }
+
+    document.getElementById('paper-draft-empty').classList.add('hidden');
+    document.getElementById('paper-draft-content').classList.add('hidden');
+    document.getElementById('paper-draft-spinner').classList.remove('hidden');
+    document.getElementById('btn-copy-draft').classList.add('hidden');
+    document.getElementById('btn-clear-draft').classList.add('hidden');
+
+    try {
+        const body = new URLSearchParams({ title, domain, section, context, style });
+        const resp = await fetch('/research/paper/draft', { method: 'POST', body });
+        const data = await resp.json();
+
+        document.getElementById('paper-draft-spinner').classList.add('hidden');
+
+        if (data.error) {
+            window.showToast(data.error, 'error');
+            document.getElementById('paper-draft-empty').classList.remove('hidden');
+            return;
+        }
+
+        const content = document.getElementById('paper-draft-content');
+        content.textContent = data.draft;
+        content.classList.remove('hidden');
+        document.getElementById('btn-copy-draft').classList.remove('hidden');
+        document.getElementById('btn-clear-draft').classList.remove('hidden');
+    } catch (e) {
+        document.getElementById('paper-draft-spinner').classList.add('hidden');
+        document.getElementById('paper-draft-empty').classList.remove('hidden');
+        window.showToast('Request failed: ' + e.message, 'error');
+    }
+}
+
+function copyDraft() {
+    const text = document.getElementById('paper-draft-content').textContent;
+    navigator.clipboard.writeText(text).then(() => window.showToast('Copied to clipboard', 'success'));
+}
+
+function clearDraft() {
+    document.getElementById('paper-draft-content').textContent = '';
+    document.getElementById('paper-draft-content').classList.add('hidden');
+    document.getElementById('paper-draft-empty').classList.remove('hidden');
+    document.getElementById('btn-copy-draft').classList.add('hidden');
+    document.getElementById('btn-clear-draft').classList.add('hidden');
+}
+</script>

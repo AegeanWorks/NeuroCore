@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ item.name }} — Marketplace</title>
+    <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <script>{% include '_utils.html' %}</script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+        .file-tree-item:hover { background: rgba(148,163,184,0.07); }
+        .file-tree-item.active { background: rgba(59,130,246,0.15); border-left: 2px solid #3b82f6; }
+        pre { tab-size: 4; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    {% include 'navbar.html' %}
+
+    <main class="flex-grow flex flex-col overflow-hidden" style="height:calc(100vh - 64px)">
+
+        <!-- Top bar -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60 flex-shrink-0">
+            <div class="flex items-center space-x-2 flex-wrap">
+                <a href="/marketplace" class="flex items-center space-x-1.5 text-slate-400 hover:text-white text-sm font-medium transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    <span>Marketplace</span>
+                </a>
+                {% if item.uploader_handle is defined and item.uploader_handle %}
+                <span class="text-slate-700">/</span>
+                <a href="/marketplace/uploader/{{ item.uploader_handle }}" class="text-sm font-mono text-slate-400 hover:text-blue-400 transition-colors">{{ item.uploader_username if item.uploader_username is defined and item.uploader_username else item.uploader_handle }}</a>
+                {% endif %}
+                <span class="text-slate-700">/</span>
+                <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-900/50 text-indigo-300 border border-indigo-800/50">{{ item.type }}</span>
+                <h1 class="text-lg font-bold text-white">{{ item.name }}</h1>
+                <span class="text-xs text-slate-600 font-mono">v{{ item_version }}</span>
+            </div>
+
+            <!-- Actions: votes + download + delete -->
+            <div class="flex items-center space-x-2">
+                <!-- Upvote -->
+                <button id="upvote-btn-{{ item.id }}"
+                        onclick="castVote('{{ item.id }}', 'up')"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all
+                               {% if user_vote == 'up' %}bg-emerald-900/40 text-emerald-400 border-emerald-700/50{% else %}bg-slate-800 text-slate-400 hover:text-emerald-400 hover:border-emerald-700/40 border-slate-700{% endif %}"
+                        title="Upvote">
+                    <svg class="w-4 h-4" fill="{% if user_vote == 'up' %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                    <span id="upvote-count-{{ item.id }}">{{ item.upvotes if item.upvotes is defined else 0 }}</span>
+                </button>
+                <!-- Downvote -->
+                <button id="downvote-btn-{{ item.id }}"
+                        onclick="castVote('{{ item.id }}', 'down')"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all
+                               {% if user_vote == 'down' %}bg-red-900/40 text-red-400 border-red-700/50{% else %}bg-slate-800 text-slate-400 hover:text-red-400 hover:border-red-700/40 border-slate-700{% endif %}"
+                        title="Downvote">
+                    <svg class="w-4 h-4" fill="{% if user_vote == 'down' %}currentColor{% else %}none{% endif %}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    <span id="downvote-count-{{ item.id }}">{{ item.downvotes if item.downvotes is defined else 0 }}</span>
+                </button>
+
+                {% if is_owner %}
+                {# Own items don't need importing #}
+                {% elif downloaded_version and not new_version_available %}
+                <button disabled
+                   class="flex items-center space-x-1.5 bg-emerald-900/30 text-emerald-400 px-4 py-1.5 rounded-lg text-sm font-bold border border-emerald-800/40 cursor-default">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    <span>Imported</span>
+                </button>
+                {% else %}
+                <button onclick="confirmDownload()"
+                   class="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold border border-blue-500 transition-all shadow-lg shadow-blue-500/20">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>Import to NeuroCore</span>
+                </button>
+                {% endif %}
+
+                {% if is_owner %}
+                <button onclick="openUpdateModal()"
+                        class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-4 py-1.5 rounded-lg text-sm font-bold border border-slate-700 transition-all">
+                    Publish Update
+                </button>
+                <button onclick="confirmDelete()"
+                        class="bg-red-950/40 hover:bg-red-950/70 text-red-500 hover:text-red-400 px-4 py-1.5 rounded-lg text-sm font-bold border border-red-800/30 transition-all">
+                    Delete
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Meta strip -->
+        <div class="flex items-center space-x-6 px-6 py-3 border-b border-slate-800/60 bg-slate-950/30 flex-shrink-0 text-xs text-slate-500">
+            <span>📄 {{ item.filename }}</span>
+            {% if item.uploader_handle is defined and item.uploader_handle %}
+            <a href="/marketplace/uploader/{{ item.uploader_handle }}" class="hover:text-blue-400 transition-colors">👤 {{ item.uploader_handle }}{% if item.uploader_username is defined and item.uploader_username %} ({{ item.uploader_username }}){% endif %}</a>
+            {% else %}
+            <span>👤 ———</span>
+            {% endif %}
+            {% if is_owner %}<span class="text-emerald-500 font-semibold">✓ Your item</span>{% endif %}
+            {% if item.uploaded_at %}<span>🕒 {{ item.uploaded_at }}</span>{% endif %}
+            {% if item.description %}<span class="text-slate-400 truncate max-w-xl" title="{{ item.description }}">{{ item.description }}</span>{% endif %}
+        </div>
+
+        {% if changelog %}
+        <!-- Changelog bar -->
+        <div class="flex items-start space-x-4 px-6 py-2.5 bg-slate-950/20 border-b border-slate-800/40 flex-shrink-0 text-xs">
+            <span class="text-slate-600 uppercase tracking-wider font-bold flex-shrink-0 mt-0.5">Changelog</span>
+            <div class="flex flex-wrap gap-x-6 gap-y-1">
+                {% for entry in changelog %}
+                <span class="text-slate-400"><span class="font-bold text-blue-400">v{{ entry.version }}</span> <span class="text-slate-600">{{ entry.timestamp }}</span> — {{ entry.notes }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if new_version_available %}
+        <!-- New version notice bar -->
+        <div class="flex items-center justify-between px-6 py-2.5 bg-amber-950/30 border-b border-amber-800/40 flex-shrink-0">
+            <div class="flex items-center space-x-2 text-sm text-amber-400">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                <span>Version <strong>v{{ item_version }}</strong> is available — you have v{{ downloaded_version }}.</span>
+            </div>
+            <button onclick="confirmDownload()"
+               class="flex items-center space-x-1.5 bg-amber-700 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-xs font-bold transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <span>Import update</span>
+            </button>
+        </div>
+        {% endif %}
+
+        <!-- Body: file tree + content viewer + comments -->
+        <div class="flex flex-1 overflow-hidden">
+
+            {% if is_zip and file_tree %}
+            <!-- File tree sidebar -->
+            <aside class="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-950/50 overflow-y-auto custom-scrollbar py-2">
+                <div class="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Files</div>
+                {% for entry in file_tree %}
+                    {% if entry.is_dir %}
+                    <div class="flex items-center space-x-1.5 px-3 py-1 text-xs text-slate-500 font-semibold uppercase tracking-wider"
+                         style="padding-left: {{ 12 + entry.depth * 12 }}px">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                        <span class="truncate">{{ entry.name.rstrip('/').split('/')[-1] }}</span>
+                    </div>
+                    {% else %}
+                    <button onclick="loadFile('{{ item.id }}', '{{ entry.path }}')"
+                            id="tree-{{ loop.index }}"
+                            data-path="{{ entry.path }}"
+                            class="file-tree-item w-full text-left flex items-center space-x-1.5 py-1 text-xs text-slate-300 hover:text-white transition-colors {% if entry.path == initial_file %}active{% endif %}"
+                            style="padding-left: {{ 12 + entry.depth * 12 }}px; padding-right: 12px">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <span class="truncate">{{ entry.name.split('/')[-1] }}</span>
+                    </button>
+                    {% endif %}
+                {% endfor %}
+            </aside>
+            {% endif %}
+
+            <!-- Code / content viewer -->
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- File tab bar -->
+                <div class="flex items-center space-x-2 px-4 py-2 border-b border-slate-800/60 bg-slate-950/20 flex-shrink-0">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span id="active-filename" class="text-xs font-mono text-slate-300">{{ initial_file }}</span>
+                    <div id="file-loading" class="hidden ml-2 w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <div class="flex-1 overflow-auto custom-scrollbar bg-slate-950">
+                    <pre id="file-content" class="text-xs text-slate-300 font-mono leading-relaxed p-6 whitespace-pre-wrap break-words">{{ initial_content }}</pre>
+                </div>
+            </div>
+
+            <!-- Comments panel (right side) -->
+            <aside class="w-72 flex-shrink-0 border-l border-slate-800 flex flex-col bg-slate-950/40">
+                <div class="px-4 py-3 border-b border-slate-800/60 flex-shrink-0">
+                    <span class="text-xs font-bold uppercase tracking-widest text-slate-500">Comments</span>
+                    <span class="ml-2 text-xs text-slate-600">({{ comments | length }})</span>
+                </div>
+                <!-- Comment list -->
+                <div id="comments-list" class="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 flex flex-col gap-2">
+                    {% if comments %}
+                        {% for c in comments %}
+                        <div class="bg-slate-900/60 border border-slate-800/60 rounded-xl px-3 py-2.5" data-comment-id="{{ c.id }}">
+                            <div class="flex items-start justify-between mb-1">
+                                <a href="/marketplace/uploader/{{ c.author_handle }}" class="flex flex-col hover:text-blue-300 transition-colors truncate max-w-[140px]">
+                                    {% if c.author_username %}<span class="text-[10px] font-bold text-blue-400 leading-tight">{{ c.author_username }}</span>{% endif %}
+                                    <span class="text-[9px] font-mono text-slate-500 leading-tight">{{ c.author_handle }}</span>
+                                </a>
+                                <div class="flex items-center space-x-1 flex-shrink-0 ml-1">
+                                    <span class="text-[10px] text-slate-600">{{ c.timestamp }}</span>
+                                    {% if c.author_handle == my_handle %}
+                                    <button onclick="deleteComment('{{ c.id }}', this)" class="text-slate-700 hover:text-red-400 transition-colors" title="Delete my comment">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">{{ c.text }}</p>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <p class="text-xs text-slate-600 text-center pt-8">No comments yet.</p>
+                    {% endif %}
+                </div>
+                <!-- Add comment -->
+                <div class="border-t border-slate-800/60 p-3 flex-shrink-0 relative">
+                    <textarea id="comment-input" rows="3" maxlength="1000"
+                              placeholder="Leave a comment… (type @ to mention)"
+                              oninput="onCommentInput(event)"
+                              onkeydown="onCommentKeydown(event)"
+                              class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-600 resize-none transition-all"></textarea>
+                    <!-- @mention dropdown -->
+                    <div id="mention-dropdown" class="hidden absolute bottom-[calc(100%-12px)] left-3 right-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 max-h-44 overflow-y-auto"></div>
+                    <div class="flex justify-end mt-2">
+                        <button onclick="submitComment()" id="submit-comment-btn"
+                                class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all">Post</button>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+
+    </main>
+
+    <!-- Import Confirmation Modal -->
+    <div id="dl-confirm-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeDlModal()">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+            <div class="flex items-center space-x-3 mb-4">
+                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <h3 class="text-lg font-bold text-white">Import <span class="text-blue-400">{{ item.name }}</span> into NeuroCore?</h3>
+            </div>
+            <p class="text-sm text-slate-400 mb-4">This file is from an unverified community member. Review the source code before running. By importing you accept responsibility for its use.</p>
+            <label class="flex items-start space-x-3 cursor-pointer mb-5">
+                <input type="checkbox" id="dl-item-accept"
+                       onchange="document.getElementById('dl-item-btn').disabled = !this.checked; document.getElementById('dl-item-btn').classList.toggle('opacity-40', !this.checked); document.getElementById('dl-item-btn').classList.toggle('pointer-events-none', !this.checked);"
+                       class="w-4 h-4 mt-0.5 rounded border-slate-600 bg-slate-800 accent-blue-500 flex-shrink-0">
+                <span class="text-xs text-slate-300">I understand the risks and will review before running</span>
+            </label>
+            <div class="flex space-x-3 justify-end">
+                <button onclick="closeDlModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                <button id="dl-item-btn" onclick="doImport()" disabled
+                        class="opacity-40 pointer-events-none bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all">Import to NeuroCore</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Publish Update modal -->
+    <div id="update-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeUpdateModal()">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center space-x-3 mb-5 flex-shrink-0">
+                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <h3 class="text-lg font-bold text-white">Publish Update <span class="text-slate-500 text-sm font-normal">v{{ item_version }} → v{{ item_version + 1 }}</span></h3>
+            </div>
+            <div class="overflow-y-auto flex-1 custom-scrollbar pr-1">
+            <form id="update-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Update Notes <span class="text-slate-600 normal-case font-normal">(what changed)</span></label>
+                    <textarea name="update_notes" rows="3" placeholder="e.g. Fixed edge case with empty inputs, improved performance…"
+                              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Description <span class="text-slate-600 normal-case font-normal">(leave blank to keep current)</span></label>
+                    <textarea name="description" rows="2" placeholder="Leave blank to keep current"
+                              class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">{{ item.description or '' }}</textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">New File <span class="text-slate-600 normal-case font-normal">(optional — replaces current)</span></label>
+                    <input type="file" name="file"
+                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-900/30 file:text-blue-400">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">New Banner Image <span class="text-slate-600 normal-case font-normal">(optional)</span></label>
+                    <input type="file" name="image" accept="image/*"
+                           class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-400 file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-900/30 file:text-blue-400">
+                </div>
+
+                {% if changelog %}
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Previous Updates</label>
+                    <div class="flex flex-col gap-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                        {% for entry in changelog %}
+                        <div class="bg-slate-950/60 border border-slate-800/60 rounded-lg px-3 py-2">
+                            <div class="flex items-center space-x-2 mb-0.5">
+                                <span class="text-[10px] font-bold text-blue-400">v{{ entry.version }}</span>
+                                <span class="text-[10px] text-slate-600">{{ entry.timestamp }}</span>
+                            </div>
+                            <p class="text-xs text-slate-400">{{ entry.notes }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <p class="text-xs text-slate-600">Users with a previous version will see an update notice.</p>
+            </form>
+            </div>
+            <div class="flex space-x-3 justify-end pt-4 mt-2 border-t border-slate-800 flex-shrink-0">
+                <button type="button" onclick="closeUpdateModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                <button type="button" id="confirm-update-btn" onclick="doUpdate()"
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all">Publish</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete confirmation modal -->
+    <div id="delete-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeDeleteModal()">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+            <div class="flex items-center space-x-3 text-red-500 mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <h3 class="text-lg font-bold text-white">Delete Item?</h3>
+            </div>
+            <p class="text-sm text-slate-400 mb-6">Are you sure you want to delete <span class="font-semibold text-white">{{ item.name }}</span> from the Marketplace? This cannot be undone.</p>
+            <div class="flex space-x-3 justify-end">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                <button id="confirm-delete-btn"
+                        onclick="doDelete()"
+                        class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Delete</button>
+            </div>
+        </div>
+</div>
+
+    <script>
+    // ── Vote ──────────────────────────────────────────────────────────
+    function castVote(itemId, direction) {
+        fetch('/marketplace/vote/' + itemId + '/' + direction, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status !== 'success') return;
+            document.getElementById('upvote-count-' + itemId).textContent = data.upvotes;
+            document.getElementById('downvote-count-' + itemId).textContent = data.downvotes;
+
+            const upBtn   = document.getElementById('upvote-btn-' + itemId);
+            const downBtn = document.getElementById('downvote-btn-' + itemId);
+            const activeUp   = 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50';
+            const inactiveUp = 'bg-slate-800 text-slate-400 hover:text-emerald-400 hover:border-emerald-700/40 border-slate-700';
+            const activeDn   = 'bg-red-900/40 text-red-400 border-red-700/50';
+            const inactiveDn = 'bg-slate-800 text-slate-400 hover:text-red-400 hover:border-red-700/40 border-slate-700';
+
+            if (upBtn) {
+                const isUp = data.user_vote === 'up';
+                upBtn.className = 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ' + (isUp ? activeUp : inactiveUp);
+                upBtn.querySelector('svg').setAttribute('fill', isUp ? 'currentColor' : 'none');
+            }
+            if (downBtn) {
+                const isDn = data.user_vote === 'down';
+                downBtn.className = 'flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ' + (isDn ? activeDn : inactiveDn);
+                downBtn.querySelector('svg').setAttribute('fill', isDn ? 'currentColor' : 'none');
+            }
+        })
+        .catch(() => {});
+    }
+
+    // ── File tree ─────────────────────────────────────────────────────
+    function loadFile(itemId, path) {
+        document.getElementById('active-filename').textContent = path;
+        document.getElementById('file-loading').classList.remove('hidden');
+        document.getElementById('file-content').textContent = '';
+
+        // Highlight active in tree
+        document.querySelectorAll('.file-tree-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.path === path);
+        });
+
+        fetch('/marketplace/item/' + itemId + '/file?path=' + encodeURIComponent(path))
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('file-loading').classList.add('hidden');
+            document.getElementById('file-content').textContent = data.status === 'success' ? data.content : 'Error: ' + (data.detail || 'unknown');
+        })
+        .catch(() => {
+            document.getElementById('file-loading').classList.add('hidden');
+            document.getElementById('file-content').textContent = 'Failed to load file.';
+        });
+    }
+
+    // ── Publish Update ────────────────────────────────────────────────
+    function openUpdateModal() { document.getElementById('update-modal').classList.remove('hidden'); }
+    function closeUpdateModal() { document.getElementById('update-modal').classList.add('hidden'); }
+    function doUpdate() {
+        const btn = document.getElementById('confirm-update-btn');
+        btn.textContent = 'Publishing…';
+        btn.disabled = true;
+        const form = document.getElementById('update-form');
+        const fd = new FormData(form);
+        fetch('/marketplace/update/{{ item.id }}', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.reload();
+            } else {
+                btn.textContent = 'Publish';
+                btn.disabled = false;
+                alert('Update failed: ' + (data.detail || 'Unknown error'));
+            }
+        })
+        .catch(() => {
+            btn.textContent = 'Publish';
+            btn.disabled = false;
+            alert('Update failed.');
+        });
+    }
+
+    // ── Import confirmation ───────────────────────────────────────────
+    function confirmDownload() {
+        document.getElementById('dl-item-accept').checked = false;
+        const btn = document.getElementById('dl-item-btn');
+        btn.disabled = true;
+        btn.classList.add('opacity-40', 'pointer-events-none');
+        document.getElementById('dl-confirm-modal').classList.remove('hidden');
+    }
+    function closeDlModal() { document.getElementById('dl-confirm-modal').classList.add('hidden'); }
+    function doImport() {
+        const btn = document.getElementById('dl-item-btn');
+        btn.textContent = 'Importing…';
+        btn.disabled = true;
+        btn.classList.add('opacity-60');
+        fetch('/marketplace/import/{{ item.id }}', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            closeDlModal();
+            if (data.status === 'success') {
+                showItemToast(data.message, 'success');
+                // Swap the import button to "Imported"
+                const importBtn = document.querySelector('button[onclick="confirmDownload()"]');
+                if (importBtn) {
+                    importBtn.disabled = true;
+                    importBtn.removeAttribute('onclick');
+                    importBtn.className = 'flex items-center space-x-1.5 bg-emerald-900/30 text-emerald-400 px-4 py-1.5 rounded-lg text-sm font-bold border border-emerald-800/40 cursor-default';
+                    importBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>Imported</span>';
+                }
+            } else {
+                showItemToast('Import failed: ' + (data.detail || 'Unknown error'), 'error');
+            }
+        })
+        .catch(() => { closeDlModal(); showItemToast('Import failed.', 'error'); });
+    }
+
+    // ── @mention autocomplete ─────────────────────────────────────────
+    let _mentionHandles = null;   // cached [{handle, username}]
+    let _mentionQuery   = null;   // current @query string or null
+    let _mentionStart   = -1;     // cursor pos of the '@'
+    let _mentionIndex   = 0;      // selected dropdown item
+
+    async function _loadHandles() {
+        if (_mentionHandles) return _mentionHandles;
+        try {
+            const r = await fetch('/marketplace/handles');
+            const d = await r.json();
+            _mentionHandles = d.handles || [];
+        } catch { _mentionHandles = []; }
+        return _mentionHandles;
+    }
+
+    function _getMentionContext(textarea) {
+        const val = textarea.value;
+        const pos = textarea.selectionStart;
+        // Walk back from cursor to find unbroken @token
+        let i = pos - 1;
+        while (i >= 0 && !/\s/.test(val[i])) i--;
+        const token = val.slice(i + 1, pos);
+        if (token.startsWith('@')) return { query: token.slice(1).toLowerCase(), start: i + 1 };
+        return null;
+    }
+
+    async function onCommentInput(e) {
+        const ta = e.target;
+        const ctx = _getMentionContext(ta);
+        if (!ctx) { closeMentionDropdown(); return; }
+        _mentionQuery = ctx.query;
+        _mentionStart = ctx.start;
+        const handles = await _loadHandles();
+        const matches = handles.filter(h =>
+            h.handle.toLowerCase().includes(_mentionQuery) ||
+            (h.username && h.username.toLowerCase().includes(_mentionQuery))
+        ).slice(0, 8);
+        if (!matches.length) { closeMentionDropdown(); return; }
+        renderMentionDropdown(matches);
+    }
+
+    function onCommentKeydown(e) {
+        const dd = document.getElementById('mention-dropdown');
+        if (dd.classList.contains('hidden')) return;
+        const items = dd.querySelectorAll('[data-mention-idx]');
+        if (e.key === 'ArrowDown')  { e.preventDefault(); _mentionIndex = Math.min(_mentionIndex + 1, items.length - 1); highlightMentionItem(items); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); _mentionIndex = Math.max(_mentionIndex - 1, 0); highlightMentionItem(items); }
+        else if (e.key === 'Enter' || e.key === 'Tab') {
+            const active = dd.querySelector('[data-mention-idx].bg-slate-700\\/60');
+            if (active) { e.preventDefault(); active.click(); }
+        }
+        else if (e.key === 'Escape') { closeMentionDropdown(); }
+    }
+
+    function highlightMentionItem(items) {
+        items.forEach((el, i) => {
+            el.classList.toggle('bg-slate-700/60', i === _mentionIndex);
+            el.classList.toggle('bg-transparent', i !== _mentionIndex);
+        });
+    }
+
+    function renderMentionDropdown(matches) {
+        _mentionIndex = 0;
+        const dd = document.getElementById('mention-dropdown');
+        dd.innerHTML = '';
+        matches.forEach((m, i) => {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.dataset.mentionIdx = i;
+            el.className = `w-full text-left px-3 py-2 flex items-center space-x-2 text-xs transition-colors ${i === 0 ? 'bg-slate-700/60' : 'bg-transparent'} hover:bg-slate-700/60`;
+            el.innerHTML = `<span class="font-mono text-blue-400 flex-shrink-0">@${escapeHtml(m.handle)}</span>${m.username ? `<span class="text-slate-500 truncate">${escapeHtml(m.username)}</span>` : ''}`;
+            el.onmousedown = (e) => { e.preventDefault(); pickMention(m.handle); };
+            dd.appendChild(el);
+        });
+        dd.classList.remove('hidden');
+    }
+
+    function pickMention(handle) {
+        const ta = document.getElementById('comment-input');
+        const before = ta.value.slice(0, _mentionStart);
+        const after  = ta.value.slice(ta.selectionStart);
+        const insert = '@' + handle + ' ';
+        ta.value = before + insert + after;
+        const newPos = _mentionStart + insert.length;
+        ta.setSelectionRange(newPos, newPos);
+        ta.focus();
+        closeMentionDropdown();
+    }
+
+    function closeMentionDropdown() {
+        document.getElementById('mention-dropdown').classList.add('hidden');
+        _mentionQuery = null;
+        _mentionStart = -1;
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#mention-dropdown') && e.target.id !== 'comment-input') {
+            closeMentionDropdown();
+        }
+    });
+
+    // ── Comments ──────────────────────────────────────────────────────
+    function submitComment() {
+        const input = document.getElementById('comment-input');
+        const text = input.value.trim();
+        if (!text) return;
+        const btn = document.getElementById('submit-comment-btn');
+        btn.textContent = 'Posting…';
+        btn.disabled = true;
+        const fd = new FormData();
+        fd.append('text', text);
+        fetch('/marketplace/item/{{ item.id }}/comment', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            btn.textContent = 'Post';
+            btn.disabled = false;
+            if (data.status === 'success') {
+                input.value = '';
+                const c = data.comment;
+                const div = document.createElement('div');
+                div.className = 'bg-slate-900/60 border border-slate-800/60 rounded-xl px-3 py-2.5';
+                div.dataset.commentId = c.id;
+                const nameHtml = c.author_username
+                    ? `<span class="text-[10px] font-bold text-blue-400 leading-tight">${escapeHtml(c.author_username)}</span><span class="text-[9px] font-mono text-slate-500 leading-tight">${escapeHtml(c.author_handle)}</span>`
+                    : `<span class="text-[9px] font-mono text-slate-500 leading-tight">${escapeHtml(c.author_handle)}</span>`;
+                div.innerHTML = `<div class="flex items-center justify-between mb-1">
+                    <a href="/marketplace/uploader/${encodeURIComponent(c.author_handle)}" class="flex flex-col hover:text-blue-300 transition-colors truncate max-w-[140px]">${nameHtml}</a>
+                    <div class="flex items-center space-x-1 flex-shrink-0 ml-1">
+                        <span class="text-[10px] text-slate-600">${c.timestamp}</span>
+                        <button onclick="deleteComment('${c.id}', this)" class="text-slate-700 hover:text-red-400 transition-colors ml-1" title="Delete">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">${escapeHtml(c.text)}</p>`;
+                const list = document.getElementById('comments-list');
+                const empty = list.querySelector('p.text-slate-600');
+                if (empty) empty.remove();
+                list.appendChild(div);
+                list.scrollTop = list.scrollHeight;
+            } else {
+                showItemToast('Could not post comment: ' + (data.detail || 'Unknown error'), 'error');
+            }
+        })
+        .catch(() => { btn.textContent = 'Post'; btn.disabled = false; });
+    }
+
+    // ── Delete comment ────────────────────────────────────────────────
+    let _pendingDeleteCommentId = null;
+    let _pendingDeleteBtn = null;
+
+    function deleteComment(commentId, btn) {
+        _pendingDeleteCommentId = commentId;
+        _pendingDeleteBtn = btn;
+        document.getElementById('delete-comment-modal').classList.remove('hidden');
+    }
+    function closeDeleteCommentModal() {
+        document.getElementById('delete-comment-modal').classList.add('hidden');
+        _pendingDeleteCommentId = null;
+        _pendingDeleteBtn = null;
+    }
+    document.getElementById('confirm-delete-comment-btn').addEventListener('click', () => {
+        if (!_pendingDeleteCommentId) return;
+        const btn = document.getElementById('confirm-delete-comment-btn');
+        btn.textContent = 'Deleting…';
+        btn.disabled = true;
+        fetch('/marketplace/item/{{ item.id }}/comment/' + _pendingDeleteCommentId, { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+            btn.textContent = 'Delete';
+            btn.disabled = false;
+            closeDeleteCommentModal();
+            if (data.status === 'success') {
+                const el = document.querySelector(`[data-comment-id="${_pendingDeleteCommentId}"]`);
+                if (el) el.remove();
+            } else {
+                showItemToast(data.detail || 'Could not delete comment', 'error');
+            }
+        })
+        .catch(() => {
+            btn.textContent = 'Delete';
+            btn.disabled = false;
+            closeDeleteCommentModal();
+        });
+    });
+
+    // ── Simple toast for this page ────────────────────────────────────
+    function showItemToast(msg, type) {
+        const t = document.createElement('div');
+        t.className = 'fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-2xl transition-all '
+            + (type === 'success' ? 'bg-emerald-800 text-emerald-100 border border-emerald-700' : 'bg-red-800 text-red-100 border border-red-700');
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 4000);
+    }
+
+    // ── Delete ────────────────────────────────────────────────────────
+    function confirmDelete() { document.getElementById('delete-modal').classList.remove('hidden'); }
+    function closeDeleteModal() { document.getElementById('delete-modal').classList.add('hidden'); }
+    function doDelete() {
+        const btn = document.getElementById('confirm-delete-btn');
+        btn.textContent = 'Deleting...';
+        btn.disabled = true;
+        fetch('/marketplace/delete/{{ item.id }}', { method: 'POST' })
+        .then(r => {
+            if (r.ok) { window.location.href = '/marketplace'; }
+            else {
+                btn.textContent = 'Delete';
+                btn.disabled = false;
+                alert('Delete failed');
+            }
+        })
+        .catch(() => {
+            btn.textContent = 'Delete';
+            btn.disabled = false;
+            alert('Delete failed');
+        });
+    }
+    </script>
+
+    <!-- Delete Comment Confirmation Modal -->
+    <div id="delete-comment-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeDeleteCommentModal()">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-5 shadow-2xl">
+            <p class="text-sm text-slate-300 mb-5">Delete this comment? This cannot be undone.</p>
+            <div class="flex space-x-3 justify-end">
+                <button onclick="closeDeleteCommentModal()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 hover:bg-slate-800 transition-all">Cancel</button>
+                <button id="confirm-delete-comment-btn" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">Delete</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
