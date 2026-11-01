@@ -40,6 +40,8 @@ htmlcov/
 .aikit/*.bak
 .aikit/*.tmp_*
 .aikit/*.corrupt_*
+# Reforge review packets are local evidence: the reviewed paths and .aikit/reforge.json are committed
+.aikit/reforge.reviews/
 # AIKit transient state
 *.py[cod]
 node_modules/
