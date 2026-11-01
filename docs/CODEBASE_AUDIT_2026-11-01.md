@@ -7,7 +7,7 @@ Bugs, fixes, improvements and implementation opportunities across the whole repo
 | Commit audited | `8b5ddcd` (`main` HEAD, also `claude/funny-feynman-rloonj`) |
 | Size | 485 tracked files · ~55K lines of Python in `core/` + `modules/` · 39K lines of tests · 13K lines of HTML/JS |
 | Baseline | `pytest` **aborts at collection**; with `--continue-on-collection-errors`: 2118 passed, 12 failed, 4 errors |
-| Evidence | 19 reproduced defects — scripts in [`docs/audit_repro/`](audit_repro/README.md), run with `python docs/audit_repro/run_all.py` |
+| Evidence | 18 findings reproduced by 19 offline checks — scripts in [`docs/audit_repro/`](audit_repro/README.md), run with `python docs/audit_repro/run_all.py` |
 
 ---
 
