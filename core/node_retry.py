@@ -11,7 +11,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from core.errors import LLMHTTPError, LLMTimeoutError, ToolTimeoutError
+from core.errors import LLMTimeoutError, ToolTimeoutError
+from core.llm_errors import RETRYABLE_STATUSES, is_retryable
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ DEFAULT_BACKOFF = 2.0
 DEFAULT_NODE_TIMEOUT = 0.0
 MAX_NODE_TIMEOUT = 3600.0
 
-RETRYABLE_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
+RETRYABLE_HTTP_STATUSES = RETRYABLE_STATUSES
 
 Attempt = Callable[[], Awaitable[Any]]
 Sleep = Callable[[float], Awaitable[None]]
@@ -96,11 +97,9 @@ def is_transient(exc: BaseException) -> bool:
     """Whether retrying the same call could plausibly succeed."""
     if isinstance(exc, asyncio.CancelledError):
         return False
-    if isinstance(exc, (LLMTimeoutError, ToolTimeoutError, TimeoutError, ConnectionError)):
+    if isinstance(exc, (LLMTimeoutError, ToolTimeoutError)):
         return True
-    if isinstance(exc, LLMHTTPError):
-        return int(getattr(exc, "status_code", 0) or 0) in RETRYABLE_HTTP_STATUSES
-    return False
+    return is_retryable(exc)
 
 
 async def run_with_retry(operation: Attempt, policy: RetryPolicy, *,
@@ -121,6 +120,12 @@ async def run_with_retry(operation: Attempt, policy: RetryPolicy, *,
             if attempt >= attempts or not retryable(exc):
                 raise
             delay = policy.delay_for(attempt)
+            retry_after = getattr(exc, "retry_after", None)
+            if retry_after is not None:
+                try:
+                    delay = max(delay, min(policy.max_delay, float(retry_after)))
+                except (TypeError, ValueError) as exc:
+                    logger.debug("Ignoring malformed retry_after %r: %s", retry_after, exc)
             if delay_cap is not None:
                 try:
                     cap = delay_cap()

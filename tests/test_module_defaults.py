@@ -1,6 +1,7 @@
 """Which modules a fresh install loads: experimental autonomy stays opt-in."""
 
 import json
+import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -39,4 +40,8 @@ def test_disabled_brain_is_neither_routed_nor_linked():
     assert brain_routes == []
     with TestClient(app) as client:
         navbar = client.get("/navbar")
-    assert 'href="/brain/ui"' not in navbar.text
+    # ADR-067 (operator request): the disabled brain stays visible so it can be started, but
+    # only through a link that enables the module first; it is still not routed until then.
+    brain_links = re.findall(r'<a href="/brain/ui"[^>]*>', navbar.text)
+    assert brain_links and all("data-enable-brain" in link for link in brain_links)
+    assert "/modules/brain/enable" in navbar.text

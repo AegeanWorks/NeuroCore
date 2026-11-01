@@ -1,255 +1,261 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-audit-hardening",
-    "last_phase": "phase 4",
+    "task_id": "neurocore-delivery",
+    "last_phase": "in_progress",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1793031010.9619086,
-    "owner": "kilo:main",
-    "started_by": "kilo:main",
+    "updated_at": 1793496488.387189,
+    "owner": "commandcode:audit-fix",
+    "started_by": "commandcode:audit-fix",
     "continuations": [],
-    "completed_at": 1793031011.1413546
+    "completed_at": 1793496488.65241
   },
   "checkpoints": [
     {
-      "task_id": "neurocore-audit-hardening",
-      "phase": "phase 2",
-      "phase_num": 2,
-      "description": "[1/2] Audit the last three pushes, fix retry-exhaustion escaping, unbounded backoff, goal-review validation/sorting, malformed kernel/trend inputs; add failing-first tests and an ADR",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793030457.1995904,
-      "timestamp_str": "2026-10-26 19:00:57",
-      "agent": "kilo:main",
-      "impact_assessment": {
-        "why": "The review found real failure modes in the retry, budget, goal-review and brain-state paths",
-        "benefits": "Consistent structured errors, deadline-safe backoff, explicit 400s for bad review input, and state that tolerates corruption",
-        "risks": "contract: retry backoff cap and review validation; dependency: none; concurrency: unchanged; state: kernel restore defaults only",
-        "mitigation": "Failing-first tests per bug, full project gate before push"
-      }
-    },
-    {
-      "task_id": "neurocore-audit-hardening",
-      "phase": "phase 4",
-      "phase_num": 4,
-      "description": "[2/2] done: typed retry exhaustion now becomes a structured node error, retry backoff clamps to remaining wall time, goal review validates parameters and sorts epochs, kernel/trends tolerate malformed state; 13 new tests; checklists: passed; aikit check 4/4",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793031010.9619086,
-      "timestamp_str": "2026-10-26 19:10:10",
-      "agent": "kilo:main",
-      "handoff": {
-        "state": "green and ready to commit",
-        "next": "commit and push",
-        "evidence": "aikit check neurocore 4/4, full pytest pass (146s), ruff clean on changed files, ADR-062"
-      }
-    },
-    {
-      "task_id": "neurocore-audit-hardening",
+      "task_id": "idea-1206-typed-checks",
       "phase": "completed",
       "phase_num": 5,
-      "description": "Task 'neurocore-audit-hardening' completed successfully.",
+      "description": "Task 'idea-1206-typed-checks' completed successfully.",
       "status": "completed",
-      "timestamp": 1793031011.141356,
-      "timestamp_str": "2026-10-26 19:10:11",
-      "agent": "kilo:main"
+      "timestamp": 1793446267.6694129,
+      "timestamp_str": "2026-10-31 14:31:07",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 15",
-      "phase_num": 3,
-      "description": "Reforge stage 15: window 150, 10 commit(s), 19 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1208-indexed-browser",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[1/4] modules/browser_automation/indexed.py: ElementRef, ActionExpectation, ActionResult, generation-scoped ids, bounded build_snapshot, expectation poll. [2/4] the service gains snapshot/click_element/type_element with generation invalidation on navigation; the router accepts element_id/expect_*/timeout_ms and a snapshot action; selector paths stay. [3/4] Failing-first tests for done, unverified, stale, postcondition, policy refusal, budget refusal and expectation parity. [4/4] aikit check neurocore: 4/4 gates; ADR-097, IDEAS, README and the map updated; 24 new browser tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793295938.159353,
-      "timestamp_str": "2026-10-29 20:45:38",
-      "agent": "opencode"
+      "timestamp": 1793446267.811767,
+      "timestamp_str": "2026-10-31 14:31:07",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 16",
-      "phase_num": 3,
-      "description": "Reforge stage 16: window 160, 10 commit(s), 17 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793296063.2279112,
-      "timestamp_str": "2026-10-29 20:47:43",
-      "agent": "opencode"
-    },
-    {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 17",
-      "phase_num": 3,
-      "description": "Reforge stage 17: window 170, 10 commit(s), 51 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793296220.405954,
-      "timestamp_str": "2026-10-29 20:50:20",
-      "agent": "opencode"
-    },
-    {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 18",
-      "phase_num": 3,
-      "description": "Reforge stage 18: window 180, 10 commit(s), 45 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793296365.9074454,
-      "timestamp_str": "2026-10-29 20:52:45",
-      "agent": "opencode"
-    },
-    {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 19",
-      "phase_num": 3,
-      "description": "Reforge stage 19: window 190, 10 commit(s), 31 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793296500.237816,
-      "timestamp_str": "2026-10-29 20:55:00",
-      "agent": "opencode"
-    },
-    {
-      "task_id": "reforge:run-1",
-      "phase": "reforge stage 20",
-      "phase_num": 3,
-      "description": "Reforge stage 20: window 200, 10 commit(s), 22 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
-      "files_affected": [],
+      "task_id": "idea-1208-indexed-browser",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1208-indexed-browser' completed successfully.",
       "status": "completed",
-      "timestamp": 1793296634.6388469,
-      "timestamp_str": "2026-10-29 20:57:14",
-      "agent": "opencode"
+      "timestamp": 1793446293.5293272,
+      "timestamp_str": "2026-10-31 14:31:33",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge run",
-      "phase_num": 3,
-      "description": "run started (start=230, step=30, stop=500)",
+      "task_id": "idea-1209-snapshot-budget",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] modules/browser_automation/snapshot.py: SnapshotBudget, measure_html/text/screenshot and typed SnapshotRefusal. [2/4] get_html, extract_text and screenshot measure against the budget and refuse by default; allow_truncate reports omitted_* and a resume hint; the router forwards allow_truncate. [3/4] Failing-first tests for passthrough, refusal, opt-in truncation, an independent text cap, the byte ceiling and validation. [4/4] ADR-098, IDEAS, README, map, aikit check neurocore.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793296782.005319,
-      "timestamp_str": "2026-10-29 20:59:42",
-      "agent": "opencode"
+      "timestamp": 1793446293.6702769,
+      "timestamp_str": "2026-10-31 14:31:33",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "IDEA-1209 was approved: page reads were cut silently with a marker and screenshots had no ceiling, so a caller could not tell a cut element from an absent one.",
+        "benefits": "A missing element is unambiguous; a caller can narrow scope or opt into a reported truncation; the image payload is bounded.",
+        "risks": "contract: the three read methods gain optional arguments and get_html can now return success=false; dependency: stdlib only; concurrency: none; state: none.",
+        "mitigation": "Truncation is only implicit when the caller opts in, the refusal names the scope and budget it measured, and existing callers receive an explicit receipt instead of a silent cut."
+      }
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 1",
-      "phase_num": 3,
-      "description": "Reforge stage 1: window 230, 30 commit(s), 48 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1209-snapshot-budget",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-098, IDEAS, README and the map updated; budget tests are part of the 24 new browser tests. checklists: passed. Uncommitted: commit delivery is not authorized.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793296912.0520306,
-      "timestamp_str": "2026-10-29 21:01:52",
-      "agent": "opencode"
+      "timestamp": 1793446327.9450102,
+      "timestamp_str": "2026-10-31 14:32:07",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 2",
-      "phase_num": 3,
-      "description": "Reforge stage 2: window 260, 30 commit(s), 73 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1209-snapshot-budget",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1209-snapshot-budget' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793446328.0892217,
+      "timestamp_str": "2026-10-31 14:32:08",
+      "agent": "kilo:1"
+    },
+    {
+      "task_id": "idea-1237-trace-context",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] extend the existing TraceContext with root-once sampling and current_span_ids (no duplicate module). [2/4] emit_outcome stamps trace/span/parent ids via a registered provider to avoid an import cycle. [3/4] Failing-first tests for root/child links, deterministic sampling, stamping, passthrough and a broken provider. [4/4] ADR-099, IDEAS, README, map, aikit check neurocore.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793297153.0384862,
-      "timestamp_str": "2026-10-29 21:05:53",
-      "agent": "opencode"
+      "timestamp": 1793456564.3801212,
+      "timestamp_str": "2026-10-31 17:22:44",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "IDEA-1237 was approved: outcomes were bare dicts, so a flow or tool result could not be joined to the step that produced it.",
+        "benefits": "Outcomes carry trace and parent-span identity; sampling is decided once per trace; untraced behaviour is byte-identical.",
+        "risks": "contract: emit_outcome may add three keys and TraceContext gains fields; dependency: stdlib contextvars only; concurrency: contextvar isolation; state: none.",
+        "mitigation": "The caller's dict is copied, never mutated, and a failing provider only logs at debug."
+      }
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 3",
-      "phase_num": 3,
-      "description": "Reforge stage 3: window 290, 30 commit(s), 65 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1237-trace-context",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 4/4 gates (test, hygiene, guidelines, secrets); ADR-099, IDEAS, README and the map updated; 9 new trace tests and 78 observability-adjacent tests pass; the import cycle was removed with a registered trace provider. checklists: passed. Uncommitted: commit delivery is not authorized.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793298325.8461084,
-      "timestamp_str": "2026-10-29 21:25:25",
-      "agent": "opencode"
+      "timestamp": 1793456610.6244013,
+      "timestamp_str": "2026-10-31 17:23:30",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 4",
-      "phase_num": 3,
-      "description": "Reforge stage 4: window 320, 30 commit(s), 63 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1237-trace-context",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1237-trace-context' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793456610.7631385,
+      "timestamp_str": "2026-10-31 17:23:30",
+      "agent": "kilo:1"
+    },
+    {
+      "task_id": "idea-1238-prompt-registry",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] modules/brain/prompt_registry.py: PromptVersion, digest_prompt, publish/move_label/resolve/history/rollback/compare and state dump/load. [2/4] immutability, idempotent republish, monotonic versions, reserved-label and unknown-version refusals. [3/4] Failing-first tests for versioning, digest covers config, label moves, rollback, comparison and round-trip. [4/4] ADR-100, IDEAS, README, map, aikit check neurocore.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793298643.7259364,
-      "timestamp_str": "2026-10-29 21:30:43",
-      "agent": "opencode"
+      "timestamp": 1793456729.510474,
+      "timestamp_str": "2026-10-31 17:25:29",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "IDEA-1238 was approved: prompt text had no version, digest or label, so a rollout was an in-place edit and a rollback meant finding old prose by hand.",
+        "benefits": "Two runs are comparable by (name, version) or digest; a rollout is a label move; a rollback is one audited operation.",
+        "risks": "contract: new module and state shape; dependency: stdlib hashlib/json; concurrency: in-memory, caller owns persistence; state: explicit JSON export.",
+        "mitigation": "Empty prompts, unknown versions and the reserved 'latest' label are refused with Why/Fix; state round-trips in tests."
+      }
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 5",
-      "phase_num": 3,
-      "description": "Reforge stage 5: window 350, 30 commit(s), 90 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1238-prompt-registry",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-100, IDEAS, README and the map updated; 16 new prompt-registry tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793298979.2080667,
-      "timestamp_str": "2026-10-29 21:36:19",
-      "agent": "opencode"
+      "timestamp": 1793456858.18472,
+      "timestamp_str": "2026-10-31 17:27:38",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 6",
-      "phase_num": 3,
-      "description": "Reforge stage 6: window 380, 30 commit(s), 52 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 1 binary not analysed",
-      "files_affected": [
-        "banner.jpg"
-      ],
-      "status": "in_progress",
-      "timestamp": 1793299329.9123104,
-      "timestamp_str": "2026-10-29 21:42:09",
-      "agent": "opencode"
+      "task_id": "idea-1238-prompt-registry",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1238-prompt-registry' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793456858.4107916,
+      "timestamp_str": "2026-10-31 17:27:38",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 7",
-      "phase_num": 3,
-      "description": "Reforge stage 7: window 410, 30 commit(s), 37 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1242-delegation-contract",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] core/delegation.py: DelegationContract, CapabilityRefused, DelegationDepthExceeded, validation, child contracts. [2/4] capability check, output-shape check and a depth cap of 4. [3/4] Failing-first tests for allowance, refusal text, schema checks, validation and depth. [4/4] ADR-101, IDEAS, README, map, aikit check neurocore.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793299620.948918,
-      "timestamp_str": "2026-10-29 21:47:00",
-      "agent": "opencode"
+      "timestamp": 1793456958.7139535,
+      "timestamp_str": "2026-10-31 17:29:18",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "IDEA-1242 was approved: a delegated task had no capability bound, expected output or recursion limit.",
+        "benefits": "A parent states what a delegatee may do and what shape to return; an out-of-contract tool is refused before acting; recursion is bounded.",
+        "risks": "contract: new module; dependency: stdlib only; concurrency: none; state: none.",
+        "mitigation": "The contract is data the runtime must pass down, validation needs only task id and role, and a missing schema accepts any output for old callers."
+      }
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 8",
-      "phase_num": 3,
-      "description": "Reforge stage 8: window 440, 30 commit(s), 71 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired",
+      "task_id": "idea-1242-delegation-contract",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-101, IDEAS, README and the map updated; 10 delegation tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
       "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793299917.7964852,
-      "timestamp_str": "2026-10-29 21:51:57",
-      "agent": "opencode"
+      "timestamp": 1793457219.0024092,
+      "timestamp_str": "2026-10-31 17:33:39",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 9",
-      "phase_num": 3,
-      "description": "Reforge stage 9: window 470, 30 commit(s), 63 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 4 binary not analysed",
-      "files_affected": [
-        "screenshots/chat_ui.png",
-        "screenshots/flow_editor.png",
-        "screenshots/memory_browser.png",
-        "screenshots/tools_library.png"
-      ],
-      "status": "in_progress",
-      "timestamp": 1793300320.9819047,
-      "timestamp_str": "2026-10-29 21:58:40",
-      "agent": "opencode"
+      "task_id": "idea-1242-delegation-contract",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1242-delegation-contract' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793457219.2192972,
+      "timestamp_str": "2026-10-31 17:33:39",
+      "agent": "kilo:1"
     },
     {
-      "task_id": "reforge:run-2",
-      "phase": "reforge stage 10",
-      "phase_num": 3,
-      "description": "Reforge stage 10: window 497, 27 commit(s), 92 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, 1 binary not analysed",
-      "files_affected": [
-        "banner.jpg"
-      ],
+      "task_id": "idea-1243-handoff-packet",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] core/handoff.py: HandoffPacket states, new_packet with bounded context, deliver/accept/reject, replay_queue and summarise. [2/4] acceptance runs a check; a rejection re-queues within retry_limit or becomes exhausted. [3/4] Failing-first tests for state separation, retry, exhaustion, a raising check, bounds and replay. [4/4] ADR-102, IDEAS, README, map, aikit check neurocore.",
+      "files_affected": [],
       "status": "in_progress",
-      "timestamp": 1793301375.9322128,
-      "timestamp_str": "2026-10-29 22:16:15",
-      "agent": "opencode"
+      "timestamp": 1793457372.1346495,
+      "timestamp_str": "2026-10-31 17:36:12",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "IDEA-1243 was approved: a handoff was a plain dict with no delivery record, acceptance check or retry, so a rejected one vanished silently.",
+        "benefits": "Delivery and acceptance are distinct, a failed handoff is retried or visibly exhausted, and context is bounded before it reaches a prompt.",
+        "risks": "contract: new module; dependency: stdlib dataclasses only; concurrency: in-memory; state: packets serialise with as_dict.",
+        "mitigation": "Caps are enforced at construction, a raising check rejects rather than crashes, and an empty schema-free accept is an explicit opt-out."
+      }
+    },
+    {
+      "task_id": "idea-1243-handoff-packet",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-102, IDEAS, README and the map updated; 10 handoff tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793457471.9888258,
+      "timestamp_str": "2026-10-31 17:37:51",
+      "agent": "kilo:1"
+    },
+    {
+      "task_id": "idea-1243-handoff-packet",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'idea-1243-handoff-packet' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793457472.1695507,
+      "timestamp_str": "2026-10-31 17:37:52",
+      "agent": "kilo:1"
+    },
+    {
+      "task_id": "neurocore-delivery",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "checklists: passed (test, hygiene, guidelines, secrets; 4/4). Deliver the accumulated runtime hardening and agent capabilities.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793496488.387189,
+      "timestamp_str": "2026-11-01 04:28:08",
+      "agent": "commandcode:audit-fix",
+      "handoff": {
+        "next": "commit the validated working tree and push"
+      }
+    },
+    {
+      "task_id": "neurocore-delivery",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-delivery' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793496488.652412,
+      "timestamp_str": "2026-11-01 04:28:08",
+      "agent": "commandcode:audit-fix"
     }
   ]
 }

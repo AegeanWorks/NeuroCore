@@ -24,6 +24,10 @@ MAX_SCAN_CHARS = 20_000
 MODE_OBSERVE = "observe"
 MODE_ENFORCE = "enforce"
 VALID_MODES = (MODE_OBSERVE, MODE_ENFORCE)
+# Surfaces where enforce mode refuses an injection pattern. Memory joins input because a stored
+# memory or goal is recalled in every later session (IDEA-334); a skill joins them because its
+# content becomes system-prompt text in every turn that enables it (IDEA-849).
+BLOCKING_SURFACES = ("input", "memory", "skills")
 
 # Context separators an injected instruction uses to pretend to be a higher-priority turn.
 _SEPARATOR_RULES: Tuple[Tuple[str, str], ...] = (
@@ -181,7 +185,7 @@ def scan_text(text: Any, surface: str, mode: Optional[str] = None,
             category=category,
             rule=rule,
             reason=f"{rule} matched on the {surface}",
-            blocked=(mode == MODE_ENFORCE and surface == "input"),
+            blocked=(mode == MODE_ENFORCE and surface in BLOCKING_SURFACES),
         ))
 
     redacted, redactions = redact_secrets(raw)

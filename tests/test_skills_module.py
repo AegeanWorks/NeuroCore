@@ -563,5 +563,22 @@ def test_import_from_url_rejects_mixed_public_and_loopback_answers(monkeypatch):
             service.import_from_url("http://example.com/skill.md")
 
 
+def test_import_from_url_connects_to_the_vetted_address_not_a_second_lookup(monkeypatch, httpx_mock):
+    # IDEA-063: the check resolved the name, then httpx resolved it again on connect, so a DNS
+    # answer that changed in between (rebinding) reached an address the check had rejected.
+    import socket
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        service = SkillService(tmpdir)
+        monkeypatch.setattr(socket, "getaddrinfo", lambda *_a, **_k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))])
+        httpx_mock.add_response(url="http://93.184.216.34/skill.md", text="# Pinned\n\nA skill.",
+                                headers={"content-type": "text/markdown"})
+        service.import_from_url("http://example.com/skill.md")
+        request = httpx_mock.get_requests()[0]
+        assert request.url.host == "93.184.216.34"
+        assert request.headers["host"] == "example.com"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

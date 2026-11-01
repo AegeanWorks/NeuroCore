@@ -14,6 +14,12 @@ class BrowserActionPayload(BaseModel):
     selector: Optional[str] = None
     text: Optional[str] = None
     full_page: bool = False
+    # Indexed actions (IDEA-1208) and explicit snapshot control (IDEA-1209).
+    element_id: Optional[str] = None
+    expect_kind: Optional[str] = None
+    expect_value: Optional[str] = None
+    timeout_ms: int = 2000
+    allow_truncate: bool = False
 
 @router.on_event("startup")
 async def startup_event():
@@ -50,14 +56,44 @@ async def perform_browser_action(payload: BrowserActionPayload):
                 raise HTTPException(status_code=400, detail="Selector and text are required for 'type' action")
             return await browser_service.type_text(payload.selector, payload.text)
             
+        elif action == "snapshot":
+            return await browser_service.snapshot(payload.selector)
+
+        elif action in ("click_element", "type_element"):
+            if not payload.element_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"element_id is required for '{action}'; call snapshot first",
+                )
+            from modules.browser_automation.indexed import ActionExpectation
+
+            expectation = ActionExpectation(
+                kind=payload.expect_kind or "auto",
+                value=payload.expect_value,
+                timeout_ms=payload.timeout_ms,
+            )
+            if action == "click_element":
+                return await browser_service.click_element(payload.element_id, expectation)
+            if payload.text is None:
+                raise HTTPException(status_code=400, detail="text is required for 'type_element'")
+            return await browser_service.type_element(
+                payload.element_id, payload.text, expectation
+            )
+
         elif action == "screenshot":
-            return await browser_service.screenshot(full_page=payload.full_page)
+            return await browser_service.screenshot(
+                full_page=payload.full_page, allow_truncate=payload.allow_truncate
+            )
             
         elif action == "get_html":
-            return await browser_service.get_html(payload.selector)
+            return await browser_service.get_html(
+                payload.selector, allow_truncate=payload.allow_truncate
+            )
             
         elif action == "extract_text":
-            return await browser_service.extract_text(payload.selector)
+            return await browser_service.extract_text(
+                payload.selector, allow_truncate=payload.allow_truncate
+            )
             
         else:
             raise HTTPException(status_code=400, detail=f"Unknown browser action: {action}")

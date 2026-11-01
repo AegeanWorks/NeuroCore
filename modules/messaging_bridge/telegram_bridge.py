@@ -1,11 +1,12 @@
-import httpx
-import os
-from datetime import datetime
-import time
 import asyncio
-import random
-from typing import List, Dict, Callable
 import logging
+import os
+import random
+import time
+from datetime import datetime
+from typing import Callable, Dict, List
+
+import httpx
 
 BASE_URL = "https://api.telegram.org/bot"
 
@@ -92,6 +93,7 @@ class TelegramBridge:
                         "id": update["update_id"],
                         "chat_id": msg.get("chat", {}).get("id"),
                         "from": msg.get("from", {}).get("first_name", "Unknown"),
+                        "from_id": str(msg.get("from", {}).get("id") or ""),
                         "timestamp": datetime.utcnow().isoformat() + "Z",
                         "date": msg.get("date", int(time.time())),
                         "type": "unknown",

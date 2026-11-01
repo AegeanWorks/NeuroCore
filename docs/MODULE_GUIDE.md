@@ -405,6 +405,16 @@ Autonomous agent with tool execution looping.
 
 **Features:** Exponential backoff retry, tool error handling (continue/stop), timeout protection, real-time thinking trace streaming.
 
+**Episode identity (IDEA-1110, ADR-085):** checkpoints carry `checkpoint_id`, `parent_checkpoint_id`,
+`source` (`start|loop|replan|complete`) and `step`; the episode stores a SHA-256 of the normalised
+request, model and tools. Resume requires a matching digest unless `resume_policy` is `ask`/`any`
+or `resume_any` is set; a mismatch pauses the old episode and starts a new one.
+
+**Tool journal (IDEA-1111, ADR-086):** each call is written to the episode as `pending` before
+dispatch and `done` with a result digest and 2,000-char preview after. A resume replays `done`
+calls; `pending`/`orphaned` calls follow `tool_journal_policy` (`ask` default, `skip` or `rerun`),
+and `rerun` requires the tool's `idempotent: true` manifest flag. The journal keeps 200 entries.
+
 ---
 
 #### Task Planner (`planner`)
@@ -436,6 +446,12 @@ Evaluates agent responses for quality and completeness.
 | **Order** | 4 |
 
 **Output:** `satisfied` (bool for Conditional Router), `reflection` (evaluation object), improved `messages` if not satisfied.
+
+**Cognitive lenses:** set `cognitive_lenses` to `["sycophancy", "ungrounded_extrapolation"]` to add
+one structured critique pass. `ungrounded_extrapolation` runs only when the input carries
+`knowledge_context`; both lenses are skipped at 0.8 budget pressure. The reflection object then also
+carries `findings` (`lens_id`, `triggered`, `critique`), while `satisfied`, `reason` and
+`needs_improvement` keep their meaning.
 
 ---
 
@@ -487,9 +503,17 @@ Vector-based memory with FAISS and SQLite.
     "save_delay": 3.0,
     "consolidation_threshold": 0.92,
     "auto_consolidation_hours": 24,
-    "belief_ttl_days": 30
+    "belief_ttl_days": 30,
+    "memory_scope_required": false,
+    "memory_scope_policy": "strict"
 }
 ```
+
+**Memory scope (IDEA-1109, ADR-084):** a memory carries nullable `user_id`, `agent_id` and
+`run_id`; recall and save read them from the node input (also `sender`/`sender_id` for
+`user_id`, `session_id` for `run_id`). `strict` matches equal ids only, `shared` also admits
+unscoped legacy rows, and `memory_scope_required` refuses a call with no scope. Run
+`memory_store.migrate_scope()` to backfill legacy rows to `local`.
 
 **Memory types:** BELIEF (30-day TTL), FACT, RULE, EXPERIENCE, PREFERENCE, IDENTITY
 
@@ -539,6 +563,9 @@ Manage instruction files (SKILL.md) for AI tasks.
 | **Order** | 7 |
 
 **Features:** Import/export skill files, inject skills into system prompts, Markdown-based instruction sets.
+Skill content is scanned by the guardrails before storage: `enforce` refuses an injection with the
+rule ids and a Why/Fix, while `observe` records a `scan` object (`verdict`, `mode`,
+`content_sha256`, `findings`, `scanned_at`) on the skill. A content-changing update re-scans.
 
 ---
 
@@ -590,16 +617,31 @@ Unified multi-platform messaging for Telegram, Discord, Signal, and WhatsApp.
 {
     "telegram_bot_token": "",
     "telegram_chat_id": 0,
+    "telegram_allowed_senders": [],
+    "telegram_allowed_chats": [],
     "discord_bot_token": "",
     "discord_channel_id": "",
+    "discord_allowed_senders": [],
+    "discord_allowed_chats": [],
     "signal_api_url": "",
     "signal_phone_number": "",
+    "signal_allowed_senders": [],
+    "signal_allowed_chats": [],
     "whatsapp_api_url": "",
     "whatsapp_api_key": "",
     "whatsapp_instance": "",
-    "whatsapp_phone_number": ""
+    "whatsapp_phone_number": "",
+    "whatsapp_allowed_senders": [],
+    "whatsapp_allowed_chats": []
 }
 ```
+
+**Access control (deny by default):** each platform admits only senders in its
+`<platform>_allowed_senders` list and, when `<platform>_allowed_chats` is set, only those rooms.
+Telegram seeds the sender list from `telegram_chat_id`, and Discord seeds the room list from
+`discord_channel_id`, so an existing single-user setup keeps working; Signal and WhatsApp have no
+fallback and need their senders listed. A denied sender is logged by platform id (never message
+text) and gets no session or agent turn.
 
 **`messaging_input` node config:**
 - `platforms`: `["telegram", "discord"]` — filter to specific platforms (empty = accept all)

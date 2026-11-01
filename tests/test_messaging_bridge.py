@@ -376,9 +376,11 @@ class TestSignalBridge:
 class TestTelegramHandler:
     @pytest.fixture
     def handler(self):
+        from modules.messaging_bridge.access import AccessPolicy
         from modules.messaging_bridge.service import _TelegramHandler, _session_store
         h = _TelegramHandler()
         setattr(h, "_loop", None)
+        h.access = AccessPolicy(allowed_senders={"42", "99"})
         # Reset session store for test isolation
         _session_store._map.clear()
         return h
@@ -444,10 +446,11 @@ class TestTelegramHandler:
 class TestDiscordHandler:
     @pytest.fixture
     def handler(self):
+        from modules.messaging_bridge.access import AccessPolicy
         from modules.messaging_bridge.service import _DiscordHandler, _session_store
         h = _DiscordHandler()
         setattr(h, "_loop", None)
-        setattr(h, "_allowed_channel", "ch1")
+        h.access = AccessPolicy(allowed_senders={"u1"}, allowed_chats={"ch1"})
         _session_store._map.clear()
         return h
 
@@ -505,9 +508,11 @@ class TestDiscordHandler:
 class TestSignalHandler:
     @pytest.fixture
     def handler(self):
+        from modules.messaging_bridge.access import AccessPolicy
         from modules.messaging_bridge.service import _SignalHandler, _session_store
         h = _SignalHandler()
         setattr(h, "_loop", None)
+        h.access = AccessPolicy(allowed_senders={"+1999"})
         _session_store._map.clear()
         return h
 
@@ -702,9 +707,11 @@ class TestWhatsAppBridge:
 class TestWhatsAppHandler:
     @pytest.fixture
     def handler(self):
+        from modules.messaging_bridge.access import AccessPolicy
         from modules.messaging_bridge.service import _WhatsAppHandler, _session_store
         h = _WhatsAppHandler()
         setattr(h, "_loop", None)
+        h.access = AccessPolicy(allowed_senders={"+1999"})
         _session_store._map.clear()
         return h
 

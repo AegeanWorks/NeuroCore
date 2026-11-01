@@ -4,6 +4,15 @@ import asyncio
 import logging
 import httpx
 from .router import TOOLS_FILE, LIBRARY_DIR
+from .outbound import stage_if_outbound
+from .tiers import gate_tool_call
+from functools import partial
+from .capabilities import preflight, resolve_source
+from .calls import (
+    CALL_REGISTRY_DEFAULT as CALL_REGISTRY,
+    STATUS_CANCELLED, STATUS_ERROR, STATUS_OK, STATUS_TIMEOUT,
+    ToolCallCancelled, receipt, render_receipt,
+)
 from .sandbox import ToolSandbox, SecurityError, ResourceLimitError, TimeoutError
 from core.execution_budget import spend
 from modules.brain.guardrails import scan_output
@@ -108,33 +117,53 @@ class ToolDispatcherExecutor:
                 tool_config = library.get(func_name, {})
                 if isinstance(tool_config, dict) and not tool_config.get("enabled", True):
                     output = f"Error: Tool {func_name} is disabled."
+                elif (refusal := preflight(func_name, tool_config)) is not None:
+                    output = refusal.message  # unsupported primitive or missing source (IDEA-1172)
+                elif (gated := gate_tool_call(func_name, args)) is not None:
+                    output = gated  # a HIGH call waits for a person (IDEA-060)
+                elif (staged := stage_if_outbound(func_name, args)) is not None:
+                    output = staged  # an outbound call waits for the user's approval (IDEA-032)
                 else:
-                    # Load code from the library directory
-                    code_path = os.path.join(os.path.dirname(__file__), "library", f"{func_name}.py")
-                    code = ""
-                    if os.path.exists(code_path):
-                        with open(code_path, "r", encoding="utf-8") as f:
-                            code = f.read()
+                    # Load the file the preflight resolved (explicit source, else a
+                    # case-insensitive library lookup).
+                    code_path = resolve_source(func_name, tool_config)
+                    with open(code_path, "r", encoding="utf-8") as f:
+                        code = f.read()
                     
                     # Execute tool code in sandboxed environment for security
                     # Use run_in_executor to avoid blocking the event loop
                     spend("tool_calls")
+                    context = CALL_REGISTRY.register(func_name, timeout=self.sandbox.timeout)
                     try:
                         loop = asyncio.get_running_loop()
                         result = await loop.run_in_executor(
                             None,
-                            self.sandbox.execute,
-                            code,
-                            {"args": args}
+                            partial(
+                                self.sandbox.execute,
+                                code,
+                                {"args": args},
+                                context.cancel_requested,
+                                context.deadline,
+                            ),
                         )
                         output = result.get("result", "Success (no result returned)")
+                        CALL_REGISTRY.settle(context, STATUS_OK)
+                    except ToolCallCancelled as e:
+                        CALL_REGISTRY.settle(context, STATUS_CANCELLED)
+                        output = render_receipt(receipt(context, STATUS_CANCELLED,
+                                                        error=str(e)))
+                    except TimeoutError as e:
+                        CALL_REGISTRY.settle(context, STATUS_TIMEOUT)
+                        output = render_receipt(receipt(context, STATUS_TIMEOUT,
+                                                        error=str(e)))
                     except SecurityError as e:
+                        CALL_REGISTRY.settle(context, STATUS_ERROR)
                         output = f"Security Error: Tool '{func_name}' violated security policy: {str(e)}"
                     except ResourceLimitError as e:
+                        CALL_REGISTRY.settle(context, STATUS_ERROR)
                         output = f"Resource Limit Error: Tool '{func_name}' exceeded resource limits: {str(e)}"
-                    except TimeoutError as e:
-                        output = f"Timeout Error: Tool '{func_name}' took too long to execute: {str(e)}"
                     except Exception as e:
+                        CALL_REGISTRY.settle(context, STATUS_ERROR)
                         output = f"Error executing tool {func_name}: {str(e)}"
             else:
                 output = f"Error: Tool {func_name} not found in library."

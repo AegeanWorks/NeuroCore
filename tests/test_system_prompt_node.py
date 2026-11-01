@@ -176,6 +176,21 @@ async def test_memory_context_injected_into_system_prompt():
 
 
 @pytest.mark.asyncio
+async def test_brain_context_injected_into_system_prompt():
+    """_brain_context should be appended as internal state, not user input."""
+    executor = SystemPromptExecutor()
+    input_data = {
+        "messages": [{"role": "user", "content": "Hi"}],
+        "_brain_context": '{"mode": "observe", "kernel": {"mode": "normal"}}',
+    }
+    result = await executor.receive(input_data, config={"system_prompt": "You are helpful."})
+    system_content = result["messages"][0]["content"]
+    assert "Brain Context" in system_content
+    assert "not user input" in system_content
+    assert '"mode": "observe"' in system_content
+
+
+@pytest.mark.asyncio
 async def test_knowledge_context_injected_into_system_prompt():
     """knowledge_context field should be appended to the system message."""
     executor = SystemPromptExecutor()
@@ -361,3 +376,17 @@ async def test_low_priority_context_dropped_when_budget_exceeded():
     # The exact truncation behavior depends on the algorithm, but total size should be controlled
     assert len(system_content) < 2000  # Should be significantly limited vs unlimited
     assert "You are helpful." in system_content  # Base prompt always present
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_resolves_from_prompt_registry(tmp_path):
+    from modules.brain.prompt_registry import default_registry
+    reg = default_registry(str(tmp_path / "prompts.json"))
+    reg.publish("support.agent", "You are tier-1 customer support.", labels=["production"])
+
+    executor = SystemPromptExecutor()
+    result = await executor.receive(
+        {"messages": [{"role": "user", "content": "help"}]},
+        config={"prompt_name": "support.agent", "prompt_label": "production"}
+    )
+    assert "You are tier-1 customer support." in result["messages"][0]["content"]

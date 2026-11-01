@@ -17,9 +17,16 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
             <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">AI Brain</h1>
-            <p class="text-sm text-slate-400">Observe, governed proposals and event reactions. No autonomous execution.</p>
+            <p class="text-sm text-slate-400">Start it, talk to it, and choose how much it may do on its own.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+            <span id="run-state" class="px-2 py-1 rounded-full text-xs bg-slate-800 text-slate-400">stopped</span>
+            <label class="text-xs text-slate-400" for="mode">Mode</label>
+            <select id="mode" class="px-2 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm">
+                <option value="observe">Observe</option>
+                <option value="suggest">Suggest</option>
+                <option value="autonomous">Autonomous</option>
+            </select>
             <button data-action="start" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm">Start</button>
             <button data-action="stop" class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm">Stop</button>
             <button data-action="cycle" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm">Run cycle</button>
@@ -53,11 +60,41 @@
         </div>
     </section>
 
+    <section class="grid gap-4 lg:grid-cols-3">
+        <div class="brain-card p-4 lg:col-span-2 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold">Conversation</h2>
+                <span class="text-xs text-slate-500">one session, in Chat</span>
+            </div>
+            <p class="text-sm text-slate-400">
+                Brain turns now live in the chat shell. Start a message with
+                <code class="text-slate-200">/brain</code> to ask the brain, or send an ordinary
+                message to run the active flow.
+            </p>
+            <p id="mode-note" class="mt-2 text-xs text-slate-500"></p>
+            <div class="mt-4 flex flex-wrap gap-2">
+                <a href="/chat" class="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-semibold">Open chat</a>
+                <a href="/ai-flow" class="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-semibold">Active flow</a>
+            </div>
+            <p class="mt-3 text-xs text-slate-500">
+                The old brain transcript stays available to API clients at
+                <code class="text-slate-400">GET/POST /brain/chat</code>.
+            </p>
+        </div>
+        <div class="brain-card p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="font-semibold">What it did</h2>
+                <span class="text-xs text-slate-500">newest first</span>
+            </div>
+            <div id="actions" class="brain-scroll h-96 overflow-y-auto space-y-2 text-sm"></div>
+        </div>
+    </section>
+
     <section class="grid gap-4 lg:grid-cols-2">
         <div class="brain-card p-4">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="font-semibold">Proposals</h2>
-                <span class="text-xs text-slate-500">advisory only</span>
+                <span id="proposal-note" class="text-xs text-slate-500">advisory only</span>
             </div>
             <div id="proposals" class="brain-scroll max-h-80 overflow-y-auto space-y-2 text-sm"></div>
         </div>
@@ -111,10 +148,16 @@
     }
 
     function renderProposal(item) {
+        const control = item.action
+            ? `<button data-command="${escapeHtml(item.action)}" class="px-2 py-1 rounded bg-blue-700 hover:bg-blue-600 text-xs">Run</button>`
+            : (item.link
+                ? `<a href="${escapeHtml(item.link)}" class="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs">Open</a>`
+                : '');
         return `<div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3">
             <div class="flex justify-between gap-2"><span class="font-medium">${escapeHtml(item.title || item.kind || 'Proposal')}</span>
             <span class="text-xs text-slate-500">${escapeHtml(item.confidence ?? '')}</span></div>
             <p class="text-xs text-slate-400 mt-1">${escapeHtml(item.rationale || '')}</p>
+            ${control ? `<div class="mt-2">${control}</div>` : ''}
         </div>`;
     }
 
@@ -150,7 +193,42 @@
         $('proposals').innerHTML = (state.proposals || []).map(renderProposal).join('') || '<p class="text-slate-500">No proposals.</p>';
         const evaluation = self.evaluation || {};
         $('eval-result').textContent = Object.keys(evaluation).length ? JSON.stringify(evaluation, null, 2) : 'No evaluation loaded.';
+        const mode = state.mode || 'observe';
+        if (document.activeElement !== $('mode')) $('mode').value = mode;
+        $('mode-note').textContent = MODE_NOTES[mode] || '';
+        $('proposal-note').textContent = mode === 'autonomous' ? 'safe ones run on their own' : 'advisory only';
+        $('run-state').textContent = state.running ? 'running' : 'stopped';
+        $('run-state').className = `px-2 py-1 rounded-full text-xs ${state.running ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-400'}`;
+        $('actions').innerHTML = (state.actions || []).map(renderAction).join('') || '<p class="text-slate-500">Nothing yet.</p>';
     }
+
+    const MODE_NOTES = {
+        observe: 'It watches and answers; commands come back as suggestions.',
+        suggest: 'It proposes; commands come back as suggestions you can run.',
+        autonomous: 'It acts on its own within its kernel and daily budget.',
+    };
+    const STATUS_COLORS = {done: 'text-emerald-400', suggested: 'text-blue-300', failed: 'text-red-400',
+                           skipped: 'text-amber-400', blocked: 'text-red-400'};
+
+    function renderAction(item) {
+        return `<div class="rounded-lg border border-slate-700 bg-slate-900/70 p-2">
+            <div class="flex justify-between gap-2"><span class="font-medium">${escapeHtml(item.kind || '')}</span>
+            <span class="text-xs ${STATUS_COLORS[item.status] || 'text-slate-400'}">${escapeHtml(item.status || '')}</span></div>
+            <div class="text-xs text-slate-500">${escapeHtml(item.actor || '')} · ${escapeHtml((item.at || '').replace('T', ' ').slice(0, 19))}</div>
+            <div class="text-xs text-slate-400 mt-1 break-words">${escapeHtml(item.result || '')}</div>
+        </div>`;
+    }
+
+    $('mode').addEventListener('change', async (event) => {
+        try {
+            await request('/brain/mode', {method: 'POST', body: JSON.stringify({mode: event.target.value})});
+            window.showToast?.(`Brain mode: ${event.target.value}`, 'success');
+            await refresh();
+        } catch (error) {
+            showError(error.message);
+            await refresh();
+        }
+    });
 
     async function refresh() {
         try {
@@ -186,6 +264,17 @@
     document.addEventListener('click', async (event) => {
         const actionButton = event.target.closest('[data-action]');
         if (actionButton) { await action(actionButton.dataset.action); return; }
+        const command = event.target.closest('[data-command]');
+        if (command) {
+            try {
+                const entry = await request('/brain/commands', {method: 'POST', body: JSON.stringify({
+                    name: command.dataset.command, args: JSON.parse(command.dataset.args || '{}')})});
+                window.showToast?.(`${entry.kind}: ${entry.status}`, entry.status === 'done' ? 'success' : 'error');
+                command.remove();
+                await refresh();
+            } catch (error) { showError(error.message); }
+            return;
+        }
         const dismiss = event.target.closest('[data-dismiss]');
         if (dismiss) {
             try { await request('/brain/reactions/dismiss', {method: 'POST', body: JSON.stringify({reaction_id: dismiss.dataset.dismiss})}); await refresh(); }

@@ -165,6 +165,13 @@ class EpisodeState:
         input_data: Dict[str, Any] = None,
         checkpoints: List[Dict[str, Any]] = None,
         metadata: Dict[str, Any] = None,
+        input_sha256: Optional[str] = None,
+        input_projection: Optional[Dict[str, Any]] = None,
+        tool_journal: List[Dict[str, Any]] = None,
+        completed_at: Optional[str] = None,
+        expires_at: Optional[str] = None,
+        journal_expires_at: Optional[str] = None,
+        generation: int = 1,
     ):
         self.episode_id = episode_id or f"ep-{uuid.uuid4().hex[:8]}"
         self.session_id = session_id
@@ -183,6 +190,13 @@ class EpisodeState:
         self.input_data = input_data or {}
         self.checkpoints = checkpoints or []
         self.metadata = metadata or {}
+        self.input_sha256 = input_sha256
+        self.input_projection = input_projection or {}
+        self.tool_journal = tool_journal or []
+        self.completed_at = completed_at
+        self.expires_at = expires_at
+        self.journal_expires_at = journal_expires_at
+        self.generation = int(generation or 1)
         self.created_at = datetime.now(timezone.utc).isoformat()
         self.updated_at = self.created_at
     
@@ -201,6 +215,13 @@ class EpisodeState:
             "input_data": self.input_data,
             "checkpoints": self.checkpoints,
             "metadata": self.metadata,
+            "input_sha256": self.input_sha256,
+            "input_projection": self.input_projection,
+            "tool_journal": self.tool_journal,
+            "completed_at": self.completed_at,
+            "expires_at": self.expires_at,
+            "journal_expires_at": self.journal_expires_at,
+            "generation": self.generation,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -221,27 +242,116 @@ class EpisodeState:
             input_data=data.get("input_data", {}),
             checkpoints=data.get("checkpoints", []),
             metadata=data.get("metadata", {}),
+            input_sha256=data.get("input_sha256"),
+            input_projection=data.get("input_projection", {}),
+            tool_journal=data.get("tool_journal", []),
+            completed_at=data.get("completed_at"),
+            expires_at=data.get("expires_at"),
+            journal_expires_at=data.get("journal_expires_at"),
+            generation=data.get("generation", 1),
         )
         ep.created_at = data.get("created_at", ep.created_at)
         ep.updated_at = data.get("updated_at", ep.updated_at)
         return ep
     
-    def add_checkpoint(self) -> None:
-        """Add a checkpoint with current timestamp."""
+    def add_checkpoint(self, source: str = None, step: int = None,
+                       input_sha256: str = None,
+                       input_projection: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Append an identified checkpoint and return it.
+
+        ``checkpoint_id`` is time-ordered and unique within the episode, and
+        ``parent_checkpoint_id`` names the previous checkpoint, so a resumed episode can walk its
+        history instead of treating "the latest" as ambiguous (IDEA-1110).
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        previous = self.checkpoints[-1] if self.checkpoints else None
+        identifier = f"{int(time.time() * 1000):013d}-{len(self.checkpoints) + 1:04d}"
+        if previous and previous.get("checkpoint_id") == identifier:
+            identifier = f"{identifier}-{uuid.uuid4().hex[:4]}"
+        if input_sha256 is not None:
+            self.input_sha256 = input_sha256
+        if input_projection is not None:
+            self.input_projection = input_projection
+        phase_source = {
+            self.PHASE_COMPLETED: "complete",
+            self.PHASE_REPLANNING: "replan",
+            self.PHASE_FAILED: "complete",
+        }.get(self.phase, "loop")
         checkpoint = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "checkpoint_id": identifier,
+            "parent_checkpoint_id": previous.get("checkpoint_id") if previous else None,
+            "source": source or phase_source,
+            "step": self.current_step if step is None else step,
+            "input_sha256": self.input_sha256,
+            "timestamp": now,
             "phase": self.phase,
             "replan_count": self.replan_count,
             "current_step": self.current_step,
             "completed_steps": list(self.completed_steps),
         }
         self.checkpoints.append(checkpoint)
+        self.updated_at = now
+        return checkpoint
+
+    def latest_checkpoint(self) -> Optional[Dict[str, Any]]:
+        return self.checkpoints[-1] if self.checkpoints else None
+
+    def journal_lookup(self, call_id: str) -> Optional[Dict[str, Any]]:
+        """The newest journal entry for one tool-call id, or None."""
+        identifier = str(call_id or "")
+        if not identifier:
+            return None
+        for entry in reversed(self.tool_journal):
+            if entry.get("call_id") == identifier:
+                return entry
+        return None
+
+    def add_journal_entry(self, entry: Dict[str, Any], limit: int = 200) -> Dict[str, Any]:
+        """Append a journal entry, compacting the oldest completed entries past ``limit``."""
+        self.tool_journal.append(entry)
+        if len(self.tool_journal) > limit:
+            overflow = len(self.tool_journal) - limit
+            kept: List[Dict[str, Any]] = []
+            for item in self.tool_journal:
+                if overflow > 0 and item.get("state") == "done":
+                    overflow -= 1
+                    continue
+                kept.append(item)
+            self.tool_journal = kept[-limit:]
         self.updated_at = datetime.now(timezone.utc).isoformat()
+        return entry
+
+    def update_journal_entry(self, call_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
+        entry = self.journal_lookup(call_id)
+        if entry is None:
+            return None
+        entry.update(fields)
+        self.updated_at = datetime.now(timezone.utc).isoformat()
+        return entry
     
     def update_phase(self, new_phase: str) -> None:
         """Update the current phase."""
         self.phase = new_phase
         self.updated_at = datetime.now(timezone.utc).isoformat()
+
+    def stamp_retention(self, policy=None) -> None:
+        """Record the completion time and both expiry stamps once the episode is terminal.
+
+        The journal expiry never exceeds the result expiry (IDEA-1153). Idempotent: an episode
+        that already has a completion time is left alone.
+        """
+        from core.retention import RetentionPolicy, compute_retention
+
+        if self.phase not in ("completed", "failed") or self.completed_at:
+            return
+        policy = policy or RetentionPolicy()
+        now = datetime.now(timezone.utc)
+        window = compute_retention(now, policy, has_journal=bool(self.tool_journal))
+        self.completed_at = now.isoformat()
+        self.expires_at = window["completion_at"].isoformat()
+        self.journal_expires_at = (
+            window["journal_at"].isoformat() if window["journal_at"] is not None else None
+        )
 
 
 class SessionManager:
@@ -649,6 +759,9 @@ class SessionManager:
         input_data: Dict[str, Any] = None,
         budgets: Dict[str, Any] = None,
         metadata: Dict[str, Any] = None,
+        input_sha256: str = None,
+        input_projection: Dict[str, Any] = None,
+        episode_id: str = None,
     ) -> EpisodeState:
         """
         Create a new episode for tracking a long-running autonomous task.
@@ -662,12 +775,28 @@ class SessionManager:
             EpisodeState: The newly created episode
         """
         with self._sync_lock:
+            generation = 1
+            if episode_id:
+                from core.retention import purge_tombstoned
+
+                tombstone = purge_tombstoned(self.episode_dir, episode_id)
+                if tombstone:
+                    generation = int(tombstone.get("generation") or 1) + 1
+                    logger.info(
+                        "[Session] Reusing episode id %s at generation %d; the predecessor "
+                        "was purged on %s",
+                        episode_id, generation, tombstone.get("purged_at"),
+                    )
             episode = EpisodeState(
+                episode_id=episode_id,
                 session_id=self._session_id,
                 phase=EpisodeState.PHASE_PLANNING,
                 input_data=input_data or {},
                 budgets=budgets,
                 metadata=metadata or {},
+                input_sha256=input_sha256,
+                input_projection=input_projection,
+                generation=generation,
             )
             self._episode = episode
             
@@ -704,6 +833,10 @@ class SessionManager:
         input_data: Dict[str, Any] = None,
         add_checkpoint: bool = False,
         metadata: Dict[str, Any] = None,
+        source: str = None,
+        input_sha256: str = None,
+        input_projection: Dict[str, Any] = None,
+        tool_journal: List[Dict[str, Any]] = None,
     ) -> None:
         """
         Save/update the current episode state.
@@ -747,12 +880,19 @@ class SessionManager:
                 self._episode.input_data = input_data
             if metadata is not None:
                 self._episode.metadata.update(metadata)
+            if tool_journal is not None:
+                self._episode.tool_journal = tool_journal
             
             self._episode.updated_at = datetime.now(timezone.utc).isoformat()
+            self._episode.stamp_retention()
             
             # Add checkpoint if requested
             if add_checkpoint:
-                self._episode.add_checkpoint()
+                self._episode.add_checkpoint(
+                    source=source,
+                    input_sha256=input_sha256,
+                    input_projection=input_projection,
+                )
             
             # Persist to disk - save to both current.json (legacy) and {episode_id}.json
             episode_dict = self._episode.to_dict()
@@ -988,6 +1128,35 @@ class SessionManager:
                     os.remove(temp_file)
                 raise e
     
+    def purge_episode_journal(self, episode_id: str) -> int:
+        """Delete the run journal rows for one episode id; returns the row count."""
+        try:
+            from core.step_journal import StepJournal, derive_run_id
+
+            journal = StepJournal()
+            return journal.purge_run(derive_run_id(episode_id, {"episode_id": episode_id}))
+        except Exception as exc:
+            logger.warning("[Session] Could not purge the journal for %s: %s", episode_id, exc)
+            return 0
+
+    def prune_episodes(self, policy=None, now=None, dry_run: bool = True,
+                       page_size: int = 100) -> Dict[str, int]:
+        """Quarantine expired completed episodes and purge their journals (IDEA-1153).
+
+        Defaults to a dry run: an operator sees the counts before anything moves.
+        """
+        from core.retention import RetentionPolicy, prune_episodes as _prune
+
+        with self._sync_lock:
+            return _prune(
+                self.episode_dir,
+                policy=policy or RetentionPolicy(),
+                now=now,
+                dry_run=dry_run,
+                page_size=page_size,
+                purge_journal=self.purge_episode_journal,
+            )
+
     def delete_episode(self, episode_id: str) -> bool:
         """
         Delete a specific episode.

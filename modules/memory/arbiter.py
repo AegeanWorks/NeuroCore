@@ -32,7 +32,10 @@ class MemoryArbiter:
         embedding: Optional[List[float]] = None,
         mem_type: str = "BELIEF",
         verified: bool = False,
-        expires_at: int = None
+        expires_at: int = None,
+        scope: Optional[Dict[str, str]] = None,
+        require_scope: bool = False,
+        scope_policy: str = "strict",
     ) -> Optional[int]:
         """
         Decide whether to promote reasoning into memory.
@@ -73,7 +76,9 @@ class MemoryArbiter:
                     embedding=embedding,
                     threshold=similarity_threshold,
                     limit=5,
-                    exclude_source=None  # Check ALL memories for deduplication (including same source)
+                    exclude_source=None,  # Check ALL memories for deduplication (including same source)
+                    scope=scope,
+                    scope_policy=scope_policy,
                 )
             )
             
@@ -97,7 +102,9 @@ class MemoryArbiter:
                 mem_type=mem_type,
                 source=source,
                 verified=verified,
-                expires_at=expires_at
+                expires_at=expires_at,
+                scope=scope,
+                require_scope=require_scope,
             )
         )
 
@@ -108,7 +115,9 @@ class MemoryArbiter:
         logger.info(f"[Arbiter] Memory saved (ID: {memory_id}, source: {source})")
         return memory_id
 
-    async def consider_batch(self, candidates: List[Dict]) -> List[int]:
+    async def consider_batch(self, candidates: List[Dict], scope: Optional[Dict[str, str]] = None,
+                             require_scope: bool = False,
+                             scope_policy: str = "strict") -> List[int]:
         """
         Process a batch of memory candidates in parallel.
         """
@@ -121,7 +130,10 @@ class MemoryArbiter:
                 embedding=c.get("embedding"),
                 mem_type=c.get("mem_type", c.get("type", "BELIEF")),
                 verified=c.get("verified", False),
-                expires_at=c.get("expires_at")
+                expires_at=c.get("expires_at"),
+                scope=scope,
+                require_scope=require_scope,
+                scope_policy=scope_policy,
             )
         
         # Process all candidates in parallel using asyncio.gather

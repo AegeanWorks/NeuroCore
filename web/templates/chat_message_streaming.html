@@ -18,6 +18,9 @@
 <div id="thinking-trace-{{ msg_id }}" class="max-w-[85%]" style="display:none;"></div>
 
 <div class="bg-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-lg border border-slate-700/50">
+    {% if brain_turn %}
+    <div class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-violet-400">AI Brain</div>
+    {% endif %}
     <div class="text-sm prose prose-invert" id="ai-content-{{ msg_id }}">
         <span class="animate-pulse text-slate-500 stream-placeholder">Thinking...</span>
     </div>
@@ -44,6 +47,7 @@
         const promptTokensEl = statusDiv.querySelector('.prompt-tokens');
         const completionTokensEl = statusDiv.querySelector('.completion-tokens');
         const totalTokensEl = statusDiv.querySelector('.total-tokens');
+        const brainSessionId = '{{ session_id }}';
 
         let firstTokenReceived = false;
         let mdBuffer = '';
@@ -157,6 +161,46 @@
                 contentDiv.innerHTML = marked.parse(chunk.text);
                 statusDiv.style.display = 'flex';
                 scrollToBottom();
+            }
+        });
+
+        // Brain suggestions (buttons; chat_gui.html owns the click handler)
+        function renderBrainCommands(commands, messageIndex) {
+            if (!Array.isArray(commands) || commands.length === 0) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'mt-3 flex flex-wrap gap-2';
+            commands.forEach(function(command) {
+                if (command.status === 'suggested') {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'rounded-lg border border-violet-700/60 bg-violet-950/40 px-2.5 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/60';
+                    button.dataset.brainCommand = command.name;
+                    button.dataset.brainArgs = JSON.stringify(command.args || {});
+                    button.dataset.sessionId = brainSessionId;
+                    if (messageIndex !== null && messageIndex !== undefined) {
+                        button.dataset.messageIndex = String(messageIndex);
+                    }
+                    button.textContent = 'Run ' + command.name;
+                    wrap.appendChild(button);
+                } else {
+                    const status = document.createElement('span');
+                    status.className = 'rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-400';
+                    status.textContent = command.name + ' · ' + (command.status || 'done');
+                    wrap.appendChild(status);
+                }
+            });
+            if (wrap.children.length) contentDiv.parentElement.appendChild(wrap);
+            scrollToBottom();
+        }
+
+        source.addEventListener('commands', function(event) {
+            try {
+                const payload = JSON.parse(event.data);
+                const commands = Array.isArray(payload) ? payload : payload.commands;
+                const messageIndex = Array.isArray(payload) ? null : payload.message_index;
+                renderBrainCommands(commands, messageIndex);
+            } catch(e) {
+                console.warn('Failed to render brain commands', e);
             }
         });
 

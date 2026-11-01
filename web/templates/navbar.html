@@ -57,6 +57,10 @@
                 {% for module in modules %}
                     {% if module.id == 'brain' and module.enabled %}
                     <li><a href="/brain/ui" class="hover:text-blue-400 transition-colors">Brain</a></li>
+                    {% elif module.id == 'brain' %}
+                    {# The brain is opt-in (ADR-036): the link stays visible and clicking it turns the module on. #}
+                    <li><a href="/brain/ui" data-enable-brain class="hover:text-blue-400 transition-colors"
+                           onclick="event.preventDefault(); fetch('/modules/brain/enable', {method: 'POST'}).then(() => { window.location.href = '/brain/ui'; });">Brain <span class="text-xs text-slate-500">(off)</span></a></li>
                     {% endif %}
                 {% endfor %}
 

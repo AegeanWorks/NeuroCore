@@ -54,6 +54,16 @@ def test_get_session_not_found(session_manager):
     assert result is None
 
 
+def test_update_message_only_changes_an_existing_index(session_manager):
+    session = session_manager.create_session()
+    session_manager.add_message(session["id"], "assistant", "x", commands=[{"name": "a"}])
+
+    assert session_manager.update_message(session["id"], 0, commands=[{"name": "b"}]) is True
+    assert session_manager.get_session(session["id"])["history"][0]["commands"] == [{"name": "b"}]
+    assert session_manager.update_message(session["id"], 9, commands=[]) is False
+    assert session_manager.update_message(session["id"], "0", commands=[]) is False
+
+
 def test_delete_session(session_manager):
     session = session_manager.create_session()
     session_id = session["id"]

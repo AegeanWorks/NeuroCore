@@ -2,6 +2,7 @@ import pytest
 import os
 import sys
 import json
+import types
 import httpx
 from unittest.mock import patch, MagicMock
 from datetime import datetime
@@ -380,6 +381,17 @@ class TestCheckCalendar:
 class TestYouTubeTranscript:
     """Tests for YouTubeTranscript tool."""
     
+    @staticmethod
+    def _mock_api(monkeypatch, seen):
+        class FakeApi:
+            def fetch(self, video_id):
+                seen.append(video_id)
+                return [types.SimpleNamespace(text="first line"),
+                        types.SimpleNamespace(text="second line")]
+
+        monkeypatch.setitem(sys.modules, "youtube_transcript_api",
+                            types.SimpleNamespace(YouTubeTranscriptApi=FakeApi))
+    
     def test_missing_url(self):
         result = execute_tool("YouTubeTranscript", {})
         assert "Error" in result
@@ -389,13 +401,21 @@ class TestYouTubeTranscript:
         assert "Error" in result
         assert "Could not extract" in result
     
-    def test_youtube_watch_url_parsing(self):
+    def test_youtube_watch_url_parsing(self, monkeypatch):
+        seen = []
+        self._mock_api(monkeypatch, seen)
         result = execute_tool("YouTubeTranscript", {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
-        assert "Error" in result or "transcript" in result.lower() or "import" in result.lower()
+        assert seen == ["dQw4w9WgXcQ"]
+        assert "first line" in result
+        assert "second line" in result
     
-    def test_youtu_be_url_parsing(self):
+    def test_youtu_be_url_parsing(self, monkeypatch):
+        seen = []
+        self._mock_api(monkeypatch, seen)
         result = execute_tool("YouTubeTranscript", {"url": "https://youtu.be/dQw4w9WgXcQ"})
-        assert "Error" in result or "transcript" in result.lower() or "import" in result.lower()
+        assert seen == ["dQw4w9WgXcQ"]
+        assert "first line" in result
+        assert "second line" in result
 
 
 class TestWikipediaLookup:

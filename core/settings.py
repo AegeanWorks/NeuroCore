@@ -25,6 +25,34 @@ DEFAULT_SETTINGS = {
     "request_timeout": 60.0,
     "max_node_loops": 100,
     "module_allowlist": [],  # Issue 9: Module allowlist for hot-loading security
+    # IDEA-588: optional per-model ceilings. Empty disables clamping; unknown models pass
+    # through unless strict_model_limits is true.
+    "model_limits": {
+        "local-model": {
+            "max_output_tokens": 4096,
+            "max_context_tokens": 32768,
+            "aliases": [],
+        },
+    },
+    "strict_model_limits": False,
+    # IDEA-058: optional ordered tool policy. No file keeps the pre-policy behaviour; a
+    # configured policy starts in observe mode so a would-deny is logged before it blocks.
+    "tool_policy_file": "",
+    "tool_policy_mode": "observe",
+    # IDEA-1152: run-scoped node journal. Off by default for one release; when on, a resume
+    # reuses committed node outputs and a duplicate idempotency key attaches to the first run.
+    "step_journal_enabled": False,
+    # IDEA-1154/1155: memory filter planner and knowledge-base recall budget.
+    "memory_filter_plan_enabled": True,
+    "memory_filter_scan_budget_kb": 4096,
+    "memory_prefilter_max_mb": 64,
+    "kb_recall_budget_enabled": True,
+    "kb_recall_budget": {
+        "oversample": 4,
+        "nprobe_fraction": 0.125,
+        "max_candidates": 256,
+        "rescore": True,
+    },
 }
 
 class SettingsManager:
@@ -153,6 +181,32 @@ class SettingsManager:
                     raise ValueError(f"active_ai_flows items must be strings, got {type(item).__name__}")
             validated["active_ai_flows"] = new_settings["active_ai_flows"]
         
+        # IDEA-588: per-model request ceilings. The registry validates the same shape at use.
+        if "model_limits" in new_settings:
+            limits = new_settings["model_limits"]
+            if not isinstance(limits, dict):
+                raise ValueError("model_limits must be a mapping of model id to limits")
+            for model_id, entry in limits.items():
+                if not isinstance(model_id, str) or not model_id:
+                    raise ValueError("model_limits keys must be non-empty model ids")
+                if not isinstance(entry, dict):
+                    raise ValueError(f"model_limits[{model_id}] must be a mapping")
+                for field in ("max_output_tokens", "max_context_tokens"):
+                    value = entry.get(field)
+                    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                        raise ValueError(f"model_limits[{model_id}].{field} must be a positive integer")
+                aliases = entry.get("aliases", [])
+                if not isinstance(aliases, list) or not all(
+                    isinstance(alias, str) and alias for alias in aliases
+                ):
+                    raise ValueError(f"model_limits[{model_id}].aliases must be a list of strings")
+            validated["model_limits"] = limits
+
+        if "strict_model_limits" in new_settings:
+            validated["strict_model_limits"] = self._parse_bool(
+                new_settings["strict_model_limits"], "strict_model_limits"
+            )
+
         # Issue 9: Module allowlist - list of module IDs for hot-loading security
         if "module_allowlist" in new_settings:
             if not isinstance(new_settings["module_allowlist"], list):

@@ -56,7 +56,11 @@ A **Tool** is a bridge between your AI agent and the external world. It consists
 
 The Tool Library is built on these core components:
 
-- **Tool Definitions** (`modules/tools/tools.json`): Stores tool metadata and JSON schemas. `tools.json.lock` is a runtime lock file used during concurrent writes — do not delete it manually.
+- **Tool Definitions** (`modules/tools/tools.json`): Stores tool metadata and JSON schemas. `tools.json.lock` is a runtime lock file used during concurrent writes - do not delete it manually. Every entry also carries `tier` (`low`/`medium`/`high`) and `tier_reason`; an entry without a valid tier and reason is HIGH, and a HIGH call is held in `GET /tools/approvals` until a person runs it. Imported tools start HIGH until someone reviews them. Set `idempotent: true` only on a tool with no side effect; `tool_journal_policy: "rerun"` may then re-run its interrupted call after a crash (ADR-086).
+
+Each entry also carries `manifest_version: 2`, `requires` and `source` (ADR-091). `requires` names the runtime primitives the tool needs (`sandbox`, `library_source`, `rlm_library_source`, `outbound_staging`, `human_approval`, `network`); `source` is `{"mode": "library"|"rlm_library"|"inline", "entry": "<file>.py"}`. The dispatcher refuses with `unsupported_capability`/`missing_source` before the tier gate or staging, so nothing is held or executed. `GET /tools/capabilities` lists the supported set and any drift; an entry without `requires` keeps the legacy behaviour but must still resolve a file.
+
+Every dispatched call gets a call id (`GET /tools/calls`). `POST /tools/calls/{call_id}/cancel` asks the sandbox to stop the child; a call that is already settled answers 409. The sandbox polls every 100 ms, so a cancel or a manifest deadline stops the child well before the 30 s ceiling. A non-OK call returns a receipt whose `status` is `cancelled`, `timeout` or `error`, with `result` unset and any partial output under `partial_output`; the tool message begins with `CANCELLED`, `TIMED OUT` or `FAILED` (ADR-092).
 - **Library Directory** (`modules/tools/library/`): Contains standard Python implementation files (16 standard tools)
 - **RLM Library** (`modules/tools/rlm_library/`): Contains Recursive Language Model tool implementations (7 RLM tools)
 - **Tool Dispatcher Node** (`tool_dispatcher`): Executes tool calls within AI Flows
@@ -100,7 +104,7 @@ NeuroCore comes with **23 built-in tools**: 16 standard tools in `library/` and 
 
 | Tool | Description | Key Parameters |
 |------|-------------|----------------|
-| **SendEmail** | Send emails via SMTP | `to_email`, `subject`, `body` |
+| **SendEmail** | Drafts an email; sent via SMTP only after the user approves it | `to_email`, `subject`, `body` |
 
 ### 🎯 Goals Management
 
@@ -317,6 +321,7 @@ Used by agents for memory manipulation, variable storage, and recursive sub-call
 ```
 
 #### SendEmail
+A call saves a draft and tells the model nothing was sent (IDEA-032, ADR-064): untrusted email, fetched pages and documents reach the same agent, so an injected instruction must not be able to send mail. List drafts with `GET /tools/drafts`, send one with `POST /tools/drafts/{id}/send?confirm=send this draft`, or drop it with `POST /tools/drafts/{id}/discard`. A draft is sent at most once.
 ```json
 {
   "type": "object",
@@ -714,6 +719,39 @@ Configure via environment variables or the tool config UI:
 - `SMTP_PORT` - Server port (default: 587)
 - `SMTP_EMAIL` - Sender email address
 - `SMTP_PASSWORD` - Authentication password
+
+### Ordered Tool Policy
+
+Set `tool_policy_file` in `settings.json` to an ordered JSON policy; `tool_policy_mode` is
+`observe` by default (log what would happen) and `enforce` to act. No file, or `off`, leaves the
+old behaviour. The first matching rule decides; no match is a deny.
+
+```json
+{
+  "schema": 1,
+  "name": "workspace-tools",
+  "version": 1,
+  "rules": [
+    {"name": "deny-ssh", "decision": "deny", "risk_score": 100,
+     "reason": "SSH keys are never read by an agent",
+     "when": {"path_prefix": ["~/.ssh"]}},
+    {"name": "docs", "decision": "allow", "risk_score": 10,
+     "reason": "documented host",
+     "when": {"tool_in": ["FetchURL"], "host_in": ["docs.example.com"]}},
+    {"name": "confirm-fetch", "decision": "require_approval", "risk_score": 80,
+     "reason": "outbound fetch needs a person",
+     "when": {"tool_in": ["FetchURL"]}}
+  ]
+}
+```
+
+Matchers in one rule are ANDed: `tool_in` (exact), `path_prefix` (the argument resolves inside
+the prefix after normalisation), `host_in` (host equals or is a dot-bounded suffix) and
+`identity_in` (exact caller identity, when one is supplied). A non-string argument is a
+non-match, never an exception. Every decision carries the rule name, policy name and version,
+risk score and policy SHA-256; `deny` returns an error, and `require_approval` uses the same at-most-once
+approval ledger as a HIGH tier call (with `tier: "policy"`). A policy cannot lower a tier:
+`allow` means the policy has no objection, so the tier gate still runs.
 
 ### Error Handling Strategies
 

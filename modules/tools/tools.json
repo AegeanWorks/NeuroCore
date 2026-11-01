@@ -19,7 +19,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "network read of an external service",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "Weather.py"
+        }
     },
     "Calculator": {
         "definition": {
@@ -41,7 +52,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "local arithmetic only",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "Calculator.py"
+        }
     },
     "TimeZoneConverter": {
         "definition": {
@@ -72,7 +95,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "local time conversion",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "TimeZoneConverter.py"
+        }
     },
     "ConversionCalculator": {
         "definition": {
@@ -104,7 +139,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "local unit conversion",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "ConversionCalculator.py"
+        }
     },
     "SystemTime": {
         "definition": {
@@ -119,7 +166,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "reads the clock",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "SystemTime.py"
+        }
     },
     "FetchURL": {
         "definition": {
@@ -141,7 +200,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "network read of an external page",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "FetchURL.py"
+        }
     },
     "CurrencyConverter": {
         "definition": {
@@ -173,7 +243,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "network read of exchange rates",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "CurrencyConverter.py"
+        }
     },
     "SaveReminder": {
         "definition": {
@@ -199,7 +280,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "writes a reminder to memory",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "SaveReminder.py"
+        }
     },
     "CheckCalendar": {
         "definition": {
@@ -219,14 +311,26 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "reads the local calendar",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "CheckCalendar.py"
+        }
     },
     "SendEmail": {
         "definition": {
             "type": "function",
             "function": {
                 "name": "SendEmail",
-                "description": "Proactively sends a new outbound email to any recipient. Use this only when the user explicitly asks to send an email to someone. Do NOT use this to reply to the current conversation — the flow's email_output node handles replies automatically.",
+                "description": "Drafts a new outbound email to any recipient for the user to approve; nothing is sent until the user approves the draft. Use this only when the user explicitly asks to send an email to someone. Do NOT use this to reply to the current conversation — the flow's email_output node handles replies automatically.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -252,7 +356,18 @@
             }
         },
         "enabled": true,
-        "configurable": true
+        "tier": "low",
+        "tier_reason": "drafts only; sending needs the user's phrase (ADR-064)",
+        "configurable": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "SendEmail.py"
+        }
     },
     "YouTubeTranscript": {
         "definition": {
@@ -275,7 +390,18 @@
             }
         },
         "enabled": true,
-        "code": "try:\n    from youtube_transcript_api import YouTubeTranscriptApi\n    from urllib.parse import urlparse, parse_qs\n\n    url = args.get('url')\n    if not url:\n        result = \"Error: No URL provided.\"\n    else:\n        parsed_url = urlparse(url)\n        video_id = None\n        if parsed_url.hostname == 'youtu.be':\n            video_id = parsed_url.path[1:]\n        elif parsed_url.hostname and ('youtube.com' in parsed_url.hostname):\n            if parsed_url.path == '/watch':\n                query = parse_qs(parsed_url.query)\n                video_id = query.get('v', [None])[0]\n        \n        if not video_id:\n             result = \"Error: Could not extract video ID from URL.\"\n        else:\n            try:\n                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)\n                # Combine text\n                full_text = \" \".join([t['text'] for t in transcript_list])\n                result = full_text\n            except Exception as e:\n                result = f\"Error fetching transcript: {str(e)}\"\n\nexcept ImportError:\n    result = \"Error: youtube_transcript_api is not installed. Please install it using 'pip install youtube-transcript-api'.\"\nexcept Exception as e:\n    result = f\"Error: {str(e)}\""
+        "tier": "medium",
+        "tier_reason": "network read of an external service",
+        "code": "try:\n    from youtube_transcript_api import YouTubeTranscriptApi\n    from urllib.parse import urlparse, parse_qs\n\n    url = args.get('url')\n    if not url:\n        result = \"Error: No URL provided.\"\n    else:\n        parsed_url = urlparse(url)\n        video_id = None\n        if parsed_url.hostname == 'youtu.be':\n            video_id = parsed_url.path[1:]\n        elif parsed_url.hostname and ('youtube.com' in parsed_url.hostname):\n            if parsed_url.path == '/watch':\n                query = parse_qs(parsed_url.query)\n                video_id = query.get('v', [None])[0]\n        \n        if not video_id:\n             result = \"Error: Could not extract video ID from URL.\"\n        else:\n            try:\n                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)\n                # Combine text\n                full_text = \" \".join([t['text'] for t in transcript_list])\n                result = full_text\n            except Exception as e:\n                result = f\"Error fetching transcript: {str(e)}\"\n\nexcept ImportError:\n    result = \"Error: youtube_transcript_api is not installed. Please install it using 'pip install youtube-transcript-api'.\"\nexcept Exception as e:\n    result = f\"Error: {str(e)}\"",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "YouTubeTranscript.py"
+        }
     },
     "WikipediaLookup": {
         "definition": {
@@ -306,7 +432,18 @@
             }
         },
         "enabled": true,
-        "code": "import httpx\n\nquery = args.get('query')\nmode = args.get('mode', 'summary')\n\nif not query:\n    result = \"Error: No query provided.\"\nelse:\n    try:\n        base_url = \"https://en.wikipedia.org/w/api.php\"\n        search_params = {\n            \"action\": \"query\",\n            \"list\": \"search\",\n            \"srsearch\": query,\n            \"format\": \"json\"\n        }\n        \n        resp = httpx.get(base_url, params=search_params, timeout=10.0)\n        search_data = resp.json()\n        \n        search_results = search_data.get(\"query\", {}).get(\"search\", [])\n        \n        if not search_results:\n            result = f\"No Wikipedia articles found for '{query}'.\"\n        else:\n            title = search_results[0][\"title\"]\n            \n            content_params = {\n                \"action\": \"query\",\n                \"prop\": \"extracts\",\n                \"titles\": title,\n                \"explaintext\": 1,\n                \"format\": \"json\",\n                \"redirects\": 1\n            }\n            \n            if mode == 'summary':\n                content_params[\"exintro\"] = 1\n            \n            resp = httpx.get(base_url, params=content_params, timeout=10.0)\n            data = resp.json()\n            \n            pages = data[\"query\"][\"pages\"]\n            page_id = next(iter(pages))\n            \n            if page_id == \"-1\":\n                 result = f\"Error: Page '{title}' not found details.\"\n            else:\n                extract = pages[page_id].get(\"extract\", \"\")\n                if not extract:\n                    result = f\"No content found for '{title}'.\"\n                else:\n                    result = f\"Title: {title}\\n\\n{extract}\"\n\n    except Exception as e:\n        result = f\"Error fetching Wikipedia data: {str(e)}\""
+        "tier": "medium",
+        "tier_reason": "network read of an external service",
+        "code": "import httpx\n\nquery = args.get('query')\nmode = args.get('mode', 'summary')\n\nif not query:\n    result = \"Error: No query provided.\"\nelse:\n    try:\n        base_url = \"https://en.wikipedia.org/w/api.php\"\n        search_params = {\n            \"action\": \"query\",\n            \"list\": \"search\",\n            \"srsearch\": query,\n            \"format\": \"json\"\n        }\n        \n        resp = httpx.get(base_url, params=search_params, timeout=10.0)\n        search_data = resp.json()\n        \n        search_results = search_data.get(\"query\", {}).get(\"search\", [])\n        \n        if not search_results:\n            result = f\"No Wikipedia articles found for '{query}'.\"\n        else:\n            title = search_results[0][\"title\"]\n            \n            content_params = {\n                \"action\": \"query\",\n                \"prop\": \"extracts\",\n                \"titles\": title,\n                \"explaintext\": 1,\n                \"format\": \"json\",\n                \"redirects\": 1\n            }\n            \n            if mode == 'summary':\n                content_params[\"exintro\"] = 1\n            \n            resp = httpx.get(base_url, params=content_params, timeout=10.0)\n            data = resp.json()\n            \n            pages = data[\"query\"][\"pages\"]\n            page_id = next(iter(pages))\n            \n            if page_id == \"-1\":\n                 result = f\"Error: Page '{title}' not found details.\"\n            else:\n                extract = pages[page_id].get(\"extract\", \"\")\n                if not extract:\n                    result = f\"No content found for '{title}'.\"\n                else:\n                    result = f\"Title: {title}\\n\\n{extract}\"\n\n    except Exception as e:\n        result = f\"Error fetching Wikipedia data: {str(e)}\"",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "WikipediaLookup.py"
+        }
     },
     "ArXivSearch": {
         "definition": {
@@ -332,7 +469,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "network read of an external service",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "ArXivSearch.py"
+        }
     },
     "SetGoal": {
         "definition": {
@@ -362,7 +510,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "writes a new goal",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "SetGoal.py"
+        }
     },
     "MarkGoalComplete": {
         "definition": {
@@ -384,7 +543,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "medium",
+        "tier_reason": "changes a stored goal's state",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "MarkGoalComplete.py"
+        }
     },
     "DeleteGoal": {
         "definition": {
@@ -406,7 +576,18 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "high",
+        "tier_reason": "deletes a stored goal",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "DeleteGoal.py"
+        }
     },
     "GetGoals": {
         "definition": {
@@ -420,7 +601,11 @@
                         "status": {
                             "type": "string",
                             "description": "Filter by status: 'active', 'pending', 'completed'. Omit to get all goals.",
-                            "enum": ["active", "pending", "completed"]
+                            "enum": [
+                                "active",
+                                "pending",
+                                "completed"
+                            ]
                         },
                         "limit": {
                             "type": "number",
@@ -431,7 +616,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "reads stored goals",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "GetGoals.py"
+        }
     },
     "GetNextGoal": {
         "definition": {
@@ -446,7 +643,19 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "low",
+        "tier_reason": "reads the next goal",
+        "idempotent": true,
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "GetNextGoal.py"
+        }
     },
     "Peek": {
         "definition": {
@@ -474,7 +683,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "in-memory RLM preview",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "Peek.py"
+        }
     },
     "Search": {
         "definition": {
@@ -501,7 +721,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "in-memory RLM search",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "Search.py"
+        }
     },
     "Chunk": {
         "definition": {
@@ -526,7 +757,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "in-memory RLM chunking",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "Chunk.py"
+        }
     },
     "SubCall": {
         "definition": {
@@ -557,7 +799,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "medium",
+        "tier_reason": "nested model call with cost and latency",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "SubCall.py"
+        }
     },
     "SetVariable": {
         "definition": {
@@ -585,7 +838,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "writes an in-memory RLM variable",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "SetVariable.py"
+        }
     },
     "GetVariable": {
         "definition": {
@@ -608,7 +872,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "in-memory RLM variable read",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "GetVariable.py"
+        }
     },
     "SetFinal": {
         "definition": {
@@ -631,7 +906,18 @@
             }
         },
         "enabled": true,
-        "category": "rlm"
+        "tier": "low",
+        "tier_reason": "writes the in-memory final answer",
+        "category": "rlm",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "rlm_library_source"
+        ],
+        "source": {
+            "mode": "rlm_library",
+            "entry": "SetFinal.py"
+        }
     },
     "BrowserAction": {
         "definition": {
@@ -644,7 +930,14 @@
                     "properties": {
                         "action": {
                             "type": "string",
-                            "enum": ["goto", "click", "type", "screenshot", "get_html", "extract_text"],
+                            "enum": [
+                                "goto",
+                                "click",
+                                "type",
+                                "screenshot",
+                                "get_html",
+                                "extract_text"
+                            ],
                             "description": "The action to perform."
                         },
                         "url": {
@@ -670,6 +963,17 @@
                 }
             }
         },
-        "enabled": true
+        "enabled": true,
+        "tier": "high",
+        "tier_reason": "drives a real browser; click and type have external effects",
+        "manifest_version": 2,
+        "requires": [
+            "sandbox",
+            "library_source"
+        ],
+        "source": {
+            "mode": "library",
+            "entry": "BrowserAction.py"
+        }
     }
 }

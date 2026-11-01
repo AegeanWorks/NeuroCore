@@ -1,17 +1,43 @@
-import httpx
-import logging
 import asyncio
 import json
+import logging
 
-from core.settings import settings
+import httpx
+
+from core.cassette import MODES as CASSETTE_MODES
+from core.cassette import Cassette
 from core.errors import (
     LLMError,
-    LLMTimeoutError,
-    LLMHTTPError,
     LLMResponseError,
+    LLMTimeoutError,
 )
+from core.llm_errors import from_response
+from core.model_registry import ModelLimitExceeded, ModelRegistry, UnknownModelError
+from core.settings import settings
+from core.untrusted import fence_tool_messages
 
 logger = logging.getLogger(__name__)
+
+
+def _estimate_context_tokens(messages, tools=None) -> int:
+    """A cheap provider-independent context estimate; the limit is a guard, not billing."""
+    try:
+        payload = {"messages": messages}
+        if tools:
+            payload["tools"] = tools
+        return max(0, len(json.dumps(payload, default=str)) // 4)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _clamp_request(model: str, max_tokens: int, messages, tools=None):
+    """Apply settings model limits; returns a ClampResult (or raises a model-limit error)."""
+    registry = ModelRegistry.from_settings(settings.settings)
+    return registry.clamp(
+        model,
+        output_tokens=int(max_tokens or 0),
+        context_tokens=_estimate_context_tokens(messages, tools),
+    )
 
 # Module-level shared client for connection pooling
 _shared_client: httpx.AsyncClient = None
@@ -61,7 +87,7 @@ async def close_shared_client():
 
 
 class LLMBridge:
-    def __init__(self, base_url: str, api_key: str = None, embedding_base_url: str = None, embedding_model: str = None, client: httpx.AsyncClient = None, timeout: float = 60.0):
+    def __init__(self, base_url: str, api_key: str = None, embedding_base_url: str = None, embedding_model: str = None, client: httpx.AsyncClient = None, timeout: float = 60.0, cassette_mode: str = "live", cassette_path=None, cassette_match: str = None, template_digest: str = None):
         # Normalize base_url: strip trailing slashes
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.embedding_base_url = embedding_base_url.rstrip("/") if embedding_base_url else self.base_url
@@ -69,6 +95,55 @@ class LLMBridge:
         self.embedding_model = embedding_model
         self.client = client
         self.timeout = timeout
+        if cassette_mode not in ("live", "record", "replay"):
+            raise ValueError(
+                f"unknown cassette_mode {cassette_mode!r}; choose live, record or replay"
+            )
+        if cassette_mode == "replay" and not cassette_path:
+            raise ValueError(
+                "cassette_mode='replay' needs cassette_path. "
+                "Why: replay has nothing to read without a cassette. "
+                "Fix: pass the path recorded by the record-mode bridge."
+            )
+        if cassette_match is not None and cassette_match not in CASSETTE_MODES:
+            raise ValueError(
+                f"unknown cassette_match {cassette_match!r}; "
+                f"choose one of {', '.join(CASSETTE_MODES)}"
+            )
+        self.cassette_mode = cassette_mode
+        self.cassette_path = cassette_path
+        self.cassette_match = cassette_match
+        self.template_digest = template_digest
+        self._cassette = None
+
+    def _get_cassette(self) -> Cassette:
+        """Load or create the cassette lazily so live mode never touches the filesystem."""
+        if self._cassette is None:
+            if self.cassette_mode == "replay":
+                self._cassette = Cassette.load(self.cassette_path, mode=self.cassette_match)
+            else:
+                self._cassette = Cassette(
+                    mode=self.cassette_match or "structural",
+                    template_digest=self.template_digest,
+                )
+        return self._cassette
+
+    @property
+    def cassette(self) -> Cassette:
+        return self._get_cassette()
+
+    def _replay_response(self, payload, url):
+        return self._get_cassette().replay(
+            payload, endpoint=url, template_digest=self.template_digest
+        )
+
+    def _record_response(self, payload, url, response) -> None:
+        cassette = self._get_cassette()
+        cassette.record(
+            payload, response, endpoint=url, template_digest=self.template_digest
+        )
+        if self.cassette_path:
+            cassette.save(self.cassette_path)
 
     def _get_url(self, path: str, use_embedding_url: bool = False):
         """Constructs a full URL for the given path."""
@@ -105,13 +180,23 @@ class LLMBridge:
         final_temperature = temperature if temperature is not None else settings.get("temperature", 0.7)
         final_max_tokens = max_tokens if max_tokens is not None else settings.get("max_tokens", 2048)
 
+        try:
+            clamp = _clamp_request(final_model, final_max_tokens, messages, tools)
+            final_max_tokens = clamp.output_tokens
+        except (UnknownModelError, ModelLimitExceeded, ValueError) as exc:
+            logger.warning(f"LLM request refused by model limits: {exc}")
+            if raise_errors:
+                raise LLMError(str(exc), model=final_model) from exc
+            return {"error": "model_limit", "detail": str(exc)}
+
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         payload = {
             "model": final_model,
-            "messages": messages,
+            # Tool results are fenced as untrusted data on the way out (IDEA-030).
+            "messages": fence_tool_messages(messages),
             "temperature": final_temperature,
             "max_tokens": final_max_tokens,
             "stream": False
@@ -123,24 +208,42 @@ class LLMBridge:
             payload["tool_choice"] = tool_choice
         if response_format:
             payload["response_format"] = response_format
-        
+
+        if self.cassette_mode == "replay":
+            return self._replay_response(payload, url)
+
         try:
             # Use injected client if provided, otherwise use shared client
             client_to_use = self.client if self.client else await get_shared_client(self.timeout)
             
             response = await client_to_use.post(url, json=payload, headers=headers, timeout=self.timeout)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            if isinstance(data, dict) and clamp.clamped:
+                data["_clamp"] = clamp.to_dict()
+            if self.cassette_mode == "record":
+                self._record_response(payload, url, data)
+            return data
         except httpx.TimeoutException as e:
             logger.warning(f"LLM timeout: {e}")
             if raise_errors:
                 raise LLMTimeoutError(f"LLM request timed out: {e}", model=final_model)
             return {"error": "timeout", "detail": str(e)}
         except httpx.HTTPStatusError as e:
+            typed = from_response(e.response, model=final_model)
             logger.error(f"LLM HTTP error {e.response.status_code}: {e}")
             if raise_errors:
-                raise LLMHTTPError(f"LLM HTTP error {e.response.status_code}: {e}", status_code=e.response.status_code, model=final_model)
-            return {"error": "http_error", "status": e.response.status_code, "detail": str(e)}
+                raise typed from e
+            payload = {
+                "error": "http_error",
+                "status": e.response.status_code,
+                "detail": str(typed),
+                "category": type(typed).__name__,
+            }
+            retry_after = getattr(typed, "retry_after", None)
+            if retry_after is not None:
+                payload["retry_after"] = retry_after
+            return payload
         except Exception as e:
             logger.error(f"LLM unexpected error: {e}")
             if raise_errors:
@@ -171,13 +274,24 @@ class LLMBridge:
         final_temperature = temperature if temperature is not None else settings.get("temperature", 0.7)
         final_max_tokens = max_tokens if max_tokens is not None else settings.get("max_tokens", 2048)
 
+        try:
+            clamp = _clamp_request(final_model, final_max_tokens, messages, tools)
+            final_max_tokens = clamp.output_tokens
+        except (UnknownModelError, ModelLimitExceeded, ValueError) as exc:
+            logger.warning(f"LLM streaming request refused by model limits: {exc}")
+            yield {"error": "model_limit", "detail": str(exc)}
+            return
+        if clamp.clamped:
+            logger.info(f"LLM streaming request clamped: {clamp.to_dict()}")
+
         headers = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         payload = {
             "model": final_model,
-            "messages": messages,
+            # Tool results are fenced as untrusted data on the way out (IDEA-030).
+            "messages": fence_tool_messages(messages),
             "temperature": final_temperature,
             "max_tokens": final_max_tokens,
             "stream": True,
@@ -190,7 +304,14 @@ class LLMBridge:
             payload["tool_choice"] = tool_choice
         if response_format:
             payload["response_format"] = response_format
-        
+
+        if self.cassette_mode == "replay":
+            for chunk in self._replay_response(payload, url):
+                yield chunk
+            return
+
+        recorded_chunks = []
+        stream_completed = False
         try:
             # Use injected client if provided, otherwise use shared client
             client_to_use = self.client if self.client else await get_shared_client(self.timeout)
@@ -205,18 +326,34 @@ class LLMBridge:
                         try:
                             import json
                             chunk = json.loads(data)
+                            if self.cassette_mode == "record":
+                                recorded_chunks.append(chunk)
                             yield chunk
                         except json.JSONDecodeError:
                             logger.warning(f"Failed to parse streaming chunk: {data}")
+            stream_completed = True
         except httpx.TimeoutException as e:
             logger.warning(f"LLM streaming timeout: {e}")
             yield {"error": "timeout", "detail": str(e)}
         except httpx.HTTPStatusError as e:
+            typed = from_response(e.response, model=final_model)
             logger.error(f"LLM streaming HTTP error {e.response.status_code}: {e}")
-            yield {"error": "http_error", "status": e.response.status_code, "detail": str(e)}
+            payload = {
+                "error": "http_error",
+                "status": e.response.status_code,
+                "detail": str(typed),
+                "category": type(typed).__name__,
+            }
+            retry_after = getattr(typed, "retry_after", None)
+            if retry_after is not None:
+                payload["retry_after"] = retry_after
+            yield payload
         except Exception as e:
             logger.error(f"LLM streaming unexpected error: {e}")
             yield {"error": "unknown", "detail": str(e)}
+
+        if stream_completed and self.cassette_mode == "record":
+            self._record_response(payload, url, recorded_chunks)
 
     async def get_models(self):
         """Fetches available models from the LLM API."""

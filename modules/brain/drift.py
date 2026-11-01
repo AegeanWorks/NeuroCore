@@ -52,7 +52,9 @@ class DriftMonitor:
             "provider_error_rate": (
                 provider_errors / max(1, len(provider_status))
             ),
-            "evaluation_pass_rate": float(evaluation.get("last_pass_rate", 1.0)),
+            # None before the first evaluation; no evaluation is no regression, so it reads 1.0.
+            "evaluation_pass_rate": float(
+                1.0 if evaluation.get("last_pass_rate") is None else evaluation["last_pass_rate"]),
             "memory_total": float(memory.get("total", memory.get("count", 0)) or 0),
             "knowledge_documents": float(knowledge.get("documents", 0) or 0),
         }

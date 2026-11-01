@@ -178,3 +178,19 @@ async def test_get_executor_class_unknown():
     """get_executor_class with unknown id should return None."""
     cls = await get_executor_class("unknown")
     assert cls is None
+
+@pytest.mark.asyncio
+async def test_a_high_risk_tool_is_held_before_the_sandbox(tmp_path, monkeypatch):
+    from modules.tools import approvals
+
+    store = approvals.ToolApprovals(str(tmp_path / "approvals.json"))
+    monkeypatch.setattr(approvals, "default_store", lambda: store)
+    executor = make_executor({"DeleteGoal": {
+        "definition": {"type": "function", "function": {"name": "DeleteGoal"}},
+        "enabled": True,
+    }})
+    result = await executor.receive(
+        make_input([make_tool_call("DeleteGoal", '{"goal_id": "1"}')]))
+
+    assert "Approval" in result["tool_results"][0]["content"]
+    assert [item["tool"] for item in store.pending()] == ["DeleteGoal"]

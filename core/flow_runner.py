@@ -737,6 +737,36 @@ class FlowRunner:
         sm = None
         episode = None
         enable_episode = episode_id is not None
+
+        # --- Run-scoped step journal (IDEA-1152) ---
+        journal = None
+        run_id = None
+        if settings.get("step_journal_enabled", False):
+            try:
+                from core.step_journal import StepJournal, derive_run_id
+
+                journal = StepJournal()
+                idempotency_key = (
+                    initial_input.get("_idempotency_key")
+                    if isinstance(initial_input, dict) else None
+                )
+                run_id = derive_run_id(self.flow_id, initial_input, idempotency_key)
+                run_state = journal.claim_run(run_id, self.flow_id, idempotency_key)
+                if run_state == "completed":
+                    stored = journal.completed_result(run_id)
+                    if stored is not None:
+                        return stored
+                if run_state in ("running", "completed"):
+                    return {
+                        "error": f"Run {run_id} is already in progress or finished; "
+                                 "a duplicate submission attached to it instead of running again.",
+                        "run_id": run_id,
+                        "duplicate": True,
+                    }
+            except Exception as exc:
+                logger.warning(f"[FlowRunner] Step journal unavailable: {exc}")
+                journal = None
+                run_id = None
         
         if enable_episode:
             try:
@@ -1007,8 +1037,33 @@ class FlowRunner:
                 if settings.get("debug_mode"):
                     debug_logger.log(self.flow_id, node_id, node_meta['name'], "input_resolved", {"input": node_input})
 
+                step_id = None
+                cached_output = None
+                if journal is not None:
+                    from core.step_journal import input_digest as _step_digest
+
+                    step_id = _step_digest(node_input)
+                    stored_status, stored_output = journal.lookup(run_id, node_id, step_id)
+                    if stored_status == "committed":
+                        cached_output = stored_output
+                    else:
+                        effectful = bool(
+                            node_meta.get("effectful")
+                            or node_meta.get("effect_class") == "effectful"
+                        )
+                        journal.begin(
+                            run_id, node_id, step_id, effectful=effectful,
+                            resolve_incomplete=bool(
+                                isinstance(initial_input, dict)
+                                and initial_input.get("_resolve_incomplete")
+                            ),
+                        )
+
                 try:
-                    status, output = await self._run_node(node_id, node_input, stream_queue=stream_queue)
+                    if cached_output is not None:
+                        status, output = "ok", cached_output
+                    else:
+                        status, output = await self._run_node(node_id, node_input, stream_queue=stream_queue)
 
                     if status == "missing":
                         # Fallback: Pass through if no executor found (e.g. missing module)
@@ -1037,6 +1092,14 @@ class FlowRunner:
 
                     node_outputs[node_id] = output
                     _accumulate_usage(output)
+                    if journal is not None and cached_output is None and step_id is not None:
+                        journal.commit(
+                            run_id, node_id, step_id, output,
+                            effectful=bool(
+                                node_meta.get("effectful")
+                                or node_meta.get("effect_class") == "effectful"
+                            ),
+                        )
 
                     if settings.get("debug_mode"):
                         debug_logger.log(self.flow_id, node_id, node_meta['name'], "end", {"output": output})
@@ -1140,16 +1203,27 @@ class FlowRunner:
             return {}
         
         # Execute with optional timeout
+        raw_result = None
         if timeout is not None and timeout > 0:
             try:
-                return await asyncio.wait_for(run_impl(), timeout=timeout)
+                raw_result = await asyncio.wait_for(run_impl(), timeout=timeout)
             except asyncio.TimeoutError:
                 error_msg = f"Flow execution timed out after {timeout} seconds"
                 if settings.get("debug_mode"):
                     debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_timeout", {"timeout": timeout})
                 logger.error(f"[FlowRunner] {error_msg}")
+                if journal is not None and run_id is not None:
+                    journal.finish_run(run_id, error=error_msg)
                 if raise_errors:
                     raise asyncio.TimeoutError(error_msg)
                 return {"error": error_msg}
         else:
-            return await run_impl()
+            raw_result = await run_impl()
+
+        if journal is not None and run_id is not None:
+            try:
+                error = raw_result.get("error") if isinstance(raw_result, dict) else None
+                journal.finish_run(run_id, result=raw_result, error=error)
+            except Exception as exc:
+                logger.warning(f"[FlowRunner] Could not finish run journal entry: {exc}")
+        return raw_result

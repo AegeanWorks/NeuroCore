@@ -7,6 +7,8 @@ import json
 import re
 import httpx
 from typing import List, Dict, Any, Optional
+from core.pinned_http import pinned_target
+from .admission import content_digest, require_admissible, scan_skill
 from .backend import SkillBackend
 
 logger = logging.getLogger(__name__)
@@ -35,20 +37,36 @@ class SkillService:
         """Get a skill by ID."""
         return self.backend.get_skill(skill_id)
     
+    @staticmethod
+    def _admit(content: str) -> Dict[str, Any]:
+        """Scan content before storage; enforce raises, observe returns the record."""
+        scan = scan_skill(content)
+        require_admissible(scan)
+        return scan.to_dict()
+
     def create_skill(self, name: str, description: str, content: str,
                      category: str = "general", tags: List[str] = None) -> Dict[str, Any]:
         """Create a new skill."""
         # Validate content format
         if not self._validate_skill_content(content):
             raise ValueError("Invalid skill content format")
-        
-        return self.backend.create_skill(name, description, content, category, tags)
+        scan = self._admit(content)
+
+        return self.backend.create_skill(name, description, content, category, tags, scan=scan)
     
     def update_skill(self, skill_id: str, **kwargs) -> Optional[Dict[str, Any]]:
-        """Update an existing skill."""
-        if "content" in kwargs and not self._validate_skill_content(kwargs["content"]):
-            raise ValueError("Invalid skill content format")
-        
+        """Update an existing skill; new content is scanned before it replaces the old text."""
+        if "content" in kwargs:
+            content = kwargs["content"]
+            if not self._validate_skill_content(content):
+                raise ValueError("Invalid skill content format")
+            existing = self.get_skill(skill_id) or {}
+            current = existing.get("scan") or {}
+            if current.get("content_sha256") == content_digest(content):
+                kwargs["scan"] = current
+            else:
+                kwargs["scan"] = self._admit(content)
+
         return self.backend.update_skill(skill_id, **kwargs)
     
     def delete_skill(self, skill_id: str) -> bool:
@@ -62,14 +80,16 @@ class SkillService:
         
         # Generate skill ID from name
         skill_id = self._generate_import_id(metadata["name"])
-        
+        scan = self._admit(file_content)
+
         return self.backend.import_skill(
             skill_id=skill_id,
             name=metadata["name"],
             description=metadata["description"],
             content=file_content,
             category=metadata.get("category", "general"),
-            tags=metadata.get("tags", [])
+            tags=metadata.get("tags", []),
+            scan=scan,
         )
     
     def import_from_url(self, url: str) -> Dict[str, Any]:
@@ -155,8 +175,11 @@ class SkillService:
                         "addresses are not allowed"
                     )
             
-            # Make the HTTP request
-            response = httpx.get(url, timeout=30.0)
+            # Connect to the address just vetted, not to the name: a second lookup on
+            # connect let DNS rebinding swap in a private address (IDEA-063).
+            target, host_header, extensions = pinned_target(url, resolved_ips[0])
+            with httpx.Client(timeout=30.0) as client:
+                response = client.get(target, headers=host_header, extensions=extensions)
             response.raise_for_status()
             
             # Validate content type before importing

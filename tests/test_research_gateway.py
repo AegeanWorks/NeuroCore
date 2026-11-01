@@ -57,6 +57,19 @@ def test_urls_must_be_https_allowlisted_and_public(monkeypatch):
         _validate_url("https://en.wikipedia.org/", hosts, resolver=private_resolver)
 
 
+async def test_a_fetch_connects_to_the_vetted_address_with_the_hostname_for_tls(monkeypatch, httpx_mock):
+    # IDEA-063: validation resolved the host, then httpx resolved it again on connect, so DNS
+    # rebinding could swap in a private address after the check passed.
+    monkeypatch.setattr(gateway.socket, "getaddrinfo", public_resolver)
+    httpx_mock.add_response(url="https://93.184.216.34/w/api.php?q=a", content=b"{}")
+    final_url, body = await gateway._safe_get("https://en.wikipedia.org/w/api.php?q=a",
+                                              ("en.wikipedia.org",))
+    assert (final_url, body) == ("https://en.wikipedia.org/w/api.php?q=a", b"{}")
+    request = httpx_mock.get_requests()[0]
+    assert request.headers["host"] == "en.wikipedia.org"
+    assert request.extensions["sni_hostname"] == "en.wikipedia.org"
+
+
 @pytest.mark.parametrize("address", ["127.0.0.1", "169.254.1.1", "192.168.1.1", "0.0.0.0"])
 def test_private_and_special_addresses_are_rejected(address):
     def resolver(host, port, **kwargs):

@@ -341,13 +341,13 @@ class TestToolErrorStrategy:
     @pytest.mark.asyncio
     async def test_continue_strategy_keeps_looping_after_tool_error(self):
         """With strategy='continue', a tool error should not stop the loop."""
-        tool_call = make_tool_call("BrokenTool", "{}")
+        tool_call = make_tool_call("Weather", "{}")
         responses = [
             make_llm_response("", tool_calls=[tool_call]),
             make_llm_response("Done despite tool error"),
         ]
 
-        executor = make_executor(library={"BrokenTool": "raise Exception('boom')"})
+        executor = make_executor(library={"Weather": "raise Exception('boom')"})
         executor.llm.chat_completion = AsyncMock(side_effect=responses)
 
         result = await executor.receive(
@@ -361,13 +361,13 @@ class TestToolErrorStrategy:
     @pytest.mark.asyncio
     async def test_stop_strategy_halts_loop_on_tool_error(self):
         """With strategy='stop', a tool error should stop the loop immediately."""
-        tool_call = make_tool_call("BrokenTool", "{}")
+        tool_call = make_tool_call("Weather", "{}")
         responses = [
             make_llm_response("", tool_calls=[tool_call]),
             make_llm_response("This should not be reached"),
         ]
 
-        executor = make_executor(library={"BrokenTool": "raise Exception('boom')"})
+        executor = make_executor(library={"Weather": "raise Exception('boom')"})
         executor.llm.chat_completion = AsyncMock(side_effect=responses)
 
         result = await executor.receive(
@@ -381,13 +381,13 @@ class TestToolErrorStrategy:
     @pytest.mark.asyncio
     async def test_tool_error_recorded_in_trace(self):
         """Tool errors should be recorded in the iteration trace."""
-        tool_call = make_tool_call("BrokenTool", "{}")
+        tool_call = make_tool_call("Weather", "{}")
         responses = [
             make_llm_response("", tool_calls=[tool_call]),
             make_llm_response("Finished"),
         ]
 
-        executor = make_executor(library={"BrokenTool": "raise Exception('test error')"})
+        executor = make_executor(library={"Weather": "raise Exception('test error')"})
         executor.llm.chat_completion = AsyncMock(side_effect=responses)
 
         result = await executor.receive(
@@ -396,8 +396,8 @@ class TestToolErrorStrategy:
         )
 
         first_trace = result["agent_loop_trace"][0]
-        assert "BrokenTool" in first_trace["tool_calls"]
-        assert any("BrokenTool" in e for e in first_trace["errors"])
+        assert "Weather" in first_trace["tool_calls"]
+        assert any("Weather" in e for e in first_trace["errors"])
 
     @pytest.mark.asyncio
     async def test_successful_tool_no_error_in_trace(self):
@@ -1709,3 +1709,201 @@ class TestRLMBugFixes:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+@pytest.mark.asyncio
+async def test_every_agent_loop_executor_holds_a_high_risk_tool(tmp_path, monkeypatch):
+    from modules.tools import approvals
+
+    store = approvals.ToolApprovals(str(tmp_path / "approvals.json"))
+    monkeypatch.setattr(approvals, "default_store", lambda: store)
+    call = {"id": "c1", "function": {"name": "DeleteGoal", "arguments": '{"goal_id": "1"}'}}
+    library = {"DeleteGoal": "result = 'the sandbox must not run this'"}
+
+    loop = AgentLoopExecutor()
+    loop._sandbox.execute = MagicMock(side_effect=AssertionError("sandbox ran"))
+    result = await loop._execute_tool(call, library)
+    assert "Approval" in result["content"]
+    loop._sandbox.execute.assert_not_called()
+
+    rlm = RLMAgentLoopExecutor()
+    rlm._sandbox.execute = MagicMock(side_effect=AssertionError("sandbox ran"))
+    result = await rlm._execute_tool(call, library, {})
+    assert "Approval" in result["content"]
+    rlm._sandbox.execute.assert_not_called()
+
+    hybrid = HybridAgentExecutor()
+    hybrid._sandbox.execute = MagicMock(side_effect=AssertionError("sandbox ran"))
+    result = await hybrid._execute_tool(call, library, {}, large_output_threshold=3000)
+    assert "Approval" in result["content"]
+    hybrid._sandbox.execute.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_a_mutated_system_message_is_restored_before_the_next_model_call():
+    ex = AgentLoopExecutor()
+    seen = []
+    calls = {"n": 0}
+
+    async def fake_llm(messages, **_kwargs):
+        seen.append([item.get("content") for item in messages if item.get("role") == "system"])
+        calls["n"] += 1
+        if calls["n"] == 1:
+            messages[0]["content"] = "tampered"
+            return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "1", "function": {"name": "Calculator", "arguments": "{}"}}]}}]}
+        return {"choices": [{"message": {"role": "assistant", "content": "done"}}]}
+
+    setattr(ex, "_llm_with_retry", fake_llm)
+    setattr(ex, "_execute_tool", AsyncMock(return_value={
+        "tool_call_id": "1", "role": "tool", "name": "Calculator",
+        "content": "2", "success": True,
+    }))
+    trace = []
+    await ex._run_agent_loop(
+        llm_messages=[{"role": "system", "content": "pinned"},
+                      {"role": "user", "content": "go"}],
+        tools_list=[], tool_library={"Calculator": "result = '2'"}, model="test",
+        temperature=0.0, max_tokens=100, max_iterations=3, max_llm_retries=1,
+        retry_delay=0, tool_error_strategy="continue", trace=trace,
+        compact_threshold=0, compact_keep_last=6,
+    )
+
+    assert seen[0] == ["pinned"] and seen[1] == ["pinned"]
+    assert any(item.get("integrity_violation") for item in trace)
+
+@pytest.mark.asyncio
+async def test_the_rlm_loop_restores_a_mutated_system_message():
+    ex = RLMAgentLoopExecutor()
+    seen = []
+    calls = {"n": 0}
+
+    async def fake_llm(messages, **_kwargs):
+        seen.append([item.get("content") for item in messages if item.get("role") == "system"][0])
+        calls["n"] += 1
+        if calls["n"] == 1:
+            messages[0]["content"] = "tampered"
+        if calls["n"] <= 2:
+            return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"id": str(calls["n"]), "function": {"name": "Echo", "arguments": "{}"}}]}}]}
+        return {"choices": [{"message": {"role": "assistant", "content": "final answer"}}]}
+
+    async def fake_execute_tool(tool_call, library, repl_state):
+        return {"role": "tool", "tool_call_id": "1", "content": "ok", "success": True}
+
+    setattr(ex, "_llm_with_retry", fake_llm)
+    repl_state = {"variables": {}, "stdout_history": [], "iteration": 0,
+                  "_var_counts": {}, "final": None}
+    trace = []
+    with patch.object(ex, "_execute_tool", side_effect=fake_execute_tool):
+        await ex._run_rlm_loop(
+            initial_messages=[{"role": "system", "content": "pinned"},
+                              {"role": "user", "content": "go"}],
+            repl_state=repl_state, tools_list=[], tool_library={"Echo": ""},
+            model="test", config={"max_iterations": 3, "max_llm_retries": 1, "retry_delay": 0},
+            trace=trace,
+        )
+    assert seen[0] == "pinned" and seen[1] == "pinned"
+    assert any(item.get("integrity_violation") for item in trace)
+
+
+@pytest.mark.asyncio
+async def test_the_hybrid_loop_restores_a_mutated_system_message():
+    ex = HybridAgentExecutor()
+    seen = []
+    calls = {"n": 0}
+
+    async def fake_llm(messages, **_kwargs):
+        seen.append([item.get("content") for item in messages if item.get("role") == "system"][0])
+        calls["n"] += 1
+        if calls["n"] == 1:
+            messages[0]["content"] = "tampered"
+            return {"choices": [{"message": {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "1", "function": {"name": "Calculator", "arguments": "{}"}}]}}]}
+        return {"choices": [{"message": {"role": "assistant", "content": "done"}}]}
+
+    async def fake_execute_tool(tool_call, library, repl_state, large_output_threshold):
+        return {"tool_call_id": "1", "role": "tool", "name": "Calculator",
+                "content": "2", "success": True}
+
+    setattr(ex, "_llm_with_retry", fake_llm)
+    trace = []
+    with patch.object(ex, "_execute_tool", side_effect=fake_execute_tool):
+        await ex._run_hybrid_loop(
+            llm_messages=[{"role": "system", "content": "pinned"},
+                          {"role": "user", "content": "go"}],
+            tools_list=[], tool_library={"Calculator": ""}, repl_state={"variables": {}},
+            model="test", temperature=0.0, max_tokens=100, max_iterations=3,
+            max_llm_retries=1, retry_delay=0, tool_error_strategy="continue",
+            large_output_threshold=3000, trace=trace,
+        )
+    assert seen[0] == "pinned" and seen[1] == "pinned"
+    assert any(item.get("integrity_violation") for item in trace)
+
+
+@pytest.mark.asyncio
+async def test_delegation_contract_enforces_capability_in_agent_loop():
+    from core.delegation import DelegationContract
+    ex = AgentLoopExecutor()
+    contract = DelegationContract(
+        task_id="step-1",
+        delegatee_role="researcher",
+        capability_set=("Calculator",),
+        expected_output_schema={"content": str},
+    ).validate()
+
+    # Tool call to unapproved tool "RunCommand"
+    call = {"function": {"name": "RunCommand", "arguments": "{}"}, "id": "tc1"}
+    ex.set_delegation_contract(contract)
+    result = await ex._execute_tool(call, {"RunCommand": "code", "Calculator": "code"})
+    assert result["success"] is False
+    assert "role 'researcher' may not use tool 'RunCommand'" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_handoff_packet_tracks_delivery_and_acceptance_in_agent_loop():
+    from core.handoff import new_packet
+    ex = AgentLoopExecutor()
+    packet = new_packet(
+        packet_id="pkt-1",
+        from_step="planner",
+        to_step="coder",
+        context_summary="implement feature X",
+    )
+    ex.llm = MagicMock()
+    ex.llm.chat_completion = AsyncMock(return_value={
+        "choices": [{"message": {"role": "assistant", "content": "Feature X implemented"}}]
+    })
+
+    out = await ex.receive(
+        {"messages": [{"role": "user", "content": "implement"}], "_handoff_packet": packet.as_dict()},
+        config={"max_iterations": 1},
+    )
+    assert "_handoff_packet" in out
+    assert out["_handoff_packet"]["status"] == "accepted"
+    assert out["_handoff_packet"]["delivered_at"] is not None
+    assert out["_handoff_packet"]["accepted_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_delegation_contract_enforced_in_hybrid_and_rlm_executors():
+    from core.delegation import DelegationContract
+    from modules.agent_loop.node import HybridAgentExecutor, RLMAgentLoopExecutor
+    contract = DelegationContract(
+        task_id="t1",
+        delegatee_role="auditor",
+        capability_set=("ReadLog",),
+    ).validate()
+
+    # Hybrid
+    hybrid_ex = HybridAgentExecutor()
+    hybrid_ex.set_delegation_contract(contract)
+    call = {"function": {"name": "WriteFile", "arguments": "{}"}, "id": "tc1"}
+    h_res = await hybrid_ex._execute_tool(call, {"WriteFile": "code", "ReadLog": "code"}, repl_state={}, large_output_threshold=1000)
+    assert h_res["success"] is False
+    assert "role 'auditor' may not use tool 'WriteFile'" in h_res["content"]
+
+    # RLM
+    rlm_ex = RLMAgentLoopExecutor()
+    rlm_ex.set_delegation_contract(contract)
+    r_res = await rlm_ex._execute_tool(call, {"WriteFile": "code", "ReadLog": "code"}, repl_state={})
+    assert r_res["success"] is False
+    assert "role 'auditor' may not use tool 'WriteFile'" in r_res["content"]

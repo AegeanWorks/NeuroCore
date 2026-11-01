@@ -99,14 +99,14 @@ async def test_replan_needed_on_tool_error():
         "choices": [{
             "message": {
                 "content": "Using tool",
-                "tool_calls": [{"id": "1", "function": {"name": "TestTool", "arguments": "{}"}}]
+                "tool_calls": [{"id": "1", "function": {"name": "Weather", "arguments": "{}"}}]
             }
         }]
     })
     
     # Tool library with actually failing tool (raises exception)
     with patch.object(executor, '_load_tool_library', return_value={
-        "TestTool": "raise Exception('Tool failed')"
+        "Weather": "raise Exception('Tool failed')"
     }):
         result = await executor.receive(input_data, config={"max_iterations": 5})
     
@@ -336,14 +336,14 @@ async def test_replan_count_increments_each_failure():
         "choices": [{
             "message": {
                 "content": "Using tool",
-                "tool_calls": [{"id": "1", "function": {"name": "TestTool", "arguments": "{}"}}]
+                "tool_calls": [{"id": "1", "function": {"name": "Weather", "arguments": "{}"}}]
             }
         }]
     })
     
     # Tool library with actually failing tool (raises exception)
     with patch.object(executor, '_load_tool_library', return_value={
-        "TestTool": "raise Exception('Tool failed')"
+        "Weather": "raise Exception('Tool failed')"
     }):
         result = await executor.receive(input_data, config={"max_replan_depth": 5})
     

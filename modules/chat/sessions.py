@@ -244,6 +244,21 @@ class SessionManager:
 
         return self._mutate(mutate)
 
+    def update_message(self, session_id, index, **fields):
+        """Update one stored message in place; a stale index changes nothing."""
+        def mutate():
+            session = self.sessions.get(session_id)
+            if not session or not isinstance(index, int):
+                return False, False
+            history = session.get("history", [])
+            if index < 0 or index >= len(history):
+                return False, False
+            history[index].update(fields)
+            session["updated_at"] = _now_iso()
+            return True, True
+
+        return self._mutate(mutate)
+
     def _get_session_snapshot(self, session_id: str):
         """Get a snapshot of session data under lock. Called from async context via to_thread."""
         with self._lock:

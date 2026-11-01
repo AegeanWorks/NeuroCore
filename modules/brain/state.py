@@ -13,7 +13,8 @@ from .persistence import LedgerLock, atomic_write_json
 
 logger = logging.getLogger(__name__)
 
-VALID_MODES = ("observe", "suggest")
+# autonomous: the brain also acts on its own allow-listed proposals (ADR-067).
+VALID_MODES = ("observe", "suggest", "autonomous")
 
 
 def utc_now() -> str:
@@ -25,6 +26,8 @@ class BrainState:
     """Observable state of the brain control plane."""
 
     mode: str = "observe"
+    # The mode the operator last chose; config mode applies only until one exists (ADR-068).
+    operator_mode: Optional[str] = None
     running: bool = False
     started_at: Optional[str] = None
     last_cycle_at: Optional[str] = None
@@ -33,6 +36,7 @@ class BrainState:
     last_error: Optional[str] = None
     last_snapshot: Dict[str, Any] = field(default_factory=dict)
     proposals: list = field(default_factory=list)
+    actions: list = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -43,15 +47,20 @@ class BrainState:
         if not isinstance(data, dict):
             return state
         for key in (
-            "mode", "running", "started_at", "last_cycle_at", "cycle_count",
-            "throttled", "last_error", "last_snapshot", "proposals",
+            "mode", "operator_mode", "running", "started_at", "last_cycle_at",
+            "cycle_count", "throttled", "last_error", "last_snapshot", "proposals",
+            "actions",
         ):
             if key in data:
                 setattr(state, key, data[key])
         if state.mode not in VALID_MODES:
             state.mode = "observe"
+        if state.operator_mode not in VALID_MODES:
+            state.operator_mode = None
         if not isinstance(state.proposals, list):
             state.proposals = []
+        if not isinstance(state.actions, list):
+            state.actions = []
         if not isinstance(state.last_snapshot, dict):
             state.last_snapshot = {}
         return state

@@ -1,6 +1,12 @@
+import logging
+
 from core.settings import settings
 from core.llm import LLMBridge
+from core.untrusted import wrap_untrusted
 from .backend import document_store
+from .embedding_space import EmbeddingSpaceMismatch
+
+logger = logging.getLogger(__name__)
 
 # Module-level cached LLM bridge instance for KnowledgeQueryExecutor
 _llm_bridge_instance = None
@@ -62,14 +68,27 @@ class KnowledgeQueryExecutor:
 
         limit = int(config.get("limit", 3))
         
+        retrieval_error = ""
         if embedding:
-            results = document_store.search_hybrid(query, embedding, limit)
+            try:
+                results = document_store.search_hybrid(query, embedding, limit)
+            except EmbeddingSpaceMismatch as exc:
+                logger.warning("Knowledge retrieval refused: %s", exc)
+                results = []
+                retrieval_error = str(exc)
         else:
             results = document_store.search_keyword(query, limit)
-        
-        context_str = "\n\n".join([f"--- Source: {r['source']} (Page {r.get('page', '?')}) ---\n{r['content']}" for r in results])
-        
+
         output = input_data.copy() if isinstance(input_data, dict) else {"original": input_data}
+        if retrieval_error:
+            output["knowledge_context"] = f"[Knowledge retrieval refused: {retrieval_error}]"
+            return output
+
+        # Each retrieved chunk is fenced as data: a document can carry instructions (IDEA-030).
+        context_str = "\n\n".join([
+            f"--- Source: {r['source']} (Page {r.get('page', '?')}) ---\n"
+            + wrap_untrusted(r['content'], f"document {r['source']}")
+            for r in results])
         output["knowledge_context"] = context_str
         
         # Don't inject into messages - let System Prompt handle the injection

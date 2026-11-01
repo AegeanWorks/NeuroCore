@@ -1,4 +1,5 @@
-<div id="chat-gui-container" class="flex flex-col h-full">
+<div id="chat-gui-container" class="flex h-full gap-4">
+    <div class="flex flex-col flex-grow min-w-0 h-full">
     {% if session %}
         <div class="border-b border-slate-800 pb-4 mb-4 flex justify-between items-center">
             <div>
@@ -109,8 +110,32 @@
                     </div>
                     {% endif %}
 
+                    {% set message_index = loop.index0 %}
                     <div class="bg-slate-800 p-4 rounded-2xl rounded-tl-none max-w-[80%] shadow-lg border border-slate-700/50">
+                        {% if msg.source == 'brain' %}
+                        <div class="mb-2 text-[10px] font-semibold uppercase tracking-wide text-violet-400">AI Brain</div>
+                        {% endif %}
                         <div class="text-sm prose prose-invert markdown-content">{{ msg.content }}</div>
+                        {% if msg.commands %}
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            {% for command in msg.commands %}
+                                {% if command.status == 'suggested' %}
+                                <button type="button"
+                                        data-brain-command="{{ command.name }}"
+                                        data-brain-args='{{ (command.args or {}) | tojson }}'
+                                        data-session-id="{{ session.id }}"
+                                        data-message-index="{{ message_index }}"
+                                        class="rounded-lg border border-violet-700/60 bg-violet-950/40 px-2.5 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/60">
+                                    Run {{ command.name }}
+                                </button>
+                                {% else %}
+                                <span class="rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-400">
+                                    {{ command.name }} · {{ command.status }}
+                                </span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 {% endfor %}
@@ -335,6 +360,8 @@
         </div>
     </dialog>
     {% endif %}
+    </div>
+    {% if brain_available %}{% include 'brain_rail.html' %}{% endif %}
 </div>
 
 <style>
@@ -380,6 +407,47 @@
     document.querySelectorAll('.markdown-content').forEach(el => {
         el.innerHTML = marked.parse(el.textContent);
     });
+
+    // Brain command buttons in static history and streamed replies share this handler.
+    if (!window.__brainCommandHandler) {
+        window.__brainCommandHandler = true;
+        document.body.addEventListener('click', async function (event) {
+            const button = event.target.closest('[data-brain-command]');
+            if (!button || button.disabled) return;
+            event.preventDefault();
+            const name = button.dataset.brainCommand;
+            let args = {};
+            try { args = JSON.parse(button.dataset.brainArgs || '{}'); } catch (error) { args = {}; }
+            const sessionId = button.dataset.sessionId;
+            const rawIndex = button.dataset.messageIndex;
+            const hasIndex = rawIndex !== undefined && rawIndex !== '' && rawIndex !== 'null';
+            const url = sessionId && hasIndex
+                ? '/chat/sessions/' + encodeURIComponent(sessionId) + '/brain/commands'
+                : '/brain/commands';
+            const payload = { name: name, args: args };
+            if (hasIndex) payload.index = Number(rawIndex);
+            const original = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Running…';
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const body = await response.json().catch(function () { return {}; });
+                if (!response.ok) throw new Error(body.detail || ('HTTP ' + response.status));
+                const status = document.createElement('span');
+                status.className = 'rounded-lg border border-slate-700 bg-slate-900/60 px-2.5 py-1.5 text-xs text-slate-400';
+                status.textContent = name + ' · ' + (body.status || 'done');
+                button.replaceWith(status);
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = original;
+                alert('Could not run ' + name + ': ' + error.message);
+            }
+        });
+    }
 
     // Pre-fill message input from ?goal= URL param (set by Goals page "Run with Agent" button)
     (function() {

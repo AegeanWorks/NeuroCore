@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `286`
-- **Total Classes**: `403`
-- **Total Top-Level Functions**: `1884`
-- **Total Class Methods**: `2170`
-- **Total Source Lines**: `79807`
+- **Total Python Modules**: `360`
+- **Total Classes**: `484`
+- **Total Top-Level Functions**: `2569`
+- **Total Class Methods**: `2375`
+- **Total Source Lines**: `94003`
 
 ---
 
@@ -29,6 +29,41 @@
 - `def _safe_member_path(dest_dir, member)` - *The absolute write path for `member`, or raise when it escapes `dest_dir`.*
 - `def _common_root(infos)` - *The single shared top-level directory of the archive as ``dir/``, or ``''``.*
 - `def extract_zip_safely(archive_path, dest_dir, strip_root, max_member_bytes, max_total_bytes)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
+
+---
+
+### [`core/cassette.py`](core/cassette.py)
+> *Recorded provider cassettes with deterministic replay (IDEA-619).*
+
+**Size**: `309` lines (`12884` bytes)
+
+**Classes:**
+- `class CassetteError` - *A cassette could not be built, saved or replayed.*
+- `class CassetteSchemaError` - *A cassette file is unreadable or declares a schema this build does not know.*
+- `class CassetteMiss` - *A request did not match the next recorded exchange.*
+  - Method `.__init__(position, mode, diff)`
+- `class CassetteTemplateMismatch` - *The cassette was recorded against a different prompt template.*
+  - Method `.__init__(recorded, current)`
+- `class Exchange` - *One recorded provider call: the request fingerprint and the replayed response.*
+  - Method `.to_dict()`
+  - Method `.from_dict(raw)`
+- `class Cassette` - *An ordered set of recorded exchanges with one matching mode.*
+  - Method `.__init__(*, mode, template_digest, exchanges)`
+  - Property `.exchanges`
+  - Property `.position` - *How many exchanges replay has consumed.*
+  - Method `.record(request, response, *, endpoint, template_digest)` - *Append one exchange; the request is stored as a digest and shape only.*
+  - Method `.replay(request, *, endpoint, template_digest)` - *Return the response of the next exchange, or raise ``CassetteMiss``.*
+  - Method `.save(path)` - *Write the cassette atomically; responses are redacted before the write.*
+  - Method `.load(path, *, mode)` - *Read a cassette; an unknown schema or mode is refused, never guessed.*
+  - Method `._check_template(current)`
+
+**Functions:**
+- `def _digest(value)` - *A stable SHA-256 over a JSON value, independent of key order.*
+- `def _shape(request, endpoint)` - *The structural fingerprint compared in structural mode.*
+- `def _shape_diff(expected, actual)`
+- `def _redact(value)` - *Mask named secrets and credential-shaped runs before anything is stored.*
+- `def _scrub_strings(value)`
+- `def _scrub_text(text)` - *Reuse the shipped guardrail patterns instead of duplicating a credential list.*
 
 ---
 
@@ -58,6 +93,28 @@
 
 ---
 
+### [`core/delegation.py`](core/delegation.py)
+> *Role/task delegation contract with capability bounds (IDEA-1242).*
+
+**Size**: `167` lines (`7502` bytes)
+
+**Classes:**
+- `class DelegationError` - *An invalid contract; the message carries Why and Fix.*
+- `class CapabilityRefused` - *A delegatee tried a tool its contract does not allow.*
+  - Method `.__init__(role, tool, allowed)`
+- `class DelegationDepthExceeded`
+  - Method `.__init__(depth, limit)`
+- `class DelegationContract`
+  - Method `.validate()`
+  - Method `.allows(tool)`
+  - Method `.require_tool(tool)`
+  - Method `.check_output(output)` - *Missing or wrongly typed fields; an empty list means the output was accepted.*
+  - Method `.child(task_id, delegatee_role, capability_set, **kwargs)` - *A nested contract one level deeper, bounded by ``MAX_DELEGATION_DEPTH``.*
+  - Method `.as_dict()`
+  - Method `.from_dict(data)`
+
+---
+
 ### [`core/dependencies.py`](core/dependencies.py)
 **Size**: `90` lines (`3727` bytes)
 
@@ -70,10 +127,28 @@
 
 ---
 
+### [`core/episode_identity.py`](core/episode_identity.py)
+> *Episode identity and the resume guard (IDEA-1110).*
+
+**Size**: `130` lines (`4957` bytes)
+
+**Functions:**
+- `def _clean(value)`
+- `def _tool_names(config)`
+- `def canonical_projection(input_data, config)` - *The stable part of a request that must match before a resume is allowed.*
+- `def digest_projection(projection)`
+- `def input_digest(input_data, config)`
+- `def normalise_policy(policy)`
+- `def resume_decision(existing_sha, current_sha, policy, resume_any)` - *Return ``resume``, ``new`` or ``ask`` for one episode comparison.*
+- `def resume_guard(episode, input_data, config, policy)` - *Compare an existing episode with this request.*
+- `def prepare_resume(session_manager, episode, input_data, config)` - *Guard one candidate episode, pausing it when it must not be resumed.*
+
+---
+
 ### [`core/errors.py`](core/errors.py)
 > *Error Hierarchy for NeuroCore*
 
-**Size**: `157` lines (`4321` bytes)
+**Size**: `214` lines (`6624` bytes)
 
 **Classes:**
 - `class NeuroCoreError` - *Base exception for all NeuroCore errors.*
@@ -85,6 +160,14 @@
 - `class LLMHTTPError` - *Raised when LLM returns an HTTP error.*
   - Method `.__init__(message, status_code, model, details)`
 - `class LLMResponseError` - *Raised when LLM returns an invalid or unexpected response.*
+- `class LLMRateLimitError` - *A provider rate limit; carries the server's Retry-After hint when present (IDEA-891).*
+  - Method `.__init__(message, status_code, retry_after, provider, model, details)`
+- `class LLMContextWindowError` - *The prompt is larger than the model's context window; retrying cannot help.*
+  - Method `.__init__(message, provider, model, details)`
+- `class LLMAuthError` - *Provider authentication or permission failure; fail fast and fix configuration.*
+  - Method `.__init__(message, provider, model, details)`
+- `class LLMBudgetError` - *Provider-side budget or payment failure; retrying cannot help.*
+  - Method `.__init__(message, provider, model, details)`
 - `class ToolError` - *Base class for tool-related errors.*
   - Method `.__init__(message, tool_name, details)`
 - `class ToolExecutionError` - *Raised when tool execution fails.*
@@ -101,6 +184,7 @@
 - `class ModuleLoadError` - *Raised when a module fails to load.*
 - `class MemoryError` - *Base class for memory-related errors.*
 - `class MemoryConsolidationError` - *Raised when memory consolidation fails.*
+- `class MemoryContentBlocked` - *Raised when guardrails in enforce mode refuse text bound for memory or goals (IDEA-334).*
 
 **Functions:**
 - `def exception_to_dict(exc)` - *Convert any exception to a dict representation.*
@@ -330,7 +414,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1155` lines (`55625` bytes)
+**Size**: `1229` lines (`59171` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -373,12 +457,40 @@
 
 ---
 
+### [`core/handoff.py`](core/handoff.py)
+> *Handoff packets with delivery, acceptance and bounded retry (IDEA-1243).*
+
+**Size**: `170` lines (`6561` bytes)
+
+**Classes:**
+- `class HandoffError` - *An invalid packet; the message carries Why and Fix.*
+- `class HandoffPacket`
+  - Method `.validate()`
+  - Property `.accepted`
+  - Method `.as_dict()`
+  - Method `.from_dict(data)`
+
+**Functions:**
+- `def _clip(text, limit)`
+- `def new_packet(packet_id, from_step, to_step, context_summary, artifacts, context_items, retry_limit)`
+- `def deliver(packet, now)` - *Mark the packet delivered; delivery is not acceptance.*
+- `def accept(packet, output, acceptance_check, now)` - *Run the acceptance check; a failure rejects and re-queues while retries remain.*
+- `def reject(packet, reason, now)` - *Reject and either re-queue for another delivery or mark the retries exhausted.*
+- `def replay_queue(packets)` - *Packets still waiting to be delivered, oldest first, for a crash-recovery sweep.*
+- `def summarise(packets)`
+
+---
+
 ### [`core/llm.py`](core/llm.py)
-**Size**: `272` lines (`11708` bytes)
+**Size**: `409` lines (`17493` bytes)
 
 **Classes:**
 - `class LLMBridge`
-  - Method `.__init__(base_url, api_key, embedding_base_url, embedding_model, client, timeout)`
+  - Method `.__init__(base_url, api_key, embedding_base_url, embedding_model, client, timeout, cassette_mode, cassette_path, cassette_match, template_digest)`
+  - Method `._get_cassette()` - *Load or create the cassette lazily so live mode never touches the filesystem.*
+  - Property `.cassette`
+  - Method `._replay_response(payload, url)`
+  - Method `._record_response(payload, url, response)`
   - Method `._get_url(path, use_embedding_url)` - *Constructs a full URL for the given path.*
   - Method `async def .chat_completion(messages, model, temperature, max_tokens, tools, tool_choice, response_format, raise_errors)` - *Sends a chat completion request to the LLM API.*
   - Method `async def .chat_completion_stream(messages, model, temperature, max_tokens, tools, tool_choice, response_format)` - *Sends a streaming chat completion request to the LLM API.*
@@ -386,9 +498,24 @@
   - Method `async def .get_embedding(text, model)` - *Generates an embedding vector for the given text.*
 
 **Functions:**
+- `def _estimate_context_tokens(messages, tools)` - *A cheap provider-independent context estimate; the limit is a guard, not billing.*
+- `def _clamp_request(model, max_tokens, messages, tools)` - *Apply settings model limits; returns a ClampResult (or raises a model-limit error).*
 - `def get_client_lock()` - *Get or create the client lock lazily to avoid loop-affinity issues.*
 - `async def get_shared_client(timeout)` - *Get or create a shared AsyncClient for connection pooling.*
 - `async def close_shared_client()` - *Close the shared client. Call on application shutdown.*
+
+---
+
+### [`core/llm_errors.py`](core/llm_errors.py)
+> *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
+
+**Size**: `95` lines (`3412` bytes)
+
+**Functions:**
+- `def retry_after_seconds(value, *, now)` - *Parse a Retry-After seconds value or HTTP date into non-negative seconds.*
+- `def _provider(response)`
+- `def from_response(response, model)` - *Map one failed provider response to the closest typed exception.*
+- `def is_retryable(error)` - *Whether the retry layer may run the same request again.*
 
 ---
 
@@ -409,6 +536,29 @@
   - Method `._rewire(member_index, edge, node_map, label)`
   - Method `._auto_pathways(members)`
   - Method `._boundaries(flow)`
+
+---
+
+### [`core/model_registry.py`](core/model_registry.py)
+> *Per-model request limits with explicit, recorded clamping (IDEA-588).*
+
+**Size**: `165` lines (`6652` bytes)
+
+**Classes:**
+- `class UnknownModelError` - *A model id is not in the registry while strict limits are enabled.*
+- `class ModelLimitExceeded` - *A request cannot be represented within the model's declared limits.*
+- `class ModelLimits` - *The two ceilings every request for one model must respect.*
+- `class ClampField` - *One field whose requested value was reduced to an applied value.*
+- `class ClampResult` - *The applied request values and every field that had to change.*
+  - Method `.to_dict()`
+- `class ModelRegistry` - *Resolve model ids and clamp request values against declared limits.*
+  - Method `.__init__(limits, *, strict)`
+  - Property `.enabled`
+  - Method `._positive(value, field, model_id)`
+  - Method `._parse(model_id, raw)`
+  - Method `.from_settings(values)` - *Build the registry from the settings dict; empty limits disable it.*
+  - Method `.resolve(model_id)` - *Exact id first, then a declared alias, then refusal only in strict mode.*
+  - Method `.clamp(model_id, *, output_tokens, context_tokens, require_exact)` - *Apply the model's ceilings without mutating the caller's values.*
 
 ---
 
@@ -438,7 +588,7 @@
 ### [`core/node_retry.py`](core/node_retry.py)
 > *Opt-in per-node retry policy with bounded exponential backoff (ADR-060).*
 
-**Size**: `140` lines (`5586` bytes)
+**Size**: `145` lines (`5815` bytes)
 
 **Classes:**
 - `class RetryPolicy` - *How many times a node may be retried and how long to wait between attempts.*
@@ -482,7 +632,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1000` lines (`36529` bytes)
+**Size**: `1048` lines (`38448` bytes)
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -494,6 +644,8 @@
   - Method `.__exit__(exc_type, exc_val, exc_tb)`
 - `class TraceContext` - *Context for distributed tracing.*
   - Method `.__post_init__()`
+  - Method `.sampling_decision(rate)` - *One decision at the root; 0 and 1 are deterministic, anything else is one draw.*
+  - Method `.current_ids()`
   - Method `.add_span(name, kind, attributes, parent_id)` - *Create and start a new span.*
   - Method `.end_span(status, error)` - *End the current span.*
   - Method `.get_trace()` - *Get complete trace as list of span dicts.*
@@ -533,6 +685,8 @@
 - `def get_trace_context()` - *Get current trace context.*
 - `def get_trace_id()` - *Get current trace ID.*
 - `def get_or_create_trace_context()` - *Get current trace context or create a new one.*
+- `def current_span_ids()` - *Trace and span ids for stamping an outcome or a tool record; empty when untraced.*
+- `def start_root_trace(name, sampling, trace_id)` - *Start a root trace and record its sampling decision; children inherit it.*
 - `def create_trace_context(trace_id)` - *Create a new trace context with optional trace ID.*
 - `def trace(span_name, kind, attributes)` - *Context manager for creating spans.*
 - `def trace_async(span_name, kind, attributes)` - *Context manager for creating spans in async context.*
@@ -556,12 +710,13 @@
 ### [`core/outcomes.py`](core/outcomes.py)
 > *Small, dependency-free outcome hook used by FlowRunner and the brain.*
 
-**Size**: `30` lines (`818` bytes)
+**Size**: `53` lines (`1867` bytes)
 
 **Functions:**
+- `def set_trace_provider(provider)` - *Register the function that returns the active trace/span ids.*
 - `def set_outcome_listener(listener)`
 - `def clear_outcome_listener(listener)`
-- `def emit_outcome(outcome)`
+- `def emit_outcome(outcome)` - *Deliver an outcome with the current trace/span ids attached when a trace is active.*
 
 ---
 
@@ -574,6 +729,16 @@
 - `def project_path(*parts)` - *Return an absolute path inside the NeuroCore project root.*
 - `def state_path(*parts)` - *Return a path for mutable state, honouring NEUROCORE_STATE_DIR.*
 - `def data_path(*parts)` - *Return a path in the data directory: databases, keys, traces, uploads and ledgers.*
+
+---
+
+### [`core/pinned_http.py`](core/pinned_http.py)
+> *Send a request to the exact address an SSRF check approved (IDEA-063).*
+
+**Size**: `25` lines (`1268` bytes)
+
+**Functions:**
+- `def pinned_target(url, address)` - *``(url on the address, headers, request extensions)`` for fetching ``url`` from ``address``.*
 
 ---
 
@@ -595,7 +760,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `403` lines (`15632` bytes)
+**Size**: `420` lines (`16499` bytes)
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -610,6 +775,7 @@
 - `def sources()`
 - `def _now()`
 - `def _strip_markup(text)`
+- `def _vetted_address(url, allowed_hosts, resolver)` - *Require HTTPS, an allowlisted host and only public answers; return the address to connect to.*
 - `def _validate_url(url, allowed_hosts, resolver)` - *Require HTTPS, an allowlisted host and a public address for every hop.*
 - `async def _safe_get(url, allowed_hosts)` - *Fetch one page, validating the start URL and every redirect hop.*
 - `def build_request(source, query, limit)`
@@ -675,6 +841,28 @@
 **Functions:**
 - `def _now()`
 - `def get_research_manager_instance()`
+
+---
+
+### [`core/retention.py`](core/retention.py)
+> *Two-tier episode retention with a reuse guard (IDEA-1153).*
+
+**Size**: `211` lines (`7881` bytes)
+
+**Classes:**
+- `class RetentionPolicy` - *Operator-facing knobs; every duration is in days.*
+  - Method `.validate()`
+
+**Functions:**
+- `def _parse(value)`
+- `def compute_retention(completed_at, policy, has_journal)` - *Return both expiry stamps; the journal expiry is capped by the completion expiry.*
+- `def _iso(value)`
+- `def _episode_files(episode_dir, page_size)`
+- `def _tombstone_path(episode_dir)`
+- `def _read_tombstones(episode_dir)`
+- `def _write_tombstones(episode_dir, tombstones)`
+- `def purge_tombstoned(episode_dir, episode_id)` - *The purge record for an id, if a predecessor was quarantined.*
+- `def prune_episodes(episode_dir, policy, now, dry_run, page_size, purge_journal)` - *Scan completed episodes and quarantine the expired ones, in bounded pages.*
 
 ---
 
@@ -905,7 +1093,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1037` lines (`36537` bytes)
+**Size**: `1206` lines (`44217` bytes)
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -917,11 +1105,16 @@
   - Method `._parse_timestamp(ts)` - *Parse ISO timestamp to unix timestamp.*
   - Method `.clear()` - *Clear trace file (for testing).*
 - `class EpisodeState` - *Represents the persistent state of an episode (long-running autonomous task).*
-  - Method `.__init__(episode_id, session_id, phase, replan_count, completed_steps, budgets, current_step, plan, messages, input_data, checkpoints, metadata)`
+  - Method `.__init__(episode_id, session_id, phase, replan_count, completed_steps, budgets, current_step, plan, messages, input_data, checkpoints, metadata, input_sha256, input_projection, tool_journal, completed_at, expires_at, journal_expires_at, generation)`
   - Method `.to_dict()` - *Convert to dictionary for serialization.*
   - Method `.from_dict(data)` - *Create EpisodeState from dictionary.*
-  - Method `.add_checkpoint()` - *Add a checkpoint with current timestamp.*
+  - Method `.add_checkpoint(source, step, input_sha256, input_projection)` - *Append an identified checkpoint and return it.*
+  - Method `.latest_checkpoint()`
+  - Method `.journal_lookup(call_id)` - *The newest journal entry for one tool-call id, or None.*
+  - Method `.add_journal_entry(entry, limit)` - *Append a journal entry, compacting the oldest completed entries past ``limit``.*
+  - Method `.update_journal_entry(call_id, **fields)`
   - Method `.update_phase(new_phase)` - *Update the current phase.*
+  - Method `.stamp_retention(policy)` - *Record the completion time and both expiry stamps once the episode is terminal.*
 - `class SessionManager` - *Manages agent session persistence and tracing.*
   - Method `.__init__(session_file, trace_file, episode_dir)`
   - Method `._ensure_directory()` - *Ensure session file directory exists.*
@@ -949,9 +1142,9 @@
   - Method `._ensure_episode_directory()` - *Ensure episode file directory exists.*
   - Method `._load_episode_from_file()` - *Load episode state from file.*
   - Method `._save_episode_to_file(episode_data)` - *Save episode state to file (atomic write).*
-  - Method `.create_episode(input_data, budgets, metadata)` - *Create a new episode for tracking a long-running autonomous task.*
+  - Method `.create_episode(input_data, budgets, metadata, input_sha256, input_projection, episode_id)` - *Create a new episode for tracking a long-running autonomous task.*
   - Method `._save_episode_by_id_to_file(episode_id, episode_data)` - *Save episode state to file by episode ID (atomic write).*
-  - Method `.save_episode_state(phase, replan_count, completed_steps, budgets, current_step, plan, messages, input_data, add_checkpoint, metadata)` - *Save/update the current episode state.*
+  - Method `.save_episode_state(phase, replan_count, completed_steps, budgets, current_step, plan, messages, input_data, add_checkpoint, metadata, source, input_sha256, input_projection, tool_journal)` - *Save/update the current episode state.*
   - Method `.load_episode_state()` - *Load the current episode state from disk.*
   - Method `.get_episode_state()` - *Get the current episode state (from memory cache).*
   - Method `.get_or_create_episode(input_data, budgets)` - *Get existing episode or create new one.*
@@ -962,6 +1155,8 @@
   - Method `.list_episodes()` - *List all available episodes.*
   - Method `.load_episode_by_id(episode_id)` - *Load a specific episode by ID.*
   - Method `.save_episode_by_id(episode_id, phase, **kwargs)` - *Save a specific episode by ID (creates if doesn't exist).*
+  - Method `.purge_episode_journal(episode_id)` - *Delete the run journal rows for one episode id; returns the row count.*
+  - Method `.prune_episodes(policy, now, dry_run, page_size)` - *Quarantine expired completed episodes and purge their journals (IDEA-1153).*
   - Method `.delete_episode(episode_id)` - *Delete a specific episode.*
 
 **Functions:**
@@ -970,7 +1165,7 @@
 ---
 
 ### [`core/settings.py`](core/settings.py)
-**Size**: `213` lines (`9285` bytes)
+**Size**: `267` lines (`12006` bytes)
 
 **Classes:**
 - `class SettingsManager`
@@ -1011,6 +1206,36 @@
 
 ---
 
+### [`core/step_journal.py`](core/step_journal.py)
+> *Run-scoped node journal with deterministic step ids (IDEA-1152).*
+
+**Size**: `294` lines (`12133` bytes)
+
+**Classes:**
+- `class IncompleteStep` - *A node started and never committed; replaying it could repeat a side effect.*
+  - Method `.__init__(run_id, node_id)`
+- `class StepJournal` - *A small SQLite journal; one instance per process is enough.*
+  - Method `.__init__(path)`
+  - Method `._connect()`
+  - Method `.begin(run_id, node_id, digest, effectful, resolve_incomplete)` - *Mark a node started, refusing to overwrite an unfinished effectful attempt.*
+  - Method `.commit(run_id, node_id, digest, output, effectful)` - *Store a node outcome; an oversized output is left unjournaled and returns False.*
+  - Method `.lookup(run_id, node_id, digest)` - *Return ``("committed", output)`` only for a matching digest, else a bare status.*
+  - Method `.committed_outputs(run_id)` - *Every reusable output for a run, keyed by node id.*
+  - Method `.last_committed(run_id)`
+  - Method `.purge_run(run_id)`
+  - Method `.claim_run(run_id, flow_id, idempotency_key)` - *Register a run. Returns ``new``, ``running`` or ``completed``.*
+  - Method `.completed_result(run_id)`
+  - Method `.finish_run(run_id, result, error)`
+  - Method `.run_status(run_id)`
+
+**Functions:**
+- `def _canonical(value)`
+- `def _digest(payload)`
+- `def input_digest(node_input)` - *Digest of a node's input with transport/identity noise removed.*
+- `def derive_run_id(flow_id, input_payload, idempotency_key)` - *The same flow and key always yields the same run id.*
+
+---
+
 ### [`core/structured_output.py`](core/structured_output.py)
 > *Structured Output Enforcement Module*
 
@@ -1026,6 +1251,17 @@
 - `async def structured_completion_with_fallback(messages, schema, max_retries, fallback_value, **kwargs)` - *Structured completion that returns fallback value on failure instead of raising.*
 - `def create_json_schema(schema)` - *Create a JSON schema dictionary from a Pydantic model.*
 - `async def structured_chat(messages, response_schema, system_prompt, **kwargs)` - *Simplified interface for structured chat completions.*
+
+---
+
+### [`core/untrusted.py`](core/untrusted.py)
+> *Fence untrusted text as data before it reaches a model (IDEA-030).*
+
+**Size**: `41` lines (`2063` bytes)
+
+**Functions:**
+- `def wrap_untrusted(text, source)` - *``text`` inside a fence with a fresh id; tag-shaped text in it is neutralized.*
+- `def fence_tool_messages(messages)` - *A copy of ``messages`` with every tool result fenced; the caller's list is left untouched.*
 
 ---
 
@@ -1059,11 +1295,16 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `5805` lines (`267998` bytes)
+**Size**: `6010` lines (`279098` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
   - Method `.__init__()`
+  - Method `._check_delegation_tool(tool_name)` - *Check whether the active delegation contract allows this tool (IDEA-1242).*
+  - Method `.set_delegation_contract(contract)` - *Attach an active delegation contract to govern tool capabilities (IDEA-1242).*
+  - Method `.set_handoff_packet(handoff)` - *Attach an incoming handoff packet to track delivery and acceptance (IDEA-1243).*
+  - Method `._setup_delegation_and_handoff(input_data, config)`
+  - Method `._finalize_delegation_and_handoff(result, loop_error)`
   - Method `._estimate_tokens(text)` - *Rough token estimate: ~4 characters per token.*
   - Method `._estimate_messages_tokens(messages)` - *Estimate total token count across all messages.*
   - Method `._truncate_messages(messages, max_context_tokens, preserve_system)` - *Truncate messages to fit within token budget.*
@@ -1136,6 +1377,42 @@
 - `def _charge_llm_usage(response, messages)` - *Charge the run budget with provider usage, or a bounded estimate when it is absent.*
 - `def _redact_tool_output(tool_result)` - *Redact credential-shaped text before a tool result enters the context.*
 - `async def get_executor_class(node_type_id)`
+
+---
+
+### [`modules/agent_loop/prompt_digest.py`](modules/agent_loop/prompt_digest.py)
+> *Shared system-role digest invariant for the agent-loop executors (IDEA-631).*
+
+**Size**: `61` lines (`2624` bytes)
+
+**Classes:**
+- `class PromptSnapshot` - *The pinned system messages and the digest of their contents.*
+
+**Functions:**
+- `def _system_messages(messages)`
+- `def _digest(messages)`
+- `def snapshot_system_messages(messages)` - *Pin the system messages present when the loop starts.*
+- `def verify_system_messages(messages, snapshot)` - *True when the pinned messages are still the leading system messages.*
+- `def restore_system_messages(messages, snapshot)` - *Put the pinned prefix back at the front; drop system messages that no longer match.*
+- `def guard_system_messages(messages, snapshot)` - *``(possibly restored messages, intact)``; restoration never raises.*
+
+---
+
+### [`modules/agent_loop/tool_journal.py`](modules/agent_loop/tool_journal.py)
+> *Pending-writes journal for at-most-once tool execution (IDEA-1111).*
+
+**Size**: `183` lines (`6498` bytes)
+
+**Functions:**
+- `def payload_digest(payload)`
+- `def normalise_policy(policy)`
+- `def _now()`
+- `def _persist(session_manager, episode)`
+- `def mark_orphaned(episode)` - *Mark every still-pending entry as orphaned; returns how many changed.*
+- `def _result(tool_call, content, success, replayed, decision)`
+- `def _call_id(tool_call, args)`
+- `def _is_idempotent(name)`
+- `async def run_journaled_tool(episode, session_manager, tool_call, dispatch, policy, idempotent)` - *Dispatch one tool call under the episode journal.*
 
 ---
 
@@ -1523,6 +1800,32 @@
 
 ---
 
+### [`modules/brain/assertions.py`](modules/brain/assertions.py)
+> *Typed, weighted evaluation checks (IDEA-1206).*
+
+**Size**: `308` lines (`12092` bytes)
+
+**Classes:**
+- `class CheckCode`
+- `class InvalidCheckSpec` - *A check spec that cannot be scored; the message carries Why and Fix.*
+- `class CheckSpec`
+  - Method `.validate()`
+  - Property `.base_type` - *``not-contains`` is the inverse of ``contains``, reusing one handler.*
+  - Property `.invert`
+- `class CheckVerdict`
+  - Method `.as_dict()`
+- `class Aggregate`
+  - Method `.as_dict()`
+
+**Functions:**
+- `def from_legacy(check, index)` - *Adapt an existing loose check dict; defaults keep today's behaviour.*
+- `def coerce_specs(checks)` - *Accept specs and legacy dicts, validate, and bound the count.*
+- `def _field_value(output, field_name)` - *Read a dotted field from a dict-ish output; ``None`` means absent.*
+- `def evaluate_check(spec, output, latency_ms)` - *One typed verdict; an unknown type scores 0 and never raises.*
+- `def aggregate(verdicts, task_threshold)` - *Weighted score plus named metrics; required failures decide pass/fail by default.*
+
+---
+
 ### [`modules/brain/auth.py`](modules/brain/auth.py)
 > *Brain actor identity, token registry and role gates.*
 
@@ -1553,6 +1856,22 @@
 - `def _set_request_actor(request, actor)`
 - `def get_brain_actor(request)`
 - `def require_role(minimum)`
+
+---
+
+### [`modules/brain/autonomy.py`](modules/brain/autonomy.py)
+> *Autonomous mode: the brain carries out its own safe proposals (ADR-067).*
+
+**Size**: `94` lines (`3899` bytes)
+
+**Functions:**
+- `async def _record_baseline(service)`
+- `async def _review_evaluation(service)`
+- `async def _consolidate_learning(service)`
+- `async def _evaluate_recall(service)`
+- `def _summary(value)`
+- `async def run_action(service, kind, actor)` - *Run one allow-listed action behind the kernel and the self-budget; returns its journal entry.*
+- `async def act_on_proposals(service, proposals, limit)` - *Act on pending, allow-listed proposals in order, at most ``limit``; marks each proposal.*
 
 ---
 
@@ -1593,10 +1912,32 @@
 
 ---
 
+### [`modules/brain/conversation.py`](modules/brain/conversation.py)
+> *Talk to the brain (ADR-067).*
+
+**Size**: `207` lines (`9480` bytes)
+
+**Classes:**
+- `class ChatHistory` - *The conversation, bounded and written atomically under a ledger lock.*
+  - Method `.__init__(path)`
+  - Method `.load()`
+  - Method `.append(*messages)`
+
+**Functions:**
+- `def default_history()`
+- `def state_context(state)` - *The parts of the brain state a conversation needs, as bounded JSON.*
+- `def turns_from_messages(messages, limit)` - *Stored chat messages as model turns; text-only, bounded and role-normalized.*
+- `def parse_reply(content)` - *``(reply, commands)`` from the model's answer; plain text is a reply with no commands.*
+- `async def execute_command(service, name, args, actor)` - *Run one allow-listed command; the result is a journal entry, never an exception.*
+- `async def answer(service, llm, message, turns)` - *Answer one message against live state; pure, so the caller owns persistence.*
+- `async def converse(service, llm, message, actor, history)` - *Answer one user message; run or suggest the commands the answer names.*
+
+---
+
 ### [`modules/brain/drift.py`](modules/brain/drift.py)
 > *Drift detection against a measured healthy baseline.*
 
-**Size**: `136` lines (`4921` bytes)
+**Size**: `138` lines (`5079` bytes)
 
 **Classes:**
 - `class DriftMonitor` - *Compare live self-model metrics with a baseline and score divergence.*
@@ -1616,7 +1957,7 @@
 ### [`modules/brain/evaluation.py`](modules/brain/evaluation.py)
 > *Deterministic evaluation harness used as the brain's scorecard.*
 
-**Size**: `362` lines (`13698` bytes)
+**Size**: `415` lines (`16079` bytes)
 
 **Classes:**
 - `class UnsafeEvaluationError` - *Raised when a flow contains nodes that must not run during evaluation.*
@@ -1640,7 +1981,6 @@
 **Functions:**
 - `def validate_evaluation_flow(flow, allow_unsafe)` - *Reject flows with external-effect or state-mutating nodes.*
 - `def _field_value(output, field)`
-- `def _evaluate_check(check, output, latency_ms)`
 - `def compare_results(current, baseline, max_pass_drop, max_latency_increase_pct, min_latency_increase_ms)` - *Compare a current run to a baseline; promotion requires no regression.*
 
 ---
@@ -1696,7 +2036,7 @@
 ### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
 > *Deterministic guardrails for untrusted text entering or leaving the platform.*
 
-**Size**: `262` lines (`9281` bytes)
+**Size**: `266` lines (`9611` bytes)
 
 **Classes:**
 - `class Finding` - *One matched rule, with the surface and the action the mode applied.*
@@ -1727,7 +2067,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `476` lines (`20231` bytes)
+**Size**: `488` lines (`20907` bytes)
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -1883,6 +2223,40 @@
 
 ---
 
+### [`modules/brain/prompt_registry.py`](modules/brain/prompt_registry.py)
+> *Versioned prompt registry with digests and rollout labels (IDEA-1238).*
+
+**Size**: `310` lines (`13007` bytes)
+
+**Classes:**
+- `class PromptConflict` - *A label or version request that would make history ambiguous.*
+- `class PromptVersion`
+  - Method `.as_dict()`
+- `class PromptRegistry` - *A versioned prompt registry with an explicit serialisable state and optional persistence.*
+  - Method `.__init__(state, path)`
+  - Method `._reload_from_disk()`
+  - Method `._persist_to_disk()`
+  - Method `.publish(name, prompt, config, tags, commit_message, labels)` - *Publish an immutable version; identical content returns the existing version.*
+  - Method `._publish_entry(name, prompt, config, tags, commit_message, labels)`
+  - Method `._with_labels(entry)`
+  - Method `.move_label(name, version, labels, actor)` - *Point one or more rollout labels at a version and record the move.*
+  - Method `._move_label_entry(name, version, labels, actor)`
+  - Method `.resolve(name, label)`
+  - Method `._resolve_entry(name, label)`
+  - Method `.history(name)`
+  - Method `.label_history(name)`
+  - Method `.rollback(name, label, actor)` - *Move a label back to the version it pointed at before the latest move.*
+  - Method `._rollback_entry(name, label, actor)`
+  - Method `.dump_state()`
+  - Method `.load_state(state)`
+  - Method `.compare(name, label_a, label_b)` - *Compare two rollout labels by identity, not by prose.*
+
+**Functions:**
+- `def digest_prompt(prompt, config)`
+- `def default_registry(path)`
+
+---
+
 ### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
 > *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
 
@@ -1922,7 +2296,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `552` lines (`20088` bytes)
+**Size**: `944` lines (`36676` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -1941,6 +2315,9 @@
 - `async def brain_stop(_actor)`
 - `async def brain_cycle(_actor)`
 - `async def brain_mode(body, _actor)`
+- `async def brain_chat_history()`
+- `async def brain_chat(body, llm, actor)`
+- `async def brain_command(body, actor)` - *Run one allow-listed command the user chose, usually a chat suggestion (ADR-067).*
 - `async def brain_proposals()`
 - `async def brain_eval_suite()`
 - `async def brain_eval_run(body, _actor)`
@@ -1975,8 +2352,24 @@
 - `async def brain_react_stop(_actor)`
 - `async def brain_react_poll(_actor)`
 - `async def brain_config_preview(body, module_manager)`
+- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
+- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
+- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
+- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
+- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
+- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
+- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
+- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 - `async def brain_config_apply(body, module_manager, actor)`
+- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
+- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
+- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
+- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 - `async def brain_config_rollback(body, module_manager, actor)`
+- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
+- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
+- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
+- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 
 ---
 
@@ -2026,15 +2419,18 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `793` lines (`34496` bytes)
+**Size**: `871` lines (`38512` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
   - Method `.__init__(config, self_model, event_bus, state_store, evaluation_runner, eval_store, learning, improvement, configuration, kernel, drift, trends, reactivity)`
   - Method `async def .start()`
-  - Method `async def .stop()`
+  - Method `async def .stop()` - *Stop the loop and record that the operator does not want it resumed.*
+  - Method `async def .shutdown_keep_resume()` - *Stop for a server shutdown without discarding the current running choice (ADR-068).*
+  - Method `async def ._halt(*, resume)`
   - Method `async def .set_mode(mode)`
   - Method `async def .run_cycle(trigger)`
+  - Method `async def .journal(entries)` - *Record autonomous or chat actions, newest first, bounded (ADR-067).*
   - Method `._on_flow_outcome(outcome)` - *Capture ordinary flow/chat outcomes for learning, unless SAFE or disabled.*
   - Method `._observe_self(snapshot)`
   - Method `async def .snapshot()`
@@ -2071,7 +2467,7 @@
   - Method `.events(limit)`
   - Method `async def .publish_event(event_type, source, payload, salience, dedupe_key)`
   - Method `async def .run_evaluation(flow_id)`
-  - Method `async def .promote_baseline(approved_by)`
+  - Method `async def .promote_baseline(approved_by, accept_suite_change, reason)`
   - Method `.evaluation_status()`
   - Method `async def ._loop()`
   - Method `._propose(snapshot)`
@@ -2083,6 +2479,7 @@
 - `def get_brain_service()`
 - `def get_existing_brain_service()` - *Return the service only if something already created it (e.g. /brain/start).*
 - `def brain_auto_start_enabled()`
+- `def brain_resume_requested()` - *Whether the last process left the brain running, without building the service (ADR-068).*
 - `def reset_brain_service()`
 
 ---
@@ -2090,7 +2487,7 @@
 ### [`modules/brain/state.py`](modules/brain/state.py)
 > *Persistent brain state and mode definitions.*
 
-**Size**: `81` lines (`2546` bytes)
+**Size**: `90` lines (`3029` bytes)
 
 **Classes:**
 - `class BrainState` - *Observable state of the brain control plane.*
@@ -2103,6 +2500,22 @@
 
 **Functions:**
 - `def utc_now()`
+
+---
+
+### [`modules/brain/suite_manifest.py`](modules/brain/suite_manifest.py)
+> *Suite identity for evaluation runs (IDEA-1207).*
+
+**Size**: `109` lines (`4473` bytes)
+
+**Functions:**
+- `def _canonical_json(payload)`
+- `def canonical_task(task)` - *Only semantic fields, so a description or tag edit does not change identity.*
+- `def task_digest(task)`
+- `def task_digests(tasks)` - *``{task_id: digest}`` sorted by id; a missing id falls back to its index.*
+- `def suite_digest(tasks)` - *Hash the sorted ``(id, digest)`` pairs plus the manifest schema version.*
+- `def manifest(tasks)` - *The exportable manifest: schema version, suite digest and per-task digests.*
+- `def comparability(current, baseline)` - *Return ``(comparable, reason, changed_tasks)`` for two run records.*
 
 ---
 
@@ -2132,8 +2545,37 @@
 
 ---
 
+### [`modules/browser_automation/indexed.py`](modules/browser_automation/indexed.py)
+> *Indexed element actions with post-condition verification (IDEA-1208).*
+
+**Size**: `222` lines (`8415` bytes)
+
+**Classes:**
+- `class SnapshotBudgetExceeded` - *The snapshot is too large to return safely; the caller must narrow the scope.*
+  - Method `.__init__(code, measured, budget)`
+- `class ElementRef`
+  - Method `.as_dict()`
+- `class ActionExpectation`
+  - Method `.validate()`
+  - Property `.budget_ms`
+- `class ActionResult`
+  - Method `.as_dict()`
+
+**Functions:**
+- `def element_id_for(role, name, selector, generation)` - *Deterministic within a generation so the same node keeps its id across snapshots.*
+- `def build_snapshot(raw_elements, generation, max_elements, max_chars)` - *Turn serialised nodes into bounded, id-carrying refs; refuse rather than truncate.*
+- `def is_policy_refused(role)` - *A file upload or a native select is not something an indexed click may drive.*
+- `def is_interactive(role)`
+- `def _value_of(state)`
+- `def _checked_of(state)`
+- `def _changed(before, after, expectation)` - *Evaluate one expectation against two page-state samples.*
+- `async def wait_for_expectation(state_reader, expectation, before)` - *Poll ``state_reader`` until the expectation holds or the bounded deadline passes.*
+- `def result_for(ok, code, element, generation, observed)`
+
+---
+
 ### [`modules/browser_automation/router.py`](modules/browser_automation/router.py)
-**Size**: `69` lines (`2639` bytes)
+**Size**: `105` lines (`4162` bytes)
 
 **Classes:**
 - `class BrowserActionPayload`
@@ -2146,7 +2588,7 @@
 ---
 
 ### [`modules/browser_automation/service.py`](modules/browser_automation/service.py)
-**Size**: `139` lines (`5569` bytes)
+**Size**: `311` lines (`14105` bytes)
 
 **Classes:**
 - `class BrowserService`
@@ -2156,11 +2598,41 @@
   - Method `async def .stop()` - *Stops the headless browser.*
   - Method `async def .ensure_running()`
   - Method `async def .goto(url)`
+  - Method `async def ._page_state()` - *A small, comparable sample of the page for post-condition polling.*
+  - Method `async def .snapshot(scope)` - *Bounded element refs for the current page generation (IDEA-1208).*
+  - Method `.advance_generation()` - *Invalidate every element id; ids are never reused across generations.*
+  - Method `.reset_element_index()` - *Start a fresh generation with no cached ids (used by navigation and by tests).*
+  - Method `.current_generation()`
+  - Method `._resolve_element(element_id)` - *The cached ref for an id in the current generation, or None when stale.*
+  - Method `async def ._act_and_verify(element_id, action, expectation, refuse_roles)`
+  - Method `async def .click_element(element_id, expect)` - *Click by element id and verify an observable change (IDEA-1208).*
+  - Method `async def .type_element(element_id, text, expect)` - *Fill by element id, then read the value back (IDEA-1208).*
   - Method `async def .click(selector)`
   - Method `async def .type_text(selector, text)`
-  - Method `async def .screenshot(full_page)`
-  - Method `async def .get_html(selector)`
-  - Method `async def .extract_text(selector)` - *Extracts visible text from the page or a specific selector.*
+  - Method `async def .screenshot(full_page, budget, allow_truncate)` - *A screenshot with a byte ceiling; an oversized page is a typed refusal (IDEA-1209).*
+  - Method `async def .get_html(selector, allow_truncate, budget)` - *Page HTML, refused when it exceeds the budget instead of silently cut (IDEA-1209).*
+  - Method `async def .extract_text(selector, allow_truncate, budget)` - *Visible text with an explicit budget (IDEA-1209).*
+
+---
+
+### [`modules/browser_automation/snapshot.py`](modules/browser_automation/snapshot.py)
+> *Bounded snapshot receipts with typed refusal (IDEA-1209).*
+
+**Size**: `135` lines (`4554` bytes)
+
+**Classes:**
+- `class SnapshotBudget`
+  - Method `.validate()`
+  - Method `.as_dict()`
+- `class SnapshotRefusal`
+  - Method `.as_dict()`
+  - Property `.message`
+
+**Functions:**
+- `def measure_html(html, budget, scope, allow_truncate)`
+- `def measure_text(text, budget, scope, allow_truncate)`
+- `def measure_screenshot(png_bytes, budget, *, allow_truncate)`
+- `def _measure(value, limit, code, unit, scope, allow_truncate, *, key, budget_key, scope_hint)`
 
 ---
 
@@ -2239,9 +2711,15 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `574` lines (`26079` bytes)
+**Size**: `787` lines (`35343` bytes)
 
 **Functions:**
+- `def _module_meta(request, module_id)` - *One module manifest without importing the module (the rail works while it is off).*
+- `def _brain_prompt(message)` - *The text after a leading /brain, or None when the message is ordinary chat.*
+- `def _without_current_turn(history, message)` - *The session history before the user message the caller just appended.*
+- `async def _brain_flow_context(request)` - *A compact brain-state block for an ordinary flow turn, when the brain is enabled.*
+- `async def _stream_brain_notice(session_id, text, queue)` - *Persist and stream a brain notice that needs no model call.*
+- `async def _run_brain_turn(session_id, message, prompt, llm, queue)` - *Answer one /brain turn in the chat session and stream its result.*
 - `def _flow_system_prompt(flow)` - *Concatenated system prompts configured in a flow, bounded for leak detection.*
 - `def _extract_thinking_steps(flow_result)` - *Extract intermediate agent thinking steps from a flow result.*
 - `async def chat_page(request)`
@@ -2251,6 +2729,7 @@
 - `async def compact_session_route(request, session_id, llm)` - *Manual compact: summarize old messages, keep last N verbatim.*
 - `async def delete_session(request, session_id, confirm)`
 - `async def rename_session(session_id, name)`
+- `async def run_brain_command(request, session_id, body, actor)` - *Run one brain suggestion and mark it done in the stored chat message.*
 - `async def save_chat_settings(request, auto_rename_turns, auto_compact_tokens, compact_keep_last)`
 - `async def send_message(request, message, session_id, image, goal_id, llm)`
 - `async def stream_chat(session_id)`
@@ -2258,7 +2737,7 @@
 ---
 
 ### [`modules/chat/sessions.py`](modules/chat/sessions.py)
-**Size**: `345` lines (`13418` bytes)
+**Size**: `360` lines (`14019` bytes)
 
 **Classes:**
 - `class SessionManager`
@@ -2280,6 +2759,7 @@
   - Method `.rename_session(session_id, new_name)`
   - Method `.list_sessions()`
   - Method `.add_message(session_id, role, content, **kwargs)`
+  - Method `.update_message(session_id, index, **fields)` - *Update one stored message in place; a stale index changes nothing.*
   - Method `._get_session_snapshot(session_id)` - *Get a snapshot of session data under lock. Called from async context via to_thread.*
   - Method `._update_compacted_session(session_id, snapshot_updated_at, new_history)` - *Update session with compacted history under lock. Called from async context via to_thread.*
   - Method `async def .compact_session(session_id, llm_bridge, keep_last)` - *Summarize old messages and replace them with a compact summary system message.*
@@ -2397,7 +2877,7 @@
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1263` lines (`50551` bytes)
+**Size**: `1413` lines (`57822` bytes)
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -2408,9 +2888,12 @@
   - Method `.rerank_candidates(query, candidates, use_cross_encoder)` - *Re-rank candidates by relevance to the query.*
   - Method `async def .search_enhanced(query_text, query_embedding, limit, expand_queries, rerank, llm_bridge)` - *Enhanced search with query expansion and re-ranking.*
 - `class FaissDocumentStore` - *FAISS-enhanced document store with fast vector search.*
-  - Method `.__init__(db_path, embed_fn)`
+  - Method `.__init__(db_path, embed_fn, embedding_space)`
   - Method `._connect()`
   - Method `._init_db()`
+  - Method `._load_space_header()`
+  - Method `._save_space_header(space)`
+  - Method `._ensure_space(vector, record_id)` - *Set the collection space on first use, or refuse a different one.*
   - Method `._load_faiss_index()` - *Load or create FAISS index*
   - Method `._create_empty_index()` - *Helper to create a new empty index*
   - Method `._detect_embedding_dimension()` - *Detect the embedding dimension from the model*
@@ -2437,14 +2920,35 @@
   - Method `.clear()` - *DANGEROUS: Clear all documents and chunks.*
   - Method `.get_total_documents()`
   - Method `.get_total_chunks()`
-  - Method `.search(query_embedding, limit)` - *Search for similar chunks using the query embedding.*
+  - Method `.search(query_embedding, limit, recall_budget)` - *Search for similar chunks using the query embedding.*
   - Method `.search_keyword(query, limit)` - *Search for chunks using SQLite FTS5 (Keyword Search).*
   - Method `.search_hybrid(query_text, query_embedding, limit, rrf_k)` - *Combine Vector Search and Keyword Search using Reciprocal Rank Fusion (RRF).*
 
 ---
 
+### [`modules/knowledge_base/embedding_space.py`](modules/knowledge_base/embedding_space.py)
+> *Embedding-space identity for one collection (IDEA-591).*
+
+**Size**: `104` lines (`4501` bytes)
+
+**Classes:**
+- `class EmbeddingSpaceMismatch` - *A vector, record or query belongs to a different embedding space.*
+  - Method `.__init__(field, index_value, query_value)`
+- `class EmbeddingSpace` - *The identity of the vectors in one collection.*
+  - Method `.to_dict()`
+  - Method `.from_dict(value)`
+  - Method `.from_settings(values, dimension)`
+  - Method `.with_dimension(dimension)`
+  - Method `.validate_vector(vector, record_id)` - *Refuse a vector whose length disagrees with the declared dimension.*
+
+**Functions:**
+- `def space_of(record)` - *The declared space of one stored record; ``None`` means a legacy, unlabelled record.*
+- `def require_compatible(index_space, query_space)` - *Raise on the first field that differs, naming the field and both values.*
+
+---
+
 ### [`modules/knowledge_base/node.py`](modules/knowledge_base/node.py)
-**Size**: `86` lines (`3252` bytes)
+**Size**: `105` lines (`3952` bytes)
 
 **Classes:**
 - `class KnowledgeQueryExecutor`
@@ -2474,6 +2978,24 @@
   - Method `._chunk_text(text)`
   - Method `._break_at_sentence(text)`
   - Method `.clean_text(text)`
+
+---
+
+### [`modules/knowledge_base/recall.py`](modules/knowledge_base/recall.py)
+> *ANN oversampling with exact rescore and an explicit recall budget (IDEA-1155).*
+
+**Size**: `92` lines (`3695` bytes)
+
+**Classes:**
+- `class RecallBudget`
+  - Method `.validate()`
+  - Method `.candidate_k(limit, ntotal)` - *How many neighbours the approximate stage should return.*
+  - Method `.nprobe(nlist)`
+
+**Functions:**
+- `def budget_from_settings(settings_map, enabled)` - *Read the configured budget; ``None`` means the caller keeps the plain path.*
+- `def is_ivf_index(index)` - *True when the index (or the index it wraps) is an IVF variant.*
+- `def diagnostics(budget, nlist, limit, ntotal)`
 
 ---
 
@@ -2576,22 +3098,23 @@
 ---
 
 ### [`modules/memory/arbiter.py`](modules/memory/arbiter.py)
-**Size**: `132` lines (`5169` bytes)
+**Size**: `144` lines (`5724` bytes)
 
 **Classes:**
 - `class MemoryArbiter` - *Autonomous bridge between Reasoning and MemoryStore.*
   - Method `.__init__(memory_store, embed_fn, config)`
-  - Method `async def .consider(text, confidence, subject, source, embedding, mem_type, verified, expires_at)` - *Decide whether to promote reasoning into memory.*
-  - Method `async def .consider_batch(candidates)` - *Process a batch of memory candidates in parallel.*
+  - Method `async def .consider(text, confidence, subject, source, embedding, mem_type, verified, expires_at, scope, require_scope, scope_policy)` - *Decide whether to promote reasoning into memory.*
+  - Method `async def .consider_batch(candidates, scope, require_scope, scope_policy)` - *Process a batch of memory candidates in parallel.*
 
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1414` lines (`63535` bytes)
+**Size**: `1669` lines (`78255` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
   - Method `.__init__(db_path)`
+  - Method `._filter_plan_enabled()` - *The planner is on by default; disabling it restores the full-index ranking.*
   - Method `._connect()`
   - Method `._init_db()`
   - Method `._execute_init(con)`
@@ -2602,14 +3125,14 @@
   - Method `._build_faiss_index()`
   - Method `.compute_identity(text)`
   - Method `.has_memories()`
-  - Method `.add_entry(text, embedding, confidence, subject, created_at, mem_type, source, verified, expires_at)`
+  - Method `.add_entry(text, embedding, confidence, subject, created_at, mem_type, source, verified, expires_at, scope, require_scope)`
   - Method `.set_parent(child_id, parent_id)` - *Links a memory to a parent, effectively archiving the child as an older version.*
-  - Method `.search(query_embedding, limit, source_filter, access_weight, link_boost)`
-  - Method `.keyword_search(query, limit, link_boost)` - *Text-based fallback search used when no embedding model is configured.*
-  - Method `._expand_with_links(results, limit, link_boost)` - *Promote one hop of accepted supporting evidence; zero disables the feature.*
+  - Method `.search(query_embedding, limit, source_filter, access_weight, link_boost, scope, require_scope, scope_policy)`
+  - Method `.keyword_search(query, limit, link_boost, scope, require_scope, scope_policy)` - *Text-based fallback search used when no embedding model is configured.*
+  - Method `._expand_with_links(results, limit, link_boost, scope, scope_policy)` - *Promote one hop of accepted supporting evidence; zero disables the feature.*
   - Method `.get_recent(limit)`
-  - Method `.browse(limit, offset, search_text, filter_date, mem_type, source, sort_field, sort_dir)` - *Retrieves memories with optional filtering for the Memory Browser UI.*
-  - Method `.find_similar(embedding, threshold, limit, exclude_source)` - *Find memories with cosine similarity above threshold.*
+  - Method `.browse(limit, offset, search_text, filter_date, mem_type, source, sort_field, sort_dir, scope, scope_policy)` - *Retrieves memories with optional filtering for the Memory Browser UI.*
+  - Method `.find_similar(embedding, threshold, limit, exclude_source, scope, scope_policy)` - *Find memories with cosine similarity above threshold.*
   - Method `.boost_importance(memory_id, boost)`
   - Method `.wipe_all()`
   - Method `.record_recall(memory_id, session_id, score)` - *Record that a memory was surfaced during recall in a session.*
@@ -2617,8 +3140,11 @@
   - Method `.get_session_memories(session_id)` - *Return all memories that were recalled in a specific session.*
   - Method `.get_memory_stats()` - *Returns statistics about the stored memories.*
   - Method `.log_meta_memory(action, target_ids, new_value, description)` - *Logs an action to the meta_memories table.*
-  - Method `.update_entry(memory_id, text, mem_type, verified)` - *Updates a memory entry. Archives the old version via parent_id.*
-  - Method `.delete_entry(memory_id, reason)` - *Hard deletes a memory entry. Logs to meta_memories.*
+  - Method `.update_entry(memory_id, text, mem_type, verified, scope, scope_policy, actor)` - *Updates a memory entry. Archives the old version via parent_id.*
+  - Method `.get_edit_history(memory_id, limit)` - *Bounded edit history for one memory id (IDEA-1175).*
+  - Method `.undo_edit(edit_id, confirm)` - *Restore the previous value of one edit when the head and hash still match.*
+  - Method `.delete_entry(memory_id, reason, scope, scope_policy)` - *Hard deletes a memory entry. Logs to meta_memories.*
+  - Method `.migrate_scope(default_user)` - *Backfill legacy rows with no user scope; explicit and idempotent (IDEA-1109).*
   - Method `.merge_memories(memory_ids, new_text, new_type, new_verified)` - *Merges multiple memories into one. Archives originals via parent_id.*
   - Method `._content_tokens(text)`
   - Method `._negated(text)`
@@ -2634,14 +3160,37 @@
   - Method `.find_conflicts(memory_ids, limit)` - *Deterministic contradiction candidates: shared terms plus opposite polarity.*
   - Method `.suggest_contradictions(limit)` - *Persist contradiction candidates as reviewable proposals; never edits confidence.*
   - Method `.get_meta_memories(limit, offset)` - *Retrieves meta-memory audit logs.*
-  - Method `.create_goal(description, priority, deadline, context)` - *Create a new goal. Returns goal ID.*
+  - Method `.create_goal(description, priority, deadline, context)` - *Create a new goal. Returns goal ID; raises MemoryContentBlocked when guardrails refuse it.*
   - Method `.get_goals(status, limit, offset)` - *Get goals, optionally filtered by status.*
   - Method `.get_goal(goal_id)` - *Get a single goal by ID.*
-  - Method `.update_goal(goal_id, description, priority, status, context, deadline)` - *Update a goal. Returns True if successful.*
+  - Method `.update_goal(goal_id, description, priority, status, context, deadline)` - *Update a goal. Returns True if successful; raises MemoryContentBlocked when guardrails refuse it.*
   - Method `.delete_goal(goal_id)` - *Delete a goal. Returns True if successful.*
   - Method `.complete_goal(goal_id)` - *Mark a goal as completed. Returns True if successful.*
   - Method `.get_next_goal()` - *Get the highest priority pending/in_progress goal. In_progress goals take priority regardless of lower priority.*
   - Method `.shutdown()` - *Shutdown the ThreadPoolExecutor to prevent resource leak.*
+
+**Functions:**
+- `def screen_memory_text(what, *texts)` - *Scan text bound for memory or goals on the guardrails' ``memory`` surface (IDEA-334): a stored*
+
+---
+
+### [`modules/memory/budget.py`](modules/memory/budget.py)
+> *Budgeted memory recall block (IDEA-1174).*
+
+**Size**: `144` lines (`5197` bytes)
+
+**Classes:**
+- `class BudgetReceipt`
+  - Method `.as_dict()`
+- `class MemoryRecallBudget`
+  - Method `.validate()`
+
+**Functions:**
+- `def _norm(text)`
+- `def _scope_key(row)`
+- `def truncate_at_sentence(text, limit)` - *Trim to ``limit`` characters, preferring the last sentence boundary.*
+- `def fit(results, budget)` - *Select ranked results that fit the budget, with a receipt of what was dropped.*
+- `def render(selected, receipt, header, footer)` - *Render the block plus an omission footer; an empty selection renders nothing.*
 
 ---
 
@@ -2666,8 +3215,47 @@
 
 ---
 
+### [`modules/memory/filter_plan.py`](modules/memory/filter_plan.py)
+> *Filter-cardinality planner for memory recall (IDEA-1154).*
+
+**Size**: `116` lines (`5080` bytes)
+
+**Classes:**
+- `class FilterPlan`
+
+**Functions:**
+- `def eligible_predicates(scope_predicates, scope_params, source_filter, with_embedding)` - *The predicates every memory read shares: live, current, unexpired, scoped, filtered.*
+- `def estimate_matches(con, clauses, params, budget_rows, now)` - *Count eligible rows, stopping at ``budget_rows``; the second value is exactness.*
+- `def choose_plan(matches, exact_count, embedding_bytes, scan_budget_kb, prefilter_max_mb, budget_rows)` - *Prefilter only when the candidate set fits both the byte and row budgets.*
+- `def plan_for_query(con, scope_predicates, scope_params, source_filter, now, dimension, scan_budget_kb, prefilter_max_mb, budget_rows)` - *Build the plan and the matching predicate set, ready for count or prefilter.*
+- `def diagnostics(plan, embedding_dim)` - *A loggable record of the choice, so latency changes are explicable.*
+
+---
+
+### [`modules/memory/history.py`](modules/memory/history.py)
+> *Memory edit receipts, history and conditional undo (IDEA-1175).*
+
+**Size**: `198` lines (`7688` bytes)
+
+**Classes:**
+- `class MemoryEditReceipt`
+  - Method `.as_dict()`
+  - Method `.to_json()`
+
+**Functions:**
+- `def sha256_text(text)`
+- `def _clip(text, limit)`
+- `def build_receipt(old_id, new_id, old_values, new_values, actor, edit_id)` - *Build the receipt stored with an edit; only real changes are listed.*
+- `def parse_receipt(raw)` - *Read a stored payload; a legacy ``{"new_id": n}`` payload stays readable.*
+- `def _load_row(con, memory_id)`
+- `def read_edit_rows(con, memory_id, limit)` - *Edit receipts that touched this id as either the archived or the new row.*
+- `def history_entry(con, meta)` - *One bounded history entry with both sides of the change.*
+- `def undo_problem(con, payload, confirm)` - *Return ``(status_code, message)`` when an undo must be refused, else ``None``.*
+
+---
+
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `400` lines (`17465` bytes)
+**Size**: `433` lines (`19125` bytes)
 
 **Classes:**
 - `class ConfigLoader`
@@ -2678,7 +3266,7 @@
   - Method `async def .send(processed_data)`
 - `class MemorySaveExecutor`
   - Method `.__init__()`
-  - Method `async def ._save_background(text, subject, source, confidence, mem_type, verified, expires_at, save_delay)` - *Handles embedding generation and saving in the background.*
+  - Method `async def ._save_background(text, subject, source, confidence, mem_type, verified, expires_at, save_delay, scope, scope_policy)` - *Handles embedding generation and saving in the background.*
   - Method `async def .receive(input_data, config)`
   - Method `async def .send(processed_data)`
 - `class CheckGoalExecutor`
@@ -2693,7 +3281,7 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `364` lines (`17227` bytes)
+**Size**: `402` lines (`18996` bytes)
 
 **Functions:**
 - `async def get_stats(request)`
@@ -2702,6 +3290,8 @@
 - `async def consolidate_memories(request)`
 - `async def wipe_memories(request, confirm)`
 - `async def update_memory(request, memory_id, text, mem_type, verified)`
+- `async def memory_history(memory_id, limit)` - *Bounded edit history for one memory, with both sides of each change (IDEA-1175).*
+- `async def undo_memory_edit(edit_id, confirm)` - *Restore one edit only while its head and content hash still match.*
 - `async def delete_memory(request, memory_id, reason)`
 - `async def merge_memories(request, memory_ids, new_text, new_type, new_verified)`
 - `async def get_conflicts(request, memory_ids)`
@@ -2720,6 +3310,27 @@
 - `async def delete_memory_link(link_id)`
 - `async def contradiction_candidates(limit)`
 - `async def scan_contradictions(request)`
+
+---
+
+### [`modules/memory/scope.py`](modules/memory/scope.py)
+> *Session scope for memory reads and writes (IDEA-1109).*
+
+**Size**: `122` lines (`4544` bytes)
+
+**Classes:**
+- `class MemoryScopeRequired` - *Raised when strict scope is required but the call carries no identity.*
+  - Method `.__init__()`
+
+**Functions:**
+- `def _clean(value)`
+- `def scope_from_mapping(data)` - *Return only the scope keys that carry a usable, trimmed id.*
+- `def scope_from_input(input_data)` - *Read the scope a flow or bridge attached to this input.*
+- `def has_scope(scope)`
+- `def require_scope(scope, required)` - *Normalise a scope and raise the typed refusal when it is required but empty.*
+- `def normalise_policy(policy)`
+- `def scope_clauses(scope, policy, prefix)` - *Build parameterised predicates for every id present in ``scope``.*
+- `def migrate_scope(store, default_user)` - *Backfill legacy rows to a reserved local user id and return the row count.*
 
 ---
 
@@ -2746,6 +3357,25 @@
 
 ### [`modules/messaging_bridge/__init__.py`](modules/messaging_bridge/__init__.py)
 **Size**: `1` lines (`27` bytes)
+
+---
+
+### [`modules/messaging_bridge/access.py`](modules/messaging_bridge/access.py)
+> *Per-bridge sender and chat allowlists (IDEA-839, narrowed).*
+
+**Size**: `92` lines (`3825` bytes)
+
+**Classes:**
+- `class AccessDecision` - *One admission decision for an inbound platform message.*
+- `class AccessPolicy` - *The sender and chat allowlists for one platform.*
+  - Method `.__init__(allowed_senders, allowed_chats)`
+  - Property `.configured`
+  - Method `.from_config(platform, config)` - *Build the policy for one platform from the messaging module config.*
+  - Method `.evaluate(sender, chat)` - *Admit a sender only when both configured layers accept it.*
+
+**Functions:**
+- `def _id(value)`
+- `def _ids(value)`
 
 ---
 
@@ -2805,7 +3435,7 @@
 ### [`modules/messaging_bridge/service.py`](modules/messaging_bridge/service.py)
 > *MessagingService — unified singleton that manages Telegram, Discord, and Signal bridges.*
 
-**Size**: `651` lines (`25048` bytes)
+**Size**: `706` lines (`27484` bytes)
 
 **Classes:**
 - `class _SessionStore` - *Thread-safe session map persisted to sessions.json.*
@@ -2872,7 +3502,7 @@
 ---
 
 ### [`modules/messaging_bridge/telegram_bridge.py`](modules/messaging_bridge/telegram_bridge.py)
-**Size**: `184` lines (`7510` bytes)
+**Size**: `186` lines (`7588` bytes)
 
 **Classes:**
 - `class TelegramBridge` - *Handles communication with Telegram API using async httpx.*
@@ -3010,8 +3640,25 @@
 
 ---
 
+### [`modules/reflection/lenses.py`](modules/reflection/lenses.py)
+> *Two epistemic lenses for the reflection node (IDEA-629).*
+
+**Size**: `136` lines (`5026` bytes)
+
+**Classes:**
+- `class LensFinding` - *One lens verdict over the assistant response.*
+- `class EpistemicCritique` - *The legacy satisfaction verdict plus additive per-lens findings.*
+
+**Functions:**
+- `def context_text(value, limit)` - *A bounded text view of a knowledge_context payload, whatever shape it arrived in.*
+- `def lens_enabled(config, budget, knowledge_context)` - *The requested lenses this run may use, in declaration order.*
+- `def build_lens_prompt(enabled)` - *The additive prompt block for the selected lenses; empty when none are usable.*
+- `def _requested(value)`
+
+---
+
 ### [`modules/reflection/node.py`](modules/reflection/node.py)
-**Size**: `289` lines (`13092` bytes)
+**Size**: `342` lines (`15439` bytes)
 
 **Classes:**
 - `class ReflectionExecutor`
@@ -3020,11 +3667,46 @@
   - Method `._extract_user_message(input_data)` - *Extract the original user request from messages.*
   - Method `._extract_assistant_response(input_data)` - *Extract the latest assistant response.*
   - Method `._inject_improvement_message(input_data, needs_improvement, user_request)` - *Inject an improvement feedback message into the conversation so that*
+  - Method `async def ._structured_reflection(messages, config, lenses)` - *One schema-validated critique; None means the caller should use the legacy path.*
   - Method `async def .receive(input_data, config)` - *Evaluates whether the agent's response satisfies the user's request.*
   - Method `async def .send(processed_data)`
 
 **Functions:**
 - `async def get_executor_class(node_type_id)`
+
+---
+
+### [`modules/security/__init__.py`](modules/security/__init__.py)
+> *Security policy surfaces that sit beside the tool registry (IDEA-058).*
+
+**Size**: `1` lines (`77` bytes)
+
+---
+
+### [`modules/security/policy.py`](modules/security/policy.py)
+> *Ordered, default-deny tool policy (IDEA-058).*
+
+**Size**: `344` lines (`13403` bytes)
+
+**Classes:**
+- `class PolicyError` - *A policy document is unreadable, invalid or from an unknown schema.*
+- `class Decision` - *One evaluated call, with the rule and policy that produced it.*
+  - Method `.to_dict()`
+- `class Rule` - *One ordered rule; every declared matcher must match (logical AND).*
+- `class PolicyEngine` - *A validated, immutable policy that evaluates calls in declaration order.*
+  - Method `.__init__(spec)`
+  - Method `.load(path)` - *Read a policy file; a missing, malformed or future file is refused.*
+  - Method `.evaluate(tool, args, identity)` - *The first matching rule, or a default deny; never raises on odd arguments.*
+
+**Functions:**
+- `def _validate(spec)`
+- `def _validate_rule(raw, index)`
+- `def _digest(name, version, rules)`
+- `def _matches(when, tool, args, identity)`
+- `def _path_in(value, prefixes)` - *True when the argument resolves inside one of the resolved prefixes.*
+- `def _host_in(value, suffixes)` - *True when the URL host equals or is a dot-bounded subdomain of an allowed host.*
+- `def policy_gate(tool, args)` - *The tool result for a policy hold or denial, or None when the call may continue.*
+- `def _stage_policy_approval(tool, args, engine, decision)`
 
 ---
 
@@ -3035,10 +3717,28 @@
 
 ---
 
+### [`modules/skills/admission.py`](modules/skills/admission.py)
+> *Guardrail admission for imported and edited skills (IDEA-849, narrowed).*
+
+**Size**: `92` lines (`3194` bytes)
+
+**Classes:**
+- `class SkillScan` - *The admission record stored beside a skill.*
+  - Method `.to_dict()`
+- `class SkillBlocked` - *An enforce-mode guardrail refused skill content before it was stored.*
+  - Method `.__init__(scan)`
+
+**Functions:**
+- `def content_digest(content)` - *The SHA-256 of the exact skill text.*
+- `def scan_skill(content)` - *Scan skill text for prompt injection and credential-shaped values.*
+- `def require_admissible(scan)` - *Raise ``SkillBlocked`` when enforce mode found a blocking finding.*
+
+---
+
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `291` lines (`10687` bytes)
+**Size**: `302` lines (`11105` bytes)
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -3051,10 +3751,10 @@
   - Method `._generate_skill_id(name)` - *Generate a URL-friendly skill ID from name.*
   - Method `.list_skills()` - *List all skills with their metadata.*
   - Method `.get_skill(skill_id)` - *Get a skill's metadata and content.*
-  - Method `.create_skill(name, description, content, category, tags)` - *Create a new skill.*
-  - Method `.update_skill(skill_id, name, description, content, category, tags)` - *Update an existing skill.*
+  - Method `.create_skill(name, description, content, category, tags, scan)` - *Create a new skill.*
+  - Method `.update_skill(skill_id, name, description, content, category, tags, scan)` - *Update an existing skill.*
   - Method `.delete_skill(skill_id)` - *Delete a skill.*
-  - Method `.import_skill(skill_id, name, description, content, category, tags)` - *Import a skill with a specific ID (used for import/export).*
+  - Method `.import_skill(skill_id, name, description, content, category, tags, scan)` - *Import a skill with a specific ID (used for import/export).*
   - Method `.get_skill_content_only(skill_id)` - *Get only the content of a skill (for system prompt injection).*
   - Method `.skill_exists(skill_id)` - *Check if a skill exists.*
   - Method `.list_versions(skill_id)` - *Version history for one skill, oldest first.*
@@ -3091,15 +3791,16 @@
 ### [`modules/skills/service.py`](modules/skills/service.py)
 > *Service layer for Skills module - business logic for skill management.*
 
-**Size**: `368` lines (`16103` bytes)
+**Size**: `391` lines (`17250` bytes)
 
 **Classes:**
 - `class SkillService` - *Business logic for skill management.*
   - Method `.__init__(storage_path)`
   - Method `.list_skills(category, tag)` - *List all skills with optional filtering.*
   - Method `.get_skill(skill_id)` - *Get a skill by ID.*
+  - Method `._admit(content)` - *Scan content before storage; enforce raises, observe returns the record.*
   - Method `.create_skill(name, description, content, category, tags)` - *Create a new skill.*
-  - Method `.update_skill(skill_id, **kwargs)` - *Update an existing skill.*
+  - Method `.update_skill(skill_id, **kwargs)` - *Update an existing skill; new content is scanned before it replaces the old text.*
   - Method `.delete_skill(skill_id)` - *Delete a skill.*
   - Method `.import_from_file(file_content, file_name)` - *Import a skill from file content.*
   - Method `.import_from_url(url)` - *Import a skill from a URL with SSRF protection.*
@@ -3147,7 +3848,7 @@
 ---
 
 ### [`modules/system_prompt/node.py`](modules/system_prompt/node.py)
-**Size**: `302` lines (`14346` bytes)
+**Size**: `320` lines (`15452` bytes)
 
 **Classes:**
 - `class SystemPromptExecutor`
@@ -3176,6 +3877,82 @@
 
 ### [`modules/tools/__init__.py`](modules/tools/__init__.py)
 **Size**: `1` lines (`26` bytes)
+
+---
+
+### [`modules/tools/approvals.py`](modules/tools/approvals.py)
+> *Pending approvals for HIGH-tier tool calls (IDEA-060).*
+
+**Size**: `100` lines (`4078` bytes)
+
+**Classes:**
+- `class ToolApprovals` - *The approval ledger: pending calls, claimed at most once, then settled.*
+  - Method `.__init__(path)`
+  - Method `._load()`
+  - Method `.stage(tool, args, reason, tier)`
+  - Method `.pending()`
+  - Method `.transition(approval_id, expected, status, result)`
+  - Method `.run(approval_id, confirm, runner)` - *Run one pending approval after the exact phrase; it is claimed before it runs.*
+
+**Functions:**
+- `def default_store()`
+
+---
+
+### [`modules/tools/calls.py`](modules/tools/calls.py)
+> *Per-call lifecycle for tool execution (IDEA-1173).*
+
+**Size**: `225` lines (`7807` bytes)
+
+**Classes:**
+- `class ToolCallCancelled` - *The caller requested cancellation and the child was stopped.*
+- `class ToolCallContext`
+  - Property `.deadline`
+  - Property `.cancelled`
+  - Property `.expired`
+  - Property `.settled`
+  - Method `.elapsed_ms()`
+  - Method `.emit_progress(fraction, note, force)` - *Record one heartbeat; at most ten per second and 20 in total.*
+  - Method `.settle(status)`
+  - Method `.snapshot()`
+- `class CallRegistry` - *Bounded, thread-safe registry of live and recently settled calls.*
+  - Method `.__init__(limit)`
+  - Method `.register(tool, timeout, call_id)`
+  - Method `._compact()` - *Drop the oldest settled entries first; a live call is never evicted.*
+  - Method `.get(call_id)`
+  - Method `.request_cancel(call_id)` - *Set the cancel flag. Returns ``(context, outcome)`` with outcome one of*
+  - Method `.settle(context, status)`
+  - Method `.pending()`
+  - Method `.clear()`
+
+**Functions:**
+- `def new_call_id(tool)`
+- `def default_registry()`
+- `def receipt(context, status, result, partial_output, error)` - *A machine-readable result a model cannot mistake for a completed run.*
+- `def render_receipt(payload)` - *The tool-message text: status first, so a partial result is visibly partial.*
+
+---
+
+### [`modules/tools/capabilities.py`](modules/tools/capabilities.py)
+> *Declared tool primitives and pre-call capability refusal (IDEA-1172).*
+
+**Size**: `225` lines (`9277` bytes)
+
+**Classes:**
+- `class ToolRequirement`
+- `class CapabilityRefusal`
+  - Method `.as_dict()`
+
+**Functions:**
+- `def supported_primitives(library_dirs)` - *The primitives this runtime can actually honour, derived from live objects.*
+- `def _default_library_dirs()`
+- `def describe_supported(library_dirs)`
+- `def parse_requirements(entry)` - *Read ``requires`` from a manifest entry; returns the list and an error message.*
+- `def declared_primitives(entry)`
+- `def resolve_source(tool, entry, library_dirs)` - *The on-disk file a manifest entry runs, or ``None`` when it cannot be found.*
+- `def _find_file(filename, dirs)`
+- `def preflight(tool, entry, supported, library_dirs)` - *Return a refusal when the runtime cannot honour this entry, else ``None``.*
+- `def manifest_from_legacy(tool, entry, library_dirs)` - *A v2 manifest for a tool that does not declare one yet, for the save path to persist.*
 
 ---
 
@@ -3278,7 +4055,7 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `175` lines (`7434` bytes)
+**Size**: `204` lines (`9192` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -3290,6 +4067,27 @@
 
 **Functions:**
 - `async def get_executor_class(node_type_id)`
+
+---
+
+### [`modules/tools/outbound.py`](modules/tools/outbound.py)
+> *Outbound tools draft; only the user's approval sends (IDEA-032).*
+
+**Size**: `120` lines (`5461` bytes)
+
+**Classes:**
+- `class OutboundDrafts` - *The draft ledger: pending drafts, claimed at most once, then settled.*
+  - Method `.__init__(path)`
+  - Method `._load()` - *The ledger; a missing file is empty, an unreadable one raises so nothing is sent.*
+  - Method `.stage(tool, args)`
+  - Method `.pending()`
+  - Method `.transition(draft_id, expected, status, result)` - *Move a draft from ``expected`` to ``status``; claiming under the lock stops a double send.*
+
+**Functions:**
+- `def default_store()`
+- `def stage_if_outbound(func_name, args)` - *The tool result for an outbound call, now a draft; None for any other tool.*
+- `def run_library_tool(tool, args)` - *Run a library tool's code in the sandbox, as the dispatchers do.*
+- `def send_draft(draft_id, confirm, runner)` - *Send one pending draft after the confirmation phrase; a draft is claimed before it is sent.*
 
 ---
 
@@ -3329,7 +4127,7 @@
 ---
 
 ### [`modules/tools/router.py`](modules/tools/router.py)
-**Size**: `431` lines (`16201` bytes)
+**Size**: `567` lines (`22506` bytes)
 
 **Functions:**
 - `def _sanitize_tool_name(name)` - *Sanitize tool name to prevent path traversal attacks.*
@@ -3341,6 +4139,16 @@
 - `async def tools_gui(request)` - *Returns the Tool Library GUI fragment.*
 - `async def tools_list(request)`
 - `async def save_tool(request, name, description, parameters, code, original_name)`
+- `async def get_tool_call(call_id)` - *One live or recently settled tool call (IDEA-1173).*
+- `async def list_tool_calls()`
+- `async def cancel_tool_call(call_id)` - *Ask a running tool call to stop; the child is terminated by the sandbox.*
+- `async def tool_capabilities()` - *The declared and supported tool primitives, so manifest drift is visible (IDEA-1172).*
+- `async def list_outbound_drafts()` - *Outbound tool calls the agent drafted; nothing here has been sent (IDEA-032).*
+- `async def send_outbound_draft(draft_id, confirm)` - *Send one draft; the exact phrase is required because the agent cannot supply it.*
+- `async def discard_outbound_draft(draft_id)` - *Drop a draft without sending it.*
+- `async def list_tool_approvals()` - *HIGH-tier tool calls held for a person; nothing here has run (IDEA-060).*
+- `async def run_tool_approval(approval_id, confirm)` - *Run one held call; the exact phrase is required because the model cannot supply it.*
+- `async def reject_tool_approval(approval_id)` - *Drop a held call without running it.*
 - `async def toggle_tool(request, name)`
 - `async def delete_tool(request, name)`
 - `async def edit_tool(name)` - *Returns tool metadata and code for editing.*
@@ -3357,7 +4165,7 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `1072` lines (`46161` bytes)
+**Size**: `1087` lines (`47071` bytes)
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
@@ -3396,7 +4204,7 @@
   - Method `._build_restricted_globals()` - *Build a dictionary of restricted globals for sandboxed execution.*
   - Method `._check_code_safety(code)` - *Static analysis to check for dangerous code patterns.*
   - Method `._execute_internal(code, local_vars)` - *Internal execution without multiprocessing - used by child process.*
-  - Method `.execute(code, local_vars)` - *Execute code in the sandboxed environment using multiprocessing for true isolation.*
+  - Method `.execute(code, local_vars, cancel_event, deadline)` - *Execute code in the sandboxed environment using multiprocessing for true isolation.*
 
 **Functions:**
 - `def _execute_in_process(code, local_vars, result_file, allowed_file_dirs, read_only_files, allowed_domains, timeout, max_output_size, max_memory_mb, permitted_environment)` - *Execute code in a separate process with restricted environment.*
@@ -3404,10 +4212,33 @@
 
 ---
 
+### [`modules/tools/tiers.py`](modules/tools/tiers.py)
+> *Fail-closed risk tiers for structured tool calls (IDEA-060).*
+
+**Size**: `166` lines (`6185` bytes)
+
+**Classes:**
+- `class Tier`
+- `class TierDecision` - *The tier of one call plus the registered reason a person can read.*
+- `class TierRegistry` - *Reads ``tier`` and ``tier_reason`` from the tool manifest, failing closed on anything odd.*
+  - Method `.__init__(path)`
+  - Method `._load()`
+  - Method `.decision(tool, args)`
+  - Method `.is_idempotent(tool)` - *True only when the manifest explicitly declares the tool side-effect free.*
+
+**Functions:**
+- `def _unsafe_url(args)` - *Raise a call whose URL points outside http(s) or at a private address.*
+- `def explain_tool_call(tool, args, registry)`
+- `def classify_tool_call(tool, args, registry)`
+- `def is_tool_idempotent(tool, registry)`
+- `def gate_tool_call(tool, args, registry)` - *The tool result for a held call, or None when the call may run.*
+
+---
+
 ### [`tests/conftest.py`](tests/conftest.py)
 > *Pytest configuration and fixtures for test isolation.*
 
-**Size**: `495` lines (`17692` bytes)
+**Size**: `496` lines (`17725` bytes)
 
 **Classes:**
 - `class FileBackupManager` - *Manages backup and restore operations for files during tests.*
@@ -3444,10 +4275,28 @@
 
 ---
 
+### [`tests/support/evasion.py`](tests/support/evasion.py)
+> *Mechanical evasion variants for guardrail stability tests (IDEA-625).*
+
+**Size**: `92` lines (`3049` bytes)
+
+**Functions:**
+- `def _case(payload)`
+- `def _whitespace(payload)`
+- `def _zero_width(payload)`
+- `def _interleave(payload)`
+- `def _percent(payload)`
+- `def _html_entity(payload)`
+- `def variants(payload, names)` - *Every requested variant of one payload; each is guaranteed to differ from the source.*
+- `def assert_guard_stable(guard, payloads, names, skipped)` - *Return one record per absolute miss, variant miss, or explicitly skipped variant.*
+- `def normalize_variant(value)` - *Decode the transformations a normalising guard is expected to handle.*
+
+---
+
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `1711` lines (`68932` bytes)
+**Size**: `1909` lines (`77653` bytes)
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -3554,6 +4403,13 @@
 - `def make_llm_response(content, tool_calls)` - *Build a minimal valid LLM response dict.*
 - `def make_tool_call(name, args, call_id)` - *Build a minimal tool_call dict as returned by the LLM.*
 - `def make_executor(tools, library)` - *Create an AgentLoopExecutor with _load_tools and _load_tool_library patched*
+- `async def test_every_agent_loop_executor_holds_a_high_risk_tool(tmp_path, monkeypatch)`
+- `async def test_a_mutated_system_message_is_restored_before_the_next_model_call()`
+- `async def test_the_rlm_loop_restores_a_mutated_system_message()`
+- `async def test_the_hybrid_loop_restores_a_mutated_system_message()`
+- `async def test_delegation_contract_enforces_capability_in_agent_loop()`
+- `async def test_handoff_packet_tracks_delivery_and_acceptance_in_agent_loop()`
+- `async def test_delegation_contract_enforced_in_hybrid_and_rlm_executors()`
 
 ---
 
@@ -3579,7 +4435,7 @@
 ### [`tests/test_agent_loop_replan.py`](tests/test_agent_loop_replan.py)
 > *Tests for Agent Loop re-planning functionality*
 
-**Size**: `417` lines (`14927` bytes)
+**Size**: `417` lines (`14923` bytes)
 
 **Functions:**
 - `def make_executor()` - *Create an AgentLoopExecutor with patched LLMBridge.*
@@ -3726,6 +4582,55 @@
 
 ---
 
+### [`tests/test_brain_autonomy.py`](tests/test_brain_autonomy.py)
+> *Autonomous mode: the brain carries out its own safe proposals inside the kernel and budget rails.*
+
+**Size**: `133` lines (`6022` bytes)
+
+**Classes:**
+- `class PerfectRunner`
+  - Method `.__init__()`
+  - Method `async def .run(flow_id, **_kwargs)`
+- `class FreshInstallSelfModel` - *What the real self-model reports before any evaluation has run.*
+  - Method `async def .snapshot(mode)`
+
+**Functions:**
+- `def make_service(tmp_path, mode, caps, **config)`
+- `async def test_autonomous_mode_is_accepted_but_not_in_safe_kernel(tmp_path)`
+- `async def test_an_autonomous_cycle_acts_on_safe_proposals_and_journals_them(tmp_path)`
+- `async def test_actions_per_cycle_are_capped_and_suggest_mode_never_acts(tmp_path)`
+- `async def test_an_exhausted_self_budget_skips_the_action(tmp_path)`
+- `def test_only_allow_listed_kinds_have_actions()`
+- `def test_a_proposal_offers_an_action_or_a_place_where_a_person_can_act()`
+- `async def test_a_fresh_install_with_no_evaluation_still_cycles(tmp_path)`
+- `async def test_the_operator_mode_and_running_state_survive_a_restart(tmp_path)`
+- `async def test_a_shutdown_after_an_explicit_stop_does_not_resume(tmp_path)`
+- `async def test_a_safe_kernel_on_load_forces_observe(tmp_path)`
+
+---
+
+### [`tests/test_brain_chat.py`](tests/test_brain_chat.py)
+> *Talking to the brain: replies with live-state context and allow-listed commands.*
+
+**Size**: `118` lines (`5419` bytes)
+
+**Classes:**
+- `class FakeLLM`
+  - Method `.__init__(content)`
+  - Method `async def .chat_completion(messages, **_kwargs)`
+
+**Functions:**
+- `def reply(text, *commands)`
+- `def test_a_reply_is_parsed_from_json_fences_or_plain_text_and_commands_are_allow_listed()`
+- `async def test_suggest_mode_returns_commands_without_running_them(tmp_path)`
+- `async def test_autonomous_mode_runs_the_commands_and_journals_them(tmp_path)`
+- `async def test_set_goal_writes_a_goal_through_the_memory_store(tmp_path, monkeypatch)`
+- `async def test_answer_is_pure_and_returns_usage_for_the_caller_to_persist(tmp_path)`
+- `def test_turns_from_messages_keeps_text_turns_and_skips_images_and_system_messages()`
+- `def test_chat_and_command_routes(tmp_path, monkeypatch)`
+
+---
+
 ### [`tests/test_brain_configuration.py`](tests/test_brain_configuration.py)
 > *Policy-gated self-configuration: preview, apply, rollback and quotas.*
 
@@ -3755,6 +4660,30 @@
 
 ---
 
+### [`tests/test_brain_eval_suite_manifest.py`](tests/test_brain_eval_suite_manifest.py)
+> *Content-addressed evaluation suite identity (IDEA-1207).*
+
+**Size**: `188` lines (`5946` bytes)
+
+**Functions:**
+- `def _task(task_id, value, description, tags, threshold)`
+- `def test_reordering_tasks_does_not_change_the_suite_digest()`
+- `def test_description_and_tags_are_not_semantic()`
+- `def test_changing_one_expected_value_changes_exactly_one_task_digest()`
+- `def test_canonical_form_excludes_descriptions()`
+- `def test_manifest_is_exportable_and_versioned()`
+- `def _run(digest, task_map)`
+- `def test_matching_digests_are_comparable()`
+- `def test_a_changed_suite_is_incomparable_and_names_the_tasks()`
+- `def test_a_legacy_pair_is_comparable_but_flagged()`
+- `def test_a_half_migrated_pair_is_incomparable()`
+- `def test_compare_results_reports_incomparability_not_a_regression()`
+- `def test_compare_results_keeps_the_pass_rate_gate_for_a_matching_suite()`
+- `def test_a_legacy_comparison_still_works()`
+- `async def test_promote_baseline_refuses_a_changed_suite_without_acceptance(tmp_path)`
+
+---
+
 ### [`tests/test_brain_evaluation.py`](tests/test_brain_evaluation.py)
 > *Deterministic evaluation harness and baseline regression gate.*
 
@@ -3769,6 +4698,32 @@
 - `async def test_evaluation_rejects_state_mutating_nodes()`
 - `def test_tiny_latency_difference_does_not_block_promotion()`
 - `async def test_service_evaluation_promotes_and_compares(tmp_path)`
+
+---
+
+### [`tests/test_brain_evaluation_assertions.py`](tests/test_brain_evaluation_assertions.py)
+> *Typed weighted evaluation checks (IDEA-1206).*
+
+**Size**: `162` lines (`5852` bytes)
+
+**Functions:**
+- `def _output(content)`
+- `def test_weighted_checks_produce_a_partial_score_and_fail_a_threshold()`
+- `def test_zero_weight_metric_does_not_change_pass_or_fail()`
+- `def test_required_failure_fails_even_under_a_low_threshold()`
+- `def test_required_failure_can_be_overridden_only_when_explicit()`
+- `def test_unknown_type_is_typed_and_does_not_raise()`
+- `def test_missing_field_is_typed()`
+- `def test_regex_error_is_an_invalid_spec_not_a_crash()`
+- `def test_not_prefix_inverts_a_decidable_check()`
+- `def test_named_scores_track_their_own_weight()`
+- `def test_non_finite_or_negative_weights_are_rejected()`
+- `def test_threshold_outside_zero_to_one_is_rejected()`
+- `def test_check_count_is_bounded()`
+- `def test_all_zero_weights_are_rejected()`
+- `def test_aggregation_without_positive_weight_reports_an_error()`
+- `def test_legacy_dicts_keep_their_behaviour()`
+- `async def test_runner_result_carries_score_and_schema_version(tmp_path)`
 
 ---
 
@@ -4063,11 +5018,15 @@
 ### [`tests/test_brain_ui.py`](tests/test_brain_ui.py)
 > *Brain dashboard route and navigation.*
 
-**Size**: `24` lines (`645` bytes)
+**Size**: `67` lines (`2319` bytes)
 
 **Functions:**
 - `def test_brain_dashboard_renders()`
 - `def test_brain_dashboard_is_linked_from_navbar()`
+- `def test_the_brain_page_is_a_cockpit_that_points_to_chat()`
+- `def test_the_chat_shell_hosts_an_enabled_brain_rail()`
+- `def test_brain_proposals_offer_a_run_button_or_a_place_to_act()`
+- `def test_a_disabled_brain_stays_in_the_navbar_and_enables_on_click()`
 
 ---
 
@@ -4080,6 +5039,57 @@
 - `async def test_browser_missing_url_for_goto(mock_browser_service)`
 - `async def test_browser_click_action(mock_browser_service)`
 - `async def test_sandbox_internal_api_whitelist()` - *Verify that localhost connections are permitted by the sandbox.*
+
+---
+
+### [`tests/test_browser_automation_index.py`](tests/test_browser_automation_index.py)
+> *Indexed element actions and bounded snapshots (IDEA-1208/1209).*
+
+**Size**: `350` lines (`11460` bytes)
+
+**Classes:**
+- `class _FakeLocator`
+  - Method `.__init__(page, selector)`
+  - Property `.first`
+  - Method `async def .click(timeout)`
+  - Method `async def .fill(text, timeout)`
+- `class _FakePage`
+  - Method `.__init__(elements, click_effect, fill_value)`
+  - Method `async def .evaluate(script, arg)`
+  - Method `.locator(selector)`
+  - Method `async def .do_click(selector)`
+  - Method `async def .do_fill(selector, text)`
+  - Method `async def .wait_for_load_state(*args, **kwargs)`
+
+**Functions:**
+- `def _raw(role, name, selector)`
+- `def test_element_ids_are_stable_within_a_generation()`
+- `def test_element_ids_change_across_generations()`
+- `def test_snapshot_refuses_over_the_element_budget()`
+- `def test_snapshot_refuses_over_the_char_budget()`
+- `def test_file_and_select_roles_are_policy_refused()`
+- `def test_unknown_expectation_kind_is_refused()`
+- `def test_expectation_budget_is_capped()`
+- `def test_auto_detects_a_url_change()`
+- `def test_auto_reports_no_change_within_the_budget()`
+- `def test_value_equals_waits_for_the_field_to_match()`
+- `def test_checkbox_expectation_reads_checked()`
+- `def _reader(states)` - *A state reader that yields each sample once, then repeats the last.*
+- `def test_only_done_is_ok()`
+- `def test_html_within_budget_is_returned_untouched()`
+- `def test_oversized_html_is_refused_not_silently_cut()`
+- `def test_explicit_truncation_reports_what_was_omitted()`
+- `def test_text_budget_is_independent_of_html()`
+- `def test_screenshot_bytes_are_bounded()`
+- `def test_budget_validation_refuses_zero()`
+- `def _service_with_fake_page(monkeypatch, page)`
+- `async def _noop(*args, **kwargs)`
+- `async def test_click_that_changes_the_page_reports_done(monkeypatch)`
+- `async def test_click_with_no_observable_change_is_unverified(monkeypatch)`
+- `async def test_stale_generation_never_clicks(monkeypatch)`
+- `async def test_type_reports_postcondition_failure_when_the_field_differs(monkeypatch)`
+- `async def test_type_reports_done_when_the_value_matches(monkeypatch)`
+- `async def test_file_input_is_policy_refused_and_not_clicked(monkeypatch)`
 
 ---
 
@@ -4145,6 +5155,64 @@
 - `async def test_corrupt_json_returns_none()` - *Corrupt JSON in events file should return None without crashing.*
 - `async def test_get_executor_class_dispatcher()` - *get_executor_class('calendar_watcher') should return CalendarWatcherExecutor.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
+
+---
+
+### [`tests/test_cassette.py`](tests/test_cassette.py)
+> *Recorded provider cassettes with strict replay (IDEA-619).*
+
+**Size**: `265` lines (`8810` bytes)
+
+**Functions:**
+- `def test_a_recorded_exchange_replays_identically()`
+- `def test_a_changed_message_body_fails_in_strict_and_passes_in_structural()`
+- `def test_a_volatile_key_is_ignored_in_structural_and_fails_in_strict()`
+- `def test_a_changed_tool_schema_fails_in_structural()`
+- `def test_a_different_template_digest_fails_with_both_digests()`
+- `def test_an_unknown_schema_is_refused(tmp_path)`
+- `def test_a_malformed_cassette_is_refused_instead_of_guessed(tmp_path)`
+- `def test_a_credential_shaped_prompt_leaves_no_plaintext_in_the_saved_cassette(tmp_path)`
+- `def test_exchanges_replay_in_recorded_order()`
+- `def test_loose_mode_matches_only_the_endpoint()`
+- `def test_a_saved_cassette_round_trips(tmp_path)`
+- `async def test_the_bridge_records_then_replays_without_http(httpx_mock, tmp_path)`
+- `async def test_the_bridge_replay_reports_a_changed_prompt_in_strict_mode(httpx_mock, tmp_path)`
+- `async def test_the_bridge_records_then_replays_a_stream(tmp_path)`
+- `def test_an_unknown_bridge_mode_is_refused()`
+- `def test_replay_without_a_cassette_path_is_refused()`
+
+---
+
+### [`tests/test_chat_brain_rail.py`](tests/test_chat_brain_rail.py)
+> *The chat shell hosts the opt-in brain rail without importing the brain module.*
+
+**Size**: `27` lines (`937` bytes)
+
+**Functions:**
+- `def test_chat_gui_offers_to_enable_a_disabled_brain()`
+- `def test_chat_page_keeps_the_chat_shell_when_the_brain_is_off()`
+
+---
+
+### [`tests/test_chat_brain_turn.py`](tests/test_chat_brain_turn.py)
+> *A /brain chat turn uses the brain conversation but the chat session and stream.*
+
+**Size**: `224` lines (`9195` bytes)
+
+**Classes:**
+- `class FakeLLM`
+  - Method `.__init__(content, error)`
+  - Method `async def .chat_completion(messages, **_kwargs)`
+
+**Functions:**
+- `def client(tmp_path, monkeypatch)`
+- `def _enable_brain(client, enabled)`
+- `def _events(client, session_id)`
+- `async def test_a_brain_turn_persists_in_the_same_session_and_stream(client, tmp_path, monkeypatch)`
+- `async def test_an_ordinary_turn_passes_bounded_brain_context_to_the_flow(client, tmp_path, monkeypatch)`
+- `def test_a_brain_turn_is_refused_while_the_module_is_off(client)`
+- `def test_a_brain_llm_failure_is_reported_in_the_same_stream(client, tmp_path, monkeypatch)`
+- `def test_an_empty_brain_prefix_explains_how_to_use_it(client)`
 
 ---
 
@@ -4223,7 +5291,7 @@
 ---
 
 ### [`tests/test_chat_sessions.py`](tests/test_chat_sessions.py)
-**Size**: `119` lines (`3239` bytes)
+**Size**: `129` lines (`3812` bytes)
 
 **Functions:**
 - `def temp_session_file()`
@@ -4232,6 +5300,7 @@
 - `def test_create_session_with_name(session_manager)`
 - `def test_get_session(session_manager)`
 - `def test_get_session_not_found(session_manager)`
+- `def test_update_message_only_changes_an_existing_index(session_manager)`
 - `def test_delete_session(session_manager)`
 - `def test_delete_session_not_found(session_manager)`
 - `def test_rename_session(session_manager)`
@@ -4357,7 +5426,7 @@
 ---
 
 ### [`tests/test_core_llm.py`](tests/test_core_llm.py)
-**Size**: `117` lines (`3741` bytes)
+**Size**: `157` lines (`5251` bytes)
 
 **Functions:**
 - `async def test_chat_completion_success(httpx_mock)`
@@ -4366,6 +5435,8 @@
 - `async def test_get_models_error(httpx_mock)`
 - `async def test_get_embedding_success(httpx_mock)`
 - `async def test_get_embedding_error(httpx_mock)`
+- `async def test_a_429_keeps_the_provider_retry_after(httpx_mock)`
+- `async def test_chat_completion_clamps_max_tokens_and_reports_the_clamp(monkeypatch)`
 - `async def test_llm_bridge_uses_injected_client()` - *Test that LLMBridge uses the provided AsyncClient if available.*
 
 ---
@@ -4489,6 +5560,36 @@
 
 ---
 
+### [`tests/test_delegation_handoff.py`](tests/test_delegation_handoff.py)
+> *Delegation contracts and handoff packets (IDEA-1242/1243).*
+
+**Size**: `220` lines (`6899` bytes)
+
+**Functions:**
+- `def _contract(**overrides)`
+- `def test_contract_allows_only_declared_tools()`
+- `def test_capability_refusal_is_typed_with_why_and_fix()`
+- `def test_output_check_accepts_a_matching_shape()`
+- `def test_output_check_reports_missing_and_wrong_types()`
+- `def test_contract_validation_refuses_empty_identity()`
+- `def test_contract_refuses_a_bad_schema_type()`
+- `def test_contract_refuses_negative_retry_and_zero_timeout()`
+- `def test_nested_contract_increments_depth()`
+- `def test_depth_limit_is_enforced()`
+- `def test_contract_serialises_types_by_name()`
+- `def _packet(**overrides)`
+- `def test_delivery_and_acceptance_are_separate_states()`
+- `def test_failed_acceptance_requeues_within_the_retry_budget()`
+- `def test_exhausted_retries_stop_requeueing()`
+- `def test_a_raising_check_rejects_instead_of_crashing()`
+- `def test_context_summary_is_bounded_at_construction()`
+- `def test_too_many_context_items_are_refused()`
+- `def test_replay_queue_returns_only_pending_and_counts_states()`
+- `def test_contract_roundtrip_serialization_from_dict()`
+- `def test_handoff_packet_roundtrip_serialization_from_dict()`
+
+---
+
 ### [`tests/test_dependencies.py`](tests/test_dependencies.py)
 **Size**: `29` lines (`1002` bytes)
 
@@ -4567,6 +5668,66 @@
 
 ---
 
+### [`tests/test_embedding_space.py`](tests/test_embedding_space.py)
+> *Embedding-space identity and mismatch refusal (IDEA-591).*
+
+**Size**: `62` lines (`2122` bytes)
+
+**Functions:**
+- `def space(**overrides)`
+- `def test_matching_spaces_are_compatible()`
+- `def test_a_revision_mismatch_names_the_revision_field()`
+- `def test_a_dimension_mismatch_names_the_dimension_field()`
+- `def test_a_vector_must_match_its_declared_dimension()`
+- `def test_space_of_reads_a_stored_record_and_treats_missing_or_bad_labels_as_legacy()`
+- `def test_from_settings_uses_the_embedding_model_and_defaults()`
+
+---
+
+### [`tests/test_embedding_space_store.py`](tests/test_embedding_space_store.py)
+> *A knowledge-base collection refuses vectors from another embedding space (IDEA-591).*
+
+**Size**: `74` lines (`2819` bytes)
+
+**Functions:**
+- `def _chunk(text, vector)`
+- `def _add(store, name, vector)`
+- `def test_a_matching_query_succeeds_and_a_changed_model_is_refused(tmp_path, monkeypatch)`
+- `def test_ingestion_refuses_a_vector_of_the_wrong_dimension(tmp_path, monkeypatch)`
+- `def test_a_labelled_record_from_another_space_is_refused_on_rebuild(tmp_path, monkeypatch)`
+- `def test_clear_resets_the_collection_identity(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_episode_identity.py`](tests/test_episode_identity.py)
+> *Thread-scoped episode identity and the resume guard (IDEA-1110).*
+
+**Size**: `141` lines (`4702` bytes)
+
+**Classes:**
+- `class _FakeManager`
+  - Method `.__init__()`
+  - Method `.save_episode_state(**kwargs)`
+
+**Functions:**
+- `def _request(text, **extra)`
+- `def _episode(input_data, config)`
+- `def test_same_input_resumes()`
+- `def test_changed_model_starts_a_new_episode()`
+- `def test_changed_tool_set_starts_a_new_episode()`
+- `def test_changed_user_request_starts_a_new_episode()`
+- `def test_legacy_episode_without_digest_asks()`
+- `def test_resume_any_overrides_a_changed_digest()`
+- `def test_resume_decision_matrix()`
+- `def test_volatile_keys_do_not_change_the_digest()`
+- `def test_projection_keeps_stable_fields_and_sorts_tools()`
+- `def test_checkpoint_ids_sort_in_creation_order_and_parents_chain()`
+- `def test_checkpoint_source_follows_phase()`
+- `def test_episode_round_trip_keeps_identity()`
+- `def test_prepare_resume_pauses_a_refused_episode()`
+
+---
+
 ### [`tests/test_episode_persistence.py`](tests/test_episode_persistence.py)
 > *Tests for Episode Persistence functionality.*
 
@@ -4604,6 +5765,44 @@
   - Method `.test_phase_transitions(temp_dir)` - *Test episode phase transitions.*
   - Method `.test_failed_phase(temp_dir)` - *Test episode in failed phase.*
   - Method `.test_paused_phase(temp_dir)` - *Test episode in paused phase.*
+
+---
+
+### [`tests/test_episode_retention.py`](tests/test_episode_retention.py)
+> *Two-tier episode retention with a reuse guard (IDEA-1153).*
+
+**Size**: `176` lines (`5764` bytes)
+
+**Functions:**
+- `def _write_episode(directory, episode_id, phase, age_days, **extra)`
+- `def episode_dir(tmp_path)`
+- `def test_journal_expiry_never_exceeds_completion()`
+- `def test_expired_completion_is_quarantined(episode_dir)`
+- `def test_live_completion_expires_its_journal_first(episode_dir)`
+- `def test_executing_episode_is_never_pruned(episode_dir)`
+- `def test_corrupt_file_is_quarantined_as_corrupt_not_purged(episode_dir)`
+- `def test_future_timestamp_is_treated_as_a_clock_problem(episode_dir)`
+- `def test_dry_run_reports_without_moving_anything(episode_dir)`
+- `def test_scan_is_bounded_by_page_size(episode_dir)`
+- `def test_policy_validation_refuses_a_zero_window()`
+- `def test_terminal_episode_gets_both_expiry_stamps()`
+- `def test_running_episode_is_not_stamped()`
+- `def test_reused_episode_id_bumps_the_generation(tmp_path)`
+
+---
+
+### [`tests/test_evasion_matrix.py`](tests/test_evasion_matrix.py)
+> *Guardrail evasion-variant matrix (IDEA-625).*
+
+**Size**: `68` lines (`2093` bytes)
+
+**Functions:**
+- `def test_every_generator_changes_the_text_and_keeps_it_nonempty()`
+- `def test_a_naive_case_sensitive_guard_fails_the_case_variant()`
+- `def test_a_normalising_guard_passes_declared_variants()`
+- `def test_a_guard_that_matches_nothing_fails_the_absolute_check()`
+- `def test_an_opted_out_variant_is_counted_as_skipped()`
+- `def test_the_real_guardrail_is_stable_for_case_and_zero_width()`
 
 ---
 
@@ -5226,6 +6425,30 @@
 
 ---
 
+### [`tests/test_kb_recall_budget.py`](tests/test_kb_recall_budget.py)
+> *ANN oversampling with exact rescore (IDEA-1155).*
+
+**Size**: `171` lines (`5517` bytes)
+
+**Classes:**
+- `class _Flat`
+- `class _IVF`
+- `class _Wrapped`
+  - Method `.__init__(inner)`
+
+**Functions:**
+- `def test_candidate_k_oversamples_and_caps()`
+- `def test_nprobe_is_a_fraction_of_the_list_count()`
+- `def test_budget_rejects_a_degenerate_oversample()`
+- `def test_budget_from_settings_defaults_when_unset()`
+- `def test_budget_from_settings_reads_values()`
+- `def test_is_ivf_index_sees_through_the_id_map_wrapper()`
+- `def test_diagnostics_names_the_effective_knobs()`
+- `def test_exact_rescore_recovers_a_true_neighbour_the_ann_misses(monkeypatch, tmp_path)`
+- `def test_flat_index_keeps_the_plain_limit(monkeypatch, tmp_path)`
+
+---
+
 ### [`tests/test_kb_stored_filename.py`](tests/test_kb_stored_filename.py)
 > *Knowledge-base storage-name regressions.*
 
@@ -5321,6 +6544,20 @@
 - `async def test_content_field_used_as_query()` - *When input has 'content' but no 'messages', it should be used as the query.*
 - `async def test_get_executor_class_dispatcher()` - *get_executor_class('query_knowledge') should return KnowledgeQueryExecutor.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
+
+---
+
+### [`tests/test_llm_errors.py`](tests/test_llm_errors.py)
+> *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
+
+**Size**: `51` lines (`1792` bytes)
+
+**Functions:**
+- `def _response(status, *, headers, text)`
+- `def test_retry_after_seconds_accepts_seconds_and_http_dates()`
+- `def test_a_429_preserves_retry_after_and_is_retryable()`
+- `def test_auth_context_and_budget_errors_are_not_retryable()`
+- `def test_an_unknown_5xx_stays_a_retryable_http_error()`
 
 ---
 
@@ -5502,6 +6739,28 @@
 
 ---
 
+### [`tests/test_memory_budget.py`](tests/test_memory_budget.py)
+> *Budgeted memory recall block (IDEA-1174).*
+
+**Size**: `146` lines (`5024` bytes)
+
+**Functions:**
+- `def _rows(*texts, **scope)`
+- `def test_everything_fits_with_no_footer()`
+- `def test_total_budget_evicts_whole_memories_in_rank_order()`
+- `def test_first_item_over_the_item_cap_is_truncated_at_a_sentence()`
+- `def test_later_oversized_items_are_evicted_not_truncated()`
+- `def test_duplicates_collapse_but_distinct_scopes_do_not()`
+- `def test_dedupe_can_be_disabled()`
+- `def test_a_budget_smaller_than_the_first_item_still_shows_a_trimmed_item()`
+- `def test_empty_results_render_nothing()`
+- `def test_bad_budgets_are_refused_with_why_and_fix()`
+- `def test_truncate_prefers_a_sentence_boundary()`
+- `def test_truncate_keeps_a_short_text_untouched()`
+- `async def test_recall_node_returns_a_bounded_block_and_receipt(monkeypatch)`
+
+---
+
 ### [`tests/test_memory_consolidation.py`](tests/test_memory_consolidation.py)
 **Size**: `159` lines (`6445` bytes)
 
@@ -5515,6 +6774,51 @@
 - `async def test_run_updates_state_on_success(mock_store, mock_llm)`
 - `async def test_run_updates_state_on_error(mock_store, mock_llm)`
 - `async def test_run_accumulates_consolidated_count(mock_store, mock_llm)`
+
+---
+
+### [`tests/test_memory_filter_plan.py`](tests/test_memory_filter_plan.py)
+> *Filter-cardinality planner for memory recall (IDEA-1154).*
+
+**Size**: `175` lines (`6470` bytes)
+
+**Functions:**
+- `def _con(rows, source)`
+- `def test_choose_plan_prefilters_a_small_exact_set()`
+- `def test_choose_plan_keeps_faiss_for_a_broad_or_unknown_set()`
+- `def test_choose_plan_respects_the_byte_budget()`
+- `def test_estimate_is_bounded_and_reports_exactness()`
+- `def test_estimate_applies_the_source_filter()`
+- `def test_estimate_applies_scope_params_in_order()`
+- `def test_prefiltered_candidates_exclude_ineligible_rows()`
+- `def test_plan_for_query_returns_a_usable_predicate_set()`
+- `def test_plan_for_query_switches_to_faiss_when_rows_exceed_the_budget()`
+- `def store_with_rows(tmp_path, monkeypatch)`
+- `def test_planner_off_is_the_rollback_and_returns_the_same_rows(store_with_rows, monkeypatch)`
+- `def test_prefilter_matches_the_index_ranking(tmp_path, monkeypatch)`
+- `def test_prefilter_never_returns_another_scope(store_with_rows)`
+
+---
+
+### [`tests/test_memory_history.py`](tests/test_memory_history.py)
+> *Edit receipts, history and conditional undo (IDEA-1175).*
+
+**Size**: `141` lines (`4739` bytes)
+
+**Functions:**
+- `def store(tmp_path, monkeypatch)`
+- `def _add(store, text, scope)`
+- `def test_receipt_names_both_sides_and_the_changed_fields()`
+- `def test_legacy_payload_still_parses()`
+- `def test_history_returns_previous_and_new_text(store)`
+- `def test_history_accepts_the_archived_id_too(store)`
+- `def test_history_sides_are_bounded(store)`
+- `def test_undo_refuses_without_the_exact_phrase(store)`
+- `def test_undo_restores_the_previous_text(store)`
+- `def test_undo_refuses_after_a_later_edit(store)`
+- `def test_undo_refuses_after_the_head_is_deleted(store)`
+- `def test_undo_refuses_when_the_head_text_was_changed_outside_the_receipt(store)`
+- `def test_undo_of_an_unknown_edit_refuses(store)`
 
 ---
 
@@ -5607,7 +6911,7 @@
 ---
 
 ### [`tests/test_memory_router.py`](tests/test_memory_router.py)
-**Size**: `108` lines (`3634` bytes)
+**Size**: `119` lines (`4303` bytes)
 
 **Functions:**
 - `def client()`
@@ -5618,13 +6922,76 @@
 - `def test_consolidation_status_after_run(client)` - *GET /memory/consolidation/status reflects updated state.*
 - `def test_consolidation_status_with_error(client)` - *GET /memory/consolidation/status reports last_error.*
 - `def test_consolidation_status_while_running(client)` - *GET /memory/consolidation/status shows is_running=True while active.*
+- `def test_a_guardrail_refused_goal_is_a_400_with_why_and_fix(client, mock_store)`
+
+---
+
+### [`tests/test_memory_scope.py`](tests/test_memory_scope.py)
+> *Session-scoped memory isolation (IDEA-1109).*
+
+**Size**: `148` lines (`5276` bytes)
+
+**Functions:**
+- `def _vector(x, y, z)`
+- `def store(tmp_path)`
+- `def _add(store, text, scope, vector)`
+- `def test_user_a_memory_is_absent_from_user_b_recall(store)`
+- `def test_same_user_sees_their_own_memory(store)`
+- `def test_keyword_recall_is_scoped(store)`
+- `def test_required_scope_refuses_unscoped_reads_and_writes(store)`
+- `def test_legacy_rows_become_visible_only_to_local_after_migration(store)`
+- `def test_strict_policy_hides_null_scope_while_shared_admits_it(store)`
+- `def test_delete_with_wrong_scope_leaves_the_row(store)`
+- `def test_update_with_wrong_scope_is_refused(store)`
+- `def test_linked_neighbour_from_another_scope_is_not_promoted(store)`
+- `def test_exact_duplicate_is_scoped(store)`
+- `def test_user_id_column_is_indexed(store)`
+- `def test_scope_from_input_uses_bridge_and_session_aliases()`
+
+---
+
+### [`tests/test_memory_write_guard.py`](tests/test_memory_write_guard.py)
+> *Memory and goal writes follow the guardrail policy (IDEA-334).*
+
+**Size**: `64` lines (`2551` bytes)
+
+**Functions:**
+- `def store(tmp_path)`
+- `def enforce(mode)`
+- `def test_the_memory_surface_blocks_in_enforce_mode()`
+- `def test_enforce_refuses_an_injected_memory_and_keeps_clean_ones(store)`
+- `def test_enforce_refuses_an_injected_update_and_leaves_the_memory_as_it_was(store)`
+- `def test_enforce_refuses_injected_goal_text(store)`
+- `def test_observe_mode_stores_but_counts_the_finding(store)`
+
+---
+
+### [`tests/test_messaging_access.py`](tests/test_messaging_access.py)
+> *Per-bridge sender and chat allowlists (IDEA-839, narrowed).*
+
+**Size**: `184` lines (`6900` bytes)
+
+**Functions:**
+- `def make_access(channel, senders, chats)`
+- `def test_an_empty_policy_denies_every_sender()`
+- `def test_an_allowlisted_sender_is_admitted_and_ids_are_strings()`
+- `def test_an_empty_sender_id_is_denied()`
+- `def test_a_second_layer_rejects_an_unlisted_chat()`
+- `def test_telegram_owner_chat_seeds_the_sender_allowlist()`
+- `def test_discord_channel_seeds_the_chat_layer_but_not_senders()`
+- `def test_per_platform_lists_accept_a_comma_string_and_mixed_values()`
+- `async def test_an_unknown_telegram_sender_never_reaches_a_session_or_flow(caplog)`
+- `async def test_an_allowlisted_telegram_sender_reaches_the_flow()`
+- `async def test_discord_requires_both_the_sender_and_the_channel()`
+- `async def test_signal_and_whatsapp_deny_an_unknown_sender()`
+- `async def test_the_telegram_bridge_keeps_the_stable_sender_id()`
 
 ---
 
 ### [`tests/test_messaging_bridge.py`](tests/test_messaging_bridge.py)
 > *Tests for modules/messaging_bridge — node executors, service routing, and bridges.*
 
-**Size**: `806` lines (`31984` bytes)
+**Size**: `813` lines (`32457` bytes)
 
 **Classes:**
 - `class TestMessagingInputExecutor`
@@ -5766,10 +7133,28 @@
 
 ---
 
+### [`tests/test_model_registry.py`](tests/test_model_registry.py)
+> *Per-model request limits and explicit clamps (IDEA-588).*
+
+**Size**: `79` lines (`2796` bytes)
+
+**Functions:**
+- `def test_a_request_within_limits_is_unchanged_and_reports_no_clamp()`
+- `def test_an_over_large_output_is_clamped_and_reported()`
+- `def test_require_exact_raises_instead_of_clamping()`
+- `def test_an_unknown_model_passes_through_unless_strict()`
+- `def test_an_alias_resolves_to_the_canonical_limits()`
+- `def test_over_limit_context_is_refused_because_it_cannot_be_truncated()`
+- `def test_zero_or_negative_ceilings_are_refused_at_load()`
+- `def test_an_alias_cannot_shadow_a_canonical_model_id()`
+- `def test_from_settings_disables_clamping_when_no_limits_are_configured()`
+
+---
+
 ### [`tests/test_module_defaults.py`](tests/test_module_defaults.py)
 > *Which modules a fresh install loads: experimental autonomy stays opt-in.*
 
-**Size**: `42` lines (`1282` bytes)
+**Size**: `47` lines (`1634` bytes)
 
 **Functions:**
 - `def _enabled(module_id)`
@@ -5797,7 +7182,7 @@
 ### [`tests/test_node_retry.py`](tests/test_node_retry.py)
 > *Per-node retry policy: parsing, backoff, classification and bounded attempts.*
 
-**Size**: `323` lines (`9603` bytes)
+**Size**: `354` lines (`10344` bytes)
 
 **Functions:**
 - `def test_retries_are_off_by_default()`
@@ -5807,6 +7192,7 @@
 - `def test_transient_failures_are_retryable(exc)`
 - `def test_deterministic_failures_and_cancellation_are_not_retried(exc)`
 - `async def test_a_transient_failure_is_retried_and_succeeds()`
+- `async def test_retry_after_overrides_the_exponential_backoff()`
 - `async def test_retries_are_bounded_and_the_last_error_surfaces()`
 - `async def test_a_deterministic_error_fails_on_the_first_attempt()`
 - `async def test_a_custom_on_retry_reports_the_attempt_and_delay()`
@@ -5905,6 +7291,22 @@
 
 ---
 
+### [`tests/test_outbound_drafts.py`](tests/test_outbound_drafts.py)
+> *Outbound tools draft instead of sending; only the user's approval sends (IDEA-032).*
+
+**Size**: `97` lines (`4466` bytes)
+
+**Functions:**
+- `def store(tmp_path, monkeypatch)`
+- `def test_an_outbound_call_is_drafted_and_the_model_is_told_nothing_was_sent(store)`
+- `def test_a_draft_sends_once_and_only_with_the_confirmation_phrase(store)`
+- `def test_an_unreadable_draft_store_fails_closed(tmp_path, monkeypatch)`
+- `async def test_the_tool_dispatcher_drafts_send_email_instead_of_running_it(store)`
+- `def test_the_draft_routes_list_send_once_and_discard(store, monkeypatch)`
+- `def test_every_library_dispatch_site_stages_outbound_calls_first()`
+
+---
+
 ### [`tests/test_packaging.py`](tests/test_packaging.py)
 > *Packaging contract: pyproject.toml is the source of truth for every requirements file.*
 
@@ -5917,6 +7319,18 @@
 - `def test_requirements_txt_is_runtime_plus_optional_capabilities()`
 - `def test_requirements_dev_adds_exactly_the_dev_group()`
 - `def test_built_in_route_dependencies_are_core_dependencies()`
+
+---
+
+### [`tests/test_pinned_http.py`](tests/test_pinned_http.py)
+> *Pinned requests: connect to the vetted address, keep the hostname for Host and TLS (IDEA-063).*
+
+**Size**: `22` lines (`1055` bytes)
+
+**Functions:**
+- `def test_https_goes_to_the_address_and_keeps_the_hostname_for_host_and_sni()`
+- `def test_an_explicit_port_stays_on_the_url_and_the_host_header()`
+- `def test_an_ipv6_address_is_bracketed_and_its_zone_dropped()`
 
 ---
 
@@ -5987,6 +7401,44 @@
 - `async def test_planner_uses_config_model_override()` - *PlannerExecutor must pass config['model'] to the LLM, not always default_model.*
 - `def test_get_executable_steps_hoist_step_num_to_idx()` - *_get_executable_steps must produce correct results regardless of plan size.*
 - `def test_get_executable_steps_parallel_when_no_deps()` - *Steps with no dependencies are all executable simultaneously.*
+
+---
+
+### [`tests/test_prompt_digest.py`](tests/test_prompt_digest.py)
+> *Shared system-role digest invariant for the agent-loop executors (IDEA-631).*
+
+**Size**: `67` lines (`2627` bytes)
+
+**Functions:**
+- `def test_a_mutated_system_message_is_detected_and_restored()`
+- `def test_an_honest_compaction_summary_after_the_prefix_is_allowed()`
+- `def test_a_summary_inserted_before_the_pinned_prefix_is_a_violation()`
+- `def test_a_new_message_with_system_role_does_not_change_the_pinned_prefix()`
+
+---
+
+### [`tests/test_prompt_registry.py`](tests/test_prompt_registry.py)
+> *Versioned prompt registry (IDEA-1238).*
+
+**Size**: `203` lines (`6907` bytes)
+
+**Functions:**
+- `def test_publish_creates_version_one()`
+- `def test_publishing_the_same_text_is_idempotent()`
+- `def test_changed_text_gets_the_next_version()`
+- `def test_config_is_part_of_the_digest()`
+- `def test_label_move_is_a_rollout_not_an_edit()`
+- `def test_latest_always_resolves_to_the_newest_version()`
+- `def test_rollback_moves_the_label_back()`
+- `def test_rollback_without_history_returns_none()`
+- `def test_reserved_label_is_refused()`
+- `def test_unknown_version_is_refused()`
+- `def test_empty_prompt_is_refused()`
+- `def test_compare_reports_identity_not_prose()`
+- `def test_state_round_trips()`
+- `def test_label_history_records_the_move_and_actor()`
+- `def test_prompt_registry_persists_to_file(tmp_path)`
+- `def test_prompt_registry_router_endpoints(tmp_path, monkeypatch)`
 
 ---
 
@@ -6081,6 +7533,35 @@
 - `async def test_reload(service, temp_data_file)` - *Test reloading thoughts from disk.*
 - `async def test_concurrent_writes(service)` - *Test that concurrent writes are handled safely with locking.*
 - `async def test_timestamp_iso_format(service)` - *Verify timestamps are in proper ISO 8601 format with date and time.*
+
+---
+
+### [`tests/test_reflection_lenses.py`](tests/test_reflection_lenses.py)
+> *Two-lens epistemic critique in the reflection node (IDEA-629).*
+
+**Size**: `295` lines (`10358` bytes)
+
+**Functions:**
+- `def make_executor()`
+- `def legacy_response(satisfied, reason, needs_improvement)`
+- `def make_input(case_id, with_context)`
+- `def critique_for(case_id, triggered)`
+- `def structured_messages(mock)`
+- `async def test_legacy_keys_unchanged_when_no_lenses_configured()`
+- `async def test_a_sycophantic_fixture_triggers_the_sycophancy_lens()`
+- `async def test_a_sound_fixture_triggers_no_lens()`
+- `async def test_ungrounded_claim_is_flagged_only_when_knowledge_context_is_supplied()`
+- `async def test_lenses_run_when_no_budget_is_active()`
+- `async def test_lenses_are_skipped_at_budget_pressure_0_8_or_more()`
+- `async def test_a_structured_failure_falls_back_to_the_legacy_call()`
+- `async def test_findings_are_filtered_to_the_enabled_lenses()`
+- `async def test_the_structured_call_reuses_the_node_bridge_and_schema()`
+- `async def test_knowledge_context_is_bounded_in_the_prompt()`
+- `def test_build_lens_prompt_names_only_the_selected_lenses()`
+- `def test_lens_enabled_ignores_unknown_and_duplicate_names()`
+- `def test_context_text_accepts_a_string_list_and_mapping()`
+- `def test_the_module_ships_with_no_lenses_enabled()`
+- `async def test_the_lens_prompt_is_absent_when_no_lens_is_enabled()`
 
 ---
 
@@ -6196,7 +7677,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `299` lines (`11103` bytes)
+**Size**: `312` lines (`11942` bytes)
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -6204,6 +7685,7 @@
 - `def test_the_source_list_is_fixed_and_explains_its_licence()`
 - `def test_request_urls_are_built_from_the_allowlisted_endpoint()`
 - `def test_urls_must_be_https_allowlisted_and_public(monkeypatch)`
+- `async def test_a_fetch_connects_to_the_vetted_address_with_the_hostname_for_tls(monkeypatch, httpx_mock)`
 - `def test_private_and_special_addresses_are_rejected(address)`
 - `def test_wikipedia_results_are_parsed_and_markup_removed()`
 - `def test_arxiv_results_are_parsed_from_atom()`
@@ -6455,10 +7937,34 @@
 
 ---
 
+### [`tests/test_skill_admission.py`](tests/test_skill_admission.py)
+> *Guardrail admission for imported and edited skills (IDEA-849, narrowed).*
+
+**Size**: `197` lines (`5619` bytes)
+
+**Functions:**
+- `def service(tmp_path, monkeypatch)`
+- `def set_mode(monkeypatch, mode)`
+- `def test_skills_are_a_blocking_surface()`
+- `def test_clean_skill_content_is_safe()`
+- `def test_observe_mode_flags_an_injection_without_blocking(monkeypatch)`
+- `def test_enforce_mode_blocks_an_injection_with_a_named_reason(monkeypatch)`
+- `def test_a_secret_is_flagged_but_not_blocked_in_enforce_mode(monkeypatch)`
+- `def test_create_in_enforce_mode_refuses_before_writing(service, monkeypatch)`
+- `def test_create_in_observe_mode_stores_the_flagged_scan(service)`
+- `def test_import_from_file_in_enforce_mode_refuses_before_writing(service, monkeypatch)`
+- `def test_import_from_url_in_enforce_mode_refuses_before_writing(service, monkeypatch, httpx_mock)`
+- `def test_update_to_injected_content_is_refused_and_leaves_the_skill_unchanged(service, monkeypatch)`
+- `def test_an_identical_content_update_keeps_the_original_scan(service)`
+- `def test_a_metadata_only_update_keeps_the_scan(service)`
+- `def test_a_changed_clean_content_gets_a_new_digest(service)`
+
+---
+
 ### [`tests/test_skills_module.py`](tests/test_skills_module.py)
 > *Tests for the Skills module.*
 
-**Size**: `567` lines (`19545` bytes)
+**Size**: `584` lines (`20485` bytes)
 
 **Classes:**
 - `class TestSkillBackend` - *Test SkillBackend data persistence layer.*
@@ -6510,6 +8016,7 @@
 - `def test_example_skill_loads()` - *Test that the example skill file loads correctly.*
 - `def test_skill_content_sanitization()` - *Test that skill content is properly handled.*
 - `def test_import_from_url_rejects_mixed_public_and_loopback_answers(monkeypatch)`
+- `def test_import_from_url_connects_to_the_vetted_address_not_a_second_lookup(monkeypatch, httpx_mock)`
 
 ---
 
@@ -6633,6 +8140,29 @@
 
 ---
 
+### [`tests/test_step_journal.py`](tests/test_step_journal.py)
+> *Run-scoped step journal (IDEA-1152).*
+
+**Size**: `153` lines (`5512` bytes)
+
+**Functions:**
+- `def journal(tmp_path)`
+- `def test_run_id_is_deterministic_and_key_scoped()`
+- `def test_input_digest_ignores_volatile_keys()`
+- `def test_commit_then_lookup_returns_the_output(journal)`
+- `def test_changed_input_digest_misses_the_committed_row(journal)`
+- `def test_resume_executes_only_the_uncommitted_suffix(journal)`
+- `def test_incomplete_effectful_step_is_refused(journal)`
+- `def test_incomplete_effectful_step_can_be_resolved_explicitly(journal)`
+- `def test_incomplete_pure_step_restarts_without_a_flag(journal)`
+- `def test_oversized_output_is_not_replayed(journal)`
+- `def test_duplicate_submission_attaches(journal)`
+- `def test_failed_run_is_visible(journal)`
+- `def test_purge_run_removes_rows(journal)`
+- `def test_output_round_trips_through_json(journal)`
+
+---
+
 ### [`tests/test_structured_output.py`](tests/test_structured_output.py)
 > *Tests for Structured Output Enforcement*
 
@@ -6663,7 +8193,7 @@
 ---
 
 ### [`tests/test_system_prompt_node.py`](tests/test_system_prompt_node.py)
-**Size**: `363` lines (`13311` bytes)
+**Size**: `392` lines (`14570` bytes)
 
 **Functions:**
 - `async def test_system_prompt_injection()`
@@ -6676,6 +8206,7 @@
 - `async def test_system_prompt_passes_tools_in_openai_format()` - *Test that enabled tools are passed in OpenAI format via result data.*
 - `async def test_system_prompt_no_tools_in_result_when_empty()` - *Test that tools are not added to result when no tools are enabled.*
 - `async def test_memory_context_injected_into_system_prompt()` - *_memory_context field should be appended to the system message.*
+- `async def test_brain_context_injected_into_system_prompt()` - *_brain_context should be appended as internal state, not user input.*
 - `async def test_knowledge_context_injected_into_system_prompt()` - *knowledge_context field should be appended to the system message.*
 - `async def test_plan_context_injected_into_system_prompt()` - *plan_context field should be appended to the system message.*
 - `async def test_reasoning_context_injected_into_system_prompt()` - *reasoning_context field should be appended to the system message.*
@@ -6686,6 +8217,99 @@
 - `async def test_token_budget_priority_ordering()` - *Test that high-priority context (memory) comes before low-priority (skills).*
 - `async def test_token_estimation()` - *Test the character-based token estimation fallback (tiktoken not available).*
 - `async def test_low_priority_context_dropped_when_budget_exceeded()` - *Test that token budget limits total context size.*
+- `async def test_system_prompt_resolves_from_prompt_registry(tmp_path)`
+
+---
+
+### [`tests/test_tool_approvals_api.py`](tests/test_tool_approvals_api.py)
+> *Approval endpoints for HIGH-tier tool calls (IDEA-060).*
+
+**Size**: `40` lines (`1703` bytes)
+
+**Functions:**
+- `def test_a_held_call_needs_the_phrase_and_runs_once(tmp_path, monkeypatch)`
+- `def test_an_unknown_approval_is_404(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_tool_cancellation.py`](tests/test_tool_cancellation.py)
+> *Per-call cancellation and status receipts (IDEA-1173).*
+
+**Size**: `161` lines (`5478` bytes)
+
+**Functions:**
+- `def test_registry_registers_and_gets_a_call()`
+- `def test_request_cancel_sets_the_event_once()`
+- `def test_request_cancel_unknown_id()`
+- `def test_progress_is_coalesced_and_bounded()`
+- `def test_settle_is_idempotent_and_stops_progress()`
+- `def test_receipt_never_sets_result_for_a_cancelled_call()`
+- `def test_ok_receipt_carries_the_result_and_no_partial()`
+- `def test_rendered_cancelled_receipt_is_unmistakable()`
+- `def test_rendered_timeout_without_partial_says_so()`
+- `def test_registry_compaction_never_evicts_a_live_call()`
+- `def test_sandbox_honours_the_cancel_event()`
+- `async def test_dispatcher_reports_a_cancelled_call_and_stops(monkeypatch)`
+
+---
+
+### [`tests/test_tool_journal.py`](tests/test_tool_journal.py)
+> *At-most-once tool execution journal (IDEA-1111).*
+
+**Size**: `201` lines (`5866` bytes)
+
+**Classes:**
+- `class _Manager`
+  - Method `.__init__()`
+  - Method `.save_episode_state(**kwargs)`
+
+**Functions:**
+- `def _call(call_id, name, arguments)`
+- `def _entry(episode, call_id)`
+- `def _done_entry(episode, call_id, content)`
+- `async def test_done_entry_replays_without_dispatch()`
+- `async def test_pending_entry_asks_and_does_not_dispatch()`
+- `async def test_rerun_refuses_a_non_idempotent_tool()`
+- `async def test_rerun_dispatches_an_idempotent_tool()`
+- `async def test_pending_is_persisted_before_dispatch()`
+- `def test_compaction_keeps_the_last_200_entries()`
+- `async def test_crash_between_pending_and_done_leaves_one_orphaned()`
+- `async def test_no_episode_is_a_pass_through()`
+- `def test_journal_round_trips_with_the_episode()`
+
+---
+
+### [`tests/test_tool_policy.py`](tests/test_tool_policy.py)
+> *Default-deny first-match tool policy (IDEA-058).*
+
+**Size**: `256` lines (`9216` bytes)
+
+**Functions:**
+- `def rule(name, decision, when, risk, reason)`
+- `def spec(*rules, name, version, schema)`
+- `def write_policy(tmp_path, payload)`
+- `def use_policy(monkeypatch, path, mode)`
+- `def test_no_matching_rule_is_denied_by_default()`
+- `def test_path_traversal_does_not_match_an_allow_rule(tmp_path)`
+- `def test_a_substring_host_does_not_match_a_host_rule()`
+- `def test_non_string_arguments_are_a_non_match_not_an_exception()`
+- `def test_the_first_matching_rule_wins()`
+- `def test_tool_names_match_exactly()`
+- `def test_an_identity_rule_matches_only_the_same_identity()`
+- `def test_the_policy_digest_is_stable_and_changes_with_the_rules()`
+- `def test_an_invalid_policy_is_refused(payload)`
+- `def test_an_unknown_matcher_is_refused_instead_of_matching_everything()`
+- `def test_duplicate_rule_names_are_refused()`
+- `def test_an_unknown_decision_or_bad_risk_score_is_refused()`
+- `def test_a_policy_file_is_loaded_and_an_unknown_schema_is_refused(tmp_path)`
+- `def test_no_configured_policy_changes_nothing(monkeypatch)`
+- `def test_observe_mode_logs_a_would_deny_and_does_not_block(tmp_path, monkeypatch, caplog)`
+- `def test_enforce_mode_returns_a_named_denial(tmp_path, monkeypatch)`
+- `def test_enforce_mode_with_an_unusable_policy_fails_closed(tmp_path, monkeypatch)`
+- `def test_an_unknown_mode_falls_back_to_observe(tmp_path, monkeypatch)`
+- `def test_a_require_approval_rule_stages_the_existing_ledger(tmp_path, monkeypatch)`
+- `def test_a_policy_can_restrict_a_low_tier_tool(tmp_path, monkeypatch)`
+- `def test_a_policy_cannot_lower_a_high_tier(tmp_path, monkeypatch)`
 
 ---
 
@@ -6744,8 +8368,50 @@
 
 ---
 
+### [`tests/test_tool_tiers.py`](tests/test_tool_tiers.py)
+> *Fail-closed tiers for structured tool calls (IDEA-060).*
+
+**Size**: `101` lines (`3855` bytes)
+
+**Functions:**
+- `def registry_with(tmp_path, entries)`
+- `def test_an_unregistered_tool_is_high(tmp_path)`
+- `def test_a_tier_without_a_reason_is_high(tmp_path)`
+- `def test_registered_tiers_are_used(tmp_path)`
+- `def test_arguments_raise_a_tier_but_never_lower_it(tmp_path)`
+- `def test_words_in_arguments_do_not_change_the_tier(tmp_path)`
+- `def test_a_high_call_is_staged_and_runs_only_after_the_phrase(tmp_path, monkeypatch)`
+- `def test_a_call_that_cannot_be_staged_does_not_run(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_tools_capabilities.py`](tests/test_tools_capabilities.py)
+> *Declared-primitive tool manifest and pre-call refusal (IDEA-1172).*
+
+**Size**: `199` lines (`6775` bytes)
+
+**Functions:**
+- `def library(tmp_path)`
+- `def _supported(library)`
+- `def test_supported_set_is_derived_from_the_library_dirs(library)`
+- `def test_unknown_requires_token_is_refused(library)`
+- `def test_unsupported_primitive_is_refused_before_any_execution(library)`
+- `def test_declared_and_supported_primitive_runs(library)`
+- `def test_legacy_entry_without_requires_keeps_running(library)`
+- `def test_missing_source_is_refused_instead_of_running_empty_code(library)`
+- `def test_case_insensitive_fallback_finds_calculator(library)`
+- `def test_rlm_entry_resolves_to_the_rlm_library(library)`
+- `def test_parse_requirements_accepts_objects_and_rejects_bad_shapes()`
+- `def test_describe_supported_reports_the_manifest_version(library)`
+- `def test_manifest_from_legacy_names_the_rlm_mode(library)`
+- `async def test_dispatcher_refuses_an_unsupported_tool_without_calling_the_sandbox(monkeypatch)`
+- `async def test_dispatcher_runs_a_file_found_by_the_case_insensitive_lookup(monkeypatch, tmp_path)`
+- `def test_live_manifest_entries_all_preflight()`
+
+---
+
 ### [`tests/test_tools_library.py`](tests/test_tools_library.py)
-**Size**: `549` lines (`20004` bytes)
+**Size**: `569` lines (`20644` bytes)
 
 **Classes:**
 - `class TestCalculator` - *Tests for Calculator tool.*
@@ -6802,10 +8468,11 @@
   - Method `.test_get_events_by_date(monkeypatch)`
   - Method `.test_no_events_found(monkeypatch)`
 - `class TestYouTubeTranscript` - *Tests for YouTubeTranscript tool.*
+  - Method `._mock_api(monkeypatch, seen)`
   - Method `.test_missing_url()`
   - Method `.test_invalid_url_no_video_id()`
-  - Method `.test_youtube_watch_url_parsing()`
-  - Method `.test_youtu_be_url_parsing()`
+  - Method `.test_youtube_watch_url_parsing(monkeypatch)`
+  - Method `.test_youtu_be_url_parsing(monkeypatch)`
 - `class TestWikipediaLookup` - *Tests for WikipediaLookup tool.*
   - Method `.test_successful_summary_lookup(mock_get)`
   - Method `.test_full_article_mode(mock_get)`
@@ -6827,7 +8494,7 @@
 ### [`tests/test_tools_node.py`](tests/test_tools_node.py)
 > *Tests for modules/tools/node.py — ToolDispatcherExecutor*
 
-**Size**: `180` lines (`7108` bytes)
+**Size**: `196` lines (`7794` bytes)
 
 **Functions:**
 - `def make_input(tool_calls, messages)` - *Build a minimal input_data dict with tool_calls in OpenAI format.*
@@ -6846,6 +8513,25 @@
 - `async def test_config_none_guard()` - *Passing config=None should not raise.*
 - `async def test_get_executor_class_dispatcher()` - *get_executor_class('tool_dispatcher') should return ToolDispatcherExecutor.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
+- `async def test_a_high_risk_tool_is_held_before_the_sandbox(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_trace_context.py`](tests/test_trace_context.py)
+> *Trace/span identity and outcome stamping (IDEA-1237).*
+
+**Size**: `103` lines (`2765` bytes)
+
+**Functions:**
+- `def _reset()`
+- `def test_root_trace_has_a_trace_and_span_id()`
+- `def test_child_span_links_to_its_parent()`
+- `def test_sampling_zero_and_one_are_deterministic()`
+- `def test_sampling_decision_is_recorded_on_the_context()`
+- `def test_untraced_current_ids_are_empty()`
+- `def test_outcome_is_stamped_when_traced()`
+- `def test_outcome_is_unchanged_when_untraced()`
+- `def test_a_broken_trace_provider_does_not_drop_the_outcome(monkeypatch)`
 
 ---
 
@@ -6858,6 +8544,21 @@
 - `def test_module_list_fragment(client)` - *Tests if the module list fragment loads correctly.*
 - `def test_llm_status_fragment(client)` - *Tests if the LLM status fragment loads correctly.*
 - `def test_chat_page_loading(client)` - *Tests if the /chat route correctly prepares the dashboard for chat.*
+
+---
+
+### [`tests/test_untrusted_fences.py`](tests/test_untrusted_fences.py)
+> *Untrusted text is fenced as data with a per-block random id (IDEA-030).*
+
+**Size**: `64` lines (`3334` bytes)
+
+**Functions:**
+- `def test_a_block_is_fenced_with_a_fresh_id_and_a_data_note()`
+- `def test_a_payload_cannot_close_or_open_a_fence()`
+- `def test_the_source_label_cannot_break_out_of_its_attribute()`
+- `def test_only_tool_messages_are_fenced_once_and_the_caller_list_is_untouched()`
+- `async def test_the_llm_bridge_sends_tool_results_fenced(httpx_mock)`
+- `async def test_knowledge_context_fences_each_retrieved_chunk()`
 
 ---
 

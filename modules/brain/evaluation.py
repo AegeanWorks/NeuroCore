@@ -6,6 +6,11 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+
+from modules.brain.assertions import (
+    Aggregate, CheckCode, CheckVerdict, InvalidCheckSpec, aggregate, coerce_specs,
+    evaluate_check,
+)
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from core.flow_manager import flow_manager
@@ -59,9 +64,10 @@ class EvalTask:
     id: str
     description: str
     input: Dict[str, Any]
-    checks: List[Dict[str, Any]] = field(default_factory=list)
+    checks: List[Any] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     timeout_seconds: float = 30.0
+    threshold: Optional[float] = None
 
 
 ECHO_FLOW = {
@@ -120,31 +126,6 @@ def _field_value(output: Any, field: str) -> str:
     if current is None:
         return ""
     return str(current)
-
-
-def _evaluate_check(check: Dict[str, Any], output: Any, latency_ms: float):
-    check_type = check.get("type")
-    if check_type == "no_error":
-        passed = not (isinstance(output, dict) and "error" in output)
-        return passed, "no error" if passed else str(output.get("error"))
-    if check_type == "max_latency_ms":
-        limit = float(check.get("value", 0))
-        passed = latency_ms <= limit
-        return passed, f"{latency_ms:.1f}ms <= {limit:.1f}ms" if passed else (
-            f"{latency_ms:.1f}ms exceeds {limit:.1f}ms"
-        )
-
-    text = _field_value(output, check.get("field", "content"))
-    if check_type == "equals":
-        expected = str(check.get("value", ""))
-        return text == expected, f"expected {expected!r}, got {text!r}"
-    if check_type == "contains":
-        expected = str(check.get("value", ""))
-        return expected in text, f"{expected!r} in {text!r}"
-    if check_type == "regex":
-        pattern = str(check.get("value", ""))
-        return bool(re.search(pattern, text)), f"regex {pattern!r} on {text!r}"
-    return False, f"unknown check type {check_type!r}"
 
 
 class FlowEvalExecutor:
@@ -216,35 +197,81 @@ class EvaluationRunner:
                 error = str(exc)
             latency_ms = (time.perf_counter() - start) * 1000
 
+            verdicts = []
             if error is None:
-                for check in task.checks:
-                    passed, detail = _evaluate_check(check, output, latency_ms)
+                try:
+                    specs = coerce_specs(task.checks)
+                except InvalidCheckSpec as exc:
+                    specs = []
                     check_results.append({
-                        "type": check.get("type"),
-                        "passed": passed,
-                        "detail": detail,
+                        "type": "spec", "id": "spec", "passed": False,
+                        "detail": str(exc), "code": CheckCode.INVALID_SPEC.value, "score": 0.0,
+                    })
+                    verdicts.append(CheckVerdict(
+                        check_id="spec", code=CheckCode.INVALID_SPEC, score=0.0,
+                        passed=False, reason=str(exc),
+                    ))
+                for spec in specs:
+                    verdict = evaluate_check(spec, output, latency_ms)
+                    verdicts.append(verdict)
+                    check_results.append({
+                        "type": spec.type,
+                        "id": spec.id,
+                        "passed": verdict.passed,
+                        "detail": verdict.reason,
+                        "code": verdict.code.value,
+                        "score": verdict.score,
+                        "metric": verdict.metric,
                     })
             else:
+                verdicts.append(CheckVerdict(
+                    check_id="execution", code=CheckCode.EXEC_ERROR, score=0.0,
+                    passed=False, reason=error,
+                ))
                 check_results.append({
                     "type": "execution",
+                    "id": "execution",
                     "passed": False,
                     "detail": error,
+                    "code": CheckCode.EXEC_ERROR.value,
+                    "score": 0.0,
                 })
+
+            try:
+                aggregate_result = aggregate(verdicts, task_threshold=getattr(task, "threshold", None))
+            except Exception as exc:
+                aggregate_result = Aggregate(score=0.0, passed=False,
+                                             failure_reason="aggregation_error")
+                logger.warning("evaluation aggregation failed for %s: %s", task.id, exc)
 
             task_results.append({
                 "id": task.id,
                 "description": task.description,
-                "passed": all(item["passed"] for item in check_results),
+                "passed": aggregate_result.passed,
+                "score": aggregate_result.score,
+                "named_scores": aggregate_result.named_scores,
+                "failure_reason": (
+                    "error" if error is not None else aggregate_result.failure_reason
+                ),
+                "codes": list(aggregate_result.codes),
                 "latency_ms": round(latency_ms, 2),
                 "checks": check_results,
                 "error": error,
-                "output": _field_value(output, "content")[:500],
+                "output": (_field_value(output, "content") or "")[:500],
             })
 
         passed = sum(1 for task in task_results if task["passed"])
         total = len(task_results)
         flow_identifier = getattr(executor, "flow_id", flow_id or ECHO_FLOW["id"])
+        from modules.brain.suite_manifest import MANIFEST_SCHEMA_VERSION, manifest
+
+        identity = manifest(suite)
+        scored = [task["score"] for task in task_results if "score" in task]
         return {
+            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "suite_digest": identity["suite_digest"],
+            "task_digests": identity["task_digests"],
+            "score": round(sum(scored) / len(scored), 4) if scored else 0.0,
             "suite": SUITE_NAME,
             "flow_id": flow_identifier,
             "started_at": started,
@@ -307,8 +334,29 @@ def compare_results(current: Dict[str, Any], baseline: Dict[str, Any],
     if not baseline:
         return {
             "has_baseline": False,
+            "comparable": False,
             "regression": False,
             "reasons": ["no baseline recorded"],
+            "pass_rate_delta": None,
+            "latency_delta_pct": None,
+        }
+
+    from modules.brain.suite_manifest import comparability
+
+    comparable, comparability_reason, changed_tasks = comparability(current, baseline)
+    if not comparable:
+        # An incomparable suite is neither a regression nor a pass: the pass rate cannot be
+        # trusted across different tasks (IDEA-1207).
+        return {
+            "has_baseline": True,
+            "comparable": False,
+            "incomparable_reason": comparability_reason,
+            "changed_tasks": changed_tasks,
+            "regression": False,
+            "reasons": [
+                f"baseline is not comparable: {comparability_reason}"
+                + (f" ({len(changed_tasks)} task(s) changed)" if changed_tasks else "")
+            ],
             "pass_rate_delta": None,
             "latency_delta_pct": None,
         }
@@ -318,6 +366,8 @@ def compare_results(current: Dict[str, Any], baseline: Dict[str, Any],
     if baseline_flow and current_flow and baseline_flow != current_flow:
         return {
             "has_baseline": True,
+            "comparable": False,
+            "incomparable_reason": "different flow",
             "regression": True,
             "reasons": [
                 f"baseline belongs to flow '{baseline_flow}', not '{current_flow}'"
@@ -355,6 +405,9 @@ def compare_results(current: Dict[str, Any], baseline: Dict[str, Any],
 
     return {
         "has_baseline": True,
+        "comparable": True,
+        "incomparable_reason": None,
+        "changed_tasks": [],
         "regression": bool(reasons),
         "reasons": reasons,
         "pass_rate_delta": rate_delta,

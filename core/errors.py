@@ -56,6 +56,58 @@ class LLMResponseError(LLMError):
     pass
 
 
+class LLMRateLimitError(LLMHTTPError):
+    """A provider rate limit; carries the server's Retry-After hint when present (IDEA-891)."""
+
+    def __init__(self, message: str, status_code: int = 429, retry_after: Optional[float] = None,
+                 provider: Optional[str] = None, model: Optional[str] = None,
+                 details: Optional[Dict[str, Any]] = None):
+        self.retry_after = retry_after
+        self.provider = provider
+        details = dict(details or {})
+        if retry_after is not None:
+            details["retry_after"] = retry_after
+        if provider:
+            details["provider"] = provider
+        super().__init__(message, status_code=status_code, model=model, details=details)
+
+
+class LLMContextWindowError(LLMError):
+    """The prompt is larger than the model's context window; retrying cannot help."""
+
+    def __init__(self, message: str, provider: Optional[str] = None,
+                 model: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        self.provider = provider
+        details = dict(details or {})
+        if provider:
+            details["provider"] = provider
+        super().__init__(message, model=model, details=details)
+
+
+class LLMAuthError(LLMError):
+    """Provider authentication or permission failure; fail fast and fix configuration."""
+
+    def __init__(self, message: str, provider: Optional[str] = None,
+                 model: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        self.provider = provider
+        details = dict(details or {})
+        if provider:
+            details["provider"] = provider
+        super().__init__(message, model=model, details=details)
+
+
+class LLMBudgetError(LLMError):
+    """Provider-side budget or payment failure; retrying cannot help."""
+
+    def __init__(self, message: str, provider: Optional[str] = None,
+                 model: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        self.provider = provider
+        details = dict(details or {})
+        if provider:
+            details["provider"] = provider
+        super().__init__(message, model=model, details=details)
+
+
 class ToolError(NeuroCoreError):
     """Base class for tool-related errors."""
     
@@ -139,6 +191,11 @@ class MemoryError(NeuroCoreError):
 
 class MemoryConsolidationError(MemoryError):
     """Raised when memory consolidation fails."""
+    pass
+
+
+class MemoryContentBlocked(MemoryError):
+    """Raised when guardrails in enforce mode refuse text bound for memory or goals (IDEA-334)."""
     pass
 
 

@@ -128,8 +128,9 @@ class SkillBackend:
         
         return meta
     
-    def create_skill(self, name: str, description: str, content: str, 
-                     category: str = "general", tags: List[str] = None) -> Dict[str, Any]:
+    def create_skill(self, name: str, description: str, content: str,
+                     category: str = "general", tags: List[str] = None,
+                     scan: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Create a new skill."""
         tags = tags or []
         skill_id = self._generate_skill_id(name)
@@ -149,21 +150,25 @@ class SkillBackend:
             "created_at": datetime.utcnow().isoformat() + 'Z',
             "updated_at": datetime.utcnow().isoformat() + 'Z'
         }
+        if scan is not None:
+            metadata[skill_id]["scan"] = scan
         self._save_metadata(metadata)
         self.versions.record(skill_id, content, note="created")
-        
+
         return {
             "id": skill_id,
             "name": name,
             "description": description,
             "category": category,
             "tags": tags,
-            "content": content
+            "content": content,
+            "scan": scan,
         }
     
     def update_skill(self, skill_id: str, name: Optional[str] = None,
                      description: Optional[str] = None, content: Optional[str] = None,
-                     category: Optional[str] = None, tags: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+                     category: Optional[str] = None, tags: Optional[List[str]] = None,
+                     scan: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """Update an existing skill."""
         if not self._valid_skill_id(skill_id):
             return None
@@ -191,7 +196,9 @@ class SkillBackend:
             meta["category"] = category
         if tags is not None:
             meta["tags"] = tags
-        
+        if scan is not None:
+            meta["scan"] = scan
+
         meta["updated_at"] = datetime.utcnow().isoformat() + 'Z'
         self._save_metadata(metadata)
         
@@ -217,9 +224,10 @@ class SkillBackend:
         
         return True
     
-    def import_skill(self, skill_id: str, name: str, description: str, 
-                     content: str, category: str = "general", 
-                     tags: List[str] = None) -> Dict[str, Any]:
+    def import_skill(self, skill_id: str, name: str, description: str,
+                     content: str, category: str = "general",
+                     tags: List[str] = None,
+                     scan: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Import a skill with a specific ID (used for import/export)."""
         tags = tags or []
         skill_path = self._get_skill_path(skill_id)
@@ -239,16 +247,19 @@ class SkillBackend:
             "updated_at": datetime.utcnow().isoformat() + 'Z',
             "imported": True
         }
+        if scan is not None:
+            metadata[skill_id]["scan"] = scan
         self._save_metadata(metadata)
         self.versions.record(skill_id, content, note="imported")
-        
+
         return {
             "id": skill_id,
             "name": name,
             "description": description,
             "category": category,
             "tags": tags,
-            "content": content
+            "content": content,
+            "scan": scan,
         }
     
     def get_skill_content_only(self, skill_id: str) -> Optional[str]:

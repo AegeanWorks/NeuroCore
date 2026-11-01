@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "surfaces": {
+    "web": {
+      "paths": [
+        "main.py",
+        "web/**"
+      ]
+    }
+  },
+  "protected": [
+    "tests/**"
+  ],
+  "commands": {
+    "fast": "python -m pytest tests/test_brain_ui.py tests/test_chat_brain_rail.py tests/test_chat_brain_turn.py tests/test_ui_dynamics.py tests/test_settings_gui.py tests/test_xss_escaping.py -q",
+    "snapshot": ""
+  },
+  "style": {
+    "theme_paths": []
+  },
+  "limits": {
+    "max_files": 12,
+    "max_lines": 300
+  }
+}

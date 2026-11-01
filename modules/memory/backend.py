@@ -15,8 +15,33 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from core.paths import data_path
+from core.settings import settings
+from .scope import require_scope as _require_scope, scope_clauses
+from .filter_plan import diagnostics, plan_for_query
 
 logger = logging.getLogger(__name__)
+
+
+def screen_memory_text(what: str, *texts: Optional[str]) -> None:
+    """
+    Scan text bound for memory or goals on the guardrails' ``memory`` surface (IDEA-334): a stored
+    entry returns in every later session, so enforce mode refuses an injection pattern here as it
+    does on input. Observe mode only logs and counts. Raises :class:`MemoryContentBlocked`.
+    """
+    # Imported here: the brain package loads its router, which reaches back into memory.
+    from core.errors import MemoryContentBlocked
+    from modules.brain.guardrails import scan_text
+
+    for text in texts:
+        if not text:
+            continue
+        verdict = scan_text(text, "memory")
+        if verdict.blocked:
+            rules = ", ".join(sorted({f.rule for f in verdict.findings if f.blocked}))
+            raise MemoryContentBlocked(f"{what} refused by guardrails ({rules})")
+        if verdict.findings:
+            logger.warning("[Memory] %s stored with guardrail findings: %s", what,
+                           ", ".join(sorted({f.rule for f in verdict.findings})))
 
 try:
     import faiss
@@ -39,6 +64,7 @@ class MemoryStore:
         self.save_threshold = 20  # Save index to disk after 20 changes
         self.last_consolidation_ts = 0 # Track last consolidation time
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="MemoryWorker")
+        self.filter_plan_budget_rows = 5000
         self._init_db()
         
         self.faiss_index = None
@@ -47,6 +73,10 @@ class MemoryStore:
                 self._build_faiss_index()
             else:
                 self._sync_faiss_index()
+
+    def _filter_plan_enabled(self) -> bool:
+        """The planner is on by default; disabling it restores the full-index ranking."""
+        return bool(settings.get("memory_filter_plan_enabled", True))
 
     @contextmanager
     def _connect(self):
@@ -89,7 +119,10 @@ class MemoryStore:
                 source TEXT DEFAULT 'chat',
                 verified INTEGER DEFAULT 0,
                 expires_at INTEGER DEFAULT NULL,
-                access_count INTEGER DEFAULT 0
+                access_count INTEGER DEFAULT 0,
+                user_id TEXT DEFAULT NULL,
+                agent_id TEXT DEFAULT NULL,
+                run_id TEXT DEFAULT NULL
             )
         """)
         con.execute("CREATE INDEX IF NOT EXISTS idx_identity ON memories(identity);")
@@ -110,9 +143,20 @@ class MemoryStore:
         except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
         try: con.execute("ALTER TABLE memories ADD COLUMN importance_boost INTEGER DEFAULT 0")
         except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
+        try: con.execute("ALTER TABLE memories ADD COLUMN user_id TEXT DEFAULT NULL")
+        except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
+        try: con.execute("ALTER TABLE memories ADD COLUMN agent_id TEXT DEFAULT NULL")
+        except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
+        try: con.execute("ALTER TABLE memories ADD COLUMN run_id TEXT DEFAULT NULL")
+        except sqlite3.OperationalError as _exc: logger.debug("ignored exception: %s", _exc)
 
         # Indexes on migrated columns must be created after the ALTER TABLE statements.
         con.execute("CREATE INDEX IF NOT EXISTS idx_source ON memories(source);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_memories_user ON memories(user_id);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_memories_agent ON memories(agent_id);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_memories_run ON memories(run_id);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_memories_source_type ON memories(source, type);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);")
 
         con.execute("""
             CREATE TABLE IF NOT EXISTS meta_memories (
@@ -285,7 +329,15 @@ class MemoryStore:
             result = con.execute("SELECT COUNT(*) FROM memories").fetchone()
             return result[0] > 0
 
-    def add_entry(self, text: str, embedding: Optional[List[float]] = None, confidence: float = 1.0, subject: str = "User", created_at: int = None, mem_type: str = "BELIEF", source: str = "chat", verified: bool = False, expires_at: int = None) -> int:
+    def add_entry(self, text: str, embedding: Optional[List[float]] = None, confidence: float = 1.0, subject: str = "User", created_at: int = None, mem_type: str = "BELIEF", source: str = "chat", verified: bool = False, expires_at: int = None, scope: Optional[Dict[str, str]] = None, require_scope: bool = False) -> int:
+        from core.errors import MemoryContentBlocked
+        scope_values = _require_scope(scope, require_scope)
+        try:
+            screen_memory_text("memory", text)
+        except MemoryContentBlocked as exc:
+            # -1 is this method's existing "rejected" answer, which every caller handles.
+            logger.warning("[Memory] %s (source: %s)", exc, source)
+            return -1
         identity = self.compute_identity(text)
         timestamp = created_at if created_at is not None else int(time.time())
         
@@ -307,15 +359,22 @@ class MemoryStore:
 
         with self.write_lock:
             with self._connect() as con:
-                # Check for duplicates
-                exists = con.execute("SELECT 1 FROM memories WHERE identity = ? AND deleted = 0 AND parent_id IS NULL", (identity,)).fetchone()
+                # Check for duplicates within the same scope; the same sentence from two people
+                # is two memories, not a duplicate.
+                duplicate_query = "SELECT 1 FROM memories WHERE identity = ? AND deleted = 0 AND parent_id IS NULL"
+                duplicate_params: List[Any] = [identity]
+                clauses, params = scope_clauses(scope_values)
+                if clauses:
+                    duplicate_query += " AND " + " AND ".join(clauses)
+                    duplicate_params.extend(params)
+                exists = con.execute(duplicate_query, duplicate_params).fetchone()
                 if exists:
                     return -1
 
                 cur = con.execute("""
-                    INSERT INTO memories (identity, type, subject, text, confidence, created_at, embedding, source, verified, expires_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (identity, final_type, subject, text, confidence, timestamp, embedding_blob, final_source, verified_int, expires_at))
+                    INSERT INTO memories (identity, type, subject, text, confidence, created_at, embedding, source, verified, expires_at, user_id, agent_id, run_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (identity, final_type, subject, text, confidence, timestamp, embedding_blob, final_source, verified_int, expires_at, scope_values.get("user_id"), scope_values.get("agent_id"), scope_values.get("run_id")))
                 row_id = cur.lastrowid
 
             if FAISS_AVAILABLE and emb_np is not None and self.faiss_index:
@@ -341,8 +400,10 @@ class MemoryStore:
                     self.faiss_index.remove_ids(np.array([child_id]).astype('int64'))
                     self._save_faiss_index()
 
-    def search(self, query_embedding: List[float], limit: int = 5, source_filter: str = None, access_weight: float = 0.0, link_boost: float = 0.0) -> List[Dict]:
+    def search(self, query_embedding: List[float], limit: int = 5, source_filter: str = None, access_weight: float = 0.0, link_boost: float = 0.0, scope: Optional[Dict[str, str]] = None, require_scope: bool = False, scope_policy: str = "strict") -> List[Dict]:
         if not query_embedding: return []
+        scope_values = _require_scope(scope, require_scope)
+        scope_predicates, scope_params = scope_clauses(scope_values, scope_policy)
         
         q_emb_np = np.array(query_embedding, dtype='float32')
         candidate_ids = []
@@ -352,8 +413,46 @@ class MemoryStore:
         # Determine if we can use FAISS
         use_faiss = FAISS_AVAILABLE and self.faiss_index and self.faiss_index.ntotal > 0
 
-        # 1. FAISS Search
-        if use_faiss:
+        # 1. Filter planner (IDEA-1154): a selective filter is cheaper as an SQL prefilter than
+        # as a full index ranking with a post-filter.
+        prefiltered = False
+        if use_faiss and (scope_predicates or source_filter) and self._filter_plan_enabled():
+            try:
+                with self._connect() as con:
+                    plan, clauses, plan_params = plan_for_query(
+                        con, scope_predicates, scope_params, source_filter, current_time,
+                        len(query_embedding),
+                        scan_budget_kb=int(settings.get("memory_filter_scan_budget_kb", 4096)),
+                        prefilter_max_mb=int(settings.get("memory_prefilter_max_mb", 64)),
+                        budget_rows=self.filter_plan_budget_rows,
+                    )
+                    logger.debug("[Memory] filter plan: %s", diagnostics(plan, len(query_embedding)))
+                    if plan.strategy == "prefilter":
+                        where = " AND ".join(clauses)
+                        rows = con.execute(
+                            f"SELECT id, embedding FROM memories WHERE {where} LIMIT ?",
+                            [current_time, *plan_params, plan.budget_rows],
+                        ).fetchall()
+                        q_norm = np.linalg.norm(q_emb_np)
+                        if q_norm > 0:
+                            q_emb_np = q_emb_np / q_norm
+                        for row in rows:
+                            embedding = self._parse_embedding(row[1])
+                            if embedding is None:
+                                continue
+                            e_norm = np.linalg.norm(embedding)
+                            if e_norm > 0:
+                                embedding = embedding / e_norm
+                            candidate_ids.append(row[0])
+                            candidate_scores[row[0]] = float(np.dot(q_emb_np, embedding))
+                        prefiltered = True
+            except Exception as exc:
+                logger.warning(f"[Memory] Filter plan failed, using the index: {exc}")
+                candidate_ids = []
+                candidate_scores = {}
+
+        # 2. FAISS Search
+        if use_faiss and not prefiltered:
             with self.faiss_lock:
                 q_emb_2d = q_emb_np.reshape(1, -1)
                 faiss.normalize_L2(q_emb_2d)
@@ -366,15 +465,19 @@ class MemoryStore:
                         candidate_ids.append(int(idx))
                         candidate_scores[int(idx)] = float(scores[0][i])
 
-        # 2. Linear Fallback (If FAISS is missing or empty)
-        else:
+        # 2b. Linear Fallback (If FAISS is missing or empty)
+        elif not use_faiss:
             try:
                 with self._connect() as con:
-                    rows = con.execute("""
+                    linear_query = """
                         SELECT id, embedding FROM memories 
                         WHERE deleted = 0 AND parent_id IS NULL AND embedding IS NOT NULL
-                        AND (expires_at IS NULL OR expires_at > ?)
-                    """, (current_time,)).fetchall()
+                        AND (expires_at IS NULL OR expires_at > ?)"""
+                    linear_params: List[Any] = [current_time]
+                    for predicate in scope_predicates:
+                        linear_query += " AND " + predicate
+                    linear_params.extend(scope_params)
+                    rows = con.execute(linear_query, linear_params).fetchall()
                 
                 # Normalize query
                 q_norm = np.linalg.norm(q_emb_np)
@@ -414,6 +517,9 @@ class MemoryStore:
                         f"AND (expires_at IS NULL OR expires_at = 0 OR expires_at >= ?)"
                     )
                     params = list(batch) + [current_time]
+                    for predicate in scope_predicates:
+                        query += " AND " + predicate
+                    params.extend(scope_params)
                     if source_filter:
                         query += " AND source = ?"
                         params.append(source_filter)
@@ -445,45 +551,58 @@ class MemoryStore:
             
             results.sort(key=lambda x: x['score'], reverse=True)
 
-        return self._expand_with_links(results, limit, link_boost)
+        return self._expand_with_links(results, limit, link_boost, scope_values, scope_policy)
 
-    def keyword_search(self, query: str, limit: int = 5, link_boost: float = 0.0) -> List[Dict]:
+    def keyword_search(self, query: str, limit: int = 5, link_boost: float = 0.0, scope: Optional[Dict[str, str]] = None, require_scope: bool = False, scope_policy: str = "strict") -> List[Dict]:
         """Text-based fallback search used when no embedding model is configured."""
+        scope_values = _require_scope(scope, require_scope)
+        scope_predicates, scope_params = scope_clauses(scope_values, scope_policy)
         current_time = int(time.time())
         words = [w.strip() for w in query.split() if len(w.strip()) > 2]
         if not words:
             # Return most recent memories when query has no useful terms
-            with self._connect() as con:
-                rows = con.execute("""
+            recent_query = """
                     SELECT id, text, created_at, type FROM memories
                     WHERE deleted = 0 AND parent_id IS NULL
-                    AND (expires_at IS NULL OR expires_at > ?)
-                    ORDER BY created_at DESC LIMIT ?
-                """, (current_time, limit)).fetchall()
+                    AND (expires_at IS NULL OR expires_at > ?)"""
+            recent_params: List[Any] = [current_time]
+            for predicate in scope_predicates:
+                recent_query += " AND " + predicate
+            recent_params.extend(scope_params)
+            recent_query += " ORDER BY created_at DESC LIMIT ?"
+            recent_params.append(limit)
+            with self._connect() as con:
+                rows = con.execute(recent_query, recent_params).fetchall()
             return self._expand_with_links(
                 [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5}
                  for r in rows],
-                limit, link_boost,
+                limit, link_boost, scope_values, scope_policy,
             )
 
         like_clauses = " AND ".join(["m.text LIKE ?" for _ in words])
-        params = [f"%{w}%" for w in words] + [current_time, limit]
-        with self._connect() as con:
-            rows = con.execute(f"""
+        params = [f"%{w}%" for w in words] + [current_time]
+        keyword_query = f"""
                 SELECT m.id, m.text, m.created_at, m.type FROM memories m
                 WHERE m.deleted = 0 AND m.parent_id IS NULL
                 AND ({like_clauses})
-                AND (m.expires_at IS NULL OR m.expires_at > ?)
-                ORDER BY m.created_at DESC LIMIT ?
-            """, params).fetchall()
+                AND (m.expires_at IS NULL OR m.expires_at > ?)"""
+        joined_predicates, joined_params = scope_clauses(scope_values, scope_policy, prefix="m")
+        for predicate in joined_predicates:
+            keyword_query += " AND " + predicate
+        params.extend(joined_params)
+        keyword_query += " ORDER BY m.created_at DESC LIMIT ?"
+        params.append(limit)
+        with self._connect() as con:
+            rows = con.execute(keyword_query, params).fetchall()
         return self._expand_with_links(
             [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5}
              for r in rows],
-            limit, link_boost,
+            limit, link_boost, scope_values, scope_policy,
         )
 
     def _expand_with_links(self, results: List[Dict], limit: int,
-                           link_boost: float) -> List[Dict]:
+                           link_boost: float, scope: Optional[Dict[str, str]] = None,
+                           scope_policy: str = "strict") -> List[Dict]:
         """Promote one hop of accepted supporting evidence; zero disables the feature.
 
         Only ``supports`` and ``derived_from`` links boost, the source must be a seed result, and
@@ -504,6 +623,8 @@ class MemoryStore:
             return results
         placeholders = ','.join(['?'] * len(seeds))
         now = int(time.time())
+        link_predicates, link_params = scope_clauses(scope, scope_policy, prefix="m")
+        link_scope_sql = "".join(f" AND {predicate}" for predicate in link_predicates)
         with self._connect() as con:
             rows = con.execute(f"""
                 SELECT l.source_id, l.target_id, l.relation, l.confidence,
@@ -514,8 +635,8 @@ class MemoryStore:
                   AND l.status = 'accepted'
                   AND l.relation IN ('supports', 'derived_from')
                   AND m.deleted = 0 AND m.parent_id IS NULL
-                  AND (m.expires_at IS NULL OR m.expires_at > ?)
-            """, [*seeds.keys(), now]).fetchall()
+                  AND (m.expires_at IS NULL OR m.expires_at > ?){link_scope_sql}
+            """, [*seeds.keys(), now, *link_params]).fetchall()
 
         by_id = {int(item["id"]): item for item in results}
         for source_id, target_id, relation, confidence, memory_id, text, created, mem_type in rows:
@@ -553,7 +674,7 @@ class MemoryStore:
             rows = con.execute("SELECT id, text, created_at FROM memories WHERE deleted = 0 AND parent_id IS NULL ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
         return [{"id": r[0], "text": r[1], "created_at": r[2]} for r in rows]
 
-    def browse(self, limit: int = 50, offset: int = 0, search_text: str = None, filter_date: str = "ALL", mem_type: str = None, source: str = None, sort_field: str = None, sort_dir: str = None) -> List[Dict]:
+    def browse(self, limit: int = 50, offset: int = 0, search_text: str = None, filter_date: str = "ALL", mem_type: str = None, source: str = None, sort_field: str = None, sort_dir: str = None, scope: Optional[Dict[str, str]] = None, scope_policy: str = "strict") -> List[Dict]:
         """
         Retrieves memories with optional filtering for the Memory Browser UI.
         """
@@ -574,6 +695,11 @@ class MemoryStore:
                    (SELECT COUNT(DISTINCT session_id) FROM memory_session_refs WHERE memory_id = m.id) AS session_count
             FROM memories m WHERE m.deleted = 0 AND m.parent_id IS NULL"""
         params = []
+        
+        browse_predicates, browse_params = scope_clauses(scope, scope_policy, prefix="m")
+        for predicate in browse_predicates:
+            query += " AND " + predicate
+        params.extend(browse_params)
         
         if source:
             query += " AND m.source = ?"
@@ -622,7 +748,7 @@ class MemoryStore:
             for r in rows
         ]
 
-    def find_similar(self, embedding: List[float], threshold: float = 0.9, limit: int = 5, exclude_source: str = None) -> List[Dict]:
+    def find_similar(self, embedding: List[float], threshold: float = 0.9, limit: int = 5, exclude_source: str = None, scope: Optional[Dict[str, str]] = None, scope_policy: str = "strict") -> List[Dict]:
         """
         Find memories with cosine similarity above threshold.
         Returns list of dicts with id, text, score.
@@ -655,6 +781,10 @@ class MemoryStore:
             placeholders = ','.join(['?'] * len(candidate_ids))
             query = f"SELECT id, text FROM memories WHERE id IN ({placeholders}) AND deleted = 0 AND parent_id IS NULL"
             params = list(candidate_ids)
+            similar_predicates, similar_params = scope_clauses(scope, scope_policy)
+            for predicate in similar_predicates:
+                query += " AND " + predicate
+            params.extend(similar_params)
             
             if exclude_source:
                 query += " AND source != ?"
@@ -796,19 +926,27 @@ class MemoryStore:
                 """, (action, json.dumps(target_ids), new_value, description, int(time.time())))
                 return cur.lastrowid
 
-    def update_entry(self, memory_id: int, text: str = None, mem_type: str = None, verified: bool = None) -> Optional[int]:
+    def update_entry(self, memory_id: int, text: str = None, mem_type: str = None, verified: bool = None, scope: Optional[Dict[str, str]] = None, scope_policy: str = "strict", actor: str = "api") -> Optional[int]:
         """
         Updates a memory entry. Archives the old version via parent_id.
         Returns the new memory ID, or None if not found.
+        Raises MemoryContentBlocked when enforce-mode guardrails refuse the new text.
         """
+        screen_memory_text("memory update", text)
         new_id = None
         description = None
         with self.write_lock:
             with self._connect() as con:
-                current = con.execute("""
+                current_query = """
                     SELECT text, type, verified, embedding FROM memories
                     WHERE id = ? AND deleted = 0 AND parent_id IS NULL
-                """, (memory_id,)).fetchone()
+                """
+                current_params: List[Any] = [memory_id]
+                update_predicates, update_params = scope_clauses(scope, scope_policy)
+                for predicate in update_predicates:
+                    current_query += " AND " + predicate
+                current_params.extend(update_params)
+                current = con.execute(current_query, current_params).fetchone()
 
                 if not current:
                     return None
@@ -823,8 +961,8 @@ class MemoryStore:
                 con.execute("UPDATE memories SET parent_id = ? WHERE id = ?", (memory_id, memory_id))
 
                 cur = con.execute("""
-                    INSERT INTO memories (identity, type, subject, text, confidence, created_at, embedding, source, verified, parent_id)
-                    SELECT identity, ?, subject, ?, confidence, ?, embedding, source, ?, NULL
+                    INSERT INTO memories (identity, type, subject, text, confidence, created_at, embedding, source, verified, parent_id, user_id, agent_id, run_id)
+                    SELECT identity, ?, subject, ?, confidence, ?, embedding, source, ?, NULL, user_id, agent_id, run_id
                     FROM memories WHERE id = ?
                 """, (new_type, new_text, int(time.time()), 1 if new_verified else 0, memory_id))
                 new_id = cur.lastrowid
@@ -854,17 +992,125 @@ class MemoryStore:
         # Log AFTER releasing write_lock — log_meta_memory acquires write_lock itself,
         # and threading.Lock is non-reentrant (re-entry from the same thread deadlocks).
         if new_id is not None and description is not None:
-            self.log_meta_memory("edit", [memory_id], json.dumps({"new_id": new_id}), description)
+            from .history import build_receipt
+
+            receipt = build_receipt(
+                memory_id, new_id,
+                {"text": old_text, "type": old_type, "verified": bool(old_verified)},
+                {"text": new_text, "type": new_type, "verified": bool(new_verified)},
+                actor=actor,
+            )
+            self.log_meta_memory("edit", [memory_id], receipt.to_json(), description)
 
         return new_id
 
-    def delete_entry(self, memory_id: int, reason: str = None):
-        """Hard deletes a memory entry. Logs to meta_memories."""
+    def get_edit_history(self, memory_id: int, limit: int = 20) -> Dict:
+        """Bounded edit history for one memory id (IDEA-1175)."""
+        from .history import history_entry, read_edit_rows
+
+        with self._connect() as con:
+            rows = read_edit_rows(con, memory_id, limit)
+            entries = [history_entry(con, row) for row in rows]
+        return {
+            "entries": entries,
+            "truncated": any(entry.get("truncated") for entry in entries),
+        }
+
+    def undo_edit(self, edit_id: str, confirm: str = None) -> Dict:
+        """Restore the previous value of one edit when the head and hash still match.
+
+        Raises ValueError for a refusal; the message carries Why and Fix.
+        """
+        from .history import parse_receipt, undo_problem
+
+        with self.write_lock:
+            with self._connect() as con:
+                candidates = con.execute(
+                    "SELECT id, new_value FROM meta_memories WHERE action = 'edit' "
+                    "ORDER BY created_at DESC, id DESC LIMIT 200"
+                ).fetchall()
+                chosen = None
+                for meta in candidates:
+                    payload = parse_receipt(meta[1])
+                    if not payload:
+                        continue
+                    if str(payload.get("edit_id")) == str(edit_id) or str(edit_id) == f"meta-{meta[0]}":
+                        chosen = payload
+                        break
+                if chosen is None:
+                    raise ValueError(
+                        f"Why: no edit '{edit_id}' is recorded, so there is nothing to undo. "
+                        "Fix: GET /memory/{id}/history to list valid edit ids."
+                    )
+                problem = undo_problem(con, chosen, confirm)
+                if problem is not None:
+                    raise ValueError(problem[1])
+
+                head_id = int(chosen["new_id"])
+                previous = con.execute(
+                    "SELECT identity, type, subject, text, confidence, embedding, source, "
+                    "verified, expires_at, user_id, agent_id, run_id FROM memories WHERE id = ?",
+                    (int(chosen["old_id"]),),
+                ).fetchone()
+                con.execute("UPDATE memories SET parent_id = ? WHERE id = ?", (head_id, head_id))
+                cur = con.execute("""
+                    INSERT INTO memories (identity, type, subject, text, confidence, created_at,
+                                          embedding, source, verified, expires_at, parent_id,
+                                          user_id, agent_id, run_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+                """, (
+                    previous[0], previous[1], previous[2], previous[3], previous[4],
+                    int(time.time()), previous[5], previous[6], previous[7], previous[8],
+                    previous[9], previous[10], previous[11],
+                ))
+                restored_id = cur.lastrowid
+                restored_embedding = previous[5]
+
+                if FAISS_AVAILABLE and self.faiss_index:
+                    with self.faiss_lock:
+                        self.faiss_index.remove_ids(np.array([head_id]).astype('int64'))
+                        vector_embedding = self._parse_embedding(restored_embedding)
+                        if vector_embedding is not None:
+                            vector = vector_embedding.reshape(1, -1).astype('float32')
+                            faiss.normalize_L2(vector)
+                            self.faiss_index.add_with_ids(
+                                vector, np.array([restored_id]).astype('int64')
+                            )
+                        self._save_faiss_index()
+
+        # Log AFTER releasing write_lock — log_meta_memory acquires it itself and the lock is
+        # not reentrant.
+        payload = json.dumps({
+            "edit_id": chosen.get("edit_id"),
+            "old_id": chosen.get("old_id"),
+            "restored_id": restored_id,
+            "supersedes": head_id,
+        }, sort_keys=True)
+        self.log_meta_memory(
+            "undo", [head_id], payload,
+            f"Undid edit {chosen.get('edit_id')}: restored memory #{restored_id}",
+        )
+        return {"restored_id": restored_id, "supersedes": head_id,
+                "edit_id": chosen.get("edit_id")}
+
+    def delete_entry(self, memory_id: int, reason: str = None, scope: Optional[Dict[str, str]] = None, scope_policy: str = "strict") -> bool:
+        """Hard deletes a memory entry. Logs to meta_memories.
+
+        With a scope, a row outside that scope is left untouched and ``False`` is returned, so a
+        caller holding another user's id cannot delete the owner's memory.
+        """
         old_text = None
         with self._connect() as con:
-            row = con.execute("SELECT text FROM memories WHERE id = ?", (memory_id,)).fetchone()
-            if row:
-                old_text = row[0]
+            delete_query = "SELECT text FROM memories WHERE id = ?"
+            delete_params: List[Any] = [memory_id]
+            delete_predicates, delete_scope_params = scope_clauses(scope, scope_policy)
+            for predicate in delete_predicates:
+                delete_query += " AND " + predicate
+            delete_params.extend(delete_scope_params)
+            row = con.execute(delete_query, delete_params).fetchone()
+            if not row:
+                return False
+            old_text = row[0]
 
         with self.write_lock:
             with self._connect() as con:
@@ -894,6 +1140,13 @@ class MemoryStore:
         # and threading.Lock is non-reentrant (re-entry from the same thread deadlocks).
         description = f"Deleted memory #{memory_id}" + (f": {reason}" if reason else "")
         self.log_meta_memory("delete", [memory_id], reason, description)
+        return True
+
+    def migrate_scope(self, default_user: str = "local") -> int:
+        """Backfill legacy rows with no user scope; explicit and idempotent (IDEA-1109)."""
+        from .scope import migrate_scope as _migrate_scope
+
+        return _migrate_scope(self, default_user)
 
     def merge_memories(self, memory_ids: List[int], new_text: str, new_type: str = "BELIEF", new_verified: bool = False) -> Optional[int]:
         """
@@ -1260,7 +1513,8 @@ class MemoryStore:
         ]
 
     def create_goal(self, description: str, priority: int = 0, deadline: int = None, context: str = None) -> int:
-        """Create a new goal. Returns goal ID."""
+        """Create a new goal. Returns goal ID; raises MemoryContentBlocked when guardrails refuse it."""
+        screen_memory_text("goal", description, context)
         with self.write_lock:
             with self._connect() as con:
                 cur = con.execute("""
@@ -1322,7 +1576,8 @@ class MemoryStore:
         }
 
     def update_goal(self, goal_id: int, description: str = None, priority: int = None, status: str = None, context: str = None, deadline: int = None) -> bool:
-        """Update a goal. Returns True if successful."""
+        """Update a goal. Returns True if successful; raises MemoryContentBlocked when guardrails refuse it."""
+        screen_memory_text("goal update", description, context)
         goal = self.get_goal(goal_id)
         if not goal:
             return False

@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Query, Request, Form
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.templating import Jinja2Templates
 from html import escape as html_escape
 import json
 import time
 import asyncio
+from core.errors import MemoryContentBlocked
 from .backend import memory_store
 from .consolidation import MemoryConsolidator, consolidation_state
+
+# A refused write is a guardrail decision (IDEA-334), not a server error.
+BLOCKED_FIX = ("remove the instruction-like text and save again, or set brain_guardrail_mode to "
+               "observe if this content is trusted")
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -150,8 +155,37 @@ async def update_memory(request: Request, memory_id: int = Form(...), text: str 
         if new_id:
             return Response(status_code=200, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "success", "message": f"Memory updated (new ID: {new_id})"}})})
         return Response(status_code=404, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Memory not found"}})})
+    except MemoryContentBlocked as e:
+        return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"{e}. {BLOCKED_FIX}"}})})
     except Exception as e:
         return Response(status_code=500, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Failed to update memory: {str(e)}"}})})
+
+
+@router.get("/{memory_id}/history")
+async def memory_history(memory_id: int, limit: int = 20):
+    """Bounded edit history for one memory, with both sides of each change (IDEA-1175)."""
+    loop = asyncio.get_running_loop()
+    payload = await loop.run_in_executor(
+        memory_store.executor, lambda: memory_store.get_edit_history(memory_id, limit)
+    )
+    return JSONResponse(payload)
+
+
+@router.post("/edits/{edit_id}/undo")
+async def undo_memory_edit(edit_id: str, confirm: str = Query(None)):
+    """Restore one edit only while its head and content hash still match."""
+    loop = asyncio.get_running_loop()
+    try:
+        payload = await loop.run_in_executor(
+            memory_store.executor, lambda: memory_store.undo_edit(edit_id, confirm)
+        )
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=409)
+    except Exception as exc:
+        return JSONResponse(
+            {"error": f"Failed to undo edit: {exc}"}, status_code=500
+        )
+    return JSONResponse(payload)
 
 
 @router.post("/delete")
@@ -253,6 +287,8 @@ async def create_goal(request: Request, description: str = Form(...), priority: 
         loop = asyncio.get_running_loop()
         goal_id = await loop.run_in_executor(memory_store.executor, lambda: memory_store.create_goal(description, priority, deadline))
         return {"goal_id": goal_id, "message": "Goal created"}
+    except MemoryContentBlocked as e:
+        return JSONResponse(status_code=400, content={"error": f"Why: {e}. Fix: {BLOCKED_FIX}"})
     except Exception as e:
         # FIX: Use JSONResponse instead of tuple return (FastAPI doesn't support Flask-style tuple returns)
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -264,6 +300,8 @@ async def update_goal(request: Request, goal_id: int, description: str = Form(No
         loop = asyncio.get_running_loop()
         success = await loop.run_in_executor(memory_store.executor, lambda: memory_store.update_goal(goal_id, description, priority, status, context, deadline))
         return {"success": success}
+    except MemoryContentBlocked as e:
+        return JSONResponse(status_code=400, content={"error": f"Why: {e}. Fix: {BLOCKED_FIX}"})
     except Exception as e:
         # FIX: Use JSONResponse instead of tuple return
         return JSONResponse(status_code=500, content={"error": str(e)})

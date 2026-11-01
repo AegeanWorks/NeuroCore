@@ -7,21 +7,23 @@ routed through the active NeuroCore flow, with `_input_source = "messaging"` and
 the service itself after the flow) knows where to send the reply.
 """
 import asyncio
-from abc import ABC, abstractmethod
 import base64
 import json
 import logging
 import os
 import threading
 import time
+from abc import ABC, abstractmethod
 
-from .telegram_bridge import TelegramBridge
-from .discord_bridge import DiscordBridge
-from .signal_bridge import SignalBridge
-from .whatsapp_bridge import WhatsAppBridge
-from modules.chat.sessions import session_manager
 from core.flow_runner import FlowRunner
 from core.settings import settings
+from modules.chat.sessions import session_manager
+
+from .access import AccessPolicy
+from .discord_bridge import DiscordBridge
+from .signal_bridge import SignalBridge
+from .telegram_bridge import TelegramBridge
+from .whatsapp_bridge import WhatsAppBridge
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +143,8 @@ class _PlatformBase(ABC):
     """Common message-processing logic shared by all platform handlers."""
 
     platform_name: str = ""  # "telegram" | "discord" | "signal"
+    # Deny-all until the service builds the configured policy for this platform (IDEA-839).
+    access: AccessPolicy = AccessPolicy()
 
     def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None or self._loop.is_closed():
@@ -195,6 +199,12 @@ class _TelegramHandler(_PlatformBase):
             return
 
         str_chat_id = str(chat_id)
+
+        sender_id = str(msg.get("from_id") or str_chat_id)
+        decision = self.access.evaluate(sender_id, str_chat_id)
+        if not decision.allowed:
+            logger.warning("[telegram] ignored sender %s: %s", sender_id, decision.reason)
+            return
 
         # Commands
         if command_text == "/help":
@@ -287,6 +297,8 @@ class _TelegramHandler(_PlatformBase):
             "_input_source": "messaging",
             "_messaging_platform": "telegram",
             "_messaging_reply_to": str_chat_id,
+            "user_id": sender_id,
+            "session_id": sess_id,
         }
         response_text = await _run_flow(initial_data)
         session_manager.add_message(sess_id, "assistant", response_text)
@@ -303,7 +315,6 @@ class _DiscordHandler(_PlatformBase):
     def __init__(self):
         self._loop = None
         self.bridge: DiscordBridge = None
-        self._allowed_channel: str = ""
 
     async def process_message(self, msg: dict) -> None:
         author = msg.get("author", {})
@@ -318,7 +329,12 @@ class _DiscordHandler(_PlatformBase):
         if not channel_id or not content:
             return
 
-        if self._allowed_channel and channel_id != self._allowed_channel:
+        decision = self.access.evaluate(user_id, channel_id)
+        if not decision.allowed:
+            logger.warning(
+                "[discord] ignored sender %s in chat %s: %s",
+                user_id, channel_id, decision.reason,
+            )
             return
 
         map_key = f"{channel_id}:{user_id}"
@@ -360,6 +376,8 @@ class _DiscordHandler(_PlatformBase):
             "_input_source": "messaging",
             "_messaging_platform": "discord",
             "_messaging_reply_to": channel_id,
+            "user_id": user_id,
+            "session_id": sess_id,
         }
         response_text = await _run_flow(initial_data)
         session_manager.add_message(sess_id, "assistant", response_text)
@@ -382,6 +400,11 @@ class _SignalHandler(_PlatformBase):
         text = msg.get("text", "").strip()
 
         if not sender or not text:
+            return
+
+        decision = self.access.evaluate(sender, sender)
+        if not decision.allowed:
+            logger.warning("[signal] ignored sender %s: %s", sender, decision.reason)
             return
 
         if text == "/help":
@@ -421,6 +444,8 @@ class _SignalHandler(_PlatformBase):
             "_input_source": "messaging",
             "_messaging_platform": "signal",
             "_messaging_reply_to": sender,
+            "user_id": sender,
+            "session_id": sess_id,
         }
         response_text = await _run_flow(initial_data)
         session_manager.add_message(sess_id, "assistant", response_text)
@@ -457,6 +482,11 @@ class _WhatsAppHandler(_PlatformBase):
         push_name = msg.get("push_name", sender)
 
         if not sender or not text:
+            return
+
+        decision = self.access.evaluate(sender, sender)
+        if not decision.allowed:
+            logger.warning("[whatsapp] ignored sender %s: %s", sender, decision.reason)
             return
 
         if text == "/help":
@@ -496,6 +526,8 @@ class _WhatsAppHandler(_PlatformBase):
             "_input_source": "messaging",
             "_messaging_platform": "whatsapp",
             "_messaging_reply_to": sender,
+            "user_id": sender,
+            "session_id": sess_id,
         }
         response_text = await _run_flow(initial_data)
         session_manager.add_message(sess_id, "assistant", response_text)
@@ -569,6 +601,12 @@ class MessagingService:
             return
         if self._running["telegram"]:
             return
+        self._telegram.access = AccessPolicy.from_config("telegram", config)
+        if not self._telegram.access.configured:
+            logger.warning(
+                "Messaging Bridge: Telegram has no allowed senders; every message is ignored. "
+                "Set telegram_allowed_senders (or telegram_chat_id)."
+            )
         chat_id = config.get("telegram_chat_id", 0)
         self._telegram.bridge = TelegramBridge(token, chat_id, log_fn=logger.info)
         self._running["telegram"] = True
@@ -584,9 +622,14 @@ class MessagingService:
             return
         if self._running["discord"]:
             return
+        self._discord.access = AccessPolicy.from_config("discord", config)
+        if not self._discord.access.configured:
+            logger.warning(
+                "Messaging Bridge: Discord has no allowed senders; every message is ignored. "
+                "Set discord_allowed_senders."
+            )
         channel_id = str(config.get("discord_channel_id", "")).strip()
         self._discord.bridge = DiscordBridge(token, channel_id, log_fn=logger.info)
-        self._discord._allowed_channel = channel_id
         self._running["discord"] = True
         t = threading.Thread(target=self._run_listener, args=("discord",), daemon=True)
         self._threads["discord"] = t
@@ -601,6 +644,12 @@ class MessagingService:
             return
         if self._running["signal"]:
             return
+        self._signal.access = AccessPolicy.from_config("signal", config)
+        if not self._signal.access.configured:
+            logger.warning(
+                "Messaging Bridge: Signal has no allowed senders; every message is ignored. "
+                "Set signal_allowed_senders."
+            )
         self._signal.bridge = SignalBridge(api_url, phone, log_fn=logger.info)
         self._running["signal"] = True
         t = threading.Thread(target=self._run_listener, args=("signal",), daemon=True)
@@ -615,6 +664,12 @@ class MessagingService:
         if not api_url or not api_key or not instance:
             logger.warning("Messaging Bridge: WhatsApp api_url/api_key/instance not set. Paused.")
             return
+        self._whatsapp.access = AccessPolicy.from_config("whatsapp", config)
+        if not self._whatsapp.access.configured:
+            logger.warning(
+                "Messaging Bridge: WhatsApp has no allowed senders; every message is ignored. "
+                "Set whatsapp_allowed_senders."
+            )
         # WhatsApp uses webhooks — no daemon thread needed.
         # Just initialise the bridge so the output node and webhook handler can use it.
         self._whatsapp.bridge = WhatsAppBridge(api_url, api_key, instance, log_fn=logger.info)

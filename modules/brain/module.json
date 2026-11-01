@@ -20,9 +20,15 @@
         "max_promotions_per_day": 5,
         "max_candidates": 200,
         "max_config_changes_per_day": 20,
-        "configurable_modules": ["annotations", "planner", "reflection", "reasoning_book"],
+        "configurable_modules": [
+            "annotations",
+            "planner",
+            "reflection",
+            "reasoning_book"
+        ],
         "reactivity_auto_start": false,
         "capture_flow_outcomes": true,
+        "inject_flow_context": true,
         "require_goal_link": true,
         "trend_window": 20,
         "trend_history": 100,

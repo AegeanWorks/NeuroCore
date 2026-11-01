@@ -206,6 +206,7 @@ PROTECTED_MODULE_FILES = [
     "modules/chat/module.json",
     "modules/memory/module.json",
     "modules/knowledge_base/module.json",
+    "modules/tools/module.json",
     "ai_flows.json",
     "chat_sessions.json",
 ]

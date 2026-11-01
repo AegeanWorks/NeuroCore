@@ -6,12 +6,18 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from core.paths import data_path
 from core.settings import settings
+from .embedding_space import (
+    EmbeddingSpace,
+    EmbeddingSpaceMismatch,
+    require_compatible,
+    space_of,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,7 @@ except ImportError:
 
 # Import LLMBridge for query expansion
 from core.llm import LLMBridge
+from .recall import diagnostics, is_ivf_index
 
 # =============================================================================
 # Query Expansion and Re-ranking Mixin
@@ -287,18 +294,21 @@ class FaissDocumentStore(QueryExpansionMixin):
     - FAISS for vector embeddings (fast similarity search)
     """
 
-    def __init__(self, db_path: str = data_path("knowledge_base.sqlite3"), embed_fn=None):
+    def __init__(self, db_path: str = data_path("knowledge_base.sqlite3"), embed_fn=None,
+                 embedding_space: Optional[EmbeddingSpace] = None):
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
         self.embed_fn = embed_fn
         self.faiss_index = None
         self.index_lock = threading.Lock()
         self._init_db()
+        self.embedding_space = embedding_space or self._load_space_header()
         
         # Load FAISS configuration from settings
         self.faiss_index_type = settings.get("faiss_index_type", "IndexFlatIP")
         self.faiss_nlist = settings.get("faiss_nlist", 100) # For IndexIVFFlat
         self.faiss_nprobe = settings.get("faiss_nprobe", 10)
+        self.recall_budget_enabled = bool(settings.get("kb_recall_budget_enabled", True))
 
         # Initialize QueryExpansionMixin attributes
         self.query_expansion_count = 5
@@ -360,9 +370,27 @@ class FaissDocumentStore(QueryExpansionMixin):
                 )
             """)
 
+            # One collection has exactly one embedding space (IDEA-591).
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS embedding_space (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    model_id TEXT NOT NULL,
+                    revision TEXT NOT NULL,
+                    dimension INTEGER NOT NULL,
+                    normalization TEXT NOT NULL
+                )
+            """)
+
             # Migration: remember the on-disk name so deletion/integrity checks can find it.
             try:
                 con.execute("ALTER TABLE documents ADD COLUMN stored_filename TEXT")
+            except sqlite3.OperationalError as _exc:
+                logger.debug("ignored exception: %s", _exc)
+
+            # Migration: the space label on each chunk; legacy rows stay NULL and are
+            # backfilled from the collection header on the next rebuild.
+            try:
+                con.execute("ALTER TABLE chunks ADD COLUMN embedding_space TEXT")
             except sqlite3.OperationalError as _exc:
                 logger.debug("ignored exception: %s", _exc)
 
@@ -400,6 +428,43 @@ class FaissDocumentStore(QueryExpansionMixin):
                   INSERT INTO chunks_fts(chunks_fts, rowid, text) VALUES('delete', old.id, old.text);
                 END;
             """)
+
+    # --------------------------
+    # Embedding-space identity (IDEA-591)
+    # --------------------------
+
+    def _load_space_header(self) -> Optional[EmbeddingSpace]:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT model_id, revision, dimension, normalization FROM embedding_space WHERE id = 1"
+            ).fetchone()
+        if not row:
+            return None
+        try:
+            return EmbeddingSpace(*row)
+        except (TypeError, ValueError):
+            logger.warning("Ignoring an invalid embedding_space header")
+            return None
+
+    def _save_space_header(self, space: EmbeddingSpace) -> None:
+        with self._connect() as con:
+            con.execute(
+                "INSERT OR REPLACE INTO embedding_space "
+                "(id, model_id, revision, dimension, normalization) VALUES (1, ?, ?, ?, ?)",
+                (space.model_id, space.revision, space.dimension, space.normalization),
+            )
+
+    def _ensure_space(self, vector, record_id: Any = None) -> EmbeddingSpace:
+        """Set the collection space on first use, or refuse a different one."""
+        dimension = len(vector)
+        current = EmbeddingSpace.from_settings(settings.settings, dimension=dimension)
+        if self.embedding_space is None:
+            self.embedding_space = current
+            self._save_space_header(current)
+        else:
+            require_compatible(self.embedding_space, current)
+            self.embedding_space.validate_vector(vector, record_id)
+        return self.embedding_space
 
     # --------------------------
     # FAISS Integration
@@ -500,7 +565,13 @@ class FaissDocumentStore(QueryExpansionMixin):
         valid_embeddings = []
         valid_ids = []
         skipped_count = 0
-        expected_dim = self.faiss_index.d if self.faiss_index else None
+        # An empty index may have been created with the 768 fallback dimension; accept the
+        # first real batch and resize below instead of silently dropping every vector.
+        expected_dim = (
+            self.faiss_index.d
+            if self.faiss_index is not None and self.faiss_index.ntotal > 0
+            else None
+        )
 
         for emb, cid in zip(embeddings, chunk_ids):
             # Check dimension mismatch for EVERY add, not just when index is empty
@@ -610,7 +681,9 @@ class FaissDocumentStore(QueryExpansionMixin):
         # was assigned inside `with self._connect()` but fetchmany() was called
         # outside it, after the connection had already been closed.
         with self._connect() as con:
-            cur = con.execute("SELECT id, text, embedding FROM chunks ORDER BY id")
+            cur = con.execute(
+                "SELECT id, text, embedding, embedding_space FROM chunks ORDER BY id"
+            )
 
             while True:
                 rows = cur.fetchmany(batch_size)
@@ -623,6 +696,7 @@ class FaissDocumentStore(QueryExpansionMixin):
                 for r in rows:
                     chunk_id = r[0]
                     emb_json = r[2]
+                    record_space = space_of({"embedding_space": r[3]})
 
                     emb = None
                     if emb_json:
@@ -632,6 +706,26 @@ class FaissDocumentStore(QueryExpansionMixin):
                             logger.debug("ignored exception: %s", _exc)
 
                     if emb is not None:
+                        if self.embedding_space is None:
+                            if record_space is not None:
+                                self.embedding_space = record_space
+                                self._save_space_header(record_space)
+                            else:
+                                self._ensure_space(emb, chunk_id)
+                        elif record_space is not None:
+                            try:
+                                require_compatible(self.embedding_space, record_space)
+                                self.embedding_space.validate_vector(emb, chunk_id)
+                            except EmbeddingSpaceMismatch as exc:
+                                raise EmbeddingSpaceMismatch(
+                                    f"{exc.field} (record {chunk_id})",
+                                    exc.index_value, exc.query_value,
+                                ) from exc
+                        else:
+                            # Legacy row in a labelled collection: backfill its stamp rather than
+                            # losing an otherwise valid vector; a genuinely mixed row has a stamp
+                            # and is refused above.
+                            self.embedding_space.validate_vector(emb, chunk_id)
                         batch_embeddings.append(emb)
                         batch_ids.append(chunk_id)
 
@@ -831,6 +925,11 @@ class FaissDocumentStore(QueryExpansionMixin):
         timestamp = int(time.time())
         chunk_embeddings = []
         chunk_ids = []
+        space = None
+        if chunks:
+            space = self._ensure_space(chunks[0]['embedding'])
+            for chunk in chunks:
+                space.validate_vector(chunk['embedding'])
 
         with self._connect() as con:
             # Insert document metadata
@@ -861,9 +960,9 @@ class FaissDocumentStore(QueryExpansionMixin):
                 con.execute("""
                     INSERT INTO chunks (
                         document_id, chunk_index, text,
-                        page_number, created_at, embedding, chunk_hash
+                        page_number, created_at, embedding, chunk_hash, embedding_space
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     document_id,
                     idx,
@@ -872,6 +971,7 @@ class FaissDocumentStore(QueryExpansionMixin):
                     timestamp,
                     json.dumps(emb_list),
                     chunk.get('chunk_hash'),
+                    json.dumps(space.to_dict()) if space else None,
                 ))
                 
                 # Store embedding for FAISS (as numpy array)
@@ -969,30 +1069,35 @@ class FaissDocumentStore(QueryExpansionMixin):
         if not chunk_embeddings:
             return {"updated": 0, "failed": 0}
 
-        all_chunk_ids = [cid for cid, _ in chunk_embeddings]
+        valid_embs: List[np.ndarray] = []
+        valid_ids: List[int] = []
+        space = None
+        failed = 0
+        for chunk_id, emb in chunk_embeddings:
+            if emb is None:
+                failed += 1
+                continue
+            emb_arr = np.array(emb, dtype="float32") if not isinstance(emb, np.ndarray) else emb
+            if space is None:
+                space = self._ensure_space(emb_arr, chunk_id)
+            else:
+                space.validate_vector(emb_arr, chunk_id)
+            valid_embs.append(emb_arr)
+            valid_ids.append(chunk_id)
 
-        # Remove all current FAISS vectors for these chunks before re-adding
+        all_chunk_ids = [cid for cid, _ in chunk_embeddings]
+        # Remove all current FAISS vectors only after every replacement vector is compatible.
         if self.faiss_index and all_chunk_ids:
             with self.index_lock:
                 self.faiss_index.remove_ids(np.array(all_chunk_ids).astype("int64"))
 
-        valid_embs: List[np.ndarray] = []
-        valid_ids: List[int] = []
-        failed = 0
-
+        space_json = json.dumps(space.to_dict()) if space else None
         with self._connect() as con:
-            for chunk_id, emb in chunk_embeddings:
-                if emb is None:
-                    failed += 1
-                    continue
-                emb_arr = np.array(emb, dtype="float32") if not isinstance(emb, np.ndarray) else emb
-                emb_list = emb_arr.tolist()
+            for chunk_id, emb_arr in zip(valid_ids, valid_embs):
                 con.execute(
-                    "UPDATE chunks SET embedding = ? WHERE id = ?",
-                    (json.dumps(emb_list), chunk_id),
+                    "UPDATE chunks SET embedding = ?, embedding_space = ? WHERE id = ?",
+                    (json.dumps(emb_arr.tolist()), space_json, chunk_id),
                 )
-                valid_embs.append(emb_arr)
-                valid_ids.append(chunk_id)
 
         if valid_embs:
             self._add_embeddings_to_faiss(valid_embs, valid_ids, save_index=True)
@@ -1119,7 +1224,9 @@ class FaissDocumentStore(QueryExpansionMixin):
         with self._connect() as con:
             con.execute("DELETE FROM chunks")
             con.execute("DELETE FROM documents")
+            con.execute("DELETE FROM embedding_space")
             con.commit()
+        self.embedding_space = None
         
         # Clear FAISS index - use default dimension since all data is cleared
         # _detect_embedding_dimension() returns 768 as default fallback
@@ -1136,19 +1243,47 @@ class FaissDocumentStore(QueryExpansionMixin):
         with self._connect() as con:
             return con.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
 
-    def search(self, query_embedding: List[float], limit: int = 5) -> List[Dict]:
+    def search(self, query_embedding: List[float], limit: int = 5,
+               recall_budget=None) -> List[Dict]:
         """
         Search for similar chunks using the query embedding.
         """
         if not self.faiss_index or self.faiss_index.ntotal == 0:
             return []
 
+        if self.embedding_space is not None:
+            query_space = EmbeddingSpace.from_settings(
+                settings.settings, dimension=len(query_embedding)
+            )
+            require_compatible(self.embedding_space, query_space)
+
         # Prepare query vector
         query_vector = np.array(query_embedding, dtype='float32').reshape(1, -1)
         faiss.normalize_L2(query_vector)
 
+        # Recall budget (IDEA-1155): an IVF probe is approximate, so over-fetch and rescore.
+        budget = None
+        if recall_budget is None and self.recall_budget_enabled:
+            from modules.knowledge_base.recall import budget_from_settings
+
+            budget = budget_from_settings(settings.settings)
+        elif recall_budget is not None:
+            budget = recall_budget.validate()
+        candidate_k = limit
+        if budget is not None and is_ivf_index(self.faiss_index):
+            inner = getattr(self.faiss_index, "index", self.faiss_index)
+            nlist = int(getattr(inner, "nlist", 0) or 0)
+            probe = budget.nprobe(nlist)
+            try:
+                inner.nprobe = probe
+            except AttributeError as exc:
+                logger.debug("could not set nprobe: %s", exc)
+            candidate_k = budget.candidate_k(limit, self.faiss_index.ntotal)
+            logger.debug("[KnowledgeBase] recall plan: %s",
+                         diagnostics(budget, nlist, limit, self.faiss_index.ntotal))
+
         # Search FAISS
-        scores, indices = self.faiss_index.search(query_vector, limit)
+        scores, indices = self.faiss_index.search(query_vector, candidate_k)
 
         # Filter valid indices and map scores
         valid_indices = [int(idx) for idx in indices[0] if idx != -1]
@@ -1161,12 +1296,27 @@ class FaissDocumentStore(QueryExpansionMixin):
         results = []
         with self._connect() as con:
             rows = con.execute(f"""
-                SELECT c.id, c.text, d.filename, c.page_number 
+                SELECT c.id, c.text, d.filename, c.page_number, c.embedding
                 FROM chunks c 
                 JOIN documents d ON c.document_id = d.id 
                 WHERE c.id IN ({placeholders})
             """, valid_indices).fetchall()
-            
+
+            if budget is not None and budget.rescore and is_ivf_index(self.faiss_index):
+                flat_query = query_vector.reshape(-1)
+                for r in rows:
+                    chunk_id = r[0]
+                    exact = id_to_score.get(chunk_id, 0.0)
+                    if r[4]:
+                        try:
+                            stored = np.array(json.loads(r[4]), dtype='float32')
+                            norm = float(np.linalg.norm(stored))
+                            if norm > 0:
+                                exact = float(np.dot(flat_query, stored / norm))
+                        except (TypeError, ValueError) as exc:
+                            logger.debug("rescore kept the ANN score: %s", exc)
+                    id_to_score[chunk_id] = exact
+
             for r in rows:
                 chunk_id = r[0]
                 results.append({
@@ -1179,7 +1329,7 @@ class FaissDocumentStore(QueryExpansionMixin):
         
         # Sort by score descending (SQL IN does not guarantee order)
         results.sort(key=lambda x: x["score"], reverse=True)
-        return results
+        return results[:limit]
 
     def search_keyword(self, query: str, limit: int = 5) -> List[Dict]:
         """

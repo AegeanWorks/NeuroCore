@@ -13,6 +13,12 @@ from core.flow_evolution import FlowEvolution
 from core.flow_manager import flow_manager as shared_flow_manager
 from core.outcomes import clear_outcome_listener, set_outcome_listener
 
+from .autonomy import (
+    AUTONOMOUS_ACTIONS,
+    DEFAULT_MAX_ACTIONS_PER_CYCLE,
+    JOURNAL_LIMIT,
+    act_on_proposals,
+)
 from .configuration import ConfigurationEngine, ConfigurationStore
 from .drift import DriftMonitor
 from .evaluation import EvalStore, EvaluationRunner, compare_results
@@ -34,6 +40,14 @@ DEFAULT_CONFIG = {
     "cycle_interval_seconds": 60,
     "max_cycles_per_hour": 60,
     "auto_start": False,
+}
+
+# Where a person can act on a proposal the brain may not carry out itself (ADR-068).
+PROPOSAL_LINKS = {
+    "repair_provider": "/settings",
+    "activate_flow": "/ai-flow",
+    "seed_memory": "/memory_browser",
+    "repair_metric": "/ai-flow",
 }
 
 
@@ -75,6 +89,8 @@ class BrainService:
             self.mode = "observe"
         self.cycle_interval = max(5.0, float(merged.get("cycle_interval_seconds", 60)))
         self.max_cycles_per_hour = max(1, int(merged.get("max_cycles_per_hour", 60)))
+        self.max_autonomous_actions = max(1, int(merged.get(
+            "max_autonomous_actions_per_cycle", DEFAULT_MAX_ACTIONS_PER_CYCLE)))
         self.auto_start = bool(merged.get("auto_start", False))
 
         self.self_model = self_model or BrainSelfModel()
@@ -160,7 +176,13 @@ class BrainService:
 
         stored = self.state_store.load()
         self.state = BrainState.from_dict(stored) if stored else BrainState()
+        # The operator's last choice outranks the config default; SAFE outranks both.
+        self.mode = self.state.operator_mode or self.mode
+        if self.kernel.is_safe:
+            self.mode = "observe"
+        self.state.operator_mode = self.mode
         self.state.mode = self.mode
+        self.resume_requested = bool(stored.get("running"))
         self.state.running = False
         self.state.started_at = None
 
@@ -174,6 +196,10 @@ class BrainService:
         async with self._state_lock:
             if self.state.running:
                 return self.state.to_dict()
+            if self.kernel.is_safe:
+                self.mode = "observe"
+                self.state.mode = "observe"
+                self.state.operator_mode = "observe"
             self.state.running = True
             self.state.started_at = utc_now()
             self.state.last_error = None
@@ -185,8 +211,18 @@ class BrainService:
             return self.state.to_dict()
 
     async def stop(self) -> Dict[str, Any]:
+        """Stop the loop and record that the operator does not want it resumed."""
+        return await self._halt(resume=False)
+
+    async def shutdown_keep_resume(self) -> Dict[str, Any]:
+        """Stop for a server shutdown without discarding the current running choice (ADR-068)."""
+        return await self._halt(resume=None)
+
+    async def _halt(self, *, resume: Optional[bool]) -> Dict[str, Any]:
         async with self._state_lock:
-            self.state.running = False
+            keep = self.state.running if resume is None else resume
+            self.state.running = keep
+            self.resume_requested = keep
             task = self._task
             self._task = None
         if task is not None:
@@ -201,14 +237,13 @@ class BrainService:
 
     async def set_mode(self, mode: str) -> Dict[str, Any]:
         if mode not in VALID_MODES:
-            raise ValueError(
-                f"mode must be one of {', '.join(VALID_MODES)}; autonomous actuation is disabled"
-            )
+            raise ValueError(f"mode must be one of {', '.join(VALID_MODES)}")
         if self.kernel.is_safe and mode != "observe":
             raise KernelBlockedError("SAFE mode requires observe mode")
         async with self._state_lock:
             self.mode = mode
             self.state.mode = mode
+            self.state.operator_mode = mode
             self._save()
             return self.state.to_dict()
 
@@ -227,7 +262,7 @@ class BrainService:
                     snapshot["learning"]["consolidation"] = consolidation
                 proposals = (
                     self._propose(snapshot)
-                    if self.mode == "suggest" and self.kernel.can_run_autonomy()
+                    if self.mode in ("suggest", "autonomous") and self.kernel.can_run_autonomy()
                     else []
                 )
                 self.state.cycle_count += 1
@@ -237,12 +272,23 @@ class BrainService:
                 self.state.throttled = False
                 self.state.last_error = None
                 self._save()
-                return self.state.to_dict()
+                if self.mode != "autonomous":
+                    return self.state.to_dict()
             except Exception as exc:
                 logger.exception("Brain cycle failed")
                 self.state.last_error = str(exc)
                 self._save()
                 raise
+        # Outside the lock: the actions call evaluation and learning, which take it themselves.
+        entries = await act_on_proposals(self, proposals, self.max_autonomous_actions)
+        return await self.journal(entries)
+
+    async def journal(self, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Record autonomous or chat actions, newest first, bounded (ADR-067)."""
+        async with self._state_lock:
+            self.state.actions = (list(reversed(entries)) + self.state.actions)[:JOURNAL_LIMIT]
+            self._save()
+            return self.state.to_dict()
 
     def _on_flow_outcome(self, outcome: Dict[str, Any]) -> None:
         """Capture ordinary flow/chat outcomes for learning, unless SAFE or disabled."""
@@ -584,7 +630,8 @@ class BrainService:
             self._save()
         return result
 
-    async def promote_baseline(self, approved_by: str) -> Dict[str, Any]:
+    async def promote_baseline(self, approved_by: str, accept_suite_change: bool = False,
+                               reason: str = "") -> Dict[str, Any]:
         if not (isinstance(approved_by, str) and approved_by.strip()):
             raise ValueError("approved_by is required to promote a baseline")
         last = self.eval_store.load_last()
@@ -602,10 +649,30 @@ class BrainService:
                 raise ValueError("baseline must contain evaluation tasks")
         except (TypeError, ValueError) as exc:
             raise ValueError("baseline must contain evaluation tasks") from exc
+        previous = self.eval_store.load_baseline()
+        supersedes = previous.get("suite_digest") if previous else None
+        if supersedes and supersedes != last.get("suite_digest"):
+            if not accept_suite_change:
+                raise ValueError(
+                    "the evaluation suite changed since the baseline was promoted, so the pass "
+                    "rate is not comparable. Why: an edited check could otherwise look like an "
+                    "improvement. Fix: re-promote with accept_suite_change=True and a reason."
+                )
+            if not reason.strip():
+                raise ValueError(
+                    "accepting a suite change requires a reason. "
+                    "Why: a replaced baseline must say why it is comparable now. "
+                    "Fix: pass reason='<what changed>'."
+                )
         baseline = {
             **last,
             "recorded_by": approved_by.strip(),
             "recorded_at": utc_now(),
+            "suite_digest": last.get("suite_digest"),
+            "task_digests": last.get("task_digests") or {},
+            "schema_version": last.get("schema_version"),
+            "supersedes_digest": supersedes if supersedes != last.get("suite_digest") else None,
+            "accepted_reason": reason.strip() or None,
             "flow_id": last.get("flow_id"),
             "suite": last.get("suite"),
             "pass_rate": last.get("pass_rate"),
@@ -618,6 +685,7 @@ class BrainService:
             "flow_id": baseline.get("flow_id"),
             "pass_rate": baseline.get("pass_rate"),
             "suite": baseline.get("suite"),
+            "suite_digest": baseline.get("suite_digest"),
             "recorded_by": baseline["recorded_by"],
         }
 
@@ -736,6 +804,8 @@ class BrainService:
                 "goal_kind": "self_repair",
                 "reason": finding["reason"],
                 "evidence": finding,
+                "link": ("/settings" if finding.get("metric") == "provider_error_rate"
+                         else "/ai-flow"),
             })
             proposals.insert(0, proposal)
 
@@ -759,6 +829,9 @@ class BrainService:
             "confidence": confidence,
             "status": "pending",
             "created_at": utc_now(),
+            # A run button when the brain has an allow-listed action; otherwise a place to act.
+            "action": kind if kind in AUTONOMOUS_ACTIONS else None,
+            "link": PROPOSAL_LINKS.get(kind, ""),
         }
 
     def _save(self) -> None:
@@ -785,6 +858,11 @@ def get_existing_brain_service() -> Optional[BrainService]:
 
 def brain_auto_start_enabled() -> bool:
     return bool(_load_module_config().get("auto_start", False))
+
+
+def brain_resume_requested() -> bool:
+    """Whether the last process left the brain running, without building the service (ADR-068)."""
+    return bool(BrainStateStore().load().get("running"))
 
 
 def reset_brain_service() -> None:

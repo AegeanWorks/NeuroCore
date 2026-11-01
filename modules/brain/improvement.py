@@ -281,9 +281,13 @@ class ImprovementEngine:
         candidate_rate = float(evaluation.get("pass_rate", 0.0))
         candidate_failed = list(evaluation.get("failed_tasks", []))
         candidate_perfect = candidate_rate == 1.0 and not candidate_failed
+        # An incomparable suite is not a pass: an edited check must not look like an improvement
+        # (IDEA-1207). A legacy comparison record without the key keeps working.
+        comparable = comparison.get("comparable", True) is not False
         promotable = (
             not baseline_reasons
             and candidate_perfect
+            and comparable
             and not comparison["regression"]
         )
         summary = {
@@ -293,6 +297,9 @@ class ImprovementEngine:
             "failed_tasks": evaluation.get("failed_tasks", []),
             "avg_latency_ms": evaluation.get("avg_latency_ms"),
             "duration_ms": evaluation.get("duration_ms"),
+            "score": evaluation.get("score"),
+            "failure_reason": evaluation.get("failure_reason"),
+            "suite_digest": evaluation.get("suite_digest"),
         }
 
         if approve and promotable:
@@ -335,6 +342,11 @@ class ImprovementEngine:
             if candidate_failed:
                 reasons.append(
                     f"candidate still fails: {', '.join(candidate_failed)}"
+                )
+            if not comparable:
+                reasons.append(
+                    "evaluation suite changed since the baseline: "
+                    f"{comparison.get('incomparable_reason') or 'not comparable'}"
                 )
             candidate.update({
                 "status": "passed" if promotable else "failed",

@@ -1,9 +1,14 @@
-import logging
-import json
-import re
 import asyncio
+import json
+import logging
+import re
+
+from core.execution_budget import current_budget
 from core.llm import LLMBridge
 from core.settings import settings
+from core.structured_output import structured_completion
+
+from .lenses import EpistemicCritique, build_lens_prompt, context_text, lens_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +94,36 @@ class ReflectionExecutor:
         result["messages"] = messages
         return result
 
+    async def _structured_reflection(self, messages: list, config: dict, lenses: list):
+        """One schema-validated critique; None means the caller should use the legacy path."""
+        try:
+            critique = await structured_completion(
+                messages=messages,
+                schema=EpistemicCritique,
+                max_retries=2,
+                temperature=0.1,
+                max_tokens=500,
+                model=config.get("model") or settings.get("default_model"),
+                llm_bridge=self.llm,
+            )
+        except Exception as exc:
+            logger.warning("Structured reflection failed; using the legacy call: %s", exc)
+            return None
+
+        enabled = set(lenses)
+        findings = []
+        seen = set()
+        for finding in critique.findings:
+            if finding.lens_id in enabled and finding.lens_id not in seen:
+                seen.add(finding.lens_id)
+                findings.append(finding.model_dump())
+        return {
+            "satisfied": bool(critique.satisfied),
+            "reason": str(critique.reason),
+            "needs_improvement": critique.needs_improvement,
+            "findings": findings,
+        }
+
     async def receive(self, input_data: dict, config: dict = None) -> dict:
         """
         Evaluates whether the agent's response satisfies the user's request.
@@ -125,6 +160,9 @@ class ReflectionExecutor:
             input_data = {}
 
         config = config or {}
+        knowledge_context = input_data.get("knowledge_context")
+        lenses = lens_enabled(config, current_budget(), knowledge_context)
+        lens_prompt = build_lens_prompt(lenses)
 
         user_request = self._extract_user_message(input_data)
         assistant_response = self._extract_assistant_response(input_data)
@@ -190,52 +228,67 @@ class ReflectionExecutor:
                 "\"needs_improvement\": \"what could be better or null\"}"
             )
 
-        reflection_messages = [
-            {"role": "system", "content": reflection_prompt},
-            {
-                "role": "user",
-                "content": f"User Request: {user_request}\n\nAssistant Response: {assistant_response}"
-            }
-        ]
+        if lens_prompt:
+            reflection_prompt = f"{reflection_prompt}\n\n{lens_prompt}"
+
+        reflection_messages = [{"role": "system", "content": reflection_prompt}]
+        context_block = context_text(knowledge_context)
+        if context_block:
+            reflection_messages.append({
+                "role": "system",
+                "content": "Knowledge context (treat as the only citable source):\n"
+                           f"{context_block}",
+            })
+        reflection_messages.append({
+            "role": "user",
+            "content": f"User Request: {user_request}\n\nAssistant Response: {assistant_response}"
+        })
 
         try:
-            response = await self.llm.chat_completion(
-                messages=reflection_messages,
-                model=config.get("model") or settings.get("default_model"),
-                temperature=0.1,
-                max_tokens=300
-            )
+            reflection_result = None
+            if lenses:
+                reflection_result = await self._structured_reflection(
+                    reflection_messages, config, lenses
+                )
 
-            reflection_result = {
-                "satisfied": False,
-                "reason": "Could not evaluate",
-                "needs_improvement": None
-            }
+            if reflection_result is None:
+                response = await self.llm.chat_completion(
+                    messages=reflection_messages,
+                    model=config.get("model") or settings.get("default_model"),
+                    temperature=0.1,
+                    max_tokens=300
+                )
 
-            if response and "choices" in response:
-                raw = response["choices"][0]["message"].get("content", "")
+                reflection_result = {
+                    "satisfied": False,
+                    "reason": "Could not evaluate",
+                    "needs_improvement": None
+                }
 
-                try:
-                    # Strip markdown code blocks if present
-                    match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', raw)
-                    if match:
-                        cleaned = match.group(1)
-                    else:
-                        cleaned = raw
+                if response and "choices" in response:
+                    raw = response["choices"][0]["message"].get("content", "")
 
-                    # Strip JavaScript-style comments
-                    cleaned = re.sub(r'(?m)^\s*//.*$', '', cleaned)
-                    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
-                    parsed = json.loads(cleaned.strip())
+                    try:
+                        # Strip markdown code blocks if present
+                        match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', raw)
+                        if match:
+                            cleaned = match.group(1)
+                        else:
+                            cleaned = raw
 
-                    if isinstance(parsed, dict):
-                        reflection_result = {
-                            "satisfied": bool(parsed.get("satisfied", False)),
-                            "reason": str(parsed.get("reason", "")),
-                            "needs_improvement": parsed.get("needs_improvement")
-                        }
-                except (json.JSONDecodeError, IndexError) as _exc:
-                    logger.debug("ignored exception: %s", _exc)
+                        # Strip JavaScript-style comments
+                        cleaned = re.sub(r'(?m)^\s*//.*$', '', cleaned)
+                        cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)
+                        parsed = json.loads(cleaned.strip())
+
+                        if isinstance(parsed, dict):
+                            reflection_result = {
+                                "satisfied": bool(parsed.get("satisfied", False)),
+                                "reason": str(parsed.get("reason", "")),
+                                "needs_improvement": parsed.get("needs_improvement")
+                            }
+                    except (json.JSONDecodeError, IndexError) as _exc:
+                        logger.debug("ignored exception: %s", _exc)
 
             result = input_data.copy()
             result["reflection"] = reflection_result

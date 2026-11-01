@@ -3,10 +3,18 @@ import os
 import json
 import asyncio
 import filelock
-from fastapi import APIRouter, Request, Form, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.templating import Jinja2Templates
 from core.settings import settings
+from modules.tools import approvals, calls, outbound
+from modules.tools.tiers import Tier
+from modules.tools.capabilities import (
+    MANIFEST_VERSION,
+    describe_supported,
+    manifest_from_legacy,
+    parse_requirements,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +134,11 @@ async def save_tool(
             original_name = _sanitize_tool_name(original_name)
             
         is_enabled = True
+        existing = tools.get(original_name or name) or {}
+        tier = existing.get("tier")
+        tier_reason = str(existing.get("tier_reason") or "").strip()
+        if tier not in {item.value for item in Tier} or not tier_reason:
+            tier, tier_reason = Tier.HIGH.value, "new tool; review before lowering"
         
         if original_name and original_name != name:
             if original_name in tools:
@@ -147,7 +160,12 @@ async def save_tool(
                     "parameters": params_json
                 }
             },
-            "enabled": is_enabled
+            "enabled": is_enabled,
+            "tier": tier,
+            "tier_reason": tier_reason,
+            "manifest_version": MANIFEST_VERSION,
+            "requires": ["sandbox", "library_source"],
+            "source": {"mode": "library", "entry": f"{name}.py"},
         }
         
         # Save Python logic to standalone file
@@ -158,6 +176,119 @@ async def save_tool(
         return await tools_list(request)
     except Exception as e:
         return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Failed to save tool: {str(e)}"}})})
+
+@router.get("/calls/{call_id}")
+async def get_tool_call(call_id: str):
+    """One live or recently settled tool call (IDEA-1173)."""
+    context = calls.default_registry().get(call_id)
+    if context is None:
+        raise HTTPException(status_code=404, detail=(
+            f"Why: no call '{call_id}' is registered (it may have been evicted). "
+            "Fix: list /tools/calls for the live calls."
+        ))
+    return JSONResponse(context.snapshot())
+
+
+@router.get("/calls")
+async def list_tool_calls():
+    return JSONResponse({"calls": calls.default_registry().pending()})
+
+
+@router.post("/calls/{call_id}/cancel")
+async def cancel_tool_call(call_id: str):
+    """Ask a running tool call to stop; the child is terminated by the sandbox."""
+    context, outcome = calls.default_registry().request_cancel(call_id)
+    if outcome == "unknown":
+        raise HTTPException(status_code=404, detail=(
+            f"Why: no call '{call_id}' is registered. "
+            "Fix: list /tools/calls and use a live call id."
+        ))
+    if outcome == "already_settled":
+        raise HTTPException(status_code=409, detail=(
+            f"Why: call '{call_id}' already settled as '{context.status}'. "
+            "Fix: nothing to cancel; read the call to see its result."
+        ))
+    return JSONResponse({"cancelled": True, "call": context.snapshot()})
+
+
+@router.get("/capabilities")
+async def tool_capabilities():
+    """The declared and supported tool primitives, so manifest drift is visible (IDEA-1172)."""
+    supported = describe_supported()
+    drift = []
+    for name, entry in (load_tools() or {}).items():
+        requirements, error = parse_requirements(entry)
+        if error:
+            drift.append({"tool": name, "problem": "invalid_manifest", "detail": error})
+            continue
+        missing = sorted({req.name for req in requirements} - set(supported["supported"]))
+        if missing:
+            drift.append({"tool": name, "problem": "unsupported_primitives", "missing": missing})
+    return JSONResponse({"supported": supported, "drift": drift})
+
+
+@router.get("/drafts")
+async def list_outbound_drafts():
+    """Outbound tool calls the agent drafted; nothing here has been sent (IDEA-032)."""
+    drafts = await asyncio.to_thread(outbound.default_store().pending)
+    return JSONResponse({"drafts": drafts, "send_phrase": outbound.SEND_PHRASE})
+
+
+@router.post("/drafts/{draft_id}/send")
+async def send_outbound_draft(draft_id: str, confirm: str = Query(None)):
+    """Send one draft; the exact phrase is required because the agent cannot supply it."""
+    try:
+        draft = await asyncio.to_thread(outbound.send_draft, draft_id, confirm)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Why: there is no draft {draft_id}. Fix: list drafts with GET /tools/drafts.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"Why: {exc}. Fix: only a pending draft can be sent, and only once.")
+    return JSONResponse(draft)
+
+
+@router.post("/drafts/{draft_id}/discard")
+async def discard_outbound_draft(draft_id: str):
+    """Drop a draft without sending it."""
+    try:
+        draft = await asyncio.to_thread(outbound.default_store().transition, draft_id, "pending", "discarded")
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Why: there is no draft {draft_id}. Fix: list drafts with GET /tools/drafts.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"Why: {exc}. Fix: only a pending draft can be discarded.")
+    return JSONResponse(draft)
+
+
+@router.get("/approvals")
+async def list_tool_approvals():
+    """HIGH-tier tool calls held for a person; nothing here has run (IDEA-060)."""
+    items = await asyncio.to_thread(approvals.default_store().pending)
+    return JSONResponse({"approvals": items, "run_phrase": approvals.RUN_PHRASE})
+
+
+@router.post("/approvals/{approval_id}/run")
+async def run_tool_approval(approval_id: str, confirm: str = Query(None)):
+    """Run one held call; the exact phrase is required because the model cannot supply it."""
+    try:
+        item = await asyncio.to_thread(approvals.default_store().run, approval_id, confirm)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Why: there is no approval {approval_id}. Fix: list approvals with GET /tools/approvals.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"Why: {exc}. Fix: only a pending approval can run, and only once.")
+    return JSONResponse(item)
+
+
+@router.post("/approvals/{approval_id}/reject")
+async def reject_tool_approval(approval_id: str):
+    """Drop a held call without running it."""
+    try:
+        item = await asyncio.to_thread(
+            approvals.default_store().transition, approval_id, "pending", "rejected")
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Why: there is no approval {approval_id}. Fix: list approvals with GET /tools/approvals.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=f"Why: {exc}. Fix: only a pending approval can be rejected.")
+    return JSONResponse(item)
+
 
 @router.post("/{name}/toggle")
 async def toggle_tool(request: Request, name: str):
@@ -387,7 +518,10 @@ async def import_tools(request: Request, file: UploadFile = File(...)):
                             "parameters": tool_data.get("parameters", {"type": "object", "properties": {}})
                         }
                     },
-                    "enabled": tool_data.get("enabled", True)
+                    "enabled": tool_data.get("enabled", True),
+                    # An imported package cannot choose its own tier; a person lowers it after review.
+                    "tier": "high",
+                    "tier_reason": "imported tool; review before lowering",
                 }
                 
                 # Save code
@@ -415,7 +549,9 @@ async def import_tools(request: Request, file: UploadFile = File(...)):
                             "parameters": {"type": "object", "properties": {}}
                         }
                     },
-                    "enabled": True
+                    "enabled": True,
+                    "tier": "high",
+                    "tier_reason": "imported tool; review before lowering",
                 }
             
             with open(os.path.join(LIBRARY_DIR, f"{name}.py"), "w", encoding="utf-8") as f:

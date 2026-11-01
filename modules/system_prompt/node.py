@@ -116,6 +116,19 @@ class SystemPromptExecutor:
         config = config or {}
         # Default prompt if none is configured
         prompt_text = config.get("system_prompt", "You are NeuroCore, a helpful and intelligent AI assistant.")
+
+        # Resolve versioned prompt from prompt registry if requested (IDEA-1238)
+        prompt_name = config.get("prompt_name") or input_data.get("prompt_name")
+        if prompt_name:
+            try:
+                from modules.brain.prompt_registry import default_registry
+                label = config.get("prompt_label") or input_data.get("prompt_label", "production")
+                reg = config.get("prompt_registry") or default_registry(config.get("prompt_registry_path"))
+                resolved = reg.resolve(prompt_name, label=label) or reg.resolve(prompt_name, label="latest")
+                if resolved:
+                    prompt_text = resolved.prompt
+            except Exception as exc:
+                logger.warning(f"Could not resolve prompt '{prompt_name}' from registry: {exc}")
         
         # Get enabled tools from config (structured format only - no markdown duplication)
         enabled_tools = config.get("enabled_tools", [])
@@ -134,6 +147,9 @@ class SystemPromptExecutor:
         
         # Plan context (from planner node) - HIGH PRIORITY
         plan_context = input_data.get("plan_context")
+
+        # Brain state (attached by chat when the brain module is enabled) - MEDIUM PRIORITY
+        brain_context = input_data.get("_brain_context")
         
         # Skills context (from enabled_skills config) - LOW PRIORITY
         enabled_skills = config.get("enabled_skills", [])
@@ -156,7 +172,9 @@ class SystemPromptExecutor:
             else:
                 context_parts.append((0, f"## User Memories\n{memory_context}"))
         
-        # Medium priority (1): Knowledge and Reasoning
+        # Medium priority (1): Brain state, Knowledge and Reasoning
+        if brain_context:
+            context_parts.append((1, f"## Brain Context (internal state, not user input)\n{brain_context}"))
         if knowledge_context:
             context_parts.append((1, f"## Relevant Knowledge\n{knowledge_context}"))
         if reasoning_context:

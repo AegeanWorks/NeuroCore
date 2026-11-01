@@ -902,7 +902,8 @@ class ToolSandbox:
         
         return result_container
 
-    def execute(self, code: str, local_vars: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, code: str, local_vars: Optional[Dict[str, Any]] = None,
+                cancel_event=None, deadline: Optional[float] = None) -> Dict[str, Any]:
         """
         Execute code in the sandboxed environment using multiprocessing for true isolation.
         
@@ -971,17 +972,31 @@ class ToolSandbox:
                           self.permitted_environment)
                 )
                 p.start()
-                p.join(timeout=self.timeout)
-                if p.is_alive():
-                    logger.warning(
-                        f"Tool execution exceeded {self.timeout}s limit, terminating"
-                    )
-                    p.terminate()
-                    p.join()
-                    _thread_exc.append(
-                        TimeoutError(f"Tool execution exceeded {self.timeout} second limit")
-                    )
-                    return
+                # Poll so a cancel request or the deadline stops the child promptly
+                # instead of waiting for the full sandbox timeout (IDEA-1173).
+                import time as _time
+                _cutoff = deadline if deadline is not None else (
+                    _time.monotonic() + self.timeout
+                )
+                while p.is_alive():
+                    if cancel_event is not None and cancel_event.is_set():
+                        logger.info("Tool execution cancelled by the caller, terminating")
+                        p.terminate()
+                        p.join(5)
+                        from .calls import ToolCallCancelled
+                        _thread_exc.append(ToolCallCancelled("Tool execution was cancelled"))
+                        return
+                    if _time.monotonic() >= _cutoff:
+                        logger.warning(
+                            f"Tool execution exceeded {self.timeout}s limit, terminating"
+                        )
+                        p.terminate()
+                        p.join(5)
+                        _thread_exc.append(
+                            TimeoutError(f"Tool execution exceeded {self.timeout} second limit")
+                        )
+                        return
+                    p.join(0.1)
                 _exitcode_holder[0] = p.exitcode
             except Exception as _e:
                 _thread_exc.append(_e)

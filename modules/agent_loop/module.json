@@ -19,7 +19,9 @@
         "include_knowledge_context": true,
         "include_reasoning_context": true,
         "compact_threshold": 0,
-        "compact_keep_last": 6
+        "compact_keep_last": 6,
+        "resume_policy": "strict",
+        "tool_journal_policy": "ask"
     },
     "provides_nodes": [
         {

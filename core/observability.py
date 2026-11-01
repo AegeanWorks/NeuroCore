@@ -115,10 +115,34 @@ class TraceContext:
     spans: List[Span] = field(default_factory=list)
     current_span: Optional[Span] = None
     attributes: Dict[str, Any] = field(default_factory=dict)
-    
+    # A root decides sampling once and every child inherits it (IDEA-1237).
+    sampling: float = 1.0
+    sampled: bool = True
+
     def __post_init__(self):
         if not self.trace_id:
             self.trace_id = uuid.uuid4().hex
+
+    def sampling_decision(self, rate: float = None) -> bool:
+        """One decision at the root; 0 and 1 are deterministic, anything else is one draw."""
+        rate = self.sampling if rate is None else float(rate)
+        rate = max(0.0, min(1.0, rate))
+        if rate <= 0.0:
+            self.sampled = False
+        elif rate >= 1.0:
+            self.sampled = True
+        else:
+            self.sampled = (uuid.uuid4().int / (1 << 128)) < rate
+        self.sampling = rate
+        return self.sampled
+
+    def current_ids(self) -> Dict[str, Optional[str]]:
+        span = self.current_span
+        return {
+            "trace_id": self.trace_id,
+            "span_id": span.span_id if span else None,
+            "parent_span_id": span.parent_id if span else None,
+        }
     
     def add_span(self, name: str, kind: SpanKind = SpanKind.INTERNAL, 
                  attributes: Optional[Dict[str, Any]] = None, 
@@ -182,6 +206,30 @@ def get_or_create_trace_context() -> TraceContext:
     if ctx is None:
         ctx = TraceContext(trace_id=uuid.uuid4().hex)
         _trace_ctx.set(ctx)
+    return ctx
+
+
+def current_span_ids() -> Dict[str, Optional[str]]:
+    """Trace and span ids for stamping an outcome or a tool record; empty when untraced."""
+    ctx = _trace_ctx.get()
+    if ctx is None:
+        return {"trace_id": None, "span_id": None, "parent_span_id": None}
+    return ctx.current_ids()
+
+
+# Outcomes must not import this module (it imports flow_runner, which imports outcomes), so the
+# provider is registered here and read by core.outcomes at emit time.
+from core import outcomes as _outcomes  # noqa: E402  (registration, not a runtime dependency)
+_outcomes.set_trace_provider(current_span_ids)
+
+
+def start_root_trace(name: str = "run", sampling: float = 1.0,
+                     trace_id: Optional[str] = None) -> TraceContext:
+    """Start a root trace and record its sampling decision; children inherit it."""
+    ctx = TraceContext(trace_id=trace_id or uuid.uuid4().hex, sampling=float(sampling))
+    ctx.sampling_decision(sampling)
+    ctx.add_span(name)
+    _trace_ctx.set(ctx)
     return ctx
 
 

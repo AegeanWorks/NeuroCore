@@ -94,6 +94,46 @@ async def test_get_embedding_error(httpx_mock):
     assert embedding is None
 
 @pytest.mark.asyncio
+async def test_a_429_keeps_the_provider_retry_after(httpx_mock):
+    httpx_mock.add_response(
+        url="http://localhost:1234/v1/chat/completions",
+        status_code=429,
+        headers={"retry-after": "7"},
+        text="slow down",
+        method="POST",
+    )
+    bridge = LLMBridge(base_url="http://localhost:1234/v1")
+    result = await bridge.chat_completion([{"role": "user", "content": "hi"}])
+    assert result["category"] == "LLMRateLimitError"
+    assert result["retry_after"] == 7.0
+
+
+@pytest.mark.asyncio
+async def test_chat_completion_clamps_max_tokens_and_reports_the_clamp(monkeypatch):
+    from core.settings import settings
+
+    monkeypatch.setitem(settings.settings, "model_limits", {
+        "test-model": {"max_output_tokens": 10, "max_context_tokens": 1000},
+    })
+    mock_client = MagicMock(spec=httpx.AsyncClient)
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    bridge = LLMBridge(base_url="http://test", client=mock_client)
+    result = await bridge.chat_completion(
+        [{"role": "user", "content": "hi"}], model="test-model", max_tokens=99
+    )
+
+    payload = mock_client.post.call_args.kwargs["json"]
+    assert payload["max_tokens"] == 10
+    assert result["_clamp"]["clamped"] == [
+        {"field": "output_tokens", "requested": 99, "applied": 10}
+    ]
+
+
+@pytest.mark.asyncio
 async def test_llm_bridge_uses_injected_client():
     """Test that LLMBridge uses the provided AsyncClient if available."""
     

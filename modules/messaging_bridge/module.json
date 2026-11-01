@@ -9,14 +9,22 @@
     "config": {
         "telegram_bot_token": "",
         "telegram_chat_id": 0,
+        "telegram_allowed_senders": [],
+        "telegram_allowed_chats": [],
         "discord_bot_token": "",
         "discord_channel_id": "",
+        "discord_allowed_senders": [],
+        "discord_allowed_chats": [],
         "signal_api_url": "http://localhost:8080",
         "signal_phone_number": "",
+        "signal_allowed_senders": [],
+        "signal_allowed_chats": [],
         "whatsapp_api_url": "http://localhost:8080",
         "whatsapp_api_key": "",
         "whatsapp_instance": "",
-        "whatsapp_phone_number": ""
+        "whatsapp_phone_number": "",
+        "whatsapp_allowed_senders": [],
+        "whatsapp_allowed_chats": []
     },
     "provides_nodes": [
         {

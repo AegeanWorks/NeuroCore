@@ -4,7 +4,14 @@ import asyncio
 
 import pytest
 
-from core.errors import LLMHTTPError, LLMTimeoutError, ToolTimeoutError
+from core.errors import (
+    LLMAuthError,
+    LLMContextWindowError,
+    LLMHTTPError,
+    LLMRateLimitError,
+    LLMTimeoutError,
+    ToolTimeoutError,
+)
 from core.node_retry import (
     MAX_ATTEMPTS,
     RetryPolicy,
@@ -60,6 +67,7 @@ def test_node_timeout_is_bounded_and_opt_in():
     TimeoutError(), ConnectionError("reset"),
     LLMTimeoutError("slow"), ToolTimeoutError("slow", tool_name="x"),
     LLMHTTPError("busy", status_code=429), LLMHTTPError("down", status_code=503),
+    LLMRateLimitError("busy", retry_after=5),
 ])
 def test_transient_failures_are_retryable(exc):
     assert is_transient(exc) is True
@@ -68,6 +76,7 @@ def test_transient_failures_are_retryable(exc):
 @pytest.mark.parametrize("exc", [
     ValueError("bad value"), TypeError("bad type"), KeyError("missing"),
     asyncio.CancelledError(), LLMHTTPError("bad request", status_code=400),
+    LLMAuthError("bad key"), LLMContextWindowError("too long"),
 ])
 def test_deterministic_failures_and_cancellation_are_not_retried(exc):
     assert is_transient(exc) is False
@@ -94,6 +103,28 @@ async def test_a_transient_failure_is_retried_and_succeeds():
     assert result == "done"
     assert calls == [1, 2, 3]
     assert delays == [0.1, 0.2]
+
+
+async def test_retry_after_overrides_the_exponential_backoff():
+    calls = []
+    delays = []
+
+    async def operation():
+        calls.append(1)
+        if len(calls) == 1:
+            raise LLMRateLimitError("slow down", retry_after=5.0)
+        return "done"
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    result = await run_with_retry(
+        operation,
+        RetryPolicy(attempts=2, base_delay=0.1, max_delay=10, backoff=2.0),
+        sleep=fake_sleep,
+    )
+    assert result == "done"
+    assert delays == [5.0]
 
 
 async def test_retries_are_bounded_and_the_last_error_surfaces():

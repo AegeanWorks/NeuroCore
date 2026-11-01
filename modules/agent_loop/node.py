@@ -7,9 +7,14 @@ from core.llm import LLMBridge
 from core.execution_budget import spend
 from core.settings import settings
 from modules.agent_loop.loop_guard import LoopGuard
+from modules.agent_loop.tool_journal import run_journaled_tool
+from modules.agent_loop.prompt_digest import guard_system_messages, snapshot_system_messages
 from modules.brain.guardrails import scan_output
+from modules.tools.outbound import stage_if_outbound
+from modules.tools.tiers import gate_tool_call
 from modules.tools.sandbox import ToolSandbox
 from core.session_manager import session_manager, get_session_manager, EpisodeState
+from core.episode_identity import input_digest, prepare_resume
 
 
 def _charge_llm_usage(response, messages=None) -> None:
@@ -71,6 +76,61 @@ class AgentBaseExecutor:
             self._session_manager = get_session_manager()
         except Exception:
             self._session_manager = None
+
+    def _check_delegation_tool(self, tool_name: str):
+        """Check whether the active delegation contract allows this tool (IDEA-1242)."""
+        contract = getattr(self, "_active_delegation_contract", None)
+        if contract is not None and not contract.allows(tool_name):
+            try:
+                contract.require_tool(tool_name)
+            except Exception as exc:
+                return f"Error: {exc}", False
+        return None
+
+    def set_delegation_contract(self, contract: Any) -> None:
+        """Attach an active delegation contract to govern tool capabilities (IDEA-1242)."""
+        if contract is not None and not hasattr(contract, "require_tool") and isinstance(contract, dict):
+            from core.delegation import DelegationContract
+            contract = DelegationContract.from_dict(contract)
+        self._active_delegation_contract = contract
+
+    def set_handoff_packet(self, handoff: Any) -> None:
+        """Attach an incoming handoff packet to track delivery and acceptance (IDEA-1243)."""
+        if handoff is not None:
+            import time
+            from core.handoff import HandoffPacket, deliver
+            if not isinstance(handoff, HandoffPacket) and isinstance(handoff, dict):
+                handoff = HandoffPacket.from_dict(handoff)
+            deliver(handoff, now=time.time())
+        self._active_handoff = handoff
+
+    def _setup_delegation_and_handoff(self, input_data: dict, config: dict = None):
+        config = config or {}
+        contract = (
+            config.get("delegation_contract")
+            or input_data.get("delegation_contract")
+            or input_data.get("_delegation_contract")
+        )
+        self.set_delegation_contract(contract)
+
+        handoff = input_data.get("_handoff_packet") or input_data.get("handoff_packet")
+        self.set_handoff_packet(handoff)
+
+    def _finalize_delegation_and_handoff(self, result: dict, loop_error: Any = None):
+        if getattr(self, "_active_delegation_contract", None):
+            problems = self._active_delegation_contract.check_output(result)
+            if problems:
+                result["_delegation_problems"] = problems
+                logger.warning("Delegation contract check failed: %s", problems)
+
+        if getattr(self, "_active_handoff", None):
+            import time
+            from core.handoff import accept, reject
+            if loop_error:
+                reject(self._active_handoff, reason=f"Loop error: {loop_error}", now=time.time())
+            else:
+                accept(self._active_handoff, result, now=time.time())
+            result["_handoff_packet"] = self._active_handoff.as_dict()
 
     # ------------------------------------------------------------------
     # Token helpers
@@ -622,7 +682,15 @@ class AgentLoopExecutor(AgentBaseExecutor):
 
         start_time = self._log_tool_call(func_name, args)
         success = False
-        if func_name in tool_library:
+        if func_name not in tool_library:
+            output = f"Error: Tool {func_name} not found in library."
+        elif (delegated := self._check_delegation_tool(func_name)) is not None:
+            output, success = delegated
+        elif (gated := gate_tool_call(func_name, args)) is not None:
+            output, success = gated, True  # a HIGH call waits for a person (IDEA-060)
+        elif (staged := stage_if_outbound(func_name, args)) is not None:
+            output, success = staged, True  # an outbound call waits for approval (IDEA-032)
+        else:
             code = tool_library[func_name]
             try:
                 loop = asyncio.get_running_loop()
@@ -636,8 +704,6 @@ class AgentLoopExecutor(AgentBaseExecutor):
                 success = True
             except Exception as e:
                 output = f"Error executing tool {func_name}: {str(e)}"
-        else:
-            output = f"Error: Tool {func_name} not found in library."
 
         self._log_tool_result(func_name, output, success, start_time)
 
@@ -691,6 +757,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
         _compacted_at_len = 0
         guard = loop_guard or LoopGuard()
         loop_error = None
+        system_snapshot = snapshot_system_messages(llm_messages)
 
         for iteration in range(max_iterations):
             # Reset per-iteration: dedup catches duplicate calls within a single
@@ -708,6 +775,10 @@ class AgentLoopExecutor(AgentBaseExecutor):
                             llm_messages, compact_keep_last
                         )
                         _compacted_at_len = len(llm_messages)
+
+            llm_messages, system_intact = guard_system_messages(llm_messages, system_snapshot)
+            if not system_intact:
+                iteration_trace["integrity_violation"] = True
 
             llm_start = self._log_llm_call(model)
             response = await self._llm_with_retry(
@@ -809,9 +880,13 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     })
 
                 iteration_trace["tool_calls"].append(tool_name)
-                tool_result = _redact_tool_output(
-                    await self._execute_tool(tool_call, tool_library)
-                )
+                tool_result = _redact_tool_output(await run_journaled_tool(
+                    getattr(self, "_active_episode", None),
+                    getattr(self, "_active_session_manager", None),
+                    tool_call,
+                    lambda: self._execute_tool(tool_call, tool_library),
+                    policy=getattr(self, "_active_journal_policy", "ask"),
+                ))
 
                 # Fix 1: truncate large tool outputs at the source
                 if max_tool_output_chars > 0:
@@ -886,6 +961,9 @@ class AgentLoopExecutor(AgentBaseExecutor):
             input_data = {}
         config = config or {}
 
+        # Delegation and handoff contract support (IDEA-1242/1243)
+        self._setup_delegation_and_handoff(input_data, config)
+
         # --- Session initialization ---
         try:
             sm = get_session_manager()
@@ -909,6 +987,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
         max_replan_depth = int(config.get("max_replan_depth", 3))
         max_context_tokens = int(config.get("max_context_tokens", 6000))
         compact_threshold = int(config.get("compact_threshold", 0))
+
         compact_keep_last = int(config.get("compact_keep_last", 6))
         # Fix 1: read max_tool_output_chars from config
         max_tool_output_chars = int(config.get("max_tool_output_chars", 0))
@@ -930,6 +1009,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
         if enable_episode and sm:
             try:
                 existing_episode = sm.load_episode_state()
+                current_sha, current_projection = input_digest(input_data, config)
                 should_resume = (
                     existing_episode
                     and existing_episode.phase not in [
@@ -938,6 +1018,18 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     ]
                     and (episode_id is None or existing_episode.episode_id == episode_id)
                 )
+                if should_resume:
+                    allowed, decision, current_sha, current_projection = prepare_resume(
+                        sm, existing_episode, input_data, config
+                    )
+                    if not allowed:
+                        logger.warning(
+                            "Not resuming episode %s (%s); the stored input digest does not "
+                            "match this request. Starting a new episode.",
+                            existing_episode.episode_id,
+                            decision,
+                        )
+                        should_resume = False
                 if should_resume:
                     episode = existing_episode
                     replan_count = episode.replan_count
@@ -948,6 +1040,9 @@ class AgentLoopExecutor(AgentBaseExecutor):
                     if episode.messages and config.get("resume_from_episode_messages", True):
                         input_data.setdefault("messages", episode.messages)
                     episode.update_phase(EpisodeState.PHASE_EXECUTING)
+                    if not episode.input_sha256:
+                        episode.input_sha256 = current_sha
+                        episode.input_projection = current_projection
                     logger.info(f"Resuming episode {episode.episode_id}")
                 elif episode_id or config.get("auto_create_episode", True):
                     budgets = {
@@ -960,6 +1055,8 @@ class AgentLoopExecutor(AgentBaseExecutor):
                         input_data={"initial_input": list(input_data.keys())},
                         budgets=budgets,
                         metadata={"episode_id": episode_id} if episode_id else {},
+                        input_sha256=current_sha,
+                        input_projection=current_projection,
                     )
                     logger.info(f"Created new episode {episode.episode_id}")
             except Exception as e:
@@ -1001,6 +1098,10 @@ class AgentLoopExecutor(AgentBaseExecutor):
 
         # Fix 2: create thinking_steps locally before _execute()
         thinking_steps: list = []
+
+        self._active_episode = episode
+        self._active_session_manager = sm
+        self._active_journal_policy = config.get("tool_journal_policy", "ask")
 
         async def _execute():
             nonlocal iteration_count
@@ -1078,6 +1179,8 @@ class AgentLoopExecutor(AgentBaseExecutor):
 
             if final_response and "choices" in final_response:
                 result["content"] = final_response["choices"][0]["message"].get("content", "")
+
+            self._finalize_delegation_and_handoff(result, loop_error)
 
 
             # Re-planning detection — use structured flags, not text matching
@@ -1480,7 +1583,15 @@ Call set_final() when complete."""
         args["_repl_state"] = repl_state
 
         success = False
-        if actual_tool_name in tool_library:
+        if actual_tool_name not in tool_library:
+            output = f"Error: Tool {func_name} not found in library."
+        elif (delegated := self._check_delegation_tool(actual_tool_name)) is not None:
+            output, success = delegated
+        elif (gated := gate_tool_call(actual_tool_name, log_args)) is not None:
+            output, success = gated, True  # a HIGH call waits for a person (IDEA-060)
+        elif (staged := stage_if_outbound(actual_tool_name, log_args)) is not None:
+            output, success = staged, True  # an outbound call waits for approval (IDEA-032)
+        else:
             code = tool_library[actual_tool_name]
             try:
                 loop = asyncio.get_running_loop()
@@ -1501,8 +1612,6 @@ Call set_final() when complete."""
                         })
             except Exception as e:
                 output = f"Error executing tool {func_name}: {str(e)}"
-        else:
-            output = f"Error: Tool {func_name} not found in library."
 
         self._log_tool_result(actual_tool_name, output, success, start_time)
 
@@ -1545,12 +1654,17 @@ Call set_final() when complete."""
         max_tokens = config.get("max_tokens", 2000)
 
         llm_messages = initial_messages.copy()
+        system_snapshot = snapshot_system_messages(llm_messages)
         seen_calls: set[str] = set()
         guard = LoopGuard()
 
         for iteration in range(max_iterations):
             repl_state["iteration"] = iteration
             iteration_trace = {"iteration": iteration, "tool_calls": [], "errors": []}
+
+            llm_messages, system_intact = guard_system_messages(llm_messages, system_snapshot)
+            if not system_intact:
+                iteration_trace["integrity_violation"] = True
 
             state_metadata = {
                 "iteration": iteration,
@@ -1654,9 +1768,13 @@ Call set_final() when complete."""
                     })
                 iteration_trace["tool_calls"].append(tool_name)
 
-                tool_result = _redact_tool_output(
-                    await self._execute_tool(tool_call, tool_library, repl_state)
-                )
+                tool_result = _redact_tool_output(await run_journaled_tool(
+                    getattr(self, "_active_episode", None),
+                    getattr(self, "_active_session_manager", None),
+                    tool_call,
+                    lambda: self._execute_tool(tool_call, tool_library, repl_state),
+                    policy=getattr(self, "_active_journal_policy", "ask"),
+                ))
 
                 output_content = tool_result["content"]
                 repl_state["stdout_history"].append(str(output_content))
@@ -1722,6 +1840,9 @@ Call set_final() when complete."""
             input_data = {}
         config = config or {}
 
+        # Delegation and handoff contract support (IDEA-1242/1243)
+        self._setup_delegation_and_handoff(input_data, config)
+
         # --- Session initialization ---
         try:
             sm = get_session_manager()
@@ -1761,6 +1882,7 @@ Call set_final() when complete."""
         if enable_episode and sm:
             try:
                 existing_episode = sm.load_episode_state()
+                current_sha, current_projection = input_digest(input_data, config)
                 should_resume = (
                     existing_episode
                     and existing_episode.phase not in [
@@ -1769,6 +1891,16 @@ Call set_final() when complete."""
                     ]
                     and (episode_id is None or existing_episode.episode_id == episode_id)
                 )
+                if should_resume:
+                    allowed, decision, current_sha, current_projection = prepare_resume(
+                        sm, existing_episode, input_data, config
+                    )
+                    if not allowed:
+                        logger.warning(
+                            "[RLMAgent] Not resuming episode %s (%s); starting a new episode.",
+                            existing_episode.episode_id, decision,
+                        )
+                        should_resume = False
                 if should_resume:
                     episode = existing_episode
                     replan_count = episode.replan_count
@@ -1790,6 +1922,8 @@ Call set_final() when complete."""
                         input_data={"initial_input": list(input_data.keys())},
                         budgets=budgets,
                         metadata={"episode_id": episode_id} if episode_id else {},
+                        input_sha256=current_sha,
+                        input_projection=current_projection,
                     )
                     logger.info(f"[RLMAgent] Created new episode {episode.episode_id}")
             except Exception as e:
@@ -1835,6 +1969,10 @@ Call set_final() when complete."""
         stream_queue = config.get("_stream_queue")
         # Local thinking_steps — assigned to self._thinking_steps at all exit paths
         thinking_steps: list = []
+
+        self._active_episode = episode
+        self._active_session_manager = sm
+        self._active_journal_policy = config.get("tool_journal_policy", "ask")
 
         async def _execute():
             nonlocal iteration_count
@@ -1973,6 +2111,7 @@ Call set_final() when complete."""
             )
             self._thinking_steps = thinking_steps
             self._log_replan_event(result)
+            self._finalize_delegation_and_handoff(result, loop_error=result.get("agent_loop_error"))
             return result
         except Exception as e:
             result = input_data.copy()
@@ -1986,11 +2125,13 @@ Call set_final() when complete."""
             result["suggested_approach"] = "Review plan and try alternative approach."
             self._thinking_steps = thinking_steps
             self._log_replan_event(result)
+            self._finalize_delegation_and_handoff(result, loop_error=str(e))
             return result
 
         result["rlm_trace"] = trace
         result["agent_loop_trace"] = trace
         self._thinking_steps = thinking_steps
+        self._finalize_delegation_and_handoff(result)
         return result
 
     async def send(self, processed_data: dict) -> dict:
@@ -2152,9 +2293,15 @@ class HybridAgentExecutor(AgentBaseExecutor):
         args["_repl_state"] = repl_state
 
         success = False
-        output = f"Error: Tool '{func_name}' not found in library."
-
-        if func_name in tool_library:
+        if func_name not in tool_library:
+            output = f"Error: Tool '{func_name}' not found in library."
+        elif (delegated := self._check_delegation_tool(func_name)) is not None:
+            output, success = delegated
+        elif (gated := gate_tool_call(func_name, log_args)) is not None:
+            output, success = gated, True  # a HIGH call waits for a person (IDEA-060)
+        elif (staged := stage_if_outbound(func_name, log_args)) is not None:
+            output, success = staged, True  # an outbound call waits for approval (IDEA-032)
+        else:
             code = tool_library[func_name]
             try:
                 loop = asyncio.get_running_loop()
@@ -2259,6 +2406,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         had_tool_error = False
         _consecutive_unhelpful = 0  # iterations where every result was unhelpful
         guard = LoopGuard()
+        system_snapshot = snapshot_system_messages(llm_messages)
 
         for iteration in range(max_iterations):
             # Reset per-iteration: dedup catches duplicate calls within a single
@@ -2266,6 +2414,10 @@ class HybridAgentExecutor(AgentBaseExecutor):
             seen_calls: set = set()
             iterations += 1
             iteration_trace = {"iteration": iterations, "tool_calls": [], "errors": []}
+
+            llm_messages, system_intact = guard_system_messages(llm_messages, system_snapshot)
+            if not system_intact:
+                iteration_trace["integrity_violation"] = True
 
             # Ephemeral variable inventory — injected per call, never stored in history
             var_msg = self._variable_inventory_msg(repl_state)
@@ -2354,8 +2506,14 @@ class HybridAgentExecutor(AgentBaseExecutor):
                     })
 
                 iteration_trace["tool_calls"].append(tool_name)
-                tool_result = _redact_tool_output(await self._execute_tool(
-                    tool_call, tool_library, repl_state, large_output_threshold
+                tool_result = _redact_tool_output(await run_journaled_tool(
+                    getattr(self, "_active_episode", None),
+                    getattr(self, "_active_session_manager", None),
+                    tool_call,
+                    lambda: self._execute_tool(
+                        tool_call, tool_library, repl_state, large_output_threshold
+                    ),
+                    policy=getattr(self, "_active_journal_policy", "ask"),
                 ))
 
                 success = tool_result.get("success", False)
@@ -2445,6 +2603,9 @@ class HybridAgentExecutor(AgentBaseExecutor):
             input_data = {}
         config = config or {}
 
+        # Delegation and handoff contract support (IDEA-1242/1243)
+        self._setup_delegation_and_handoff(input_data, config)
+
         # --- Session initialization ---
         try:
             sm = get_session_manager()
@@ -2487,6 +2648,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         if enable_episode and sm:
             try:
                 existing_episode = sm.load_episode_state()
+                current_sha, current_projection = input_digest(input_data, config)
                 should_resume = (
                     existing_episode
                     and existing_episode.phase not in [
@@ -2495,6 +2657,16 @@ class HybridAgentExecutor(AgentBaseExecutor):
                     ]
                     and (episode_id is None or existing_episode.episode_id == episode_id)
                 )
+                if should_resume:
+                    allowed, decision, current_sha, current_projection = prepare_resume(
+                        sm, existing_episode, input_data, config
+                    )
+                    if not allowed:
+                        logger.warning(
+                            "[HybridAgent] Not resuming episode %s (%s); starting a new episode.",
+                            existing_episode.episode_id, decision,
+                        )
+                        should_resume = False
                 if should_resume:
                     episode = existing_episode
                     replan_count = episode.replan_count
@@ -2516,6 +2688,8 @@ class HybridAgentExecutor(AgentBaseExecutor):
                         input_data={"initial_input": list(input_data.keys())},
                         budgets=budgets,
                         metadata={"episode_id": episode_id} if episode_id else {},
+                        input_sha256=current_sha,
+                        input_projection=current_projection,
                     )
                     logger.info(f"[HybridAgent] Created new episode {episode.episode_id}")
             except Exception as e:
@@ -2600,6 +2774,10 @@ class HybridAgentExecutor(AgentBaseExecutor):
         trace: list = []
         # Fix 2: create thinking_steps locally before _execute()
         thinking_steps: list = []
+
+        self._active_episode = episode
+        self._active_session_manager = sm
+        self._active_journal_policy = config.get("tool_journal_policy", "ask")
 
         async def _execute():
             nonlocal iteration_count
@@ -2745,6 +2923,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
             )
             self._thinking_steps = thinking_steps
             self._log_replan_event(result)
+            self._finalize_delegation_and_handoff(result, loop_error=result.get("agent_loop_error"))
             return result
         except Exception as e:
             result = input_data.copy()
@@ -2760,12 +2939,14 @@ class HybridAgentExecutor(AgentBaseExecutor):
             result["suggested_approach"] = "Review plan and try alternative approach."
             self._thinking_steps = thinking_steps
             self._log_replan_event(result)
+            self._finalize_delegation_and_handoff(result, loop_error=str(e))
             return result
 
         result["hybrid_trace"] = trace
         result["agent_loop_trace"] = trace
         # Fix 2: assign thinking_steps to instance attr at the end of all exit paths
         self._thinking_steps = thinking_steps
+        self._finalize_delegation_and_handoff(result)
         return result
 
     async def send(self, processed_data: dict) -> dict:
@@ -4375,6 +4556,9 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             input_data = {}
         config = config or {}
 
+        # Delegation and handoff contract support (IDEA-1242/1243)
+        self._setup_delegation_and_handoff(input_data, config)
+
         # --- Session init ---
         try:
             sm = get_session_manager()
@@ -4426,11 +4610,22 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         if enable_episode and sm:
             try:
                 existing = sm.load_episode_state()
+                current_sha, current_projection = input_digest(input_data, config)
                 should_resume = (
                     existing
                     and existing.phase not in [EpisodeState.PHASE_COMPLETED, EpisodeState.PHASE_FAILED]
                     and (episode_id is None or existing.episode_id == episode_id)
                 )
+                if should_resume:
+                    allowed, decision, current_sha, current_projection = prepare_resume(
+                        sm, existing, input_data, config
+                    )
+                    if not allowed:
+                        logger.warning(
+                            "[GoalPursuit] Not resuming episode %s (%s); starting a new episode.",
+                            existing.episode_id, decision,
+                        )
+                        should_resume = False
                 if should_resume:
                     episode = existing
                     input_data.setdefault("plan", existing.plan)
@@ -4468,6 +4663,8 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                         input_data={"initial_input": list(input_data.keys())},
                         budgets={"max_replan_depth": max_replan_depth, "timeout": timeout},
                         metadata={"episode_id": episode_id} if episode_id else {},
+                        input_sha256=current_sha,
+                        input_projection=current_projection,
                     )
                     logger.info(f"[GoalPursuit] Created episode {episode.episode_id}")
             except Exception as e:
@@ -4574,6 +4771,10 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         goal_pursuit_trace: list = []
         thinking_steps: list = []
         total_iterations = 0
+
+        self._active_episode = episode
+        self._active_session_manager = sm
+        self._active_journal_policy = config.get("tool_journal_policy", "ask")
 
         async def _execute():
             nonlocal replan_count, iteration_count, total_iterations
@@ -5765,6 +5966,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             result["goal_pursuit_trace"] = goal_pursuit_trace
             result["agent_loop_trace"] = goal_pursuit_trace
             self._thinking_steps = thinking_steps
+            self._finalize_delegation_and_handoff(result)
             return result
 
         # --- Execute with timeout ---
@@ -5783,6 +5985,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             result["replan_count"] = replan_count
             self._thinking_steps = thinking_steps
             self._log_agent_event("goal_pursuit_timeout", {"timeout": timeout})
+            self._finalize_delegation_and_handoff(result, loop_error=result.get("agent_loop_error"))
             return result
         except Exception as e:
             result = input_data.copy()
@@ -5794,11 +5997,13 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             result["replan_count"] = replan_count
             self._thinking_steps = thinking_steps
             logger.exception(f"[GoalPursuit] Unexpected error: {e}")
+            self._finalize_delegation_and_handoff(result, loop_error=str(e))
             return result
 
         result["goal_pursuit_trace"] = goal_pursuit_trace
         result["agent_loop_trace"] = goal_pursuit_trace
         self._thinking_steps = thinking_steps
+        self._finalize_delegation_and_handoff(result)
         return result
 
     async def send(self, processed_data: dict) -> dict:

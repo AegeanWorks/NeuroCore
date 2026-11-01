@@ -9,6 +9,7 @@ from core.settings import settings
 from .backend import memory_store
 from .arbiter import MemoryArbiter
 from .consolidation import MemoryConsolidator, consolidation_state
+from .scope import MemoryScopeRequired, scope_from_input
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +111,19 @@ class MemoryRecallExecutor:
             link_boost = 0.0
         link_boost = max(0.0, min(1.0, link_boost))
 
+        scope = scope_from_input(input_data)
+        scope_required = bool(config.get(
+            "scope_required", self.config.get("memory_scope_required", False)))
+        scope_policy = config.get(
+            "scope_policy", self.config.get("memory_scope_policy", "strict"))
+        if scope_required and not scope:
+            raise MemoryScopeRequired()
+
         loop = asyncio.get_running_loop()
         if embedding:
             results = await loop.run_in_executor(
                 memory_store.executor,
-                partial(memory_store.search, embedding, limit=limit, source_filter=source_filter, access_weight=access_weight, link_boost=link_boost)
+                partial(memory_store.search, embedding, limit=limit, source_filter=source_filter, access_weight=access_weight, link_boost=link_boost, scope=scope, scope_policy=scope_policy)
             )
             results = [r for r in results if r.get('score', 0) >= min_score]
         else:
@@ -122,7 +131,7 @@ class MemoryRecallExecutor:
             # memories saved without vectors are still retrievable.
             results = await loop.run_in_executor(
                 memory_store.executor,
-                partial(memory_store.keyword_search, query_text, limit, link_boost=link_boost)
+                partial(memory_store.keyword_search, query_text, limit, link_boost=link_boost, scope=scope, scope_policy=scope_policy)
             )
 
         if not results:
@@ -145,14 +154,27 @@ class MemoryRecallExecutor:
         except Exception as _prov_err:
             logger.debug(f"Memory provenance recording skipped: {_prov_err}")
 
-        # Format context
-        context_str = "\n".join([f"- {r['text']}" for r in results])
-        
-        # Return memory context in a special field for System Prompt to extract
-        # Don't inject as system message - let System Prompt handle the injection
+        # Bound the block before prompt assembly (IDEA-1174): rank order is preserved, whole
+        # memories are evicted rather than silently overflowing the priority-0 slot, and the
+        # footer plus receipt make the omission visible.
+        from .budget import MemoryRecallBudget, fit, render
+
+        budget = MemoryRecallBudget(
+            max_total_chars=int(config.get(
+                "recall_max_total_chars",
+                self.config.get("recall_max_total_chars", 4000))),
+            max_item_chars=int(config.get(
+                "recall_max_item_chars",
+                self.config.get("recall_max_item_chars", 800))),
+        )
+        selected, receipt = fit(results, budget)
+        if not selected:
+            return {**input_data, "_memory_context": "", "_memory_budget": receipt.as_dict()}
+        block = render(selected, receipt)
         return {
-            **input_data, 
-            "_memory_context": f"Relevant memories retrieved from database:\n{context_str}\nUse these to answer the user if relevant."
+            **input_data,
+            "_memory_context": f"{block}\nUse these to answer the user if relevant.",
+            "_memory_budget": receipt.as_dict(),
         }
 
     async def send(self, processed_data: dict) -> dict:
@@ -164,7 +186,7 @@ class MemorySaveExecutor:
         self.config = ConfigLoader.get_config()
         self.arbiter = MemoryArbiter(memory_store, config=self.config)
 
-    async def _save_background(self, text: str, subject: str = "User", source: str = "chat", confidence: float = 1.0, mem_type: str = "BELIEF", verified: bool = False, expires_at: int = None, save_delay: float = 3.0):
+    async def _save_background(self, text: str, subject: str = "User", source: str = "chat", confidence: float = 1.0, mem_type: str = "BELIEF", verified: bool = False, expires_at: int = None, save_delay: float = 3.0, scope: dict = None, scope_policy: str = "strict"):
         """Handles embedding generation and saving in the background."""
         await asyncio.sleep(save_delay)
         try:
@@ -255,7 +277,9 @@ class MemorySaveExecutor:
                     embedding=embedding,  # may be None
                     mem_type=mem_type,
                     verified=verified,
-                    expires_at=expires_at
+                    expires_at=expires_at,
+                    scope=scope,
+                    scope_policy=scope_policy,
                 )
         except Exception as e:
             logger.error(f"Background memory save failed: {e}")
@@ -317,6 +341,13 @@ class MemorySaveExecutor:
         mem_type = config.get("mem_type", "BELIEF")
         verified = bool(config.get("verified", False))
         expires_at = config.get("expires_at")
+        scope = scope_from_input(input_data)
+        scope_required = bool(config.get(
+            "scope_required", self.config.get("memory_scope_required", False)))
+        scope_policy = config.get(
+            "scope_policy", self.config.get("memory_scope_policy", "strict"))
+        if scope_required and not scope:
+            raise MemoryScopeRequired()
 
         if text_to_save and len(text_to_save.strip()) > 2:
             # Make the initial save delay configurable (default: 3s)
@@ -333,6 +364,8 @@ class MemorySaveExecutor:
                 verified=verified,
                 expires_at=expires_at,
                 save_delay=save_delay,
+                scope=scope,
+                scope_policy=scope_policy,
             ))
             _pending_save_tasks.add(task)
             task.add_done_callback(_pending_save_tasks.discard)

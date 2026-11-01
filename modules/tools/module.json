@@ -15,6 +15,15 @@
             "configurable": true
         }
     ],
-    "config": {}
+    "config": {
+        "manifest_version": 2,
+        "supported_primitives": [
+            "sandbox",
+            "library_source",
+            "rlm_library_source",
+            "outbound_staging",
+            "human_approval",
+            "network"
+        ]
+    }
 }
-

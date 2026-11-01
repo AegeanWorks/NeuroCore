@@ -27,6 +27,7 @@ import httpx
 from filelock import FileLock
 
 from core.paths import data_path
+from core.pinned_http import pinned_target
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +88,12 @@ def _strip_markup(text: str) -> str:
     return _SPACE_RE.sub(" ", _TAG_RE.sub(" ", str(text or ""))).strip()
 
 
-def _validate_url(url: str, allowed_hosts: tuple, resolver: Callable = socket.getaddrinfo) -> str:
-    """Require HTTPS, an allowlisted host and a public address for every hop."""
+def _vetted_address(url: str, allowed_hosts: tuple, resolver: Optional[Callable] = None) -> str:
+    """Require HTTPS, an allowlisted host and only public answers; return the address to connect to.
+
+    The caller connects to this address, not to the hostname: resolving the name a second time
+    on connect let DNS rebinding swap in a private address after the check (IDEA-063).
+    """
     parsed = urlparse(url)
     if parsed.scheme != "https":
         raise SourcePolicyError("only https URLs are allowed")
@@ -96,18 +101,28 @@ def _validate_url(url: str, allowed_hosts: tuple, resolver: Callable = socket.ge
     if host not in allowed_hosts:
         raise SourcePolicyError(f"host {host!r} is not an allowlisted research source")
     try:
-        infos = resolver(host, 443, type=socket.SOCK_STREAM)
+        infos = (resolver or socket.getaddrinfo)(host, 443, type=socket.SOCK_STREAM)
     except OSError as exc:
         raise SourcePolicyError(f"could not resolve {host!r}: {exc}") from exc
+    addresses = []
     for info in infos:
         address = info[4][0]
         try:
-            ip = ipaddress.ip_address(address)
+            ip = ipaddress.ip_address(address.split("%", 1)[0])
         except ValueError as exc:
             raise SourcePolicyError(f"invalid resolved address {address!r}") from exc
         if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
                 or ip.is_multicast or ip.is_unspecified):
             raise SourcePolicyError(f"{host!r} resolves to a non-public address")
+        addresses.append(address)
+    if not addresses:
+        raise SourcePolicyError(f"could not resolve {host!r}: no addresses")
+    return addresses[0]
+
+
+def _validate_url(url: str, allowed_hosts: tuple, resolver: Optional[Callable] = None) -> str:
+    """Require HTTPS, an allowlisted host and a public address for every hop."""
+    _vetted_address(url, allowed_hosts, resolver)
     return url
 
 
@@ -119,8 +134,10 @@ async def _safe_get(url: str, allowed_hosts: tuple) -> tuple:
                                  headers=headers) as client:
         for _hop in range(MAX_REDIRECTS + 1):
             # DNS resolution is blocking; keep it off the event loop.
-            await asyncio.to_thread(_validate_url, current, allowed_hosts)
-            async with client.stream("GET", current) as response:
+            address = await asyncio.to_thread(_vetted_address, current, allowed_hosts)
+            target, host_header, extensions = pinned_target(current, address)
+            async with client.stream("GET", target, headers=host_header,
+                                     extensions=extensions) as response:
                 if response.status_code in (301, 302, 303, 307, 308):
                     location = response.headers.get("location")
                     if not location:

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Request, Form, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Request, Form, Depends, Query, UploadFile, File, Body, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from modules.brain.auth import BrainActor, require_role
 import base64
 import time
 from core.settings import settings
@@ -13,8 +14,12 @@ from core.flow_manager import flow_manager
 import json
 import logging
 import asyncio
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# A chat message starting with this word is answered by the brain conversation instead of the flow.
+BRAIN_PREFIX = "/brain"
 
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
@@ -23,6 +28,118 @@ templates = Jinja2Templates(directory="web/templates")
 active_streams = {}
 # Last background failure per session, so a late reader still sees the reason
 last_stream_errors = {}
+
+
+def _module_meta(request: Request, module_id: str) -> dict:
+    """One module manifest without importing the module (the rail works while it is off)."""
+    manager = getattr(request.app.state, "module_manager", None)
+    modules = getattr(manager, "modules", None) or {}
+    meta = modules.get(module_id)
+    return meta if isinstance(meta, dict) else {}
+
+
+def _brain_prompt(message) -> Optional[str]:
+    """The text after a leading /brain, or None when the message is ordinary chat."""
+    if not isinstance(message, str):
+        return None
+    text = message.strip()
+    if text.lower() == BRAIN_PREFIX:
+        return ""
+    if text.lower().startswith(BRAIN_PREFIX + " "):
+        return text[len(BRAIN_PREFIX):].strip()
+    return None
+
+
+def _without_current_turn(history: list, message: str) -> list:
+    """The session history before the user message the caller just appended."""
+    if history and history[-1].get("role") == "user" and history[-1].get("content") == message:
+        return history[:-1]
+    return history
+
+
+async def _brain_flow_context(request: Request) -> str:
+    """A compact brain-state block for an ordinary flow turn, when the brain is enabled."""
+    brain = _module_meta(request, "brain")
+    if not brain or not brain.get("enabled"):
+        return ""
+    config = brain.get("config") if isinstance(brain.get("config"), dict) else {}
+    if not config.get("inject_flow_context", True):
+        return ""
+    try:
+        from modules.brain import conversation
+        from modules.brain.service import get_brain_service
+
+        service = get_brain_service()
+        return conversation.state_context(await service.snapshot())
+    except Exception as exc:
+        logger.warning("Could not build the brain flow context: %s", exc)
+        return ""
+
+
+async def _stream_brain_notice(session_id: str, text: str, queue: asyncio.Queue) -> None:
+    """Persist and stream a brain notice that needs no model call."""
+    try:
+        await asyncio.to_thread(
+            session_manager.add_message, session_id, "assistant", text, source="brain"
+        )
+        await queue.put({"type": "replace", "content": text})
+    finally:
+        await queue.put(None)
+
+
+async def _run_brain_turn(session_id: str, message: str, prompt: str, llm: LLMBridge,
+                          queue: asyncio.Queue) -> None:
+    """Answer one /brain turn in the chat session and stream its result."""
+    from modules.brain import conversation as brain_conversation
+    from modules.brain.service import get_brain_service
+
+    try:
+        service = get_brain_service()
+        session = await asyncio.to_thread(session_manager.get_session, session_id)
+        history = _without_current_turn((session or {}).get("history", []), message)
+        turns = brain_conversation.turns_from_messages(history)
+        result = await brain_conversation.answer(service, llm, prompt, turns=turns)
+        reply = str(result.get("reply") or "")
+        commands = result.get("commands") if isinstance(result.get("commands"), list) else []
+        guard = scan_output(reply)
+        if guard.blocked:
+            logger.warning("Guardrails replaced a brain output: %s",
+                           guard.to_dict()["findings"])
+            reply = ("I can't return that response because it would repeat "
+                     "internal instructions.")
+            commands = []
+        elif guard.redactions:
+            reply = guard.text
+        await asyncio.to_thread(
+            session_manager.add_message, session_id, "assistant", reply,
+            source="brain", commands=commands,
+        )
+        message_index = None
+        if commands:
+            session_after = await asyncio.to_thread(session_manager.get_session, session_id)
+            if session_after:
+                message_index = len(session_after.get("history", [])) - 1
+        await queue.put({"type": "replace", "content": reply})
+        if commands:
+            await queue.put({"type": "commands", "content": {
+                "commands": commands, "message_index": message_index,
+            }})
+        usage = result.get("usage")
+        if isinstance(usage, dict) and usage.get("total_tokens"):
+            await asyncio.to_thread(session_manager.add_tokens, session_id, usage)
+            await queue.put({"type": "usage", "content": usage})
+    except Exception as exc:
+        logger.exception("Brain chat turn failed: %s", exc)
+        text = f"Error: {exc}"
+        try:
+            await asyncio.to_thread(
+                session_manager.add_message, session_id, "assistant", text, source="brain"
+            )
+        except Exception:
+            logger.exception("Could not persist the brain chat error")
+        await queue.put({"type": "error", "content": str(exc)})
+    finally:
+        await queue.put(None)
 
 
 def _flow_system_prompt(flow: dict) -> str:
@@ -187,13 +304,16 @@ async def chat_page(request: Request):
     # Access module manager from app state to render the sidebar correctly
     module_manager = request.app.state.module_manager
     enabled_modules = [m for m in module_manager.get_all_modules() if m.get("enabled")]
-    
+    brain = _module_meta(request, "brain")
+
     return templates.TemplateResponse(request, "index.html", {
         "modules": enabled_modules,
         "active_module": "chat",
         "sidebar_template": "chat_sidebar.html",
         "sessions": session_manager.list_sessions(),
-        "settings": settings.settings
+        "settings": settings.settings,
+        "brain_available": bool(brain),
+        "brain_enabled": bool(brain.get("enabled")),
     })
 
 @router.get("/gui", response_class=HTMLResponse)
@@ -209,11 +329,14 @@ async def chat_gui(request: Request, session_id: str = Query(None)):
             active_session = sessions[0]
 
     estimated_tokens = _estimate_tokens(active_session["history"]) if active_session else 0
+    brain = _module_meta(request, "brain")
 
     return templates.TemplateResponse(request, "chat_gui.html", {
         "session": active_session,
         "estimated_tokens": estimated_tokens,
         "active_stream": active_session and active_session["id"] in active_streams,
+        "brain_available": bool(brain),
+        "brain_enabled": bool(brain.get("enabled")),
     })
 
 @router.get("/sessions", response_class=HTMLResponse)
@@ -273,6 +396,55 @@ async def delete_session(request: Request, session_id: str, confirm: str = None)
 async def rename_session(session_id: str, name: str = Form(...)):
     session_manager.rename_session(session_id, name)
     return HTMLResponse(content="", headers={"HX-Trigger": "sessionsChanged"})
+
+
+@router.post("/sessions/{session_id}/brain/commands")
+async def run_brain_command(
+    request: Request,
+    session_id: str,
+    body: dict = Body(...),
+    actor: BrainActor = Depends(require_role("operator")),
+):
+    """Run one brain suggestion and mark it done in the stored chat message."""
+    from modules.brain import conversation
+    from modules.brain.service import get_brain_service
+
+    brain = _module_meta(request, "brain")
+    if not brain or not brain.get("enabled"):
+        raise HTTPException(
+            status_code=409,
+            detail="Why: the brain is off. Fix: enable it from the chat rail or the Modules page.",
+        )
+
+    name = str(body.get("name") or "")
+    args = body.get("args") if isinstance(body.get("args"), dict) else {}
+    index = body.get("index")
+    commands = None
+    if isinstance(index, int) and not isinstance(index, bool):
+        session = await asyncio.to_thread(session_manager.get_session, session_id)
+        history = (session or {}).get("history", [])
+        if 0 <= index < len(history):
+            stored = history[index].get("commands")
+            if isinstance(stored, list):
+                commands = stored
+                for command in commands:
+                    if (command.get("name") == name
+                            and command.get("status") in ("done", "failed")):
+                        return {**command, "already": True}
+    service = get_brain_service()
+    entry = await conversation.execute_command(service, name, args, actor=actor.name)
+    await service.journal([entry])
+
+    if commands is not None:
+        for command in commands:
+            if command.get("name") == name:
+                command["status"] = entry.get("status")
+                command["result"] = entry.get("result")
+                break
+        await asyncio.to_thread(
+            session_manager.update_message, session_id, index, commands=commands
+        )
+    return entry
 
 @router.post("/settings/save")
 async def save_chat_settings(
@@ -351,6 +523,39 @@ async def send_message(
                 active_session = session_manager.get_session(session_id)
                 logger.info(f"[Chat] Auto-compacted session {session_id} (was ~{estimated:,} tokens)")
 
+    # /brain turns are answered by the brain conversation and do not need an active flow.
+    brain_prompt = _brain_prompt(message)
+    if brain_prompt is not None:
+        msg_id = int(time.time() * 1000)
+        queue = asyncio.Queue()
+        active_streams[session_id] = queue
+        brain = _module_meta(request, "brain")
+        if not brain or not brain.get("enabled"):
+            text = ("The brain is off. Enable it from the chat rail or the Modules page, "
+                    "then try /brain again.")
+            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+        elif image and image.filename:
+            text = "Brain turns are text-only; send the image with an ordinary chat message."
+            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+        elif not brain_prompt:
+            text = "Type a question after /brain, for example: /brain what are you working on?"
+            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+        else:
+            asyncio.create_task(
+                _run_brain_turn(session_id, message, brain_prompt, llm, queue)
+            )
+        return templates.TemplateResponse(
+            request,
+            "chat_message_streaming.html",
+            {
+                "user_message": user_content,
+                "session_id": session_id,
+                "msg_id": msg_id,
+                "brain_turn": True,
+            },
+            headers={"HX-Trigger": "sessionsChanged"},
+        )
+
     active_flow_ids = settings.get("active_ai_flows", [])
     active_flow = flow_manager.get_flow(active_flow_ids[0]) if active_flow_ids else None
     flow_error = None  # Track errors in a structured way
@@ -383,6 +588,9 @@ async def send_message(
             try:
                 runner = FlowRunner(flow_id=active_flow['id'])
                 initial_data = {"messages": active_session["history"], "_input_source": "chat"}
+                brain_context = await _brain_flow_context(request)
+                if brain_context:
+                    initial_data["_brain_context"] = brain_context
                 if goal_id:
                     try:
                         initial_data["goal_id"] = int(goal_id)
@@ -566,8 +774,13 @@ async def stream_chat(session_id: str):
                 elif isinstance(chunk, dict) and chunk.get("type") == "thinking":
                     payload = json.dumps(chunk.get("content", []))
                     yield f"event: thinking\ndata: {payload}\n\n"
+                elif isinstance(chunk, dict) and chunk.get("type") == "commands":
+                    payload = json.dumps(chunk.get("content", []))
+                    yield f"event: commands\ndata: {payload}\n\n"
         finally:
-            pass  # Cleanup handled by run_flow_background or explicit endpoints
+            # A background turn may have replaced the queue for a newer request.
+            if active_streams.get(session_id) is queue:
+                active_streams.pop(session_id, None)
                 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

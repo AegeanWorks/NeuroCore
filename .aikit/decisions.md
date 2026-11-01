@@ -1375,3 +1375,1138 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 ## License notice cleanup (2026-10-26)
 
 - The license-history notes were removed from README.md and COMMERCIAL.md: the project is offered only under the Aegean License 1.1 (AL-1.1), with commercial use under ACL-1.0.
+
+### ADR-063: SSRF-checked fetches connect to the vetted address
+- **Date**: 2026-10-29
+- **Status**: Accepted
+- **Context**: `core/research_gateway.py` and the skill URL importer resolved a hostname, rejected
+  any private, loopback, link-local or reserved answer, and then handed the hostname to httpx,
+  which resolved it again on connect. A DNS answer that changes between the two lookups (DNS
+  rebinding) therefore reached an address the check had rejected (IDEA-063). Commit e0cf494 made
+  the importer check every resolved address but kept the second lookup.
+- **Decision**: `core/pinned_http.py` builds a pinned request: the URL on the vetted IP (IPv6
+  bracketed, zone dropped, port kept), a `Host` header with the hostname, and the httpcore
+  `sni_hostname` extension for HTTPS so TLS verifies the certificate against the name.
+  `_vetted_address` in the gateway returns the first public answer and `_safe_get` pins every
+  redirect hop to its own vetted address; `_validate_url` keeps its contract. The importer pins to
+  the first address it vetted, through a short-lived `httpx.Client`.
+- **Consequences**: The connection goes to exactly the address that passed the check. A live fetch
+  from Wikipedia succeeded through the pinned path, and the same IP with the name `example.com`
+  failed certificate verification, so TLS checking is intact. Only the first vetted address is
+  tried; a host whose first answer is down is not retried on the next one.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (the request goes where
+  the check looked) and PRINCIPLE-019 (no internal service is reachable through a fetch).
+
+### ADR-064: Outbound tool calls are drafts until the user approves them
+- **Date**: 2026-10-29
+- **Status**: Accepted
+- **Context**: `SendEmail` was enabled by default and mailed any address the model named; the only
+  safeguard was its tool description. Incoming email (email bridge), `FetchURL` and knowledge-base
+  documents reach the same agent, so an injected instruction could send any content anywhere
+  (IDEA-032). Library tools run from four dispatchers: the tool dispatcher node and three agent
+  loop executors.
+- **Decision**: `modules/tools/outbound.py` names the outbound tools (`SendEmail`). Every dispatcher
+  calls `stage_if_outbound` before running a library tool; an outbound call is saved to
+  `data/outbound_drafts.json` (ledger lock, atomic write, at most 200 pending) and the model is
+  told it was NOT sent. `GET /tools/drafts` lists drafts; `POST /tools/drafts/{id}/send` requires
+  `confirm=send this draft` (the ADR-059 helper), claims the draft (`pending` to `sending`) under the
+  lock before running the tool code, and records `sent` or `failed`; `POST .../discard` drops one.
+  An unreadable draft store fails closed: nothing is drafted or sent. A test counts sandbox
+  executions against stage calls in both dispatcher files, so a new dispatcher cannot skip the gate.
+- **Consequences**: No email leaves without one explicit user action, and a draft is sent at most
+  once even when approved twice. Agent-driven email now needs that action. Replies through the
+  flow's `email_output` node are unchanged; a new outbound tool must be added to `OUTBOUND_TOOLS`.
+  There is no UI panel yet; the routes are JSON.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-019 (no exfiltration path
+  from untrusted input), PRINCIPLE-013 (claimed under a lock, written atomically) and PRINCIPLE-011
+  R6 (every refusal carries Why/Fix).
+
+### ADR-065: Memory and goal writes follow the guardrail policy
+- **Date**: 2026-10-29
+- **Status**: Accepted
+- **Context**: Guardrails scanned chat input, knowledge-base chunks and tool output, but nothing
+  screened text bound for long-term memory or goals. A memory is recalled in every later session
+  and the active goal is re-injected as a system message on each turn, so injected text saved once
+  persisted indefinitely (IDEA-334).
+- **Decision**: Guardrails gain a `memory` surface; `BLOCKING_SURFACES` (`input`, `memory`) are the
+  surfaces where enforce mode refuses an injection pattern. `screen_memory_text` in
+  `modules/memory/backend.py` scans `add_entry`, `update_entry`, `create_goal` and `update_goal`
+  text before the write lock. In enforce mode `add_entry` returns `-1`, its existing "rejected"
+  answer that the arbiter and learning loop already handle; the others raise the new
+  `MemoryContentBlocked`, which the memory routes return as 400 with Why/Fix. Observe mode stores
+  the text, logs the rules matched and counts them under `memory:` in the guardrail status.
+- **Consequences**: The persistence path for prompt injection follows the same policy as every
+  other surface. With the default `observe` mode nothing is refused, only counted; an operator who
+  wants refusals sets `brain_guardrail_mode` to `enforce`. Text already in memory is not rescanned.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-019 (untrusted text does
+  not become trusted state) and PRINCIPLE-011 R6 (a refusal carries Why/Fix).
+
+### ADR-066: Untrusted text reaches the model inside a random-id fence
+- **Date**: 2026-10-29
+- **Status**: Accepted
+- **Context**: Tool output (a fetched page, an incoming email, a search result) and retrieved
+  knowledge-base chunks entered prompts as plain text, so an instruction inside them read exactly
+  like the operator's, and nothing marked where the untrusted text began or ended (IDEA-030).
+- **Decision**: `core/untrusted.py` provides `wrap_untrusted`: a one-line note that the block is
+  data from a named source, then `<untrusted_content_<16 hex>>` with a fresh `secrets` id per block;
+  tag-shaped text in the payload is neutralized and the source label is restricted to safe
+  characters. `LLMBridge.chat_completion` and `chat_completion_stream` send a copy of the messages
+  with every `role: tool` message fenced (`fence_tool_messages`, never twice), so all four tool
+  dispatchers are covered at the one exit. The knowledge-base node fences each chunk when it builds
+  `knowledge_context`. A first attempt fenced tool results where they are produced and broke stuck
+  detection, which reads the raw text; fencing on the way out keeps the agent loop's own logic
+  (stuck detection, truncation, traces) on the raw content.
+- **Consequences**: Every untrusted block is visibly data to the model and cannot be closed by its
+  own content. Prompts grow by about 120 characters per tool result or chunk. Memory recall and
+  the system prompt are not fenced: memory writes are screened instead (ADR-065). Fencing is a
+  signal to the model, not a guarantee; the guardrail scans remain the enforcement.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-019 (untrusted input stays
+  distinguishable) and PRINCIPLE-003 (the change sits at the single exit every model call uses).
+
+### ADR-067: The brain can act autonomously and be talked to from its page
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: The operator asked for a Brain section to start the brain and interact with it, with
+  chat plus structured control, and for the brain to act autonomously. The `/brain/ui` dashboard
+  (ADR-032) could start, stop and inspect the brain but offered no conversation, the navbar hid it
+  while the opt-in module (ADR-036) was off, and `set_mode` refused anything beyond
+  observe/suggest. ADR-028 had already built the kernel, ADR-041 the goal link and ADR-046 the
+  daily self-budget as the rails autonomy would need.
+- **Decision**:
+  1. A third mode, `autonomous`. Its cycles generate proposals as `suggest` does and then, outside
+     the state lock, act on pending proposals that have an entry in `AUTONOMOUS_ACTIONS`
+     (`modules/brain/autonomy.py`): record a baseline (only through `promote_baseline`, which
+     refuses anything below a perfect run), review a failing evaluation, consolidate learning,
+     check recall. Each action needs `kernel.can_run_autonomy()` and one unit of its self-budget
+     kind; at most `max_autonomous_actions_per_cycle` (default 2) run per cycle; every attempt is
+     journaled in `state.actions` (newest first, 50 kept) with actor, status and result. SAFE
+     kernel still forces `observe`. No tool, flow or outbound action is reachable; outbound tools
+     stay drafts (ADR-064).
+  2. `modules/brain/conversation.py`: `POST /brain/chat` sends the message with a bounded view of
+     the live state and asks for JSON `{reply, commands}`; at most three commands, only from
+     `COMMANDS` (the autonomous actions plus `run_cycle`, `run_evaluation`, `set_goal`). In
+     autonomous mode they run as `brain:chat` and are journaled; otherwise they return as
+     suggestions that `POST /brain/commands` runs for the requesting actor. History is kept in
+     `data/brain_chat.json` (100 messages, ledger lock, atomic write). Goal text passes the memory
+     guardrail (ADR-065).
+  3. `/brain/ui` gains a mode switch, a chat panel with Run buttons for suggestions and a journal;
+     the navbar always shows Brain, and while the module is off the link enables it and opens the
+     page, so opting in stays one deliberate click.
+- **Consequences**: The brain can now maintain its own evaluation baseline and learning without a
+  person, bounded per cycle and per day; everything it does is visible in its journal. A model that
+  answers with anything but the allow-listed commands can only talk. Proposals that need a person
+  (provider repair, flow activation, memory seeding) still wait. The chat needs the configured LLM;
+  without one it returns 502 with Why/Fix.
+  `tests/test_module_defaults.py::test_disabled_brain_is_neither_routed_nor_linked` changed at
+  the operator's request: a disabled brain is still not routed, but the navbar now shows it
+  through a link that enables the module instead of hiding it (ADR-036's "not linked" part).
+  Starting the brain on a real install exposed an older bug: before the first evaluation the
+  self-model reports `last_pass_rate: None`, and `DriftMonitor._metrics` called `float(None)`,
+  so every cycle and `/brain/state` failed with 500. It now reads a missing pass rate as 1.0.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (journal and history
+  are written atomically under a lock), PRINCIPLE-019 (no path from chat to tools or outbound
+  actions) and PRINCIPLE-011 R6 (every refusal carries Why/Fix).
+
+### ADR-068: The brain resumes the operator's mode and running choice after a restart
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: `brain_state.json` persisted the mode and a running flag, but `BrainService.__init__`
+  overwrote the mode with the module config and forced `running` to False, so every server restart
+  quietly dropped an autonomous brain back to observe and left it stopped. Separately, the Brain
+  page listed proposals with no way to act on one: the allow-listed kinds had an action the API
+  could run, and the rest needed a person somewhere else.
+- **Decision**:
+  1. `BrainState.operator_mode` records the mode a person last chose; `set_mode` writes it. On
+     load, the operator mode outranks the config default. A SAFE kernel still forces `observe` and
+     records that as the effective choice, so clearing the kill switch does not silently re-arm
+     autonomy; the operator chooses again.
+  2. The persisted `running` flag is the resume request. `BrainService` exposes it as
+     `resume_requested`; the router startup starts the brain when it is set or when `auto_start`
+     is configured. `stop()` clears it; the new `shutdown_keep_resume()` preserves whatever the
+     current choice is, and the router uses it on shutdown, so an explicit Stop is not undone by
+     closing the server.
+  3. Every proposal carries `action` (the allow-listed command to run, else null) and `link` (the
+     page where a person can act: Settings for provider repair, AI Flow for flow and pass-rate
+     work, Memory for seeding). The Brain page renders a Run button for the former and an Open
+     link for the latter.
+- **Consequences**: A brain that was running at shutdown (or crashed while running) starts again
+  at the next server start without a click; one the operator stopped stays stopped. Mode changes
+  now survive restarts even while the brain is idle. A state file written before this ADR has no
+  `operator_mode`, so it keeps the config mode once and records the operator's next choice.
+  `tests/test_brain_autonomy.py` covers the restart round-trip, an explicit stop, and SAFE forcing
+  observe; `tests/test_brain_ui.py` covers the Run/Open controls.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (state is still
+  written atomically under the ledger lock) and PRINCIPLE-010 (startup resumes only the operator's
+  own choice, once).
+
+### ADR-069: Tool calls are classified by tier and unknown tools fail closed
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-060 (IDEAS.md, known bug): the agent loop read `risk` and `reversible` from the
+  model's own step JSON, defaulted a missing value to low/True, and only added a prompt warning.
+  An unlisted tool, or a model that omitted the fields, therefore ran unguarded; argument text
+  could not be trusted to describe the real effect either.
+- **Decision**:
+  1. `modules/tools/tiers.py` classifies a *structured* call from its tool name and arguments.
+     `tools.json` now gives every shipped tool a `tier` and a `tier_reason`. A missing entry, an
+     unknown tier, or a tier without a reason is HIGH. Deterministic argument rules may raise a
+     tier but never lower it; `FetchURL` is raised for non-http(s) and private-address URLs.
+  2. `gate_tool_call` runs before every dispatcher: the tools node plus all three agent-loop
+     executors. LOW passes, MEDIUM passes with a log line that names the tool and reason but never
+     an argument value, and HIGH is staged in `data/tool_approvals.json` instead of executing.
+     The model receives the approval id and is told nothing ran; it cannot supply the approval.
+  3. `GET /tools/approvals` lists held calls. `POST /tools/approvals/{id}/run?confirm=run this tool`
+     claims and runs one, and `/reject` discards it. The claim happens under the ledger lock, so an
+     approval runs at most once; a crash during a run leaves it `running`, never retried blindly.
+     The approval ledger is bounded at 200 pending, written atomically, and refuses a new call when
+     full.
+- **Consequences**: Unregistered library tools (for example the `calculator.py` sandbox fixture)
+  are held rather than executed. Tests that used invented tool names to exercise execution errors
+  now use a registered MEDIUM tool (`Weather`) with the same fake code, because the invented name
+  is supposed to fail closed. `SendEmail` stays LOW on purpose: it is already a draft until the
+  user sends it (ADR-064), so it must not collect a second approval. A held call is not a failure
+  in the trace; the request was accepted, and the journal says so.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-019 (untrusted input cannot
+  choose its own risk), PRINCIPLE-013 (bounded atomic approval state) and PRINCIPLE-011 R6 (the
+  refusal carries Why/Fix and a next step).
+
+### ADR-070: Every agent loop verifies the pinned system prompt each iteration
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-631 (approved backlog): compaction and truncation rewrite the model-facing
+  message list, and IDEA-370 showed a real case where truncation dropped the persona system
+  message while keeping the goal. Nothing checked that the governing system messages survived a
+  rewrite, and the three executors (standard, RLM, hybrid) could drift apart.
+- **Decision**:
+  1. `modules/agent_loop/prompt_digest.py` snapshots the system messages present when a loop
+     starts, hashes their contents (JSON-encoded, SHA-256), and re-verifies that they are still the
+     leading system messages before each model call.
+  2. A mismatch restores the pinned prefix at the front, keeps the conversation messages, and sets
+     `integrity_violation` on that iteration's trace entry. It never raises, so a suspect message
+     list cannot abort an otherwise valid episode. A compaction summary added *after* the pinned
+     prefix is legitimate and does not trip the check; a summary inserted before it does.
+  3. The standard, RLM and hybrid loops all use the one helper; goal pursuit inherits hybrid. In
+     the RLM loop the ephemeral `REPL state:` system message is appended per call and is not part
+     of the pinned prefix.
+- **Consequences**: A dropped or rewritten system message is visible in `agent_loop_trace` and
+  repaired before the next model call. On a real mismatch the helper drops non-pinned system
+  messages, including a summary, because it cannot tell a tampered summary from a legitimate one;
+  the pinned prefix and the conversation are kept. The check is O(number of system messages) and
+  hashes only their content.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-014 (failing-first tests
+  for the mutation, the honest compaction and each loop) and PRINCIPLE-003 (one shared helper
+  instead of three copies).
+
+### ADR-071: The chat shell hosts the brain rail; the flow stays the conversation engine
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: The chat module owns the richer UI (sessions, SSE streaming, markdown, thinking
+  traces) while the brain owns the control plane (kernel, health, cycles, proposals) in a separate
+  page with a second, flowless conversation. Making the brain usable beside the conversation
+  required a first step that did not fork the UI or replace the executor.
+- **Decision**:
+  1. Chat remains the single conversation surface, and `FlowRunner` remains its executor.
+  2. `chat_gui.html` renders `brain_rail.html` whenever the brain manifest exists. With the
+     module enabled the rail shows mode, kernel, health, cycles and proposals, and calls
+     `/brain/start|stop|cycle|mode`; with it disabled the rail offers **Enable brain** through
+     `POST /modules/brain/enable`.
+  3. The rail only observes and controls the brain. It never blocks, rewrites or reroutes a chat
+     message; a brain failure cannot take the chat down.
+  4. The brain stays opt-in (`"enabled": false`), and chat works unchanged while it is off.
+  5. A later slice unifies the session, not the engine: the flow stays the executor, and the
+     brain adds per-turn context, outcome capture and explicit command routing.
+- **Consequences**: One screen carries both the conversation and the brain state; no route or
+  module moved, so saved flows and `/brain/ui` keep working. Remote browsers still cannot navigate
+  `/brain/*` without an actor token, so the rail reports the refusal instead of exposing controls.
+  The chat module owns the include, which couples its template to the brain template by name but
+  not to the brain Python package.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-009 (a component at a
+  boundary, not a merge of packages) and PRINCIPLE-014 (render tests for both rail states).
+
+### ADR-072: A /brain chat turn shares the chat session and stream, not the flow engine
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: The brain page had a second conversation (`brain_chat.json`) with its own history,
+  while chat sessions and streaming lived in the chat module. Keeping those apart meant the same
+  user had two transcripts and the Brain UI could not use the chat shell. Replacing `FlowRunner`
+  with the brain conversation for ordinary messages would lose tools, memory and agent loops.
+- **Decision**:
+  1. A message whose text starts with `/brain` is answered by `conversation.answer()` against the
+     brain's live state; it does not require an active flow. The prefix is stripped before the model
+     sees the question.
+  2. The turn is persisted in the ordinary chat session (`source="brain"`, `commands=[...]`) and
+     streamed through the existing `/chat/stream/{session_id}` SSE queue. Ordinary chat turns keep
+     using `FlowRunner`.
+  3. `conversation.answer()` is pure: it builds the state context, calls the model, executes
+     allow-listed commands in autonomous mode, and returns `reply`, `commands`, `mode` and `usage`.
+     `converse()` remains the API wrapper that appends to `brain_chat.json`.
+  4. Suggested commands render as buttons in static history and in the streamed reply; both call
+     the operator-gated `POST /chat/sessions/{id}/brain/commands`, which executes through the same
+     allow-list, marks the stored suggestion `done`/`failed`, and refuses a command already run at
+     that message index. Failures are persisted as an assistant error and do not break the stream.
+  5. The brain remains opt-in. With it off, `/brain` returns a short enable hint, makes no model
+     call, and ordinary chat is untouched.
+- **Consequences**: One transcript and one stream for both kinds of turn; the brain sees prior chat
+  turns, and the chat sees brain replies. The flow outcome listener still captures ordinary flow
+  turns for learning while the brain is running. `brain_chat.json` remains only for API clients
+  that call `/brain/chat` directly, so the two histories do not merge automatically.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-009 (a pure `answer()` at the
+  brain boundary), PRINCIPLE-012 (bounded turns and context) and PRINCIPLE-014 (tests for success,
+  refusal, empty prefix and model failure).
+
+### ADR-073: The brain cockpit points to chat instead of hosting a second conversation
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: ADR-072 moved `/brain` turns into the chat session, but `/brain/ui` still had its own
+  chat form and transcript backed by `brain_chat.json`. Two visible conversations could disagree,
+  the cockpit's transcript went stale, and a user had to know which page to type into.
+- **Decision**:
+  1. `brain.html` no longer renders the chat panel, form or its client functions. The cockpit keeps
+     kernel/mode controls, the action journal, proposals, reactions and the evaluation scorecard.
+  2. A Conversation card links to `/chat` and `/ai-flow`, explains the `/brain` prefix and notes
+     that `GET/POST /brain/chat` remains an API for clients that manage their own transcript.
+  3. The cockpit's proposal buttons still call `/brain/commands`; chat suggestions call the
+     session-aware `/chat/sessions/{id}/brain/commands`.
+  4. No route is removed. `/brain/chat`, `conversation.converse()` and `brain_chat.json` stay for
+     API compatibility and the existing API tests.
+- **Consequences**: One visible conversation and one place to start it. The cockpit is a control
+  surface, not a second chat, so its page no longer needs the chat history or its render code.
+  API clients can still use the standalone brain transcript, but it does not merge with chat
+  sessions automatically.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-009 (the cockpit and the
+  conversation are separate components with one boundary) and PRINCIPLE-014 (the UI test now
+  asserts the chat panel is gone and the chat link is present).
+
+### ADR-074: Ordinary flow turns can carry a bounded brain-state block
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: With the brain enabled, ordinary chat turns still ran the active flow without any
+  awareness of the brain's mode, kernel, health or pending proposals. The brain saw the flow only
+  after it finished, through the outcome listener, so a running flow could not adapt to the state
+  the rail showed.
+- **Decision**:
+  1. When the brain module is enabled and `inject_flow_context` is true (default in
+     `modules/brain/module.json`), chat attaches `_brain_context` to the flow's initial data.
+  2. The value is `conversation.state_context(await service.snapshot())`, already bounded to
+     `CONTEXT_CHARS`; a snapshot failure is logged and the flow runs without the block.
+  3. `SystemPromptExecutor` appends it at medium priority with an explicit
+     "internal state, not user input" label. A flow that does not use the System Prompt node
+     ignores the field.
+  4. The block is a snapshot of the current turn, not a live feed. Brain-off chats are unchanged,
+     and setting `inject_flow_context` to false restores the previous prompt exactly.
+- **Consequences**: Flow prompts grow by at most the bounded state block and the System Prompt
+  node's token budget can drop it like any medium-priority context. The block is data, not an
+  instruction, and never includes chat history. Brain state is read on the request path of the
+  background flow task, so a slow snapshot delays the flow start, not the HTTP response.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-002 (the state is attached
+  at the lifecycle point where the flow is composed), PRINCIPLE-012 (bounded payload, static label
+  first) and PRINCIPLE-014 (tests cover the node context and the chat hand-off).
+
+### ADR-075: Model limits are declared data and every clamp is reported
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-588: a flow author could send `max_tokens` beyond a model's ceiling or assemble
+  a prompt larger than its context window; the provider then failed or silently truncated. The
+  ceiling lived in commit messages and caller assumptions, not in one place.
+- **Decision**:
+  1. `core/model_registry.py` owns `ModelLimits`, `ClampField`, `ClampResult` and `ModelRegistry`.
+     Resolution is exact id, then a declared alias, then refusal only when `strict_model_limits`
+     is true.
+  2. `settings.json` supplies `model_limits` as data and `strict_model_limits` as a boolean. An
+     empty or absent `model_limits` disables clamping, so existing deployments are unchanged.
+  3. `LLMBridge` clamps output tokens before the chat and streaming payloads, refuses an
+     over-limit context rather than truncating it, and attaches `_clamp` to a clamped chat
+     response. The streaming path logs the clamp because chunks have no response envelope.
+  4. Zero or negative ceilings and duplicate/shadowed aliases are refused at load. The context
+     estimate is `json.dumps(messages, tools) / 4`, a guard rather than a billing count.
+- **Consequences**: The default `local-model` entry allows 4096 output and 32768 context tokens;
+  the default 2048-token request is unchanged. A caller that needs the exact requested length can
+  use the registry's `require_exact=True` and receive `ModelLimitExceeded` instead of a silent
+  clamp. Unknown models pass through unless strict mode is enabled.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one source of truth
+  for a model ceiling), PRINCIPLE-011 (Why/Fix refusals) and PRINCIPLE-014 (failing-first tests for
+  clamp, alias, refusal, strict mode and the LLM hand-off).
+
+### ADR-076: Provider failures are typed and Retry-After is preserved
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-891: `LLMBridge` raised a generic `LLMHTTPError` for every provider failure and
+  `node_retry` applied blind exponential backoff. A 429's `Retry-After` hint, an auth failure and a
+  context-window overflow all looked alike, so the retry layer could wait too little, too long, or
+  retry a request that could never succeed.
+- **Decision**:
+  1. `core/llm_errors.py` owns the mapping: 401/403 → `LLMAuthError`, 402 → `LLMBudgetError`,
+     429 → `LLMRateLimitError` (with parsed seconds or HTTP-date `Retry-After`), a context marker
+     on 400/413/422 → `LLMContextWindowError`, and everything else → `LLMHTTPError`.
+  2. `is_retryable()` returns false for auth/context/budget, true for timeouts, connection errors
+     and 408/425/429/500/502/503/504.
+  3. `LLMBridge` raises the typed error when `raise_errors=True`; otherwise its error dict keeps
+     the old `error: http_error` shape and adds `category` plus `retry_after` when present.
+  4. `node_retry` uses `is_retryable()` and raises the backoff to `max(backoff, min(max_delay,
+     retry_after))`, so a server hint is honoured but the run cannot be slept past its cap.
+- **Consequences**: Auth, context and budget failures now fail fast with a type the UI/router can
+  distinguish; a 429 waits for the provider's hint within the node's `retry_max_delay`. The legacy
+  error-dict shape and the existing status-based retry set are preserved. Unknown provider errors
+  remain retryable once under the existing bounded policy.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one mapping instead of
+  per-call status checks), PRINCIPLE-010 (the retry wait is bounded) and PRINCIPLE-014
+  (failing-first tests for each status class and the delay override).
+
+### ADR-077: Guardrail stability is tested with generated evasion variants
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-625: guardrail tests used hand-authored payloads, so a rule could pass while
+  being defeated by case folding, zero-width characters, percent-encoding or HTML entities. The
+  real guardrails already normalize NFKC, case and invisible controls, but nothing asserted that
+  behaviour mechanically.
+- **Decision**:
+  1. `tests/support/evasion.py` declares six deterministic generators (`case`, `whitespace`,
+     `zero_width`, `interleave`, `percent`, `html_entity`) and `assert_guard_stable()`.
+  2. The matrix reports an absolute miss on the canonical payload separately from a variant miss,
+     and records an explicitly skipped variant instead of silently excluding it.
+  3. The real guardrail is asserted stable for the variants it claims: `case` and `zero_width`.
+     The other transformations are opted out because the guard does not claim to decode them.
+  4. `tests/fixtures/payloads/canonical.txt` keeps the payload set reviewable; the generators are
+     pure functions, so coverage grows without adding hand-written cases.
+- **Consequences**: This is test-only; runtime guardrails are unchanged. A naive case-sensitive
+  guard now fails with the exact variant named, and an exemption is visible in the matrix rather
+  than absent from the suite.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-014 (failing-first
+  coverage of an invariance) and PRINCIPLE-003 (one declared variant set instead of ad-hoc tests).
+
+### ADR-078: A knowledge-base collection stamps its embedding space
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-591: a knowledge base can be re-indexed with a different embedding model. Without
+  a space label, an old index silently returned meaningless neighbours after the switch and the
+  retrieval looked "bad" rather than "incompatible". Dimension changes were caught by FAISS; a model
+  change at the same dimension was not.
+- **Decision**:
+  1. `modules/knowledge_base/embedding_space.py` owns `EmbeddingSpace`
+     `(model_id, revision, dimension, normalization)`, `EmbeddingSpaceMismatch`, `space_of()` and
+     `require_compatible()`.
+  2. One `embedding_space` row is the collection header; every chunk stores its own label. The first
+     ingest stamps both; a later ingest, re-embed or query compares the current
+     `embedding_model`/`embedding_revision` space against the header and refuses on the first
+     differing field.
+  3. A rebuild checks each labelled record; a labelled record from another space is refused by chunk
+     id. Legacy rows without a label are backfilled from the header rather than losing an otherwise
+     valid collection.
+  4. `KnowledgeQueryExecutor` turns a mismatch into a bounded `knowledge_context` refusal instead of
+     crashing the flow. `clear()` removes the header so a new collection can choose a new space.
+- **Consequences**: A model swap now produces an explicit re-index instruction. Existing collections
+  are migrated on the next rebuild by stamping their missing labels with the inferred header. An
+  empty FAISS index created with the 768 fallback no longer drops the first real batch; it resizes
+  to the actual vector length.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one identity instead of
+  per-call dimension checks), PRINCIPLE-011 (the refusal names Why/Fix) and PRINCIPLE-014 (tests for
+  matching, model, dimension, mixed-record and clear cases).
+
+### ADR-079: Provider exchanges are recorded once and replayed with a named drift check
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-619: flow tests either hand-script a reply per model call or need a live
+  endpoint. Hand-scripted replies drift from the prompts they claim to cover, and a live endpoint
+  makes the suite non-deterministic. Nothing turned a changed prompt into a test failure.
+- **Decision**:
+  1. `core/cassette.py` owns `Exchange`, `Cassette`, `CassetteMiss`, `CassetteSchemaError` and
+     `CassetteTemplateMismatch`. An exchange stores the request's SHA-256, a structural shape
+     (endpoint, model, message roles, tool-schema digest, stream flag), the response, the record
+     time and an optional template digest. Prompt text is never written.
+  2. Replay consumes exchanges in recorded order. `strict` compares the whole body, `structural`
+     compares the shape and `loose` compares only the endpoint. A miss raises `CassetteMiss` with
+     the exchange position and the differing keys, never a generic error.
+  3. `LLMBridge` gains trailing optional `cassette_mode` (`live`/`record`/`replay`),
+     `cassette_path`, `cassette_match` and `template_digest`. `live` is the default, so every
+     existing caller is unchanged. Record writes after each successful chat or completed stream;
+     replay never opens an HTTP connection.
+  4. Responses pass the shipped guardrail credential scrubber before storage, and `save()` writes
+     through a same-directory temporary file, fsync and `os.replace`. `Cassette.load` refuses an
+     unknown schema or mode and names both digests when the template changed.
+- **Consequences**: A recorded flow replays without a model and without provider cost. Strict mode
+  turns a prompt edit into a failure naming the changed body; structural mode survives a prompt
+  edit and still catches a changed role sequence, model, tool schema or endpoint. Cassettes are
+  reviewable fixtures and must be re-recorded deliberately after an accepted prompt change; a
+  credential in a prompt is absent because the prompt is only digested, and a credential in a
+  response is replaced by `[REDACTED]`. Recording and replaying a stream transpose the emitted
+  chunk list, not the raw SSE bytes.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one recorded contract
+  instead of ad-hoc fakes), PRINCIPLE-012 (replay costs no model tokens) and PRINCIPLE-014
+  (failing-first tests for replay order, both drift modes, template mismatch, schema refusal and
+  credential redaction).
+
+### ADR-080: Tool authorization is an ordered, default-deny policy ahead of the tier gate
+- **Date**: 2026-10-30
+- **Status**: Accepted
+- **Context**: IDEA-058: tool gating was a per-node binary `allowed_tools` list plus the tier and
+  approval checks. There was no ordered, reviewable policy over tool names and arguments, so a
+  denial could not name a rule and a path or host matcher had no hardened implementation.
+- **Decision**:
+  1. `modules/security/policy.py` owns `Rule`, `Decision`, `PolicyEngine` and `PolicyError`. A
+     policy declares `schema: 1`, a name, a positive version and a non-empty ordered rule list.
+     Unknown top-level keys, rule keys, matchers or decisions are refused at load rather than
+     ignored, and the policy digest covers the validated document.
+  2. Evaluation is first-match; no match returns `deny` with rule `default.no_match` and risk 100.
+     Matchers are `tool_in` (exact), `path_prefix` (resolved containment), `host_in` (equal or
+     dot-bounded suffix) and `identity_in` (exact). A malformed argument or matcher error is a
+     non-match, never an exception.
+  3. `policy_gate` reads `tool_policy_file` and `tool_policy_mode` (`off`/`observe`/`enforce`).
+     No file, or `off`, preserves the previous behaviour; a configured policy starts in `observe`
+     and logs the decision. `enforce` returns a named denial, stages a `require_approval` call in
+     the existing approval ledger with tier `policy`, or lets an `allow` continue.
+  4. `gate_tool_call` evaluates the policy before the tier gate. A policy can only restrict:
+     `allow` means the policy has no objection, so a HIGH-tier tool is still staged. The default
+     policy is therefore not a second authorization layer that could loosen the first.
+- **Consequences**: An operator can review one JSON document for tool authorization, and a denial
+  names the rule, policy version, risk and digest. The first rollout is observe-only, so a policy mistake
+  is visible before it blocks work. `require_approval` reuses the at-most-once approval ledger
+  instead of a parallel queue. The policy is read when a call is gated; a missing or malformed
+  file in `enforce` mode fails closed, while `observe` logs and continues.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one decision contract
+  instead of scattered conditionals), PRINCIPLE-014 (failing-first tests for every bypass and the
+  tier precedence) and PRINCIPLE-019 (no argument values are logged in a denial).
+
+### ADR-081: Reflection adds two opt-in epistemic lenses without changing its contract
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-629: the reflection node returned one generic satisfaction object and never
+  read `knowledge_context`, so a sycophantic answer and an unsupported claim looked the same as a
+  sound one. Flow routers consume `satisfied`, `reason` and `needs_improvement`, so replacing the
+  contract would break the retry loop.
+- **Decision**:
+  1. `modules/reflection/lenses.py` owns `LensFinding`, `EpistemicCritique`, `LENS_RUBRICS`,
+     `context_text`, `lens_enabled` and `build_lens_prompt`. The lenses are `sycophancy` and
+     `ungrounded_extrapolation`; the second is offered only when a knowledge context exists.
+  2. Both lenses are skipped when the run budget is at 0.8 pressure or above. The module config
+     exposes `cognitive_lenses: []`, so a deployment that does nothing keeps the old path.
+  3. When lenses are enabled, the node makes one `structured_completion(EpistemicCritique)` call
+     with its existing bridge. The reflection object keeps the legacy keys and adds a bounded
+     `findings` list (`lens_id`, `triggered`, `critique`), filtered to enabled lens ids.
+  4. A structured failure logs and falls back to the legacy chat call. The knowledge context is
+     labelled as the only citable source and capped at 4,000 characters; the prompt asks the model
+     to set `satisfied=false` when a lens triggers.
+- **Consequences**: A configured deployment gets a second, named critique for one extra LLM call;
+  an unconfigured one is unchanged. Grounding is auditable because the context is now part of the
+  reflection prompt. The self-judging weakness remains: a model prone to sycophancy may also fail
+  to flag it, so `findings` are advisory and the prompt, not a second checker, drives the routing
+  flag. `tests/fixtures/reflection_lenses.json` is the fixed sycophantic/ungrounded/sound set; the
+  automated tests drive it through a deterministic stub because no provider is configured, and an
+  operator can replay the same cases against a real model without changing the suite.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one schema for the
+  legacy verdict and the finding list), PRINCIPLE-010 (the extra call is skipped under pressure)
+  and PRINCIPLE-014 (failing-first tests for legacy keys, both lenses, context gating, the budget
+  guard and the fallback).
+
+### ADR-082: Skill text is admitted through the guardrails before it is stored
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-849 (narrowed): a skill is not executed, but its text is injected into the
+  system prompt, and `create_skill`, `update_skill`, `import_from_file` and `import_from_url`
+  stored content without a scan. An injected instruction or a hardcoded credential therefore
+  reached every turn that enabled the skill.
+- **Decision**:
+  1. `skills` joins the guardrail blocking surfaces. In `enforce` mode an injection finding is
+     blocking for skill text, exactly as it already is for input and memory.
+  2. `modules/skills/admission.py` owns `SkillScan`, `SkillBlocked`, `content_digest`,
+     `scan_skill` and `require_admissible`. The scan records the verdict (`safe`/`flagged`/
+     `blocked`), the active mode, the content SHA-256, the findings and the scan time.
+  3. The service scans `create_skill`, `update_skill` and `import_from_file` before any write;
+     `import_from_url` is covered through `import_from_file`. Enforce raises a `ValueError`
+     (HTTP 400) naming the rule ids with a Why/Fix; observe stores the skill with the flagged
+     `scan` object in its metadata.
+  4. An update re-scans only when the content digest changes; a metadata-only update and an
+     identical-content update keep the original scan. Secret-shaped values are flagged but do not
+     block, matching the existing guardrail contract.
+- **Consequences**: An enforce-mode refusal happens before the file, metadata row or version is
+  written, so a refused import leaves no partial skill. Observe mode makes the decision visible in
+  the API and UI without breaking an existing import. The blueprint's full package scanner
+  (per-file discovery, symlink containment, YAML rule policy, quarantine store, override
+  endpoints) is deliberately not built by this slice; the approved decision was to run the
+  guardrails on skill content at import. A regex rule remains evadable, so this is one admission
+  layer, not a sandbox or a quality judgement.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one scan record
+  instead of per-call checks), PRINCIPLE-011 (the refusal names Why and Fix) and PRINCIPLE-014
+  (failing-first tests for create/update/file/URL, no partial write, digest no-op and secret
+  flagging).
+
+### ADR-083: Every messaging bridge denies unknown senders before any work
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-839 (narrowed): Telegram, Signal and WhatsApp ran every sender's message
+  through the active flow, and Discord checked only an optional channel id. Anyone who found a
+  bot could spend the owner's tools, memory and LLM quota. The approved decision is a per-bridge
+  sender allowlist with default deny, not the full pairing/context-visibility blueprint.
+- **Decision**:
+  1. `modules/messaging_bridge/access.py` owns `AccessPolicy` and `AccessDecision`. The policy
+     reads `<platform>_allowed_senders` and `<platform>_allowed_chats`; no sender list means every
+     sender is denied. Both lists accept a JSON list or a comma-separated string.
+  2. Each handler evaluates the policy before a command, session creation, media download or
+     flow run. Telegram uses the new stable `from_id` field and falls back to `chat_id`; Discord
+     uses the author id and channel; Signal and WhatsApp use the `from` id.
+  3. Telegram seeds the sender list from `telegram_chat_id` and Discord seeds the chat list from
+     `discord_channel_id`, so an existing single-user setup keeps working. Signal and WhatsApp
+     have no fallback.
+  4. A denial logs the platform and sender id (never the message text) and sends no reply, so a
+     stranger cannot use the bot as a reply amplifier.
+- **Consequences**: Upgrading is intentionally breaking for Discord members, Signal and WhatsApp
+  until the operator lists their ids; Telegram's configured owner keeps working. The full
+  blueprint's pairing codes, approval store, wildcard open mode, group mention policy,
+  context-visibility filtering and WhatsApp signature verification are not built. A static
+  allowlist is one trust boundary per gateway: it is not a tenant boundary, and an allowed sender
+  can still be a compromised account.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one policy object
+  instead of per-platform conditionals), PRINCIPLE-011 (the denied id is logged so the Fix is
+  actionable) and PRINCIPLE-019 (message text is never logged in a denial).
+
+### ADR-084: Memory rows carry a session scope and recall filters on it in SQL
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1109 was approved: recall filtered only source and deletion, and a memory
+  written on one user's behalf could be injected into another user's prompt once the messaging
+  bridge or more than one agent used the same store. The blueprint's session-scoped recall is
+  adopted, not the full per-entity collection split.
+- **Decision**:
+  1. `modules/memory/scope.py` owns the scope contract: `user_id`, `agent_id`, `run_id`; ids are
+     trimmed, bounded to 200 characters and empty ids are absent. `strict` matches only equal ids;
+     `shared` additionally admits rows whose `user_id` is NULL for legacy data.
+  2. `memories` gains nullable `user_id`, `agent_id` and `run_id` columns with an index on each.
+     The migration only adds columns: existing rows stay NULL and are invisible to a scoped
+     recall until an operator runs the explicit, idempotent `migrate_scope()` backfill to `local`.
+  3. `add_entry`, `search`, `keyword_search`, `find_similar`, `browse`, `update_entry` and
+     `delete_entry` accept an optional scope. Every present key becomes a parameterised equality
+     predicate in the same statement, and the link expansion is scoped on the joined memory too,
+     so a link cannot promote another scope's row.
+  4. Recall and save read the scope from `input_data`: explicit ids first, then `sender`/
+     `sender_id` for `user_id` and `session_id` for `run_id`. `memory_scope_required` (default
+     false) refuses an unscoped recall or save with a `MemoryScopeRequired` Why/Fix message.
+- **Consequences**: A scoped recall cannot return another user's row, and an exact duplicate is
+  per scope rather than global. Existing flows keep working because an absent scope means no
+  predicate, but a flow that supplies a scope only sees rows written with that scope (or NULL
+  rows under `shared`). The memory browser and its update/delete routes remain a local admin
+  surface and pass no scope; they must not be exposed to untrusted callers. The blueprint's
+  `memory_scope_policy` is implemented as `strict|shared`, but no per-entity provider collections
+  or household policy are built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one scope helper
+  instead of per-call conditionals), PRINCIPLE-011 (the refusal gives Why and Fix) and
+  PRINCIPLE-014 (failing-first isolation, refusal, migration and wrong-scope delete tests).
+
+### ADR-085: Resuming an episode requires a matching input digest
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1110 was approved: an unfinished episode was adopted by any later run that
+  omitted `episode_id`, even when the request, model or tool set had changed, and its checkpoints
+  carried only a timestamp. The blueprint's thread-scoped checkpoint identity is adopted, not a
+  new checkpoint store.
+- **Decision**:
+  1. `core/episode_identity.py` owns the projection and digest: volatile keys (ids, timestamps,
+     nonce) are removed, then the normalised request, model and sorted tool names are hashed with
+     SHA-256. The episode stores the digest and the projection so a mismatch can name what changed.
+  2. `EpisodeState` gains `input_sha256`, `input_projection`, and identified checkpoints:
+     `checkpoint_id` (time-ordered), `parent_checkpoint_id`, `source` (`start|loop|replan|complete`),
+     `step` and the digest. `latest_checkpoint()` exposes the newest one.
+  3. `resume_decision` is `resume`, `new` or `ask`: a match resumes, a mismatch starts a new
+     episode, and a legacy episode with no digest asks. `resume_policy` is `strict` (default),
+     `ask` or `any`, and `resume_any` overrides one call. A refused candidate is left `paused`.
+  4. All four agent variants call `prepare_resume` before adopting an episode and pass the digest
+     and projection to `create_episode`, so the same request resumes and a changed one does not.
+- **Consequences**: A new task cannot silently adopt an unrelated unfinished episode, and a
+  changed model or tool set requires an explicit `resume_any`. Volatile ids do not invalidate a
+  digest, but any change to the request or plan material included in the projection does. Existing
+  `current.json` files without the new fields load as legacy and ask instead of resuming. The
+  blueprint's separate per-checkpoint write store and explicit fork API are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one digest helper
+  across four loops), PRINCIPLE-011 (a mismatch logs the decision) and PRINCIPLE-014 (failing-first
+  resume, legacy, volatile-key, checkpoint-order and pause tests).
+
+### ADR-086: Tool calls are journaled in the episode for at-most-once execution
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1111 was approved: the episode checkpoint is written after a whole loop
+  finishes, and nothing durable records that one side-effecting tool call already ran. A crash
+  between the call and the checkpoint lets a resume send a message or write a file twice.
+- **Decision**:
+  1. `modules/agent_loop/tool_journal.py` writes `{call_id, name, args_sha256, state, attempts,
+     result_sha256, result_preview, success, at}` to `EpisodeState.tool_journal`. A `pending` entry
+     is persisted before dispatch and rewritten to `done` with a result digest and a 2,000-char
+     preview afterwards, through the episode's atomic save.
+  2. A `done` entry is replayed from its preview without invoking the tool. A `pending` entry is
+     marked `orphaned` on the first resume; `tool_journal_policy` is `ask` (default: report and do
+     not run), `skip` (report as skipped) or `rerun`, and `rerun` runs only when the manifest
+     declares the tool `idempotent`.
+  3. `tools.json` gains `idempotent: true` for the pure compute/read tools only; the tier registry
+     exposes `is_tool_idempotent`. The journal is capped at 200 entries, dropping the oldest `done`
+     entries first.
+  4. All three tool dispatch sites in the agent loops go through `run_journaled_tool`, and every
+     receive resets the active episode, manager and policy on the executor.
+- **Consequences**: A crash cannot silently repeat a side-effecting call, and a pure call can be
+  re-run under `rerun`. Every dispatcher can be resumed from its result preview, which is not
+  byte-exact, and each call costs two extra episode writes while episode persistence is enabled.
+  The journal is not a general transaction log: a tool that is neither declared pure nor
+  journaled by its own driver still needs idempotency at its own boundary.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (the manifest is the
+  single source of the idempotency fact), PRINCIPLE-011 (ask/skip name the Fix) and PRINCIPLE-014
+  (failing-first replay, pending, rerun-refusal, pre-dispatch persistence, compaction and orphan
+  tests).
+
+### ADR-087: A flow run journals committed node outputs and can attach duplicates
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1152 was approved: `FlowRunner._run` kept `node_outputs` in memory, dropped
+  every completed node when one failed, and replayed the whole DAG on restart, repeating LLM and
+  tool calls. The approved scope is the run/node journal and the duplicate-attach path, behind a
+  flag, not a new execution engine.
+- **Decision**:
+  1. `core/step_journal.py` owns `step_journal(run_id, node_id, input_digest, status,
+     output_json, output_digest, effectful, started_at, completed_at)` and
+     `run_registry(run_id, idempotency_key, status, result_json)`. WAL and
+     `synchronous=FULL`; one transaction per node commit.
+  2. `run_id` is `sha256("run", flow_id, idempotency_key)` when the caller supplies
+     `_idempotency_key`, else `sha256("run", flow_id, canonical input digest)`. The canonical
+     projection removes the same volatile keys as the episode guard (ADR-085).
+  3. Before a node runs the runner looks up `(run_id, node_id, input_digest)`; a matching
+     `committed` row supplies the output and the executor is not called. Otherwise the row is
+     written as `started` before dispatch and `committed` after. A changed upstream output changes
+     the downstream digest and forces re-execution; an output over 64 KB is `skipped`, so that
+     node re-runs rather than replaying a partial value.
+  4. An interrupted `started` row on a node whose manifest entry declares `effectful` (or whose
+     flow node sets `effectful`) raises `IncompleteStep`; the caller opts in with
+     `_resolve_incomplete`. Pure nodes restart without a flag because their output is a function
+     of the recorded input.
+  5. A second submission with the same idempotency key attaches: a completed run returns its
+     stored result, and a running run returns a `duplicate` result instead of executing again.
+  6. The whole path is off unless `step_journal_enabled` is true, so the existing runner is the
+     rollback.
+- **Consequences**: With the flag on, a retry or restart executes only the uncommitted suffix and
+  a duplicate client key cannot fork a second run. The journal adds two small writes per node and
+  a 64 KB ceiling per output; a very large node output is recomputed on resume. Deterministic
+  ids mean two legitimate identical requests without an idempotency key share a run, which is the
+  intended attach semantics but must be documented to callers. The blueprint's compressed spill
+  files and per-node batch fsync tuning are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one digest contract
+  shared with ADR-085), PRINCIPLE-011 (IncompleteStep names Why and Fix) and PRINCIPLE-014
+  (failing-first resume, attach, refusal, invalidation and oversized-output tests).
+
+### ADR-088: Completed episodes expire on two clocks and are quarantined, not deleted
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1153 was approved: `EpisodeState` had no completion or expiry stamp,
+  `list_episodes` read every file without an age filter, and only a manual delete removed one, so
+  completed episodes and any journal rows accumulated forever.
+- **Decision**:
+  1. `core/retention.py` owns `RetentionPolicy(completion_days=30, journal_days=7, max_episodes,
+     stale_after_days)` and `compute_retention(completed_at, policy, has_journal)`, which returns
+     both stamps and caps the journal expiry at the completion expiry.
+  2. `EpisodeState` gains `completed_at`, `expires_at`, `journal_expires_at` and `generation`.
+     `stamp_retention()` records them once, only for a `completed`/`failed` episode, so a live
+     episode has no retention clock.
+  3. `prune_episodes(now, policy, dry_run, page_size)` scans completed episodes in bounded pages.
+     It skips anything not terminal, quarantines corrupt or future-dated files as
+     `skipped_corrupt`, purges the journal when its shorter clock passes, and moves an expired
+     episode to `episode_dir/quarantine/<id>-<ts>/` after writing a `tombstones.json` entry with
+     the policy version. It never raises on one bad file.
+  4. `SessionManager.prune_episodes` defaults to `dry_run=True` and calls the scanner under the
+     sync lock; `purge_episode_journal` deletes the run's step-journal rows. A `create_episode`
+     that reuses a tombstoned id starts at `generation + 1`.
+- **Consequences**: Disk use is bounded without deleting a result a UI still needs, and a mistaken
+  policy change is recoverable from quarantine. A paused episode is never swept, so a long human
+  approval wait is safe. Retention is operator-triggered, not a background timer; the blueprint's
+  heartbeat rows, `max_bytes` budget and automatic scheduling are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (quarantine and
+  tombstone instead of unlink) and PRINCIPLE-014 (failing-first expiry, live, corrupt, dry-run,
+  page-bound and generation tests).
+
+### ADR-089: A selective memory filter scores SQL candidates instead of ranking the whole index
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1154 was approved: `MemoryStore.search` always called
+  `faiss_index.search(..., ntotal)` and filtered afterwards, so a five-row page behind a selective
+  source or scope predicate paid a full vector scan and a full Python sort. `type` and
+  `(source, type)` were also unindexed.
+- **Decision**:
+  1. `modules/memory/filter_plan.py` owns `eligible_predicates`, a bounded `estimate_matches`
+     (`LIMIT budget_rows + 1`), `choose_plan` and `plan_for_query`. The eligible set always
+     includes `deleted = 0`, `parent_id IS NULL`, an embedding, the expiry window, the scope
+     predicates and the source filter, in that parameter order.
+  2. The planner prefilters only when the count is exact, within `budget_rows` (5,000) and
+     `matches * dimension * 4` fits both `memory_filter_scan_budget_kb` (4,096) and
+     `memory_prefilter_max_mb` (64). The prefilter scores the retrieved embeddings exactly in
+     NumPy and the existing batched fetch still applies the same predicates.
+  3. `memory_filter_plan_enabled` (default true) is the rollback to the full-index ranking.
+     `idx_memories_source_type` and `idx_memories_type` are added for the new predicates.
+  4. The planner's decision is logged at debug level with its match count and byte budget, so a
+     latency change can be explained.
+- **Consequences**: A selective recall no longer scans every vector and returns the same ids and
+  scores within 1e-6 as the index path (covered by a parity test). A broad filter still ranks the
+  index. Loading candidate embeddings is bounded by the row and byte budgets, so the prefilter
+  cannot allocate unbounded memory. No new index format, collection or relevance model is added;
+  the blueprint's `find_similar` over-fetch rework and per-query filter arguments are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (a bounded probe and
+  scan budget) and PRINCIPLE-014 (failing-first planner, bounded count, parity and scope tests).
+
+### ADR-090: A knowledge-base recall budget over-fetches and rescores exactly
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1155 was approved: `FaissDocumentStore.search` called
+  `faiss_index.search(query, limit)` directly, never set `nprobe` despite the setting, and mapped
+  the approximate scores straight into results, so a true neighbour the IVF probe missed could not
+  be recovered by any later reranker.
+- **Decision**:
+  1. `modules/knowledge_base/recall.py` owns `RecallBudget(oversample, nprobe_fraction,
+     max_candidates, rescore)` with validation, `candidate_k(limit, ntotal)` and `nprobe(nlist)`.
+     `oversample` is capped at 16 so a bad value cannot degenerate into a full scan.
+  2. For an IVF index the store sets `nprobe` from the list count, asks for
+     `min(limit * oversample, max_candidates, ntotal)` candidates, then rescores those candidates
+     against the stored full-precision vectors with the same cosine metric and truncates to
+     `limit`. A flat index is exhaustive and keeps the plain `limit` query with no rescore.
+  3. The embedding-space compatibility check still runs before the budget path, so rescoring can
+     never compare vectors from different models.
+  4. `kb_recall_budget` and `kb_recall_budget_enabled` are settings; a caller may also pass a
+     `recall_budget` explicitly. The plain `limit` call remains the rollback.
+- **Consequences**: A clustered IVF corpus no longer silently loses recall at the top-k, and the
+  cost/recall trade-off is explicit and logged. Each budgeted query costs one extra SQL fetch of
+  the candidate embeddings, bounded by `max_candidates`; the audit job and `exact=True` escape
+  hatch from the blueprint are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded candidate
+  fetch) and PRINCIPLE-014 (failing-first budget validation, IVF/ID-map detection, rescore
+  promotion and flat-path tests).
+
+### ADR-091: A tool manifest declares its primitives and is refused before dispatch
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1172 was approved: the dispatcher read only `enabled`, the tier gate and the
+  outbound staging, then loaded `library/<name>.py` and ran an empty string when the file was
+  missing. Several manifest entries had a name mismatch or lived in `rlm_library/`, so they
+  returned success-shaped empty output instead of failing.
+- **Decision**:
+  1. `modules/tools/capabilities.py` defines the closed primitive set (`sandbox`,
+     `library_source`, `rlm_library_source`, `outbound_staging`, `human_approval`, `network`,
+     `inline_source`, `progress`, `cancel`), `ToolRequirement`, `CapabilityRefusal`,
+     `parse_requirements` and `supported_primitives`.
+  2. The supported set is computed from the live objects: the sandbox, the two library
+     directories, outbound staging, the approval ledger and network policy. `inline_source`,
+     `progress` and `cancel` are not advertised because no live path exists for them yet.
+  3. `preflight(tool, entry, supported, dirs)` runs in the dispatcher before the tier gate and
+     staging. An unknown requirement token, a declared-but-unsupported primitive, or an
+     unresolvable source file is a refusal whose text names the tool, the missing primitive and a
+     `Fix:`. An entry with no `requires` keeps the legacy behaviour but must still resolve a file.
+  4. `resolve_source` prefers an explicit `source` block and otherwise looks in both library
+     directories with a case-insensitive fallback, so `Calculator` finds `calculator.py` on a
+     case-sensitive filesystem. The dispatcher executes the resolved path instead of a
+     re-constructed name.
+  5. `tools.json` entries carry `manifest_version`, `requires` and `source`; `GET
+     /tools/capabilities` reports the supported set and any declared drift, and the save path
+     writes the v2 fields.
+- **Consequences**: A manifest written for a newer runtime cannot silently degrade, and a missing
+  file is an error instead of a fake success. Capability is orthogonal to risk: a supported call
+  can still be HIGH and held. Over-declaration can refuse a working tool, so `requires` is
+  documented as a claim about the code, not about the environment. The blueprint's runtime-drift
+  startup assertion and inline-source execution are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-011 (refusal names Why and
+  Fix) and PRINCIPLE-014 (failing-first refusal, resolution and live-manifest tests).
+
+### ADR-092: A tool call has a cancel signal, a deadline and a status receipt
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1173 was approved: a tool call had only the 30-second sandbox timeout, no
+  call id, no cancel path and no progress. A timeout returned an error string and discarded any
+  work the child had produced, so the model could not tell a partial run from a finished one.
+- **Decision**:
+  1. `modules/tools/calls.py` owns `ToolCallContext` (call id, cancel event, deadline, coalesced
+     progress capped at 10/s and 20 items, settle status) and the bounded `CallRegistry`, which
+     drops the oldest settled entries first and never evicts a live call.
+  2. `ToolSandbox.execute` accepts an optional `cancel_event` and `deadline` and polls the child
+     every 100 ms. A cancel or an expired deadline terminates the child, waits at most five
+     seconds, and raises `ToolCallCancelled` or the existing timeout error.
+  3. The dispatcher registers one context per call, passes it to the sandbox, settles it, and on
+     cancel, timeout or error returns a receipt whose `status` is `cancelled`, `timeout` or
+     `error`. `result` is set only for `ok`; partial output lives under its own key, and the
+     rendered text begins with `CANCELLED`/`TIMED OUT`/`FAILED`.
+  4. `GET /tools/calls`, `GET /tools/calls/{id}` and `POST /tools/calls/{id}/cancel` expose the
+     registry; a settled id answers 409 with a Why/Fix message instead of pretending to cancel.
+- **Consequences**: A wedged call can be stopped without waiting for the global timeout, and a
+  partial run is visibly partial. A thread that cannot be killed and a child that ignores
+  termination can still outlive the call; the receipt then reports the status it observed, not a
+  guarantee that no side effect happened. Progress is currently only recorded when a caller
+  pushes it, so most tools report an empty list; the blueprint's `partial_output` streaming from
+  the child and the approval-runner context are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-010 (bounded polling and
+  a capped registry) and PRINCIPLE-014 (failing-first registry, receipt, termination and
+  dispatcher tests).
+
+### ADR-093: The recalled memory block is budgeted, evicted whole and reported
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1174 was approved: recall clamped only the number of results and joined every
+  text unbounded. The shared prompt trims by priority, so an oversized priority-0 memory block was
+  dropped whole, while one that just fit could crowd out knowledge and reasoning.
+- **Decision**:
+  1. `modules/memory/budget.py` owns `MemoryRecallBudget(max_total_chars=4000,
+     max_item_chars=800, min_items=1, dedupe=True)`, `BudgetReceipt(shown, omitted, chars,
+     truncated, evicted_long)`, `fit` and `render`. Exhausted values are refused with Why/Fix.
+  2. Results stay in rank order. Identical normalised text collapses only within the same
+     `(user_id, agent_id, run_id)` scope, so two people's identical sentence stays two memories.
+     A candidate over `max_item_chars` is evicted whole, except the top item which is truncated at
+     a sentence boundary and marked `truncated`. A candidate that would exceed the total is
+     evicted whole.
+  3. `MemoryRecallExecutor` reads `recall_max_total_chars`/`recall_max_item_chars` from its node
+     config (module defaults) and returns `_memory_budget` alongside `_memory_context`. The footer
+     `[memory: N of M shown; K omitted for budget]` appears only when something was omitted, and
+     an empty selection returns an empty context rather than a misleading block.
+- **Consequences**: The block can no longer starve other prompt sections, and truncation is
+  visible to the operator and the trace. Characters remain a proxy for tokens, so a CJK-heavy
+  memory can still exceed a token budget; rank-based eviction can drop a long important memory in
+  favour of short ones; and a very small budget makes recall look empty. The blueprint's
+  token-based estimate and per-provider caps are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-012 (a bounded prompt
+  payload) and PRINCIPLE-014 (failing-first budget, eviction, dedupe, empty and node tests).
+
+### ADR-094: An edit records a receipt and undo is conditional on the head and hash
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1175 was approved: `update_entry` archived the previous row and logged an
+  `edit` meta action, but the structured payload held only `new_id`, the old text survived only
+  inside an English description, and no endpoint exposed history or an inverse.
+- **Decision**:
+  1. `modules/memory/history.py` owns `MemoryEditReceipt(edit_id, old_id, new_id, old_sha256,
+     new_sha256, changed_fields, actor, created_at)`, `build_receipt`, `parse_receipt`,
+     `read_edit_rows`, `history_entry` and `undo_problem`. The receipt is stored in the existing
+     `meta_memories.new_value` of the existing `edit` action, so no schema change is needed.
+  2. `GET /memory/{id}/history` returns at most 20 entries newest-first, each with
+     `previous_text`, `new_text`, `changed_fields` and `truncated`. Each side is capped at 4,000
+     characters; a missing archived row returns `previous_text: null` with
+     `previous_reason: "archived row deleted"` rather than a guess.
+  3. `POST /memory/edits/{edit_id}/undo?confirm=undo this edit` is allowed only while the edited
+     row is still the current head (`deleted = 0 AND parent_id IS NULL`) and its text hash still
+     matches `new_sha256`. It archives the head, inserts a new row from the previous values with
+     the same scope, and logs an `undo` meta entry naming `edit_id`, `old_id`, `restored_id` and
+     `supersedes`.
+  4. A refusal is a 409 with a Why/Fix message: a later edit or delete, a tampered head, a legacy
+     payload without `old_id`, or a deleted archived row all refuse instead of clobbering.
+- **Consequences**: The previous value is queryable without parsing prose, and undo cannot
+  silently overwrite a newer change. Undo creates a new id, so external references to the edited
+  id become stale and callers must follow `restored_id`. The archived row remains a second copy
+  of sensitive text, so history is as sensitive as memory itself; screen and redact it at the
+  boundary. The blueprint's `edit_seq` column, redaction pass and multi-step undo are not built.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (conditional,
+  non-destructive recovery) and PRINCIPLE-014 (failing-first receipt, history, undo, conflict and
+  tamper tests).
+
+### ADR-095: Evaluation checks are typed and weighted, with required checks authoritative
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1206 was approved: a check was a loose dict and `_evaluate_check` returned
+  only `(passed, detail)`. A task passed only when every check passed, so a latency probe carried
+  the same weight as a correctness assertion and dashboards had to match English detail text.
+- **Decision**:
+  1. `modules/brain/assertions.py` owns `CheckSpec(id, type, field, value, weight, metric,
+     required, threshold, allow_threshold_override)`, `CheckVerdict(code, score, passed, reason,
+     observed)`, `CheckCode`, `evaluate_check`, `aggregate` and `coerce_specs`.
+  2. `CheckCode` is closed: `pass`, `value_mismatch`, `field_missing`, `unknown_type`,
+     `timeout`, `exec_error`, `invalid_spec`. An unknown type scores 0 and never raises; a bad
+     regex is `invalid_spec`.
+  3. A `not-` prefix reuses the base handler and flips a decidable result; an unknown type can
+     never be flipped into a pass.
+  4. Aggregation sums `score * weight` over positive weights and stores each named metric
+     separately. A zero-weight check is metric-only and never changes pass/fail. A required
+     failure fails the task even under a low threshold, unless that check sets both `threshold`
+     and `allow_threshold_override`.
+  5. Specs are validated at construction: non-finite or negative weights, a threshold outside
+     0..1, more than 100 checks, or all weights zero are refused with Why/Fix. Existing loose
+     dicts adapt through `from_legacy`, and `EvalTask` gains an optional `threshold`.
+- **Consequences**: A task can report partial quality while a critical check stays binding, and
+  regression buckets are stable because they key on codes. Weights are a tuning knob, not a
+  policy: a determined operator can still zero out a check, which is now visible in the spec.
+  Old run records have no `score`, so score-based trend comparisons start from this version;
+  `pass_rate` and `failed_tasks` are unchanged for existing callers.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-011 (validation messages
+  carry Why and Fix) and PRINCIPLE-014 (failing-first weighting, override, typed-code and
+  validation tests).
+
+### ADR-096: An evaluation run is content-addressed and a changed suite is not a regression
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1207 was approved: a run stored a fixed suite name, `compare_results` checked
+  only `flow_id`, and `promote_baseline` stored no task identity. Editing a check and re-running
+  could therefore look like a clean improvement against a baseline that never ran those tasks.
+- **Decision**:
+  1. `modules/brain/suite_manifest.py` canonicalises each task over `id`, `input`, `checks`,
+     `threshold` and `timeout_seconds` only, hashes it with SHA-256, and rolls the sorted
+     `(id, digest)` pairs plus `MANIFEST_SCHEMA_VERSION` into a `suite_digest`. Descriptions and
+     tags are excluded, and canonical JSON uses sorted keys with `allow_nan=False`.
+  2. A run record carries `schema_version`, `suite_digest`, `task_digests` and a mean `score`.
+  3. `compare_results` decides comparability before the pass-rate gate. Two equal digests are
+     comparable; two different digests return `comparable: false`, an `incomparable_reason` and
+     the `changed_tasks`, and are reported as neither a regression nor a pass.
+  4. `promote_baseline` refuses to replace a baseline whose digest differs unless
+     `accept_suite_change=True` **and** a non-empty `reason`; it records `supersedes_digest` and
+     `accepted_reason`. `improvement` treats `comparable: false` as non-promotable and names why.
+  5. Compatibility: a pair where **neither** side has a digest is compared as before, flagged
+     `"legacy record without a suite digest"`. Only a mismatch or a half-migrated pair is
+     incomparable. This keeps existing deployments working instead of blocking every promotion
+     until re-promoted (the failure mode the source warned about).
+- **Consequences**: An edited assertion can no longer masquerade as an improvement, and a
+  legitimate suite update needs one explicit, reasoned acceptance. Because both-legacy pairs stay
+  comparable, an old baseline and a new *legacy-shaped* run are still trusted; the protection
+  starts with the first run that records a digest. Reordering tasks does not churn the digest, but
+  any change to an expected value does.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (an explicit,
+  auditable replacement instead of a silent overwrite) and PRINCIPLE-014 (failing-first ordering,
+  canonicalisation, mismatch, legacy and acceptance tests).
+
+### ADR-097: Browser actions address snapshot ids and verify an observable change
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1208 was approved: `click(selector)` returned `{"success": True}` whenever the
+  click dispatched, and `type_text` never read the field back, so the agent could build a false
+  success chain. Nothing bound an action to the page it was planned against.
+- **Decision**:
+  1. `modules/browser_automation/indexed.py` owns `ElementRef`, `ActionExpectation`,
+     `ActionResult`, `build_snapshot`, `element_id_for`, the closed result-code set and
+     `wait_for_expectation`. Element ids are a hash of generation, role, name and selector, so the
+     same node keeps its id within a generation and never reuses one across generations.
+  2. `BrowserService.snapshot(scope)` collects interactive elements, bounded to 200 elements and
+     40,000 characters, and refuses with `element_budget_exceeded` instead of truncating mid-list.
+     Navigation advances `_generation` and clears the id map.
+  3. `click_element` and `type_element` resolve the id against the current generation; a
+     resolution failure is `stale_element` and the page is not touched. `type_element` defaults
+     to a `value_equals` expectation so a fill is only `done` when the field reads back.
+  4. The post-condition poll is bounded to 2 s at 100 ms intervals. Only an observable change
+     (URL, DOM version, value, checked, focus) returns `done`; otherwise the result is
+     `unverified`. A file input or native select is `policy_refused` and is never retried.
+  5. The router accepts `element_id`, `expect_kind`, `expect_value`, `timeout_ms` and a
+     `snapshot` action; the legacy selector `click` and `type_text` remain for existing callers.
+- **Consequences**: A no-op click is now visible, and a re-render is a retryable `stale_element`
+  rather than a silent misclick. `unverified` is a warning, not a failure, because a download, a
+  focus move or a no-op toggle legitimately changes nothing observable; such flows must pass an
+  explicit expectation. The DOM version is a node count, so a change that keeps the count can
+  still read as unchanged. Element `name` and `value` are untrusted page text and must be fenced
+  by `core.untrusted` before entering a prompt.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (one typed result
+  contract across actions) and PRINCIPLE-014 (failing-first done, unverified, stale, refused and
+  postcondition tests).
+
+### ADR-098: A page snapshot is measured against a budget and refused, not silently cut
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1209 was approved: `get_html` cut at 50,000 characters and `extract_text` at
+  20,000 with a `"... [truncated]"` marker, and `screenshot` had no byte ceiling at all. A caller
+  could not tell whether an element was absent or merely cut.
+- **Decision**:
+  1. `modules/browser_automation/snapshot.py` owns `SnapshotBudget(max_html_chars=50000,
+     max_text_chars=20000, max_screenshot_bytes=1_500_000)`, `measure_html`, `measure_text`,
+     `measure_screenshot` and `SnapshotRefusal(code, measured, budget, next)`.
+  2. The default is a typed refusal: `ok: false` with `code` `html_too_large`,
+     `text_too_large` or `screenshot_too_large`, the measured size, the budget and a `next` hint
+     naming a narrower scope. Nothing is silently cut.
+  3. `allow_truncate=True` opts into a cut that is reported: `truncated: true`,
+     `omitted_chars`/`omitted_bytes` and a `resume` hint with the offset. Truncation is never the
+     implicit behaviour.
+  4. The browser router forwards `allow_truncate`; the legacy `... [truncated]` marker is gone,
+     so a caller that ignored it now sees an explicit receipt.
+- **Consequences**: The agent can ask for a narrower scope instead of guessing, and a missing
+  element is unambiguous. A caller relying on the old always-succeeding `get_html` now receives
+  `success: false` on a large page and must opt in or narrow; that is the intended behaviour
+  change. The screenshot path still fetches the full image before measuring, so the byte ceiling
+  bounds what is returned, not what is captured.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-012 (a bounded payload)
+  and PRINCIPLE-014 (failing-first refusal, opt-in truncation and budget validation tests).
+
+### ADR-099: Outcomes carry trace and span identity, sampled once at the root
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1237 was approved. `core/observability.py` already had a `TraceContext` with
+  `trace_id`, spans and `parent_id`, but `core/outcomes.py` emitted a bare dict, so a flow or tool
+  outcome could not be tied to the step that produced it, and there was no sampling.
+- **Decision**:
+  1. The existing `TraceContext` gains `sampling`/`sampled`, `sampling_decision(rate)` and
+     `current_ids()`. `start_root_trace(name, sampling, trace_id)` records one decision at the
+     root; children inherit it through the shared contextvar.
+  2. `current_span_ids()` exposes `trace_id`/`span_id`/`parent_span_id` for stamping, returning
+     empty values when nothing is traced.
+  3. `core/outcomes.emit_outcome` copies the payload and fills any missing id from the active
+     trace. It never mutates the caller's dict, never overrides an explicit value, and logs at
+     debug level if tracing raises, so an outcome is never dropped by observability.
+  4. This ADR does **not** add a second trace module: an earlier draft in `core/trace_context.py`
+     duplicated `observability.TraceContext` and was removed before the gate.
+- **Consequences**: Outcomes, and any caller of `current_span_ids`, can be joined to a trace and
+  its parent chain, and sampling is decided once per trace. Untraced code sees byte-identical
+  behaviour. Sampling is recorded but consumers (export/logging) must still honour `sampled`.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-009 (extend the existing
+  trace role instead of duplicating it) and PRINCIPLE-014 (failing-first root/child, sampling,
+  stamping and passthrough tests).
+
+### ADR-100: Prompts are immutable versions addressed by digest and rollout label
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1238 was approved: prompt text lives inside node code and module config with
+  no version, digest or label, so a rollout was an in-place edit and a rollback meant finding the
+  old prose by hand.
+- **Decision**:
+  1. `modules/brain/prompt_registry.py` owns `PromptVersion(name, version, prompt, digest,
+     labels, tags, config, commit_message, created_at)` and `PromptRegistry`.
+  2. Publishing identical content (same text **and** config) is idempotent and returns the
+     existing version; a change gets the next monotonic `version` and a new SHA-256 digest over
+     canonical JSON.
+  3. A rollout is `move_label(name, version, labels)`, recorded in a label history with the
+     previous target and actor. `latest` is reserved and always resolves to the newest version.
+  4. `rollback(name, label)` moves a label back to the version it pointed at before its most
+     recent move, so a rollback is one auditable operation rather than an edit.
+  5. `dump_state`/`load_state` round-trip the registry; `compare` reports versions and digests,
+     never prose. Publishing an empty prompt or moving an unknown version/label is refused with
+     Why/Fix.
+- **Consequences**: Two runs are comparable by `(name, version)` or digest, and a rollout cannot
+  silently change content. The registry is in-memory with explicit state export; persisting it to
+  a ledger and wiring node prompts to `resolve()` is follow-up work, so existing prompts keep
+  their current source until a module opts in. A digest covers config, so a temperature change is
+  a new version, which is intentional.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-016 (an auditable,
+  versioned source of truth) and PRINCIPLE-014 (failing-first idempotence, versioning,
+  label-move, rollback, comparison and round-trip tests).
+
+### ADR-101: A delegated task declares its capabilities, expected output and depth
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1242 was approved: a delegated sub-task was an implicit call with no bound on
+  the delegatee's tools, no expected output shape, no declared context and no recursion limit.
+- **Decision**:
+  1. `core/delegation.py` owns `DelegationContract(task_id, delegatee_role, capability_set,
+     expected_output_schema, context_task_ids, timeout, retry, depth)`.
+  2. `require_tool` raises `CapabilityRefused` with the allowed set and a Why/Fix message; the
+     module never retries a refusal.
+  3. `check_output` returns missing or wrongly typed fields; an empty list means accepted. A
+     contract with no schema accepts any output, preserving old callers.
+  4. `child(...)` creates a nested contract one level deeper and `MAX_DELEGATION_DEPTH = 4` caps
+     recursion with `DelegationDepthExceeded`.
+  5. Validation refuses an empty task id or role, a non-positive timeout, a negative retry and a
+     schema whose values are not types.
+- **Consequences**: A parent can state and enforce what a delegatee may do, and a delegatee can
+  refuse out of contract before acting. The contract is data: the calling runtime must pass it to
+  the delegatee and call `require_tool`/`check_output`; nothing here enforces tool use globally.
+  Depth is tracked on the contract, so it only bounds delegation that uses `child()`.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-011 (refusals name Why
+  and Fix) and PRINCIPLE-014 (failing-first capability, schema, depth and validation tests).
+
+### ADR-102: A handoff is delivered, accepted and re-queued as explicit states
+- **Date**: 2026-10-31
+- **Status**: Accepted
+- **Context**: IDEA-1243 was approved: context passed between steps as a plain dict with no
+  delivery record, no acceptance check and no retry, so a rejected handoff vanished silently.
+- **Decision**:
+  1. `core/handoff.py` owns `HandoffPacket(packet_id, from_step, to_step, context_summary,
+     artifacts, context_items, delivered_at, accepted_at, rejected_at, rejection_reason,
+     retry_count, retry_limit, status, history)` with the closed states `pending`, `delivered`,
+     `accepted`, `rejected` (transient) and `exhausted`.
+  2. `deliver` records delivery only; `accept` runs an optional check and marks acceptance.
+     A check may return a bool, a list of problems, or raise; any problem rejects.
+  3. `reject` re-queues while `retry_count < retry_limit`, clearing `delivered_at` and recording
+     the reason and attempt; otherwise the packet becomes `exhausted` so the failure is visible.
+  4. Context is bounded at construction: summary to 4,000 characters, at most 50 artifacts and 20
+     context items, with a Why/Fix error past the caps.
+  5. `replay_queue` and `summarise` support a crash-recovery sweep and a status count.
+- **Consequences**: A handoff can no longer be treated as complete just because it was sent, and
+  a rejected packet is either retried or visibly exhausted. Packets are in-memory data; the
+  calling flow must persist and re-drive the queue. Calling `accept` with no check is an explicit
+  opt-out of verification, not an implicit success.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (an explicit
+  retry/exhaustion state instead of a silent drop) and PRINCIPLE-014 (failing-first delivery,
+  acceptance, retry, exhaustion, bounds and replay tests).
