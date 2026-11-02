@@ -53,9 +53,10 @@ class TestIMAPBridgeHelpers:
 
     def test_get_text_body_multipart(self):
         from modules.email_bridge.imap_bridge import IMAPBridge
-        import email.mime.multipart
-        outer = email.mime.multipart.MIMEMultipart("alternative")
-        outer.attach(email.mime.text.MIMEText("Plain text body", "plain", "utf-8"))
+        import email.mime.multipart as _mime_multipart
+        import email.mime.text as _mime_text
+        outer = _mime_multipart.MIMEMultipart("alternative")
+        outer.attach(_mime_text.MIMEText("Plain text body", "plain", "utf-8"))
         msg = _email_module.message_from_bytes(outer.as_bytes())
         body = IMAPBridge._get_text_body(msg)
         assert "Plain text body" in body

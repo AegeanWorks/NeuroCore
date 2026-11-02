@@ -48,8 +48,18 @@ def get_llm_bridge(settings: SettingsManager = Depends(get_settings_manager)) ->
     current_api_key = settings.get("llm_api_key")
     current_embedding_base_url = settings.get("embedding_api_url")
     current_embedding_model = settings.get("embedding_model")
+    # M-LLM-3: dedicated credential for the embedding endpoint.
+    current_embedding_api_key = settings.get("embedding_api_key")
     current_timeout = float(settings.get("request_timeout", 60.0))
-    
+
+    def _norm(url, fallback=""):
+        return (url or fallback or "").rstrip("/")
+
+    # L-15: compare normalized URLs — LLMBridge strips trailing slashes, so
+    # comparing raw settings would rebuild the bridge on every request when
+    # the configured URL ends with "/".
+    norm_base = _norm(current_base_url)
+    norm_embed = _norm(current_embedding_base_url, current_base_url)
     with _llm_bridge_lock:
         # Only create instance if it doesn't exist
         if _llm_bridge_instance is None:
@@ -58,22 +68,25 @@ def get_llm_bridge(settings: SettingsManager = Depends(get_settings_manager)) ->
                 api_key=current_api_key,
                 embedding_base_url=current_embedding_base_url,
                 embedding_model=current_embedding_model,
+                embedding_api_key=current_embedding_api_key,
                 timeout=current_timeout,
             )
         else:
             # Check if settings have changed - create new instance if so
             # to avoid mutating the singleton which can cause race conditions
             # with concurrent background tasks
-            if (_llm_bridge_instance.base_url != current_base_url or
+            if (_norm(_llm_bridge_instance.base_url) != norm_base or
                 _llm_bridge_instance.api_key != current_api_key or
-                _llm_bridge_instance.embedding_base_url != (current_embedding_base_url or current_base_url) or
+                _norm(_llm_bridge_instance.embedding_base_url) != norm_embed or
                 _llm_bridge_instance.embedding_model != current_embedding_model or
+                getattr(_llm_bridge_instance, "embedding_api_key", None) != current_embedding_api_key or
                 _llm_bridge_instance.timeout != current_timeout):
                 _llm_bridge_instance = LLMBridge(
                     base_url=current_base_url,
                     api_key=current_api_key,
                     embedding_base_url=current_embedding_base_url,
                     embedding_model=current_embedding_model,
+                    embedding_api_key=current_embedding_api_key,
                     timeout=current_timeout,
                 )
         

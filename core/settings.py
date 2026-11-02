@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ DEFAULT_SETTINGS = {
     "llm_api_url": "http://localhost:1234/v1",
     "llm_api_key": "",
     "embedding_api_url": "",
+    "embedding_api_key": "",
     "default_model": "local-model",
     "embedding_model": "",
     "active_ai_flows": [],
@@ -69,7 +71,7 @@ class SettingsManager:
             if not os.path.exists(self.file_path):
                 # If the file doesn't exist, create it with default settings
                 # and return them, avoiding the circular call to save_settings.
-                settings_to_load = DEFAULT_SETTINGS.copy()
+                settings_to_load = copy.deepcopy(DEFAULT_SETTINGS)
                 with open(self.file_path, "w", encoding="utf-8") as f:
                     json.dump(settings_to_load, f, indent=4)
                 return settings_to_load
@@ -77,11 +79,25 @@ class SettingsManager:
             try:
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     loaded_settings = json.load(f)
-                    merged_settings = DEFAULT_SETTINGS.copy()
-                    merged_settings.update(loaded_settings)
+                    merged_settings = copy.deepcopy(DEFAULT_SETTINGS)
+                    if isinstance(loaded_settings, dict):
+                        merged_settings.update(copy.deepcopy(loaded_settings))
                     return merged_settings
-            except (json.JSONDecodeError, IOError):
-                return DEFAULT_SETTINGS.copy()
+            except (json.JSONDecodeError, IOError) as exc:
+                # M-DATA-2: quarantine the corrupt file instead of silently
+                # dropping user config, then fall back to deep-copied defaults.
+                try:
+                    corrupt_path = self.file_path + ".corrupt"
+                    if os.path.exists(self.file_path):
+                        os.replace(self.file_path, corrupt_path)
+                    logger.error(
+                        "Settings file %s corrupt (%s); quarantined to %s and "
+                        "defaults loaded",
+                        self.file_path, exc, corrupt_path,
+                    )
+                except Exception:
+                    logger.exception("Could not quarantine corrupt settings file")
+                return copy.deepcopy(DEFAULT_SETTINGS)
 
     def save_settings(self, new_settings):
         # Validate critical fields before saving
@@ -152,7 +168,7 @@ class SettingsManager:
                 validated[bool_field] = self._parse_bool(new_settings[bool_field], bool_field)
         
         # String fields that should remain strings
-        for str_field in ["llm_api_url", "llm_api_key", "embedding_api_url", "default_model", "embedding_model"]:
+        for str_field in ["llm_api_url", "llm_api_key", "embedding_api_url", "embedding_api_key", "default_model", "embedding_model"]:
             if str_field in new_settings:
                 validated[str_field] = str(new_settings[str_field])
         
@@ -260,8 +276,13 @@ class SettingsManager:
         raise ValueError(f"Cannot parse {field_desc}from value {value!r} (type: {type(value).__name__})")
 
     def get(self, key, default=None):
+        # M-DATA-2: return deep copies of containers so callers cannot
+        # mutate the live defaults-backed state by accident.
         with self.lock:
-            return self.settings.get(key, default)
+            value = self.settings.get(key, default)
+            if isinstance(value, (dict, list)):
+                return copy.deepcopy(value)
+            return value
 
 # Global instance
 settings = SettingsManager()

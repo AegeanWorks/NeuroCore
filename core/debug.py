@@ -53,8 +53,17 @@ class DebugLogger:
             "details": details
         }
         self.logs.append(entry)
-        # Log to console for immediate feedback using proper logging
-        logger.debug(f"[{flow_id}] {node_name} ({event_type}): {json.dumps(details, default=str)}")
+        # L-16: lazy logging — the payload serialization (f-string json.dumps
+        # of whole node inputs, images included) must not run when debug is
+        # off. Truncate serialized payloads so one image cannot flood the log.
+        if logger.isEnabledFor(logging.DEBUG):
+            try:
+                rendered = json.dumps(details, default=str)
+            except (TypeError, ValueError):
+                rendered = "<unserializable details>"
+            if len(rendered) > 2000:
+                rendered = rendered[:2000] + "...<truncated>"
+            logger.debug("[%s] %s (%s): %s", flow_id, node_name, event_type, rendered)
     
     def get_logs(self, reverse: bool = True):
         """

@@ -36,7 +36,57 @@ class PlannerExecutor:
         self._reasoning_service = None
     
     # ========== Helper Methods for auto_track mode ==========
-    
+
+    @staticmethod
+    def _normalize_deps(raw) -> tuple:
+        """Normalize depends_on to (int_list, unknown_raw_list) (H-9).
+
+        Ints pass through; numeric strings coerce; anything else is
+        reported as unknown instead of silently meaning "no deps".
+        """
+        if raw is None:
+            return [], []
+        if isinstance(raw, int) and not isinstance(raw, bool):
+            return [raw], []
+        if isinstance(raw, str):
+            text = raw.strip()
+            try:
+                return [int(text)], []
+            except ValueError:
+                return [], [raw]
+        if isinstance(raw, (list, tuple)):
+            ints: list = []
+            unknown: list = []
+            for item in raw:
+                if isinstance(item, int) and not isinstance(item, bool):
+                    ints.append(item)
+                elif isinstance(item, str):
+                    try:
+                        ints.append(int(item.strip()))
+                    except ValueError:
+                        unknown.append(item)
+                else:
+                    unknown.append(item)
+            return ints, unknown
+        return [], [raw]
+
+    def _unknown_dependencies(self, plan: list) -> set:
+        """Collect depends_on references that name no plan step (H-9)."""
+        step_nums = set()
+        for i, step in enumerate(plan or []):
+            step_nums.add(step.get("step", i + 1) if isinstance(step, dict) else i + 1)
+        unknown: set = set()
+        for step in plan or []:
+            if not isinstance(step, dict):
+                continue
+            ints, bad = self._normalize_deps(step.get("depends_on"))
+            for item in bad:
+                unknown.add(str(item))
+            for num in ints:
+                if num not in step_nums:
+                    unknown.add(str(num))
+        return unknown
+
     def _generate_plan_context(self, plan: list, current_step: int, completed_steps: set) -> str:
         """Generate plan_context string showing progress (used in auto_track mode)."""
         if not plan:
@@ -64,23 +114,16 @@ class PlannerExecutor:
         n = len(plan)
         adj = {i: [] for i in range(n)}  # step_index -> [dependent_step_indices]
         in_degree = {i: 0 for i in range(n)}  # step_index -> number of dependencies
-        
+
         # Map step numbers to indices for dependency resolution
         step_num_to_idx = {}
         for i, step in enumerate(plan):
             step_num = step.get('step', i + 1)
             step_num_to_idx[step_num] = i
-        
+
         for i, step in enumerate(plan):
-            depends_on = step.get('depends_on')
-            if depends_on is not None:
-                # Handle single dependency or list of dependencies
-                if isinstance(depends_on, int):
-                    deps = [depends_on]
-                elif isinstance(depends_on, list):
-                    deps = depends_on
-                else:
-                    deps = []
+            deps, _unknown = self._normalize_deps(step.get('depends_on'))
+            if deps:
                 
                 for dep_step_num in deps:
                     # Find the index of the dependency step
@@ -137,24 +180,16 @@ class PlannerExecutor:
             if i in completed_steps:
                 continue  # Already done
 
-            # Check if all dependencies are completed
+            # Check if all dependencies are completed (H-9: shared normalizer).
             deps_satisfied = True
             step = plan[i]
-            depends_on = step.get('depends_on')
+            deps, _unknown = self._normalize_deps(step.get('depends_on'))
 
-            if depends_on is not None:
-                if isinstance(depends_on, int):
-                    deps = [depends_on]
-                elif isinstance(depends_on, list):
-                    deps = depends_on
-                else:
-                    deps = []
-
-                for dep_step_num in deps:
-                    dep_idx = step_num_to_idx.get(dep_step_num)
-                    if dep_idx is not None and dep_idx not in completed_steps:
-                        deps_satisfied = False
-                        break
+            for dep_step_num in deps:
+                dep_idx = step_num_to_idx.get(dep_step_num)
+                if dep_idx is not None and dep_idx not in completed_steps:
+                    deps_satisfied = False
+                    break
 
             if deps_satisfied:
                 executable.append(i)
@@ -183,12 +218,12 @@ class PlannerExecutor:
             result["plan_complete"] = True  # Stop execution
             return result
         
-        # Resume logic: if current_step > 0, assume prior steps completed
-        if current > 0:
-            for i in range(current):
-                if i < len(plan):
-                    completed_steps.add(i)
-        
+        # H-9: never assume "everything before current is done". A blocked
+        # step jumped over by dependency-aware scheduling must stay pending
+        # until its own dependencies are satisfied; completed_steps is the
+        # single source of truth.
+        unknown_refs = sorted(self._unknown_dependencies(plan))
+
         # Mark current step as completed (if valid)
         step_completed_now = False
         if 0 <= current < len(plan):
@@ -215,12 +250,17 @@ class PlannerExecutor:
         
         # Check if plan is complete
         result["plan_complete"] = len(completed_steps) >= len(plan)
-        
+        if unknown_refs:
+            result["dependency_warnings"] = [
+                f"depends_on references unknown step {ref}; treated as no dependency"
+                for ref in unknown_refs
+            ]
+
         # Update plan_context to reflect progress (shows completed, current, and pending steps)
         result["plan_context"] = self._generate_plan_context(plan, result["current_step"], completed_steps)
-        
+
         return result
-    
+
     def _get_reasoning_service(self):
         """Lazy load ReasoningBookService to avoid circular imports."""
         if self._reasoning_service is None:
@@ -508,21 +548,14 @@ class PlannerExecutor:
 
 
 class PlanStepTracker:
+    """Tracks progress through a plan with dependency-aware ordering.
+
+    Graph helpers delegate to PlannerExecutor's normalizer so the two
+    classes cannot drift (H-9).
     """
-    Tracks progress through a plan with dependency-aware ordering.
-    
-    Input:
-        - plan: array of plan steps (each may have 'depends_on' field)
-        - current_step: current step index (default 0)
-        
-    Output:
-        - current_step: next executable step index (respects dependencies)
-        - step_completed: the step that was just completed
-        - plan_complete: True if all steps are done
-        - next_step: the step that should execute next (with dependencies resolved)
-        - dependency_error: error message if circular dependencies detected
-    """
-    
+
+    _normalize_deps = staticmethod(PlannerExecutor._normalize_deps)
+
     def _generate_plan_context(self, plan: list, current_step: int, completed_steps: set) -> str:
         """Generate plan_context string showing progress."""
         if not plan:
@@ -556,33 +589,24 @@ class PlanStepTracker:
         for i, step in enumerate(plan):
             step_num = step.get('step', i + 1)
             step_num_to_idx[step_num] = i
-        
+
         for i, step in enumerate(plan):
-            depends_on = step.get('depends_on')
-            if depends_on is not None:
-                # Handle single dependency or list of dependencies
-                if isinstance(depends_on, int):
-                    deps = [depends_on]
-                elif isinstance(depends_on, list):
-                    deps = depends_on
-                else:
-                    deps = []
-                
-                for dep_step_num in deps:
-                    # Find the index of the dependency step
-                    dep_idx = step_num_to_idx.get(dep_step_num)
-                    if dep_idx is not None and dep_idx < len(plan):
-                        # Add edge: dep_idx -> i (i depends on dep_idx)
-                        adj[dep_idx].append(i)
-                        in_degree[i] += 1
-        
+            deps, _unknown = self._normalize_deps(step.get('depends_on'))
+            for dep_step_num in deps:
+                # Find the index of the dependency step
+                dep_idx = step_num_to_idx.get(dep_step_num)
+                if dep_idx is not None and dep_idx < len(plan):
+                    # Add edge: dep_idx -> i (i depends on dep_idx)
+                    adj[dep_idx].append(i)
+                    in_degree[i] += 1
+
         return adj, in_degree
-    
+
     def _detect_circular_dependencies(self, plan: list) -> tuple:
         """Detect circular dependencies using Kahn's algorithm."""
         if not plan:
             return False, None
-        
+
         adj, in_degree = self._build_dependency_graph(plan)
         n = len(plan)
         
@@ -627,27 +651,19 @@ class PlanStepTracker:
             # Check if all dependencies are completed
             deps_satisfied = True
             step = plan[i]
-            depends_on = step.get('depends_on')
+            deps, _unknown = self._normalize_deps(step.get('depends_on'))
 
-            if depends_on is not None:
-                if isinstance(depends_on, int):
-                    deps = [depends_on]
-                elif isinstance(depends_on, list):
-                    deps = depends_on
-                else:
-                    deps = []
-
-                for dep_step_num in deps:
-                    dep_idx = step_num_to_idx.get(dep_step_num)
-                    if dep_idx is not None and dep_idx not in completed_steps:
-                        deps_satisfied = False
-                        break
+            for dep_step_num in deps:
+                dep_idx = step_num_to_idx.get(dep_step_num)
+                if dep_idx is not None and dep_idx not in completed_steps:
+                    deps_satisfied = False
+                    break
 
             if deps_satisfied:
                 executable.append(i)
 
         return executable
-    
+
     async def receive(self, data: dict, config: dict = None) -> dict:
         if not isinstance(data, dict):
             return data
@@ -698,10 +714,27 @@ class PlanStepTracker:
         
         # Check if plan is complete
         result["plan_complete"] = len(completed_steps) >= len(plan)
-        
+        step_nums = {p.get("step", j + 1) if isinstance(p, dict) else j + 1
+                     for j, p in enumerate(plan)}
+        unknown = set()
+        for p in plan:
+            if not isinstance(p, dict):
+                continue
+            ints, bad = self._normalize_deps(p.get("depends_on"))
+            for item in bad:
+                unknown.add(str(item))
+            for num in ints:
+                if num not in step_nums:
+                    unknown.add(str(num))
+        if unknown:
+            result["dependency_warnings"] = [
+                f"depends_on references unknown step {ref}; treated as no dependency"
+                for ref in sorted(unknown)
+            ]
+
         # Update plan_context to reflect progress (shows completed, current, and pending steps)
         result["plan_context"] = self._generate_plan_context(plan, result["current_step"], completed_steps)
-        
+
         return result
 
     async def send(self, processed_data: dict) -> dict:

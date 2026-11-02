@@ -4,7 +4,7 @@ import os
 import tempfile
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.paths import state_path
 
@@ -79,7 +79,7 @@ class EventManager:
                 "id": str(uuid.uuid4()),
                 "title": title,
                 "start_time": start_time,
-                "created_at": datetime.utcnow().isoformat() + 'Z',
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "notified": False
             }
             events.append(event)
@@ -94,7 +94,11 @@ class EventManager:
 
     def get_upcoming(self, limit=10):
         events = self._load_events()
-        now = datetime.utcnow().replace(second=0, microsecond=0)
+        # M-CAL-2: events are stored in local wall-clock time ("YYYY-MM-DD
+        # HH:MM") and every other comparison uses local time. Comparing
+        # against UTC shifted the window by the UTC offset (e.g. +3h kept
+        # past events "upcoming" for three hours).
+        now = datetime.now().replace(second=0, microsecond=0)
 
         def _parse_dt(e):
             try:
@@ -125,7 +129,7 @@ class EventManager:
                         event["title"] = title
                     if start_time is not None:
                         event["start_time"] = start_time
-                    event["updated_at"] = datetime.utcnow().isoformat() + 'Z'
+                    event["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     return events  # Return modified events to save
             return None  # Event not found, don't save
         
@@ -140,14 +144,60 @@ class EventManager:
             for event in events:
                 if event.get("id") == event_id:
                     event["notified"] = True
-                    event["updated_at"] = datetime.utcnow().isoformat() + 'Z'
+                    event["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     return events
             return None
-        
+
         result = self._with_lock(_mark_notified)
         if result is not None:
             return self.get_event_by_id(event_id)
         return None
+
+    def claim_due(self, grace_minutes: int = 15) -> list:
+        """Atomically claim due, unnotified events and mark them notified.
+
+        M-CAL-1: the watcher used to fire only on an exact minute match, so
+        a restart, slow loop, or >60s delay skipped the reminder forever,
+        and two running loops could both notify before either marked the
+        event. Claiming under one lock with a grace window fixes both: any
+        event at or before now (and no older than the grace window) fires
+        at most once.
+        """
+        try:
+            grace = max(1, int(grace_minutes))
+        except (TypeError, ValueError):
+            grace = 15
+        now = datetime.now().replace(second=0, microsecond=0)
+
+        def _claim(events):
+            due = []
+            for event in events or []:
+                if event.get("notified"):
+                    continue
+                raw = event.get("start_time", "")
+                try:
+                    if isinstance(raw, str) and len(raw) >= 16:
+                        event_dt = datetime.strptime(raw[:16], "%Y-%m-%d %H:%M")
+                    elif event.get("date") and event.get("time"):
+                        event_dt = datetime.strptime(
+                            f"{event['date']} {event['time']}", "%Y-%m-%d %H:%M")
+                    else:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+                delta = (now - event_dt).total_seconds()
+                if 0 <= delta <= grace * 60:
+                    event["notified"] = True
+                    event["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    due.append(dict(event))
+            return events, due
+
+        with self.lock:
+            events = self._load_events_unsafe()
+            updated, due = _claim(events)
+            if due:
+                self._save_events_unsafe(updated)
+            return due
 
     def delete_event(self, event_id):
         initial_count = len(self._load_events())

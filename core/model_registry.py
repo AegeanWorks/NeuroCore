@@ -146,6 +146,15 @@ class ModelRegistry:
             applied_output = limits.max_output_tokens
             clamped.append(ClampField("output_tokens", output_tokens, applied_output))
         if context_tokens > limits.max_context_tokens:
+            if not self.strict:
+                # H-1: non-strict mode warns instead of refusing, so a default
+                # install with image content keeps working; strict mode still
+                # refuses (unknown models and over-limit requests).
+                return ClampResult(
+                    output_tokens=applied_output,
+                    context_tokens=context_tokens,
+                    clamped=tuple(clamped),
+                )
             raise ModelLimitExceeded(
                 f"Model {model_id!r} accepts at most {limits.max_context_tokens} context "
                 f"tokens, but {context_tokens} were assembled. "

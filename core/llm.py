@@ -20,12 +20,58 @@ logger = logging.getLogger(__name__)
 
 
 def _estimate_context_tokens(messages, tools=None) -> int:
-    """A cheap provider-independent context estimate; the limit is a guard, not billing."""
+    """A cheap provider-independent context estimate; the limit is a guard, not billing.
+
+    H-1: text uses ``ensure_ascii=False`` so non-English is not 2.4x
+    over-counted, and base64 image bytes count at a fixed cost
+    (~1000 tokens) instead of ``len(data_url) // 4``.
+    """
+    import re
+
+    _DATA_URL_RE = re.compile(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+")
     try:
-        payload = {"messages": messages}
+        image_count = 0
+        text_parts: list = []
+
+        def walk(node) -> None:
+            nonlocal image_count
+            if isinstance(node, dict):
+                url = node.get("url") if isinstance(node.get("url"), str) else None
+                inner = node.get("image_url")
+                if isinstance(inner, dict) and isinstance(inner.get("url"), str):
+                    url = inner.get("url")
+                if node.get("type") == "image_url" or isinstance(url, str):
+                    if isinstance(url, str) and url.startswith("data:"):
+                        image_count += 1
+                    elif node.get("type") == "image_url":
+                        image_count += 1
+                    # Still walk non-payload fields (e.g. detail level).
+                    for key, value in node.items():
+                        if key in ("url", "image_url"):
+                            continue
+                        walk(value)
+                    return
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, (list, tuple)):
+                for value in node:
+                    walk(value)
+            elif isinstance(node, str):
+                if node.startswith("data:image") and len(node) > 1000:
+                    image_count += 1
+                    return
+                if "data:image" in node:
+                    found = node.count("data:image")
+                    image_count += found
+                    node = _DATA_URL_RE.sub("", node)
+                text_parts.append(node)
+
+        walk(messages)
+        tools_text = ""
         if tools:
-            payload["tools"] = tools
-        return max(0, len(json.dumps(payload, default=str)) // 4)
+            tools_text = json.dumps(tools, ensure_ascii=False, default=str)
+        text = json.dumps(text_parts, ensure_ascii=False, default=str) + tools_text
+        return max(0, len(text) // 4 + image_count * 1000)
     except (TypeError, ValueError):
         return 0
 
@@ -87,11 +133,14 @@ async def close_shared_client():
 
 
 class LLMBridge:
-    def __init__(self, base_url: str, api_key: str = None, embedding_base_url: str = None, embedding_model: str = None, client: httpx.AsyncClient = None, timeout: float = 60.0, cassette_mode: str = "live", cassette_path=None, cassette_match: str = None, template_digest: str = None):
+    def __init__(self, base_url: str, api_key: str = None, embedding_base_url: str = None, embedding_model: str = None, client: httpx.AsyncClient = None, timeout: float = 60.0, cassette_mode: str = "live", cassette_path=None, cassette_match: str = None, template_digest: str = None, embedding_api_key: str = None):
         # Normalize base_url: strip trailing slashes
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.embedding_base_url = embedding_base_url.rstrip("/") if embedding_base_url else self.base_url
         self.api_key = api_key
+        # M-LLM-3: dedicated credential for the embedding endpoint, which may
+        # be a different provider or host than the chat API.
+        self.embedding_api_key = embedding_api_key
         self.embedding_model = embedding_model
         self.client = client
         self.timeout = timeout
@@ -151,6 +200,18 @@ class LLMBridge:
         # The path is e.g., "/chat/completions"
         base = self.embedding_base_url if use_embedding_url else self.base_url
         return f"{base}/{path.lstrip('/')}"
+
+    @staticmethod
+    def _same_host(first: str, second: str) -> bool:
+        """True when two base URLs share scheme, host and port (M-LLM-3)."""
+        try:
+            from urllib.parse import urlsplit
+            a, b = urlsplit(first or ""), urlsplit(second or "")
+            if not a.netloc or not b.netloc:
+                return True
+            return (a.scheme, a.hostname, a.port) == (b.scheme, b.hostname, b.port)
+        except Exception:
+            return True
 
     async def chat_completion(self, messages, model: str = None, temperature: float = None, max_tokens: int = None, tools: list = None, tool_choice: str = None, response_format: dict = None, raise_errors: bool = False):
         """Sends a chat completion request to the LLM API.
@@ -377,8 +438,14 @@ class LLMBridge:
         """Generates an embedding vector for the given text."""
         url = self._get_url("/embeddings", use_embedding_url=True)
         headers = {}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        # M-LLM-3: prefer the dedicated embedding key; fall back to the main
+        # key only when both endpoints share a host; otherwise send no key
+        # rather than leaking the chat credential to another provider.
+        embedding_key = self.embedding_api_key
+        if not embedding_key and self.api_key and self._same_host(self.base_url, self.embedding_base_url):
+            embedding_key = self.api_key
+        if embedding_key:
+            headers["Authorization"] = f"Bearer {embedding_key}"
         
         # Use dedicated embedding_model setting, not default_model (which may be a chat model)
         embedding_model = model or self.embedding_model

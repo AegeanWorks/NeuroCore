@@ -345,6 +345,14 @@ class Metrics:
         self._lock = threading.Lock()
         self._max_timings_per_metric = 1000  # Keep last 1000 timings
         self._metrics_file = data_path("metrics_counters.json")
+        # M-PERF-2: batch counter persistence instead of rewriting the file
+        # on every LLM increment (~8 rewrites per call). Flush at most every
+        # 30 s or 100 dirty increments, plus on demand via flush().
+        self._save_interval = 30.0
+        self._save_every_n = 100
+        self._dirty = False
+        self._since_save = 0
+        self._last_save = 0.0
         self._load_counters()
         
     def _load_counters(self):
@@ -375,12 +383,36 @@ class Metrics:
     
     def increment(self, metric: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None):
         """Increment a counter metric."""
+        import time as _time
+
         key = self._make_key(metric, tags)
         with self._lock:
             self._counters[key] += value
-            # Only save LLM metrics immediately to avoid disk I/O bloat
-            if metric.startswith("llm."):
-                self._save_counters()
+            # M-PERF-2: batch persistence; a flush happens on interval,
+            # volume, shutdown (see flush()) — never per increment.
+            self._dirty = True
+            self._since_save += 1
+            due = (_time.monotonic() - self._last_save) >= self._save_interval
+            if due or self._since_save >= self._save_every_n:
+                self._save_counters_locked()
+                self._last_save = _time.monotonic()
+                self._since_save = 0
+                self._dirty = False
+
+    def flush(self) -> None:
+        """Persist counters now if anything changed since the last save."""
+        with self._lock:
+            if self._dirty:
+                self._save_counters_locked()
+                import time as _time
+
+                self._last_save = _time.monotonic()
+                self._since_save = 0
+                self._dirty = False
+
+    def _save_counters_locked(self) -> None:
+        """Write counters to disk; caller must hold the lock."""
+        self._save_counters()
     
     def timing(self, metric: str, duration_ms: float, tags: Optional[Dict[str, str]] = None):
         """Record a timing metric in milliseconds."""
@@ -474,6 +506,8 @@ class Metrics:
             self._counters.clear()
             self._timings.clear()
             self._gauges.clear()
+            self._dirty = False
+            self._since_save = 0
 
 
 # Timing context manager
@@ -556,7 +590,7 @@ class StructuredLogger:
                 trace_id = ctx.trace_id
         
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "event": event,
             "message": message,
             "trace_id": trace_id,
@@ -637,7 +671,7 @@ class JsonFormatter(logging.Formatter):
         
         # Otherwise, format as JSON
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -671,11 +705,15 @@ structured_logger = StructuredLogger("neurocore")
 def instrument_flow_runner():
     """
     Instrument the flow runner for automatic tracing.
-    
+
     This should be called during app initialization.
+    Idempotent: repeated calls do not stack wrappers (L-26).
     """
     from core.flow_runner import FlowRunner
-    
+
+    if getattr(FlowRunner.run, "_neurocore_instrumented", False):
+        return
+
     # Wrap the run method
     original_run = FlowRunner.run
     
@@ -716,19 +754,40 @@ def instrument_flow_runner():
                                                error=str(e), duration_ms=elapsed_ms)
                     raise
     
+    traced_run._neurocore_instrumented = True
     FlowRunner.run = traced_run
+
+
+def _record_llm_usage(model_name: str, tokens: dict) -> None:
+    """Record flat + per-model token counters from a usage dict."""
+    if not isinstance(tokens, dict) or not tokens:
+        return
+    pt = tokens.get("prompt_tokens", 0)
+    ct = tokens.get("completion_tokens", 0)
+    tt = tokens.get("total_tokens", 0) or (pt + ct)
+    model_tag = {"model": model_name}
+    # Flat totals (backwards-compatible)
+    metrics.increment("llm.tokens_used", tt)
+    metrics.increment("llm.prompt_tokens", pt)
+    metrics.increment("llm.completion_tokens", ct)
+    # Per-model breakdown
+    metrics.increment("llm.tokens_used", tt, tags=model_tag)
+    metrics.increment("llm.prompt_tokens", pt, tags=model_tag)
+    metrics.increment("llm.completion_tokens", ct, tags=model_tag)
 
 
 def instrument_llm_calls():
     """
     Instrument LLM calls for automatic tracing and metrics.
-    
+
     This should be called during app initialization.
+    Idempotent: repeated calls do not stack wrappers (L-26).
     """
     from core.llm import LLMBridge, get_shared_client
-    
+
     # Patch the chat_completion method on LLMBridge class
-    if hasattr(LLMBridge, 'chat_completion'):
+    if hasattr(LLMBridge, 'chat_completion') and not getattr(
+            LLMBridge.chat_completion, "_neurocore_instrumented", False):
         original_chat_completion = LLMBridge.chat_completion
         
         @wraps(original_chat_completion)
@@ -746,20 +805,7 @@ def instrument_llm_calls():
 
                 # Extract token usage and record flat + per-model counters
                 if isinstance(result, dict):
-                    tokens = result.get("usage", {})
-                    if tokens:
-                        pt = tokens.get("prompt_tokens", 0)
-                        ct = tokens.get("completion_tokens", 0)
-                        tt = tokens.get("total_tokens", 0) or (pt + ct)
-                        model_tag = {"model": model_name}
-                        # Flat totals (backwards-compatible)
-                        metrics.increment("llm.tokens_used", tt)
-                        metrics.increment("llm.prompt_tokens", pt)
-                        metrics.increment("llm.completion_tokens", ct)
-                        # Per-model breakdown
-                        metrics.increment("llm.tokens_used", tt, tags=model_tag)
-                        metrics.increment("llm.prompt_tokens", pt, tags=model_tag)
-                        metrics.increment("llm.completion_tokens", ct, tags=model_tag)
+                    _record_llm_usage(model_name, result.get("usage", {}))
 
                 metrics.timing("llm.latency", elapsed_ms)
                 metrics.increment("llm.calls_success")
@@ -774,8 +820,49 @@ def instrument_llm_calls():
                 metrics.increment("llm.calls_failed", tags={"model": model_name})
                 span.finish(status="error", error=str(e))
                 raise
-        
+
+        traced_chat_completion._neurocore_instrumented = True
         LLMBridge.chat_completion = traced_chat_completion
+
+    # M-LLM-4: the streaming call was never instrumented, so streamed usage
+    # never reached the statistics. Usage arrives in the final chunk.
+    if hasattr(LLMBridge, 'chat_completion_stream') and not getattr(
+            LLMBridge.chat_completion_stream, "_neurocore_instrumented", False):
+        original_stream = LLMBridge.chat_completion_stream
+
+        @wraps(original_stream)
+        async def traced_chat_completion_stream(self, *args, **kwargs):
+            model_name = str(kwargs.get("model") or "unknown")
+            ctx = get_or_create_trace_context()
+            span = ctx.add_span("llm_stream_call", SpanKind.CLIENT, attributes={
+                "model": model_name,
+            })
+
+            start_time = time.time()
+            last_usage: dict = {}
+            try:
+                async for chunk in original_stream(self, *args, **kwargs):
+                    if isinstance(chunk, dict):
+                        usage = chunk.get("usage")
+                        if isinstance(usage, dict) and usage:
+                            last_usage = usage
+                    yield chunk
+                elapsed_ms = (time.time() - start_time) * 1000
+                _record_llm_usage(model_name, last_usage)
+                metrics.timing("llm.latency", elapsed_ms)
+                metrics.increment("llm.calls_success")
+                metrics.increment("llm.calls_success", tags={"model": model_name})
+                span.finish()
+            except Exception as e:
+                elapsed_ms = (time.time() - start_time) * 1000
+                metrics.timing("llm.latency", elapsed_ms)
+                metrics.increment("llm.calls_failed")
+                metrics.increment("llm.calls_failed", tags={"model": model_name})
+                span.finish(status="error", error=str(e))
+                raise
+
+        traced_chat_completion_stream._neurocore_instrumented = True
+        LLMBridge.chat_completion_stream = traced_chat_completion_stream
     
     # Also patch get_shared_client to return instrumented client
     original_get_shared_client = get_shared_client
@@ -793,10 +880,12 @@ def instrument_llm_calls():
 def instrument_tools():
     """
     Instrument tool execution for automatic tracing and metrics.
+    Idempotent: repeated calls do not stack wrappers (L-26).
     """
     from modules.tools.node import ToolDispatcherExecutor
-    
-    if hasattr(ToolDispatcherExecutor, 'receive'):
+
+    if hasattr(ToolDispatcherExecutor, 'receive') and not getattr(
+            ToolDispatcherExecutor.receive, "_neurocore_instrumented", False):
         original_receive = ToolDispatcherExecutor.receive
         
         @wraps(original_receive)
@@ -811,17 +900,29 @@ def instrument_tools():
                 try:
                     result = await original_receive(self, input_data, config)
                     elapsed_ms = (time.time() - start_time) * 1000
-                    
+
                     metrics.timing("tool.latency", elapsed_ms)
-                    metrics.increment("tool.calls_success", len(tool_calls))
-                    
+                    # L-26: count per result, not per call — error and
+                    # deferred placeholders are not successes.
+                    if isinstance(result, dict) and isinstance(result.get("tool_results"), list):
+                        ok = sum(
+                            1 for r in result["tool_results"]
+                            if isinstance(r, dict) and not r.get("deferred")
+                            and not str(r.get("content", "")).startswith("Error")
+                        )
+                        metrics.increment("tool.calls_success", ok)
+                        metrics.increment("tool.calls_failed", len(result["tool_results"]) - ok)
+                    else:
+                        metrics.increment("tool.calls_success", len(tool_calls))
+
                     return result
                 except Exception as e:
                     elapsed_ms = (time.time() - start_time) * 1000
                     metrics.timing("tool.latency", elapsed_ms)
                     metrics.increment("tool.calls_failed", len(tool_calls))
                     raise
-        
+
+        traced_receive._neurocore_instrumented = True
         ToolDispatcherExecutor.receive = traced_receive
 
 
@@ -838,7 +939,7 @@ def get_dashboard_data() -> Dict[str, Any]:
     """
     return {
         "metrics": metrics.get_all_metrics(),
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
 
@@ -918,7 +1019,7 @@ def export_trace_to_file(trace_data: Dict[str, Any], file_path: Optional[str] = 
         
         # Create trace event
         event = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "event": "observability_export",
             "trace_data": trace_data,
         }
@@ -991,7 +1092,7 @@ def _maybe_export_span(span_data: Dict[str, Any]) -> None:
             
             # Build trace event
             event = {
-                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "event": "observability_span",
                 "trace_id": span_data.get("trace_id"),
                 "span_id": span_data.get("span_id"),

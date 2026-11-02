@@ -50,6 +50,38 @@ except ImportError:
     FAISS_AVAILABLE = False
     logger.warning("FAISS not installed. Vector search will fall back to linear scan (slow).")
 
+
+_MEMORY_STOPWORDS = frozenset({
+    "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+    "is", "are", "was", "were", "be", "been", "being", "do", "does", "did",
+    "done", "have", "has", "had", "having", "can", "could", "should", "would",
+    "shall", "may", "might", "must", "the", "a", "an", "of", "for", "to",
+    "in", "on", "at", "by", "from", "as", "and", "or", "not", "with",
+    "that", "this", "these", "those", "it", "its", "i", "me", "my", "you",
+    "your", "we", "our", "they", "their", "them", "he", "she", "his", "her",
+    "there", "here", "some", "any", "all", "please", "tell",
+})
+
+
+def _escape_like(term: str) -> str:
+    """Escape LIKE wildcards so a literal % _ \\ is matched (H-6)."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _memory_keywords(query: str) -> List[str]:
+    """Tokenize a natural question into content terms (H-6)."""
+    tokens = re.findall(r"\w+", (query or "").lower())
+    seen: List[str] = []
+    for token in tokens:
+        if len(token) <= 2 or token in _MEMORY_STOPWORDS:
+            continue
+        if token not in seen:
+            seen.append(token)
+        if len(seen) >= 12:
+            break
+    return seen
+
+
 class MemoryStore:
     """
     Simplified MemoryStore for NeuroCore.
@@ -226,9 +258,42 @@ class MemoryStore:
         except Exception as e:
             return None
 
+    def _index_meta_path(self) -> str:
+        return self.db_path.replace(".sqlite3", ".faiss.meta.json")
+
+    def _indexed_row_checksum(self) -> tuple:
+        """Checksum of the sorted ids that should be in the vector index."""
+        try:
+            with self._connect() as con:
+                rows = con.execute(
+                    "SELECT id FROM memories WHERE deleted = 0 AND parent_id IS NULL "
+                    "AND embedding IS NOT NULL ORDER BY id ASC").fetchall()
+            digest = hashlib.sha256(",".join(str(r[0]) for r in rows).encode()).hexdigest()
+            return digest, len(rows)
+        except Exception:
+            return "", -1
+
+    def _write_index_meta(self, count: int) -> None:
+        """Record model, dimension and id checksum beside the FAISS file (M-DATA-4)."""
+        try:
+            dimension = int(getattr(self.faiss_index, "d", 0) or 0)
+            checksum, _ = self._indexed_row_checksum()
+            meta = {
+                "embedding_model": settings.get("embedding_model") or "",
+                "dimension": dimension,
+                "id_sha256": checksum,
+                "count": count,
+            }
+            tmp = self._index_meta_path() + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(meta, f)
+            os.replace(tmp, self._index_meta_path())
+        except Exception as e:
+            logger.warning(f"Failed to write FAISS meta: {e}")
+
     def _save_faiss_index(self, force=False):
         if not FAISS_AVAILABLE or not self.faiss_index: return
-        
+
         self.unsaved_changes += 1
         if not force and self.unsaved_changes < self.save_threshold:
             return
@@ -237,6 +302,10 @@ class MemoryStore:
             index_path = self.db_path.replace(".sqlite3", ".faiss")
             faiss.write_index(self.faiss_index, index_path)
             self.unsaved_changes = 0
+            try:
+                self._write_index_meta(getattr(self.faiss_index, "ntotal", 0))
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Failed to save FAISS index: {e}")
 
@@ -251,6 +320,15 @@ class MemoryStore:
                     return False
                 # Verify dimension is set (IndexFlatIP sets this)
                 if hasattr(self.faiss_index, 'd') and self.faiss_index.d > 0:
+                    # M-DATA-4: verify the sidecar meta (model, dimension,
+                    # id checksum), not just usability. A legacy index
+                    # without meta falls through to the count sync below.
+                    if os.path.exists(self._index_meta_path()):
+                        if self._index_meta_valid():
+                            return True
+                        logger.warning("FAISS meta mismatch (model/dimension/ids); rebuilding...")
+                        self.faiss_index = None
+                        return False
                     return True
                 # If dimension is 0 or not set, index is invalid
                 logger.warning("FAISS index has invalid dimension, rebuilding...")
@@ -261,6 +339,30 @@ class MemoryStore:
                 self.faiss_index = None
                 return False
         return False
+
+    def _index_meta_valid(self) -> bool:
+        """True when the saved meta matches the current model, dimension and ids."""
+        try:
+            with open(self._index_meta_path(), "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            if not isinstance(meta, dict):
+                return False
+            if (meta.get("embedding_model") or "") != (settings.get("embedding_model") or ""):
+                logger.warning(
+                    "Embedding model changed (%r -> %r); stored vectors are stale.",
+                    meta.get("embedding_model"), settings.get("embedding_model") or "")
+                return False
+            if int(meta.get("dimension") or 0) != int(getattr(self.faiss_index, "d", 0) or 0):
+                return False
+            checksum, count = self._indexed_row_checksum()
+            if count < 0 or meta.get("count") != count:
+                return False
+            # M-DATA-4: an add plus a delete since the last save keeps the
+            # count identical while the membership changed; the id checksum
+            # catches that.
+            return (meta.get("id_sha256") or "") == checksum
+        except Exception:
+            return False
 
     def _sync_faiss_index(self):
         """Ensures FAISS index count matches DB count on startup."""
@@ -286,6 +388,21 @@ class MemoryStore:
             if self.faiss_index.ntotal != db_count:
                 logger.warning(f"Memory Index out of sync (Index: {self.faiss_index.ntotal}, DB: {db_count}). Rebuilding...")
                 self._build_faiss_index()
+                return
+
+            # M-DATA-4: same count, different membership (add + delete
+            # between saves). The checksum catches what the count cannot.
+            if os.path.exists(self._index_meta_path()) and not self._index_meta_valid():
+                logger.warning("Memory Index checksum mismatch despite matching count. Rebuilding...")
+                self._build_faiss_index()
+                return
+            # No meta yet (legacy index): record it so the next startup
+            # verifies by checksum instead of count.
+            if not os.path.exists(self._index_meta_path()):
+                try:
+                    self._write_index_meta(self.faiss_index.ntotal)
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"Error during FAISS index sync: {e}. Rebuilding...")
             self._build_faiss_index()
@@ -378,12 +495,28 @@ class MemoryStore:
                 row_id = cur.lastrowid
 
             if FAISS_AVAILABLE and emb_np is not None and self.faiss_index:
-                with self.faiss_lock:
-                    emb_np_2d = emb_np.reshape(1, -1)
-                    faiss.normalize_L2(emb_np_2d)
-                    self.faiss_index.add_with_ids(emb_np_2d, np.array([row_id]).astype('int64'))
-                    self._save_faiss_index()
-            
+                # M-DATA-4: a changed embedding model alters the dimension.
+                # Adding a wrong-dim vector would fail after the DB row is
+                # already committed; skip the index write loudly instead and
+                # let the meta check trigger a rebuild + re-embed notice.
+                try:
+                    index_dim = int(getattr(self.faiss_index, "d", 0) or 0)
+                    if index_dim and emb_np.shape[0] != index_dim:
+                        logger.error(
+                            "Embedding dimension %s does not match index dimension %s "
+                            "(model changed?). Row %s committed without a vector; "
+                            "re-embed with the current model.",
+                            emb_np.shape[0], index_dim, row_id,
+                        )
+                    else:
+                        with self.faiss_lock:
+                            emb_np_2d = emb_np.reshape(1, -1)
+                            faiss.normalize_L2(emb_np_2d)
+                            self.faiss_index.add_with_ids(emb_np_2d, np.array([row_id]).astype('int64'))
+                            self._save_faiss_index()
+                except Exception as e:
+                    logger.error(f"Failed to add to FAISS index (row {row_id} committed): {e}")
+
             return row_id
 
     def set_parent(self, child_id: int, parent_id: int):
@@ -554,12 +687,17 @@ class MemoryStore:
         return self._expand_with_links(results, limit, link_boost, scope_values, scope_policy)
 
     def keyword_search(self, query: str, limit: int = 5, link_boost: float = 0.0, scope: Optional[Dict[str, str]] = None, require_scope: bool = False, scope_policy: str = "strict") -> List[Dict]:
-        """Text-based fallback search used when no embedding model is configured."""
+        """Text-based fallback search used when no embedding model is configured.
+
+        H-6: tokenize on word characters, drop stop-words, match ANY term
+        (OR, not AND), escape LIKE wildcards, and rank by matched-term
+        count so natural questions find stored facts.
+        """
         scope_values = _require_scope(scope, require_scope)
         scope_predicates, scope_params = scope_clauses(scope_values, scope_policy)
         current_time = int(time.time())
-        words = [w.strip() for w in query.split() if len(w.strip()) > 2]
-        if not words:
+        terms = _memory_keywords(query)
+        if not terms:
             # Return most recent memories when query has no useful terms
             recent_query = """
                     SELECT id, text, created_at, type FROM memories
@@ -579,23 +717,40 @@ class MemoryStore:
                 limit, link_boost, scope_values, scope_policy,
             )
 
-        like_clauses = " AND ".join(["m.text LIKE ?" for _ in words])
-        params = [f"%{w}%" for w in words] + [current_time]
+        if not settings.get("embedding_model"):
+            # H-6: surface the degraded mode once instead of failing silently.
+            logger.warning(
+                "Memory keyword fallback in use (no embedding_model configured); "
+                "recall is approximate. Set embedding_model for vector recall."
+            )
+        escaped = [_escape_like(t) for t in terms]
+        patterns = [f"%{e}%" for e in escaped]
+        score_expr = " + ".join(
+            ["(CASE WHEN m.text LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END)" for _ in terms]
+        )
+        filter_expr = " OR ".join(["m.text LIKE ? ESCAPE '\\'" for _ in terms])
         keyword_query = f"""
-                SELECT m.id, m.text, m.created_at, m.type FROM memories m
+                SELECT m.id, m.text, m.created_at, m.type, ({score_expr}) AS match_score
+                FROM memories m
                 WHERE m.deleted = 0 AND m.parent_id IS NULL
-                AND ({like_clauses})
+                AND ({filter_expr})
                 AND (m.expires_at IS NULL OR m.expires_at > ?)"""
         joined_predicates, joined_params = scope_clauses(scope_values, scope_policy, prefix="m")
+        params: List[Any] = []
+        params.extend(patterns)  # score CASE arms
+        params.extend(patterns)  # OR filter
+        params.append(current_time)
         for predicate in joined_predicates:
             keyword_query += " AND " + predicate
         params.extend(joined_params)
-        keyword_query += " ORDER BY m.created_at DESC LIMIT ?"
+        keyword_query += " ORDER BY match_score DESC, m.created_at DESC LIMIT ?"
         params.append(limit)
         with self._connect() as con:
             rows = con.execute(keyword_query, params).fetchall()
+        denom = max(1, len(terms))
         return self._expand_with_links(
-            [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3], "score": 0.5}
+            [{"id": r[0], "text": r[1], "created_at": r[2], "type": r[3],
+              "score": 0.3 + 0.7 * (float(r[4] or 0) / denom)}
              for r in rows],
             limit, link_boost, scope_values, scope_policy,
         )

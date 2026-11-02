@@ -171,9 +171,26 @@ class TestMetrics:
         """Test incrementing a counter."""
         metrics.increment("test.counter")
         assert metrics.get_counter("test.counter") == 1.0
-        
+
         metrics.increment("test.counter", 5)
         assert metrics.get_counter("test.counter") == 6.0
+
+    def test_counter_persistence_is_batched(self, tmp_path, monkeypatch):
+        """M-PERF-2: increments must not rewrite the file; flush() does."""
+        import os
+
+        target = tmp_path / "counters.json"
+        monkeypatch.setattr(metrics, "_metrics_file", str(target))
+        monkeypatch.setattr(metrics, "_save_interval", 3600.0)
+        monkeypatch.setattr(metrics, "_save_every_n", 10**9)
+        metrics.reset()
+        for _ in range(8):  # one LLM call's worth of increments
+            metrics.increment("llm.tokens_used", 10)
+        assert not os.path.exists(str(target))
+        assert metrics.get_counter("llm.tokens_used") == 80.0
+        metrics.flush()
+        assert os.path.exists(str(target))
+        metrics.reset()
     
     def test_increment_with_tags(self):
         """Test incrementing with tags."""
