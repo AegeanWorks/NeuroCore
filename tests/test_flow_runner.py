@@ -218,3 +218,36 @@ def test_default_tool_loop_runs_the_llm_before_the_router(tmp_path):
     assert order.index("llm_module") < order.index("conditional_router")
     assert order.index("conditional_router") < order.index("tool_dispatcher")
     assert order.index("llm_module") < order.index("chat_output")
+
+@pytest.mark.asyncio
+async def test_cache_lock_scoped_per_loop_and_pruned():
+    """L-21: each loop gets its own lock; dead loops do not accumulate."""
+    import asyncio as _asyncio
+    import gc as _gc
+
+    async def _grab():
+        return FlowRunner._get_cache_lock()
+
+    first = await _grab()
+    second = await _grab()
+    assert first is second
+
+    async def _other():
+        return FlowRunner._get_cache_lock()
+
+    other = await _asyncio.ensure_future(_other())
+    assert other is first  # same running loop
+
+    # A separate loop gets a distinct lock, and closing it prunes the entry.
+    def _run_in_fresh_loop():
+        loop = _asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_grab())
+        finally:
+            loop.close()
+
+    fresh = await _asyncio.to_thread(_run_in_fresh_loop)
+    assert fresh is not first
+    _gc.collect()
+    remaining = list(FlowRunner._loop_lock_map().keys())
+    assert all(not l.is_closed() for l in remaining)

@@ -3,6 +3,8 @@ import copy
 import importlib
 import json
 import logging
+import os
+import re
 import sys
 import time
 import types
@@ -17,16 +19,78 @@ from core.execution_budget import (
     spend,
 )
 from core.debug import debug_logger
-from core.errors import FlowError, NeuroCoreError, NodeExecutionError
+from core.errors import NeuroCoreError, NodeExecutionError
 from core.node_retry import RetryPolicy, node_timeout, run_with_retry
 from core.node_stall import record_node_latency
 
 logger = logging.getLogger(__name__)
 
+_MODULE_ID_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _check_module_policy(module_id: str) -> None:
+    """Enforce the module allowlist / enabled policy on the run path (H-8).
+
+    Mirrors ``ModuleManager._load_module_router``: an invalid id, a module
+    outside ``settings.module_allowlist``, or a module whose ``module.json``
+    disables it is refused before any ``modules.<id>.node`` code runs.
+    """
+    if not isinstance(module_id, str) or not _MODULE_ID_RE.match(module_id):
+        raise RuntimeError(f"Refusing to load module with invalid id {module_id!r}")
+    try:
+        allowlist = settings.get("module_allowlist", [])
+    except Exception:
+        allowlist = []
+    if allowlist and module_id not in allowlist:
+        raise RuntimeError(
+            f"Module {module_id!r} is not in the module allowlist; refusing to run its nodes"
+        )
+    module_json = os.path.join("modules", module_id, "module.json")
+    effective_enabled = True
+    try:
+        if os.path.isfile(module_json):
+            with open(module_json, "r", encoding="utf-8") as handle:
+                meta = json.load(handle)
+            if isinstance(meta, dict) and meta.get("enabled", True) is False:
+                effective_enabled = False
+        # M-SEC-3: runtime state lives in the data-dir overlay; it wins over
+        # the shipped manifest (which may still carry a stale flag).
+        from core.paths import data_path as _data_path
+        overlay_json = os.path.join(_data_path("module_config"), f"{module_id}.json")
+        if os.path.isfile(overlay_json):
+            with open(overlay_json, "r", encoding="utf-8") as handle:
+                overlay = json.load(handle)
+            if isinstance(overlay, dict) and "enabled" in overlay:
+                effective_enabled = bool(overlay.get("enabled"))
+    except RuntimeError:
+        raise
+    except Exception:
+        pass
+    if effective_enabled is False:
+        raise RuntimeError(
+            f"Module {module_id!r} is disabled; refusing to run its nodes"
+        )
+
+
 class FlowRunner:
     _executor_cache = {}
     _max_cache_size = 100  # Maximum number of cached executor classes
     _cache_lock = None  # Lazy-initialized lock for thread-safe cache operations
+    # L-21: per-loop locks keyed by the loop object itself. A plain dict keyed
+    # by id(loop) leaks forever and can hand a new loop a stale id matching a
+    # dead loop's lock. Weak keys vanish when their loop is collected.
+    _loop_locks = None
+
+    @classmethod
+    def _loop_lock_map(cls):
+        import weakref as _weakref
+
+        if cls._loop_locks is None:
+            try:
+                cls._loop_locks = _weakref.WeakKeyDictionary()
+            except Exception:
+                cls._loop_locks = {}
+        return cls._loop_locks
     
     @classmethod
     def clear_cache(cls):
@@ -38,8 +102,9 @@ class FlowRunner:
 
         Storing a single lock at the class level is unsafe when the event loop
         changes between test runs or server reloads (Python 3.10+ silently uses
-        the wrong loop scheduler). Instead we key by loop identity so each loop
-        gets its own lock while still sharing the executor cache dict.
+        the wrong loop scheduler). Instead each loop gets its own lock via a
+        WeakKeyDictionary, so dead loops are pruned automatically and a new
+        loop can never inherit a stale id-keyed lock (L-21).
         """
         try:
             loop = asyncio.get_running_loop()
@@ -49,13 +114,24 @@ class FlowRunner:
                 cls._cache_lock = asyncio.Lock()
             return cls._cache_lock
 
-        loop_id = id(loop)
-        # _cache_lock doubles as a per-loop dict when inside an event loop.
-        if not isinstance(cls._cache_lock, dict):
-            cls._cache_lock = {}
-        if loop_id not in cls._cache_lock:
-            cls._cache_lock[loop_id] = asyncio.Lock()
-        return cls._cache_lock[loop_id]
+        locks = cls._loop_lock_map()
+        try:
+            lock = locks.get(loop)
+        except TypeError:
+            # Loop objects that refuse weak references: fall back to sharing
+            # the single class-level lock rather than an id-keyed leak.
+            if cls._cache_lock is None or isinstance(cls._cache_lock, dict):
+                cls._cache_lock = asyncio.Lock()
+            return cls._cache_lock
+        if lock is None:
+            lock = asyncio.Lock()
+            try:
+                locks[loop] = lock
+            except TypeError:
+                if cls._cache_lock is None or isinstance(cls._cache_lock, dict):
+                    cls._cache_lock = asyncio.Lock()
+                return cls._cache_lock
+        return lock
     
     @classmethod
     async def _get_executor_class(cls, module_id: str, node_type_id: str):
@@ -70,8 +146,16 @@ class FlowRunner:
             # Manage cache size before adding new entry
             cls._manage_cache_size()
             
-            # Dynamically import the module's node logic dispatcher
-            node_dispatcher = importlib.import_module(f"modules.{module_id}.node")
+            # H-8: same policy as web-route loading; never import a module
+            # the allowlist / enabled flag forbids, even via an imported flow.
+            _check_module_policy(module_id)
+            # Dynamically import the module's node logic dispatcher.
+            # M-FLOW-4: a missing module is "missing" (pass-through), not an
+            # error; real bugs inside node code must not take this path.
+            try:
+                node_dispatcher = importlib.import_module(f"modules.{module_id}.node")
+            except ModuleNotFoundError:
+                return None
             # Only reload in debug mode to pick up hot-code changes;
             # in production this is wasteful and can cause state issues.
             if settings.get("debug_mode") and isinstance(node_dispatcher, types.ModuleType) and node_dispatcher.__name__ in sys.modules:
@@ -688,6 +772,17 @@ class FlowRunner:
                 timeout = min(timeout, remaining)
             # timeout == 0 keeps its documented meaning: no asyncio deadline. The budget still
             # enforces max_seconds on every spend (ADR-055).
+            # H-8: the advisory validate() never ran; a flow referencing a
+            # disabled / non-allowlisted module must not execute its code.
+            try:
+                for _node in (self.nodes or {}).values():
+                    _mid = _node.get("moduleId") if isinstance(_node, dict) else None
+                    if _mid:
+                        _check_module_policy(_mid)
+            except RuntimeError as exc:
+                if raise_errors:
+                    raise
+                return {"error": str(exc), "content": "", "module_policy_blocked": True}
             result = await self._run(
                 initial_input, start_node_id=start_node_id, timeout=timeout,
                 raise_errors=raise_errors, episode_id=episode_id,
@@ -751,7 +846,14 @@ class FlowRunner:
                     if isinstance(initial_input, dict) else None
                 )
                 run_id = derive_run_id(self.flow_id, initial_input, idempotency_key)
-                run_state = journal.claim_run(run_id, self.flow_id, idempotency_key)
+                # M-FLOW-5: heartbeat lease so a crashed run stops blocking
+                # resubmissions; journal I/O off the event loop (FULL-sync
+                # SQLite must never run inline in a handler).
+                lease_seconds = settings.get("step_journal_lease_seconds", 600)
+                run_state = await asyncio.to_thread(
+                    journal.claim_run, run_id, self.flow_id,
+                    idempotency_key, lease_seconds,
+                )
                 if run_state == "completed":
                     stored = journal.completed_result(run_id)
                     if stored is not None:
@@ -795,11 +897,18 @@ class FlowRunner:
         async def run_impl():
             node_outputs = {}
             total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            # M-FLOW-1: pass-through nodes forward the upstream usage dict
+            # untouched, so summing every node's payload multiplies one LLM
+            # call by the chain length. Count each usage object once.
+            _seen_usage_ids = set()
 
             def _accumulate_usage(item_output):
                 if isinstance(item_output, dict) and "usage" in item_output:
                     u = item_output["usage"]
                     if isinstance(u, dict):
+                        if id(u) in _seen_usage_ids:
+                            return
+                        _seen_usage_ids.add(id(u))
                         total_usage["prompt_tokens"] += u.get("prompt_tokens", 0)
                         total_usage["completion_tokens"] += u.get("completion_tokens", 0)
                         total_usage["total_tokens"] += u.get("total_tokens", 0)
@@ -831,7 +940,10 @@ class FlowRunner:
                         explicit_start_nodes.update(start_nodes)
                     else:
                         # Fallback: find nodes with no incoming edges
-                        execution_queue = deque([nid for nid in self.nodes if not any(c['to'] == nid for c in self.connections)])
+                        # (L-23: precomputed map, not a scan per node).
+                        execution_queue = deque(
+                            [nid for nid in self.nodes if not self.incoming_edges.get(nid)]
+                        )
                         explicit_start_nodes.update(execution_queue)
                 else:
                     execution_queue = deque(self.execution_order)
@@ -841,24 +953,103 @@ class FlowRunner:
             
             # Track how many times a node has run to prevent infinite loops
             node_run_counts = {node_id: 0 for node_id in self.nodes}
-            max_loops = settings.get("max_node_loops", 1000)
-            
+            # L-22: one source of truth for the loop cap (settings default is
+            # 100); the runner must not carry a divergent fallback of 1000.
+            from core.settings import DEFAULT_SETTINGS as _DEFAULTS
+
+            max_loops = settings.get(
+                "max_node_loops", _DEFAULTS.get("max_node_loops", 100)
+            )
+
             # Parallel set for O(1) membership checks instead of O(n) deque scan
             pending_nodes = set(execution_queue)
-            
+
+            # H-2 readiness scheduling: a node runs when all of its forward
+            # parents have settled in the current activation (ran, stopped,
+            # or were skipped by routing). Deferral is bounded so a dead
+            # branch falls back to today's partial-input behaviour.
+            forward_parents = {
+                nid: [c["from"] for c in self.incoming_edges.get(nid, [])]
+                for nid in self.nodes
+            }
+            settled = set()
+            skipped = set()
+            defer_counts = {}
+            defer_cap = max(4, len(self.nodes) + 1)
+
+            # H-3: execution sequence numbers; the flow result is the latest
+            # real output, not the last non-empty slot in topological order.
+            node_seq = {}
+            exec_state = {"seq": 0}
+
+            def _record_seq(nid):
+                exec_state["seq"] += 1
+                node_seq[nid] = exec_state["seq"]
+
+            def _mark_routing_skipped(start_id):
+                """Mark a routing-skipped node and its orphaned downstream.
+
+                A downstream node joins the skipped set only when ALL of its
+                forward parents are skipped, so real joins never wait forever
+                (H-2) and stale loop outputs are wiped (H-3). Nodes that
+                already ran keep their outputs.
+                """
+                stack = [start_id]
+                seen = set()
+                while stack:
+                    cur = stack.pop()
+                    if cur in seen:
+                        continue
+                    seen.add(cur)
+                    skipped.add(cur)
+                    settled.add(cur)
+                    if node_outputs.get(cur) is not None:
+                        node_outputs[cur] = None
+                    for nxt in self.downstream_nodes.get(cur, []):
+                        if nxt in seen:
+                            continue
+                        if node_run_counts.get(nxt, 0) > 0 or nxt in node_seq:
+                            continue
+                        parents = forward_parents.get(nxt, [])
+                        if parents and all(p in skipped for p in parents):
+                            stack.append(nxt)
+
             while execution_queue:
                 node_id = execution_queue.popleft()
                 pending_nodes.discard(node_id)
-                
+
                 if max_loops > 0 and node_run_counts[node_id] >= max_loops:
                     logger.warning(f"Warning: Node {node_id} hit max execution limit ({max_loops}). Stopping branch.")
+                    settled.add(node_id)
                     continue
-                
+
+                # M-FLOW-2: already computed as a bridge peer in this
+                # activation — running again would duplicate the call.
+                # (Genuine loop re-triggers have node_run_counts > 0.)
+                if node_outputs.get(node_id) is not None and node_run_counts[node_id] == 0:
+                    settled.add(node_id)
+                    continue
+
+                # H-2: defer while a forward parent is still unsettled so a
+                # join never runs twice with partial input.
+                if node_id not in node_outputs:
+                    unready = [p for p in forward_parents.get(node_id, []) if p not in settled]
+                    if unready:
+                        seen_defers = defer_counts.get(node_id, 0)
+                        if seen_defers < defer_cap:
+                            defer_counts[node_id] = seen_defers + 1
+                            execution_queue.append(node_id)
+                            pending_nodes.add(node_id)
+                            continue
+                        logger.debug(
+                            "[FlowRunner] Node %s ran with partial input "
+                            "after %s deferrals (parents %s never settled).",
+                            node_id, seen_defers, unready,
+                        )
+
                 node_run_counts[node_id] += 1
                 
                 node_meta = self.nodes[node_id]
-                module_id = node_meta['moduleId']
-                node_type_id = node_meta['nodeTypeId']
 
                 # 1. Determine Input Data (DAG Logic) - use precomputed incoming_edges for O(1) lookup
                 incoming_edges = self.incoming_edges.get(node_id, [])
@@ -869,6 +1060,15 @@ class FlowRunner:
                 # Example: Memory Recall + KB Query (parallel) → System Prompt → LLM Core
                 if node_id in self.bridge_groups and node_id not in explicit_start_nodes:
                     bridge_levels = self._get_bridge_levels(node_id)
+                    # M-FLOW-2: pre-run only the bridge ANCESTORS of the
+                    # current node. Pre-running downstream members made
+                    # every bridged node execute twice (once as a peer with
+                    # bridge input, once via the main loop).
+                    try:
+                        bridge_order = self._get_bridge_order(node_id)
+                        bridge_ancestors = set(bridge_order[:bridge_order.index(node_id)])
+                    except ValueError:
+                        bridge_ancestors = set(self.bridge_groups.get(node_id, [])) - {node_id}
                     # Start with initial input (excluding the internal routing marker)
                     bridge_input = {k: v for k, v in initial_input.items() if k != "_input_source"} if isinstance(initial_input, dict) else initial_input
 
@@ -877,8 +1077,11 @@ class FlowRunner:
                         if chain_stopped:
                             break
 
-                        # Skip nodes that are the target itself or already computed
-                        to_run = [n for n in level if n != node_id and n not in node_outputs]
+                        # Skip the target itself, non-ancestors (M-FLOW-2), and
+                        # nodes already computed in this activation.
+                        to_run = [n for n in level
+                                  if n != node_id and n in bridge_ancestors
+                                  and n not in node_outputs]
                         if not to_run:
                             continue
 
@@ -903,6 +1106,8 @@ class FlowRunner:
 
                             node_outputs[bridge_node_id] = result
                             _accumulate_usage(result)
+                            _record_seq(bridge_node_id)
+                            settled.add(bridge_node_id)
                             if isinstance(result, dict):
                                 bridge_input = {**bridge_input, **result}
 
@@ -938,6 +1143,8 @@ class FlowRunner:
 
                                 node_outputs[bridge_node_id] = result
                                 _accumulate_usage(result)
+                                _record_seq(bridge_node_id)
+                                settled.add(bridge_node_id)
                                 if isinstance(result, dict):
                                     level_output.update(result)
 
@@ -959,6 +1166,7 @@ class FlowRunner:
                     if explicit_start_nodes:
                         # Skip - we're in selective mode and this isn't a chosen start node
                         node_outputs[node_id] = None
+                        settled.add(node_id)
                         continue
                     if isinstance(initial_input, dict):
                         node_input = {k: v for k, v in initial_input.items() if k != "_input_source"}
@@ -980,7 +1188,8 @@ class FlowRunner:
                                 if peer_output is not None:
                                     bridge_outputs.append(peer_output)
                             # Also get edges to peers
-                            peer_edges = [c for c in self.connections if c['to'] == peer_id]
+                            # (L-23: precomputed map, not a scan per peer).
+                            peer_edges = self.incoming_edges.get(peer_id, [])
                             relevant_edges.extend(peer_edges)
                     
                     for edge in relevant_edges:
@@ -1001,6 +1210,7 @@ class FlowRunner:
                     if not parent_outputs and not bridge_outputs:
                         # Branch stopped (condition failed upstream) or no data
                         node_outputs[node_id] = None
+                        settled.add(node_id)
                         continue
                     
                     # Merge inputs: parent outputs first, then bridge outputs (bridge injects context)
@@ -1043,7 +1253,14 @@ class FlowRunner:
                     from core.step_journal import input_digest as _step_digest
 
                     step_id = _step_digest(node_input)
-                    stored_status, stored_output = journal.lookup(run_id, node_id, step_id)
+                    # M-FLOW-5: iterations are keyed separately so loop nodes
+                    # that see the same input re-run instead of replaying a
+                    # stale cached output. node_run_counts was already
+                    # incremented above, so subtract one for a 0-based index.
+                    step_iteration = max(0, node_run_counts[node_id] - 1)
+                    stored_status, stored_output = await asyncio.to_thread(
+                        journal.lookup, run_id, node_id, step_id, step_iteration
+                    )
                     if stored_status == "committed":
                         cached_output = stored_output
                     else:
@@ -1051,12 +1268,14 @@ class FlowRunner:
                             node_meta.get("effectful")
                             or node_meta.get("effect_class") == "effectful"
                         )
-                        journal.begin(
-                            run_id, node_id, step_id, effectful=effectful,
-                            resolve_incomplete=bool(
+                        await asyncio.to_thread(
+                            journal.begin,
+                            run_id, node_id, step_id, effectful,
+                            bool(
                                 isinstance(initial_input, dict)
                                 and initial_input.get("_resolve_incomplete")
                             ),
+                            step_iteration,
                         )
 
                 try:
@@ -1068,6 +1287,7 @@ class FlowRunner:
                     if status == "missing":
                         # Fallback: Pass through if no executor found (e.g. missing module)
                         node_outputs[node_id] = node_input
+                        settled.add(node_id)
                         continue
 
                     # If receive returns None (e.g. Condition failed), we stop this branch
@@ -1075,6 +1295,7 @@ class FlowRunner:
                         if settings.get("debug_mode"):
                             debug_logger.log(self.flow_id, node_id, node_meta['name'], "branch_stop", {"reason": "Node returned None"})
                         node_outputs[node_id] = None
+                        settled.add(node_id)
                         continue
 
                     # Automatic Context Propagation:
@@ -1092,13 +1313,19 @@ class FlowRunner:
 
                     node_outputs[node_id] = output
                     _accumulate_usage(output)
+                    if output is not None:
+                        _record_seq(node_id)
+                    settled.add(node_id)
                     if journal is not None and cached_output is None and step_id is not None:
-                        journal.commit(
+                        # M-FLOW-5: same iteration key as begin/lookup above.
+                        await asyncio.to_thread(
+                            journal.commit,
                             run_id, node_id, step_id, output,
-                            effectful=bool(
+                            bool(
                                 node_meta.get("effectful")
                                 or node_meta.get("effect_class") == "effectful"
                             ),
+                            step_iteration,
                         )
 
                     if settings.get("debug_mode"):
@@ -1129,7 +1356,19 @@ class FlowRunner:
                                 if settings.get("debug_mode"):
                                     child_name = self.nodes.get(child_id, {}).get('name', child_id)
                                     debug_logger.log(self.flow_id, node_id, node_meta['name'], "routing_skip", {"skipped": child_name})
+                                # H-2/H-3: a routing skip settles the child
+                                # (plus orphaned downstream) so joins never
+                                # wait forever and stale outputs are wiped.
+                                _mark_routing_skipped(child_id)
                                 continue
+
+                        if child_id in skipped:
+                            # A forward parent actually ran: the earlier skip
+                            # no longer holds; give the node a fresh chance.
+                            skipped.discard(child_id)
+                            settled.discard(child_id)
+                            if node_outputs.get(child_id) is None:
+                                node_outputs.pop(child_id, None)
 
                         if child_id not in pending_nodes:
                             execution_queue.append(child_id)
@@ -1139,11 +1378,20 @@ class FlowRunner:
                                 debug_logger.log(self.flow_id, node_id, node_meta['name'], "queue_next", {"next": child_name})
 
                 except (ImportError, AttributeError) as e:
-                    # Module import issues or missing executor classes
+                    # M-FLOW-4: executor resolution happens in _run_node before
+                    # receive()/send(); reaching here means real node code
+                    # failed, not a missing module (missing returns "missing"
+                    # status). Treat as a node failure, never pass-through.
+                    wrapped = NodeExecutionError(
+                        f"Node '{node_meta['name']}' failed "
+                        f"({type(e).__name__}: {e})"
+                    )
+                    if settings.get("debug_mode"):
+                        debug_logger.log(self.flow_id, node_id, node_meta['name'], "error", {"error": str(e), "error_type": type(e).__name__})
+                    logger.exception(f"Error in FlowRunner: {wrapped}")
                     if raise_errors:
-                        raise
-                    logger.warning(f"Warning: Could not find or use node logic for {module_id}/{node_type_id}. Error: {e}. Passing data through.")
-                    node_outputs[node_id] = node_input
+                        raise wrapped from e
+                    return {"error": str(wrapped)}
                 except (RuntimeError, ValueError, TypeError, TimeoutError, ConnectionError,
                         NeuroCoreError) as e:
                     # Node execution errors: runtime failures, invalid values, type mismatches,
@@ -1156,12 +1404,67 @@ class FlowRunner:
                         raise
                     # Return a structured error that the chat UI can display
                     return {"error": error_msg}
+                except Exception as e:
+                    # M-FLOW-3: honor the raise_errors=False contract for the
+                    # long tail (KeyError, IndexError, httpx.HTTPError, OSError...).
+                    wrapped = NodeExecutionError(
+                        f"Execution failed at node '{node_meta['name']}': "
+                        f"{type(e).__name__}: {e}"
+                    )
+                    if settings.get("debug_mode"):
+                        debug_logger.log(self.flow_id, node_id, node_meta['name'], "error", {"error": str(e), "error_type": type(e).__name__})
+                    logger.exception(f"Error in FlowRunner: {wrapped}")
+                    if raise_errors:
+                        raise wrapped from e
+                    return {"error": str(wrapped)}
 
             
             if settings.get("debug_mode"):
                 debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_complete", {})
                 
-            # Return the output of the last executed node in the list that isn't None
+            # H-3: return the latest real output by execution sequence — the
+            # output of the last node that actually ran — not the last
+            # non-empty slot in the static topological order (which could be
+            # a stale intermediate from an earlier loop iteration).
+            best_id, best_seq = None, -1
+            for nid, seq in node_seq.items():
+                if seq > best_seq and node_outputs.get(nid) is not None:
+                    best_seq, best_id = seq, nid
+            if best_id is not None:
+                out = node_outputs[best_id]
+                # Save episode state if tracking
+                if sm and episode_id:
+                    try:
+                        from core.session_manager import EpisodeState
+                        # Determine final phase based on result
+                        final_phase = EpisodeState.PHASE_COMPLETED
+                        if isinstance(out, dict) and out.get("error"):
+                            final_phase = EpisodeState.PHASE_FAILED
+
+                        # M-FLOW-6: only overwrite episode fields present in the
+                        # output; a final node that does not echo the plan must
+                        # not wipe it with []. No "plan" key => keep stored plan.
+                        _ep_kwargs = {}
+                        if isinstance(out, dict):
+                            if "plan" in out:
+                                _ep_kwargs["plan"] = out.get("plan")
+                            if "current_step" in out:
+                                _ep_kwargs["current_step"] = out.get("current_step")
+                            if "completed_steps" in out:
+                                _ep_kwargs["completed_steps"] = out.get("completed_steps")
+                        sm.save_episode_by_id(
+                            episode_id,
+                            phase=final_phase,
+                            **_ep_kwargs,
+                        )
+                    except Exception as _exc:
+                        logger.debug("ignored exception: %s", _exc)
+                if isinstance(out, dict) and total_usage.get("total_tokens", 0) > 0:
+                    out["usage"] = total_usage
+                return out
+
+            # Fallback: legacy reversed-topological scan for outputs that
+            # carry no sequence (e.g. pass-through-only flows).
             for node_id in reversed(self.execution_order):
                 out = node_outputs.get(node_id)
                 if out is not None:
@@ -1173,13 +1476,20 @@ class FlowRunner:
                             final_phase = EpisodeState.PHASE_COMPLETED
                             if isinstance(out, dict) and out.get("error"):
                                 final_phase = EpisodeState.PHASE_FAILED
-                            
+
+                            # M-FLOW-6: same partial-update guard as above.
+                            _ep_kwargs2 = {}
+                            if isinstance(out, dict):
+                                if "plan" in out:
+                                    _ep_kwargs2["plan"] = out.get("plan")
+                                if "current_step" in out:
+                                    _ep_kwargs2["current_step"] = out.get("current_step")
+                                if "completed_steps" in out:
+                                    _ep_kwargs2["completed_steps"] = out.get("completed_steps")
                             sm.save_episode_by_id(
                                 episode_id,
                                 phase=final_phase,
-                                plan=out.get("plan", []),
-                                current_step=out.get("current_step", 0),
-                                completed_steps=out.get("completed_steps", []),
+                                **_ep_kwargs2,
                             )
                         except Exception as _exc:
                             logger.debug("ignored exception: %s", _exc)
@@ -1188,12 +1498,13 @@ class FlowRunner:
                     return out
             
             # Save episode state if tracking (no successful output)
+            # M-FLOW-6: "no output" is a failure, not a silent completion.
             if sm and episode_id:
                 try:
                     from core.session_manager import EpisodeState
                     sm.save_episode_by_id(
                         episode_id,
-                        phase=EpisodeState.PHASE_COMPLETED,
+                        phase=EpisodeState.PHASE_FAILED,
                     )
                 except Exception as _exc:
                     logger.debug("ignored exception: %s", _exc)
@@ -1203,27 +1514,40 @@ class FlowRunner:
             return {}
         
         # Execute with optional timeout
+        # M-FLOW-3: an escaping exception must still finish the run journal,
+        # otherwise the run stays marked as running forever.
         raw_result = None
-        if timeout is not None and timeout > 0:
-            try:
-                raw_result = await asyncio.wait_for(run_impl(), timeout=timeout)
-            except asyncio.TimeoutError:
-                error_msg = f"Flow execution timed out after {timeout} seconds"
-                if settings.get("debug_mode"):
-                    debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_timeout", {"timeout": timeout})
-                logger.error(f"[FlowRunner] {error_msg}")
-                if journal is not None and run_id is not None:
-                    journal.finish_run(run_id, error=error_msg)
-                if raise_errors:
-                    raise asyncio.TimeoutError(error_msg)
-                return {"error": error_msg}
-        else:
-            raw_result = await run_impl()
+        try:
+            if timeout is not None and timeout > 0:
+                try:
+                    raw_result = await asyncio.wait_for(run_impl(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    error_msg = f"Flow execution timed out after {timeout} seconds"
+                    if settings.get("debug_mode"):
+                        debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_timeout", {"timeout": timeout})
+                    logger.error(f"[FlowRunner] {error_msg}")
+                    if journal is not None and run_id is not None:
+                        # M-FLOW-5: journal I/O off the event loop.
+                        await asyncio.to_thread(journal.finish_run, run_id, None, error_msg)
+                    if raise_errors:
+                        raise asyncio.TimeoutError(error_msg)
+                    return {"error": error_msg}
+            else:
+                raw_result = await run_impl()
+        except Exception as exc:
+            if journal is not None and run_id is not None:
+                try:
+                    # M-FLOW-5: journal I/O off the event loop.
+                    await asyncio.to_thread(journal.finish_run, run_id, None, str(exc))
+                except Exception as journal_exc:
+                    logger.warning(f"[FlowRunner] Could not finish run journal entry: {journal_exc}")
+            raise
 
         if journal is not None and run_id is not None:
             try:
                 error = raw_result.get("error") if isinstance(raw_result, dict) else None
-                journal.finish_run(run_id, result=raw_result, error=error)
+                # M-FLOW-5: journal I/O off the event loop.
+                await asyncio.to_thread(journal.finish_run, run_id, raw_result, error)
             except Exception as exc:
                 logger.warning(f"[FlowRunner] Could not finish run journal entry: {exc}")
         return raw_result

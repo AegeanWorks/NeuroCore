@@ -124,15 +124,17 @@ async def run_with_retry(operation: Attempt, policy: RetryPolicy, *,
             if retry_after is not None:
                 try:
                     delay = max(delay, min(policy.max_delay, float(retry_after)))
-                except (TypeError, ValueError) as exc:
-                    logger.debug("Ignoring malformed retry_after %r: %s", retry_after, exc)
+                # L-1: distinct handler name — reusing `exc` would delete the
+                # outer exception (PEP 3110) and break on_retry below.
+                except (TypeError, ValueError) as _parse_exc:
+                    logger.debug("Ignoring malformed retry_after %r: %s", retry_after, _parse_exc)
             if delay_cap is not None:
                 try:
                     cap = delay_cap()
                     if cap is not None:
                         delay = min(delay, max(0.0, float(cap)))
-                except (TypeError, ValueError, OSError) as exc:
-                    logger.debug("Could not read the remaining run time: %s", exc)
+                except (TypeError, ValueError, OSError) as _cap_exc:
+                    logger.debug("Could not read the remaining run time: %s", _cap_exc)
             if on_retry is not None:
                 on_retry(attempt, delay, exc)
             else:

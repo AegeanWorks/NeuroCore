@@ -5,7 +5,7 @@ import os
 import tempfile
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.paths import state_path
 from core.settings import settings
@@ -84,7 +84,7 @@ class FlowManager:
 
     def _quarantine_file(self, path: str) -> str:
         """Move a corrupt state file aside instead of overwriting it."""
-        stamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
         target = f"{path}.corrupt-{stamp}"
         try:
             os.replace(path, target)
@@ -202,6 +202,38 @@ class FlowManager:
                 else:
                     node_ids.add(node_id)
 
+        # L-6: an unconfigured router silently blocks everything after it —
+        # empty branch lists route to nothing, and stale ids (e.g. after
+        # copy/paste) point nowhere. Flag both at validation time.
+        if isinstance(nodes, list):
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                node_id = node.get("id")
+                config = node.get("config")
+                if not isinstance(config, dict):
+                    continue
+                for branch_key in (
+                    "true_branches", "false_branches",
+                    "rlm_branch", "standard_branch",
+                ):
+                    if branch_key not in config:
+                        continue
+                    targets = config.get(branch_key)
+                    if not isinstance(targets, list) or not targets:
+                        errors.append(
+                            f"Flow '{flow_id}' node '{node_id}' has an empty "
+                            f"'{branch_key}': nothing downstream will run"
+                        )
+                        continue
+                    for target in targets:
+                        if target not in node_ids:
+                            errors.append(
+                                f"Flow '{flow_id}' node '{node_id}' "
+                                f"'{branch_key}' references unknown node "
+                                f"'{target}'"
+                            )
+
         for label, key in (("connection", "connections"), ("bridge", "bridges")):
             edges = flow.get(key, [])
             if edges is None:
@@ -294,8 +326,8 @@ class FlowManager:
                     {"from": "node-12", "to": "node-11"}
                 ],
                 "bridges": [],
-                "created_at": datetime.utcnow().isoformat() + 'Z',
-                "updated_at": datetime.utcnow().isoformat() + 'Z'
+                "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             }
         }
 
@@ -344,15 +376,26 @@ class FlowManager:
     # ------------------------------------------------------------------
 
     def _load_versions(self) -> dict:
-        """Load the per-flow version store from disk. Returns {} on missing/corrupt file."""
+        """Load the per-flow version store from disk. Returns {} on missing file.
+
+        L-18: a corrupt versions file is quarantined like the flow store
+        instead of silently loading as empty and being overwritten on the
+        next save.
+        """
         if not os.path.exists(self.versions_file):
             return {}
         try:
             with open(self.versions_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            logger.warning("Could not read flow versions %s: %s", self.versions_file, exc)
+            self._quarantine_file(self.versions_file)
             return {}
+        if not isinstance(data, dict):
+            logger.warning("Flow versions %s is not an object; quarantining", self.versions_file)
+            self._quarantine_file(self.versions_file)
+            return {}
+        return data
 
     def _save_versions_to_disk(self):
         """Persist the versions dict to disk (must be called while holding self.lock)."""
@@ -376,7 +419,7 @@ class FlowManager:
 
         snapshot = {
             "version": next_version,
-            "saved_at": datetime.utcnow().isoformat() + "Z",
+            "saved_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "name": current.get("name", ""),
             "nodes": copy.deepcopy(current.get("nodes", [])),
             "connections": copy.deepcopy(current.get("connections", [])),
@@ -440,8 +483,8 @@ class FlowManager:
                 "connections": copy.deepcopy(snapshot["connections"]),
                 "bridges": copy.deepcopy(snapshot["bridges"]),
                 "created_at": snapshot.get("created_at") or
-                datetime.utcnow().isoformat() + "Z",
-                "updated_at": datetime.utcnow().isoformat() + "Z",
+                datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             }
             if "metadata" in snapshot:
                 restored["metadata"] = copy.deepcopy(snapshot["metadata"])
@@ -475,7 +518,7 @@ class FlowManager:
             if existing is not None:
                 self._save_version(flow_id)
 
-            now = datetime.utcnow().isoformat() + 'Z'
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             saved = {
                 "id": flow_id,
                 "name": name,
@@ -522,7 +565,7 @@ class FlowManager:
                 errors = self._validate_flow_structure(flow_id, candidate)
                 if errors:
                     raise ValueError("flow validation failed: " + "; ".join(errors))
-            now = datetime.utcnow().isoformat() + "Z"
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             candidate.setdefault("created_at", now)
             candidate["updated_at"] = now
             self.flows[flow_id] = candidate
@@ -552,7 +595,7 @@ class FlowManager:
                 self._save_version(flow_id)
                 self.flows[flow_id]["name"] = new_name
                 self.flows[flow_id]["updated_at"] = (
-                    datetime.utcnow().isoformat() + "Z"
+                    datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 )
                 self._save_flows()
                 return True
@@ -611,7 +654,7 @@ class FlowManager:
             
             # Backup current default flow before overwriting
             if default_id in self.flows:
-                backup_id = f"default-flow-backup-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+                backup_id = f"default-flow-backup-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
                 self.flows[backup_id] = copy.deepcopy(self.flows[default_id])
                 logger.info(f"Backed up default flow to {backup_id}")
                 
@@ -627,8 +670,8 @@ class FlowManager:
             
             active_flow["id"] = default_id
             active_flow["name"] = "Default Chat Flow"
-            active_flow["created_at"] = datetime.utcnow().isoformat() + 'Z'
-            active_flow["updated_at"] = datetime.utcnow().isoformat() + 'Z'
+            active_flow["created_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            active_flow["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             
             self.flows[default_id] = active_flow
             self._save_flows()
