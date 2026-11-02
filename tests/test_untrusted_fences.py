@@ -37,7 +37,12 @@ def test_only_tool_messages_are_fenced_once_and_the_caller_list_is_untouched():
     assert messages[2]["content"] == "page text", "the agent loop keeps reading raw text"
     assert fenced[:2] == messages[:2]
     assert FENCE.search(fenced[2]["content"]).group(3) == "page text"
-    assert fence_tool_messages(fenced)[2]["content"] == fenced[2]["content"], "never double-fenced"
+    # M-SEC-1: look-alike content must not skip the fence, so re-fencing
+    # wraps again instead of passing through; the marker records it.
+    assert fenced[2].get("_fenced") is True
+    refenced = fence_tool_messages(fenced)[2]["content"]
+    assert refenced != fenced[2]["content"], "already-fenced input is wrapped again"
+    assert FENCE.search(refenced) is not None
 
 
 async def test_the_llm_bridge_sends_tool_results_fenced(httpx_mock):

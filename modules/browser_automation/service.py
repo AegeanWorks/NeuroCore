@@ -1,6 +1,10 @@
 import asyncio
 from playwright.async_api import async_playwright, Browser, Page
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # L-29-adjacent: quoted annotation needs a name for linters
+    from modules.browser_automation.snapshot import SnapshotBudget
 
 logger = logging.getLogger(__name__)
 

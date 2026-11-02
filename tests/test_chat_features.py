@@ -86,6 +86,44 @@ async def test_multimodal_image_upload(client, mock_chat_sessions):
 
 
 @pytest.mark.asyncio
+async def test_svg_upload_rejected(client, mock_chat_sessions):
+    """M-PERF-1: scriptable image types never reach the session store."""
+    session = mock_chat_sessions.create_session("SVG Test")
+    app.dependency_overrides[get_llm_bridge] = lambda: LLMBridge(base_url="http://localhost:1234/v1")
+    try:
+        with patch.object(chat_router_module.session_manager, "get_session",
+                          side_effect=lambda sid: session if sid == session["id"] else None):
+            response = client.post(
+                f"/chat/send?session_id={session['id']}",
+                data={"message": "Look"},
+                files={"image": ("evil.svg", b"<svg></svg>", "image/svg+xml")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert session["history"] == []
+
+
+@pytest.mark.asyncio
+async def test_oversize_upload_rejected(client, mock_chat_sessions):
+    """M-PERF-1: uploads over 5 MB are refused before base64 inline."""
+    session = mock_chat_sessions.create_session("Big Test")
+    app.dependency_overrides[get_llm_bridge] = lambda: LLMBridge(base_url="http://localhost:1234/v1")
+    try:
+        with patch.object(chat_router_module.session_manager, "get_session",
+                          side_effect=lambda sid: session if sid == session["id"] else None):
+            response = client.post(
+                f"/chat/send?session_id={session['id']}",
+                data={"message": "Look"},
+                files={"image": ("big.png", b"\x89PNG" + b"\x00" * (6 * 1024 * 1024), "image/png")},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert session["history"] == []
+
+
+@pytest.mark.asyncio
 async def test_auto_rename_trigger(client, mock_chat_sessions):
     session = mock_chat_sessions.create_session("Session 2023-01-01")
     session["history"] = [

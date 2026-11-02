@@ -2,6 +2,8 @@ import logging
 import os
 import json
 import asyncio
+import re
+import time
 import filelock
 from fastapi import APIRouter, HTTPException, Request, Form, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, Response, JSONResponse
@@ -29,54 +31,161 @@ os.makedirs(LIBRARY_DIR, exist_ok=True)
 
 def _sanitize_tool_name(name: str) -> str:
     """Sanitize tool name to prevent path traversal attacks.
-    
+
     Removes any path separators, parent directory references, and other
     characters that could be used for path traversal.
-    
+
     Args:
         name: The raw tool name from user input.
-        
+
     Returns:
         Sanitized tool name safe for filesystem operations.
-        
+
     Raises:
         ValueError: If the sanitized name is empty or invalid.
     """
     if not name:
         raise ValueError("Tool name cannot be empty")
-    
+
     # Remove path separators and parent directory references
     sanitized = name.replace("/", "").replace("\\", "")
     sanitized = sanitized.replace("..", "")
-    
+
     # Remove any characters that could be used for path traversal
     # Only allow alphanumeric, underscore, hyphen, and spaces
     sanitized = "".join(c for c in sanitized if c.isalnum() or c in ("_", "-", " "))
-    
+
     # Strip leading/trailing whitespace
     sanitized = sanitized.strip()
-    
+
     if not sanitized:
         raise ValueError("Invalid tool name after sanitization")
-    
+
     return sanitized
+
+
+# L-5: providers reject function names outside ^[A-Za-z0-9_-]{1,64}$, so a
+# tool saved with spaces breaks every request that offers it. New names are
+# validated strictly; stored legacy names keep the lenient sanitizer so they
+# can still be opened and renamed away.
+_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def _validate_tool_name(name: str) -> str:
+    """Reject names no provider will accept as a function name."""
+    cleaned = (name or "").strip()
+    if not _TOOL_NAME_RE.match(cleaned):
+        raise ValueError(
+            "Why: tool names must match ^[A-Za-z0-9_-]{1,64}$ or providers "
+            f"reject every request offering the tool (got {name!r}). "
+            "Fix: rename with letters, digits, underscore or hyphen (max 64)."
+        )
+    return cleaned
+
+
+def _library_path(name: str) -> str:
+    """Resolve ``library/<name>.py`` case-insensitively (M-TOOL-3).
+
+    Exact match wins; on case-sensitive filesystems fall back to a
+    case-insensitive match so ``Calculator`` resolves ``calculator.py``
+    and vice versa until the tree is renamed to canonical case.
+    """
+    exact = os.path.join(LIBRARY_DIR, f"{name}.py")
+    if os.path.isfile(exact):
+        return exact
+    lowered = f"{name}.py".lower()
+    try:
+        for entry in os.listdir(LIBRARY_DIR):
+            if entry.lower() == lowered and os.path.isfile(os.path.join(LIBRARY_DIR, entry)):
+                return os.path.join(LIBRARY_DIR, entry)
+    except OSError:
+        pass
+    return exact
+
+def _quarantine_corrupt_tools() -> str:
+    """Move a corrupt tools.json aside so it can never be overwritten silently."""
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
+    dest = f"{TOOLS_FILE}.corrupt.{stamp}"
+    try:
+        os.replace(TOOLS_FILE, dest)
+    except OSError:
+        dest = ""
+    logger.error(
+        "tools.json is corrupt; quarantined to %s. Refusing to load as empty "
+        "(M-DATA-1). Restore the backup or delete the quarantine to start fresh.",
+        dest or "(quarantine failed)",
+    )
+    return dest
+
+
+def _load_tools_locked():
+    """Load inside an already-held lock; quarantine and raise on corruption."""
+    if os.path.exists(TOOLS_FILE):
+        try:
+            with open(TOOLS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            _quarantine_corrupt_tools()
+            raise ValueError(f"tools.json is corrupt: {exc}") from exc
+        return data if isinstance(data, dict) else {}
+    return {}
+
 
 def load_tools():
     """Load tools from JSON file with file locking for thread safety."""
     lock = filelock.FileLock(TOOLS_LOCK_FILE)
     with lock:
-        if os.path.exists(TOOLS_FILE):
-            with open(TOOLS_FILE, "r", encoding="utf-8") as f:
-                try: return json.load(f)
-                except (json.JSONDecodeError, OSError): return {}
-        return {}
+        try:
+            return _load_tools_locked()
+        except ValueError:
+            # Reads stay available (empty); mutations via update_tools raise
+            # so the next save cannot wipe the quarantined file silently.
+            return {}
+
+
+def _atomic_write_json(path: str, payload: dict) -> None:
+    """Write JSON via temp file + atomic replace (M-DATA-1)."""
+    import tempfile as _tempfile
+
+    dir_path = os.path.dirname(path) or "."
+    fd, tmp_path = _tempfile.mkstemp(dir=dir_path, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+            json.dump(payload, tmp, indent=4)
+            tmp.flush()
+            try:
+                os.fsync(tmp.fileno())
+            except OSError:
+                pass
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
 
 def save_tools(tools):
     """Save tools to JSON file with file locking for thread safety."""
     lock = filelock.FileLock(TOOLS_LOCK_FILE)
     with lock:
-        with open(TOOLS_FILE, "w", encoding="utf-8") as f:
-            json.dump(tools, f, indent=4)
+        _atomic_write_json(TOOLS_FILE, tools)
+
+
+def update_tools(mutator):
+    """Read-modify-write under ONE lock so concurrent edits cannot lose updates.
+
+    ``mutator`` receives the dict and returns the dict to persist (or None
+    to persist the mutated input). Corrupt files quarantine and raise
+    instead of loading as empty and wiping on save (M-DATA-1).
+    """
+    lock = filelock.FileLock(TOOLS_LOCK_FILE)
+    with lock:
+        tools = _load_tools_locked()
+        result = mutator(tools)
+        _atomic_write_json(TOOLS_FILE, result if isinstance(result, dict) else tools)
+        return result if isinstance(result, dict) else tools
 
 async def load_tools_async():
     """Async wrapper for load_tools to avoid blocking event loop."""
@@ -121,58 +230,92 @@ async def save_tool(
     try:
         # Validate JSON parameters
         params_json = json.loads(parameters)
-        tools = load_tools()
-        
+
         # Determine enabled state and handle renaming
-        name = name.strip()
+        # L-5: the new name must be provider-safe; the stored original keeps
+        # the lenient sanitizer so legacy names can still be renamed away.
+        name = _validate_tool_name(name)
         # Sanitize tool name to prevent path traversal
         name = _sanitize_tool_name(name)
-        
+
         if original_name:
             original_name = original_name.strip()
             # Sanitize original name as well for consistency
             original_name = _sanitize_tool_name(original_name)
-            
-        is_enabled = True
-        existing = tools.get(original_name or name) or {}
-        tier = existing.get("tier")
-        tier_reason = str(existing.get("tier_reason") or "").strip()
-        if tier not in {item.value for item in Tier} or not tier_reason:
-            tier, tier_reason = Tier.HIGH.value, "new tool; review before lowering"
-        
+
+        # M-TOOL-2: compare against the stored source so an edit that
+        # changes code resets the risk rating instead of inheriting it.
+        old_code = None
+        try:
+            old_path = _library_path(original_name or name)
+            if os.path.exists(old_path):
+                with open(old_path, "r", encoding="utf-8") as _f:
+                    old_code = _f.read()
+        except OSError:
+            old_code = None
+
+        class _RenameCollision(Exception):
+            pass
+
+        def _mutate(tools: dict) -> dict:
+            # M-TOOL-2: renaming onto an existing tool must not silently
+            # overwrite it.
+            if original_name and original_name != name and name in tools:
+                raise _RenameCollision(name)
+            is_enabled = True
+            existing = tools.get(original_name or name) or {}
+            tier = existing.get("tier")
+            tier_reason = str(existing.get("tier_reason") or "").strip()
+            if tier not in {item.value for item in Tier} or not tier_reason:
+                tier, tier_reason = Tier.HIGH.value, "new tool; review before lowering"
+            elif existing and old_code is not None and code != old_code:
+                # M-TOOL-2: a low-risk rating must not survive a code change.
+                tier, tier_reason = Tier.HIGH.value, "code changed; pending re-review"
+
+            if original_name and original_name != name:
+                if original_name in tools:
+                    is_enabled = tools[original_name].get("enabled", True)
+                    del tools[original_name]
+            elif name in tools:
+                is_enabled = tools[name].get("enabled", True)
+
+            # OpenAI Function Calling Format
+            tools[name] = {
+                "definition": {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "description": description,
+                        "parameters": params_json
+                    }
+                },
+                "enabled": is_enabled,
+                "tier": tier,
+                "tier_reason": tier_reason,
+                "manifest_version": MANIFEST_VERSION,
+                "requires": ["sandbox", "library_source"],
+                "source": {"mode": "library", "entry": f"{name}.py"},
+            }
+            return tools
+
+        # M-DATA-1: single-lock read-modify-write so concurrent saves
+        # cannot lose updates; corrupt files quarantine and raise.
+        try:
+            update_tools(_mutate)
+        except _RenameCollision as exc:
+            return Response(status_code=409, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"A different tool named '{exc}' already exists; pick another name."}})})
+        except ValueError as exc:
+            return Response(status_code=500, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Tool store corrupt, not saving: {exc}"}})})
+
         if original_name and original_name != name:
-            if original_name in tools:
-                is_enabled = tools[original_name].get("enabled", True)
-                del tools[original_name]
-                old_code_path = os.path.join(LIBRARY_DIR, f"{original_name}.py")
-                if os.path.exists(old_code_path):
-                    os.remove(old_code_path)
-        elif name in tools:
-            is_enabled = tools[name].get("enabled", True)
-        
-        # OpenAI Function Calling Format
-        tools[name] = {
-            "definition": {
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "description": description,
-                    "parameters": params_json
-                }
-            },
-            "enabled": is_enabled,
-            "tier": tier,
-            "tier_reason": tier_reason,
-            "manifest_version": MANIFEST_VERSION,
-            "requires": ["sandbox", "library_source"],
-            "source": {"mode": "library", "entry": f"{name}.py"},
-        }
-        
+            old_code_path = _library_path(original_name)
+            if os.path.exists(old_code_path):
+                os.remove(old_code_path)
+
         # Save Python logic to standalone file
         with open(os.path.join(LIBRARY_DIR, f"{name}.py"), "w", encoding="utf-8") as f:
             f.write(code)
 
-        save_tools(tools)
         return await tools_list(request)
     except Exception as e:
         return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Failed to save tool: {str(e)}"}})})
@@ -294,25 +437,37 @@ async def reject_tool_approval(approval_id: str):
 async def toggle_tool(request: Request, name: str):
     # Sanitize tool name to prevent path traversal
     name = _sanitize_tool_name(name)
-    tools = load_tools()
-    if name in tools:
-        current_state = tools[name].get("enabled", True)
-        tools[name]["enabled"] = not current_state
-        save_tools(tools)
+
+    def _mutate(tools: dict) -> dict:
+        if name in tools:
+            current_state = tools[name].get("enabled", True)
+            tools[name]["enabled"] = not current_state
+        return tools
+
+    try:
+        update_tools(_mutate)
+    except ValueError as exc:
+        return Response(status_code=500, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Tool store corrupt, not saving: {exc}"}})})
     return await tools_list(request)
 
 @router.delete("/{name}")
 async def delete_tool(request: Request, name: str):
     # Sanitize tool name to prevent path traversal
     name = _sanitize_tool_name(name)
-    tools = load_tools()
-    if name in tools:
-        del tools[name]
-        # Remove associated python file
-        code_path = os.path.join(LIBRARY_DIR, f"{name}.py")
-        if os.path.exists(code_path):
-            os.remove(code_path)
-        save_tools(tools)
+
+    def _mutate(tools: dict) -> dict:
+        if name in tools:
+            del tools[name]
+        return tools
+
+    try:
+        update_tools(_mutate)
+    except ValueError as exc:
+        return Response(status_code=500, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": f"Tool store corrupt, not saving: {exc}"}})})
+    # Remove associated python file
+    code_path = _library_path(name)
+    if os.path.exists(code_path):
+        os.remove(code_path)
     return await tools_list(request)
 
 @router.get("/edit/{name}")
@@ -323,10 +478,10 @@ async def edit_tool(name: str):
     tools = load_tools()
     if name not in tools:
         return Response(status_code=404)
-    
+
     tool_data = tools[name]
     code = ""
-    code_path = os.path.join(LIBRARY_DIR, f"{name}.py")
+    code_path = _library_path(name)
     if os.path.exists(code_path):
         with open(code_path, "r", encoding="utf-8") as f:
             code = f.read()
@@ -397,7 +552,7 @@ async def export_tools(name: str = Query(None)):
         }
         
         # Read code
-        code_path = os.path.join(LIBRARY_DIR, f"{name}.py")
+        code_path = _library_path(name)
         if os.path.exists(code_path):
             with open(code_path, "r", encoding="utf-8") as f:
                 tool_export["code"] = f.read()

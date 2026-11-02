@@ -1,20 +1,22 @@
-import json
-import os
 import asyncio
+import json
 import logging
+import os
 import time
-from core.llm import LLMBridge
+from typing import Any
+
+from core.episode_identity import input_digest, prepare_resume
 from core.execution_budget import spend
+from core.llm import LLMBridge
+from core.session_manager import EpisodeState, get_session_manager
 from core.settings import settings
 from modules.agent_loop.loop_guard import LoopGuard
-from modules.agent_loop.tool_journal import run_journaled_tool
 from modules.agent_loop.prompt_digest import guard_system_messages, snapshot_system_messages
+from modules.agent_loop.tool_journal import run_journaled_tool
 from modules.brain.guardrails import scan_output
 from modules.tools.outbound import stage_if_outbound
-from modules.tools.tiers import gate_tool_call
 from modules.tools.sandbox import ToolSandbox
-from core.session_manager import session_manager, get_session_manager, EpisodeState
-from core.episode_identity import input_digest, prepare_resume
+from modules.tools.tiers import gate_tool_call
 
 
 def _charge_llm_usage(response, messages=None) -> None:
@@ -98,6 +100,7 @@ class AgentBaseExecutor:
         """Attach an incoming handoff packet to track delivery and acceptance (IDEA-1243)."""
         if handoff is not None:
             import time
+
             from core.handoff import HandoffPacket, deliver
             if not isinstance(handoff, HandoffPacket) and isinstance(handoff, dict):
                 handoff = HandoffPacket.from_dict(handoff)
@@ -125,6 +128,7 @@ class AgentBaseExecutor:
 
         if getattr(self, "_active_handoff", None):
             import time
+
             from core.handoff import accept, reject
             if loop_error:
                 reject(self._active_handoff, reason=f"Loop error: {loop_error}", now=time.time())
@@ -1057,6 +1061,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
                         metadata={"episode_id": episode_id} if episode_id else {},
                         input_sha256=current_sha,
                         input_projection=current_projection,
+                        episode_id=episode_id,
                     )
                     logger.info(f"Created new episode {episode.episode_id}")
             except Exception as e:
@@ -1924,6 +1929,7 @@ Call set_final() when complete."""
                         metadata={"episode_id": episode_id} if episode_id else {},
                         input_sha256=current_sha,
                         input_projection=current_projection,
+                        episode_id=episode_id,
                     )
                     logger.info(f"[RLMAgent] Created new episode {episode.episode_id}")
             except Exception as e:
@@ -2690,6 +2696,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
                         metadata={"episode_id": episode_id} if episode_id else {},
                         input_sha256=current_sha,
                         input_projection=current_projection,
+                        episode_id=episode_id,
                     )
                     logger.info(f"[HybridAgent] Created new episode {episode.episode_id}")
             except Exception as e:
@@ -3839,8 +3846,8 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         """Save a structured post-run lesson to long-term memory so future
         planning prompts can retrieve and benefit from it."""
         try:
-            from modules.memory.backend import memory_store
             from modules.memory.arbiter import MemoryArbiter
+            from modules.memory.backend import memory_store
 
             # Build worked / failed / replanned summaries from the trace
             worked = []
@@ -4665,6 +4672,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                         metadata={"episode_id": episode_id} if episode_id else {},
                         input_sha256=current_sha,
                         input_projection=current_projection,
+                        episode_id=episode_id,
                     )
                     logger.info(f"[GoalPursuit] Created episode {episode.episode_id}")
             except Exception as e:
@@ -5735,7 +5743,9 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             goal_id = input_data.get("goal_id")
             if goal_id and not remaining_after and final_content:
                 try:
-                    import httpx as _httpx, os as _os
+                    import os as _os
+
+                    import httpx as _httpx
                     _api = _os.getenv("MEMORY_API_URL", "http://localhost:8000")
                     _goal_id_str = str(goal_id)
                     if not _goal_id_str.lstrip("-").isdigit():

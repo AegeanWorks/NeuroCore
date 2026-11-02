@@ -77,13 +77,21 @@ class ToolDispatcherExecutor:
         # Track tool count in context if available
         tool_count = input_data.get("_tool_count", 0)
 
-        # Limit tool calls to max_tools_per_turn
+        # Limit tool calls to max_tools_per_turn (H-4: every call id must
+        # get a tool result, otherwise OpenAI-compatible providers reject
+        # the next request with unanswered tool calls).
+        try:
+            max_tools_per_turn = max(1, int(max_tools_per_turn))
+        except (TypeError, ValueError):
+            max_tools_per_turn = 5
         tool_calls_to_run = tool_calls[:max_tools_per_turn]
         remaining_tools = tool_calls[max_tools_per_turn:]
 
         # Store remaining tools for next turn
         if remaining_tools:
             input_data["_remaining_tool_calls"] = remaining_tools
+        elif "_remaining_tool_calls" in input_data:
+            input_data.pop("_remaining_tool_calls", None)
 
         # Track tool count
         input_data["_tool_count"] = tool_count + len(tool_calls_to_run)
@@ -94,15 +102,20 @@ class ToolDispatcherExecutor:
         # loops back to run the remaining tools.
         has_remaining = len(remaining_tools) > 0
 
-        for tool_call in tool_calls_to_run:
-            func_name = tool_call["function"]["name"]
+        for index, tool_call in enumerate(tool_calls_to_run):
+            # M-TOOL-1: providers may omit ids; generate a stable fallback so
+            # results indexing never raises KeyError (M-FLOW-3 then wraps it).
+            call_id = tool_call.get("id") or f"missing-id-{index}"
+            func = tool_call.get("function") or {}
+            func_name = func.get("name") or "unknown"
 
             # Bug fix #2: guard json.loads against malformed LLM arguments
             try:
-                args = json.loads(tool_call["function"]["arguments"])
-            except (json.JSONDecodeError, TypeError) as e:
+                raw_args = func.get("arguments", "{}")
+                args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+            except (json.JSONDecodeError, TypeError, ValueError) as e:
                 results.append({
-                    "tool_call_id": tool_call.get("id", "unknown"),
+                    "tool_call_id": call_id,
                     "role": "tool",
                     "name": func_name,
                     "content": f"Error: Could not parse tool arguments: {str(e)}"
@@ -175,25 +188,66 @@ class ToolDispatcherExecutor:
                 output = guard.text
 
             results.append({
-                "tool_call_id": tool_call["id"],
+                "tool_call_id": call_id,
                 "role": "tool",
                 "name": func_name,
                 "content": str(output)
             })
 
+        # H-4: answer every tool_call_id so providers never see an unanswered
+        # call. Deferred calls get an explicit placeholder result.
+        for deferred_index, deferred in enumerate(remaining_tools):
+            deferred_id = (deferred.get("id") if isinstance(deferred, dict) else None)
+            if not deferred_id:
+                deferred_id = f"deferred-id-{deferred_index}"
+            deferred_name = "unknown"
+            try:
+                deferred_name = (deferred.get("function") or {}).get("name") or "unknown"
+            except AttributeError:
+                pass
+            results.append({
+                "tool_call_id": deferred_id,
+                "role": "tool",
+                "name": deferred_name,
+                "content": (
+                    f"Skipped this turn: limit of {max_tools_per_turn} tool calls per turn. "
+                    "The call was not executed; it will run on the next continuation turn."
+                ),
+                "deferred": True,
+            })
+
+        # History must reference only the executed calls; otherwise the
+        # provider sees N calls with fewer results and rejects the request.
+        # Keep the full message in the output for debugging, but append a
+        # trimmed copy to the message list.
+        trimmed_message = message
+        if isinstance(message, dict) and has_remaining:
+            try:
+                trimmed_message = dict(message)
+                trimmed_message["tool_calls"] = list(tool_calls_to_run)
+            except (TypeError, ValueError):
+                trimmed_message = message
+
         # Update the conversation history if provided
         messages = []
         if "messages" in input_data:
             messages = list(input_data["messages"])
-            messages.append(message)
+            messages.append(trimmed_message)
             messages.extend(results)
 
-        return {
+        out = {
             "tool_results": results,
-            "assistant_message": message,
+            "assistant_message": trimmed_message,
+            "full_assistant_message": message,
             "messages": messages,
             "requires_continuation": has_remaining,
         }
+        if has_remaining:
+            # Keep the executable payload (not only the input stash) so the
+            # next turn does not lose the deferred calls (audit H-4).
+            out["_remaining_tool_calls"] = list(remaining_tools)
+            out["remaining_tool_calls"] = list(remaining_tools)
+        return out
 
     async def send(self, processed_data: dict) -> dict:
         return processed_data

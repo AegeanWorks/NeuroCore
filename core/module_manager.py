@@ -2,6 +2,7 @@ import importlib
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -10,12 +11,57 @@ from fastapi import FastAPI
 from starlette.routing import Mount
 
 from core.flow_runner import FlowRunner
-from core.paths import project_path
+from core.paths import data_path, project_path
 from core.settings import settings
 
 logger = logging.getLogger(__name__)
 
 MODULES_DIR = project_path("modules")
+
+# M-SEC-3: runtime module state (config incl. secrets, enabled, order) lives
+# under data/module_config/<id>.json (git-ignored via /data/*). Shipped
+# modules/<id>/module.json files are defaults and are never written.
+RUNTIME_CONFIG_DIR = data_path("module_config")
+_MODULE_ID_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _overlay_path(module_id: str) -> str:
+    return os.path.join(RUNTIME_CONFIG_DIR, f"{module_id}.json")
+
+
+def _read_overlay(module_id: str) -> dict | None:
+    path = _overlay_path(module_id)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Ignoring corrupt module overlay %s: %s", path, exc)
+        return None
+
+
+def _write_overlay(module_id: str, meta: dict) -> None:
+    """Persist runtime meta to the data-dir overlay, never the source tree."""
+    os.makedirs(RUNTIME_CONFIG_DIR, exist_ok=True)
+    payload = json.dumps(
+        {k: v for k, v in meta.items() if k not in ("id", "load_error")},
+        indent=4)
+    fd, tmp_path = tempfile.mkstemp(prefix=".module-", suffix=".tmp",
+                                    dir=RUNTIME_CONFIG_DIR)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, _overlay_path(module_id))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError as exc:
+            logger.debug("Could not remove temp overlay %s: %s", tmp_path, exc)
+        raise
 
 # Issue 10/9: Module allowlist for hot-loading
 # Note: This constant is kept for backwards compatibility but is now 
@@ -23,27 +69,6 @@ MODULES_DIR = project_path("modules")
 # Set to ["chat", "memory", "knowledge_base"] to restrict which modules can be loaded
 MODULE_ALLOWLIST = []  # Default empty = allow all (backwards compatibility)
 
-
-def _write_manifest(meta_path: str, meta: dict) -> None:
-    """Replace a module.json atomically so readers never see a truncated manifest.
-
-    Serializing first means an unserializable value fails before the file is touched.
-    """
-    payload = json.dumps(meta, indent=4)
-    fd, tmp_path = tempfile.mkstemp(prefix=".module-", suffix=".tmp",
-                                    dir=os.path.dirname(meta_path))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(payload)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, meta_path)
-    except BaseException:
-        try:
-            os.unlink(tmp_path)
-        except OSError as exc:
-            logger.debug("Could not remove temp manifest %s: %s", tmp_path, exc)
-        raise
 
 class ModuleManager:
     def __init__(self, app: FastAPI, modules_dir=MODULES_DIR):
@@ -59,6 +84,28 @@ class ModuleManager:
         # hot-reload after unload (clear sys.modules to pick up code changes).
         self._loaded_once: set = set()
 
+    def _merge_overlay(self, name: str, shipped: dict) -> dict:
+        """Merge the data-dir overlay over shipped defaults (M-SEC-3).
+
+        On first run after the upgrade there is no overlay yet; seed it
+        from the current on-disk manifest so enabled flags and config carry
+        over, then never write the source tree again.
+        """
+        overlay = _read_overlay(name)
+        if overlay is None:
+            try:
+                _write_overlay(name, shipped)
+            except OSError as exc:
+                logger.warning("Could not seed module overlay for %s: %s", name, exc)
+            return shipped
+        merged = dict(shipped)
+        merged.update({k: v for k, v in overlay.items() if k != "config"})
+        merged_config = dict(shipped.get("config", {}) or {})
+        if isinstance(overlay.get("config"), dict):
+            merged_config.update(overlay["config"])
+        merged["config"] = merged_config
+        return merged
+
     def _discover_modules(self):
         """Finds all potential modules in the modules directory."""
         modules = {}
@@ -67,6 +114,9 @@ class ModuleManager:
             return {}
 
         for name in os.listdir(self.modules_dir):
+            if not _MODULE_ID_RE.match(name):
+                logger.warning("Skipping module with invalid id %r", name)
+                continue
             module_path = os.path.join(self.modules_dir, name)
             if os.path.isdir(module_path):
                 # Skip if DISABLED file exists
@@ -80,7 +130,7 @@ class ModuleManager:
                             meta['id'] = name
                             # Don't persist load_error from file - it's runtime-only
                             meta.pop('load_error', None)
-                            modules[name] = meta
+                            modules[name] = self._merge_overlay(name, meta)
                         except json.JSONDecodeError:
                             logger.warning(f"Could not decode module.json for {name}")
         return modules
@@ -90,6 +140,37 @@ class ModuleManager:
         for name, meta in self.modules.items():
             if meta.get("enabled", False):
                 self._load_module_router(name)
+
+    def _stop_module_instance(self, module_id: str) -> bool:
+        """Run a module's shutdown hook, if it defines one (M-DATA-5).
+
+        Re-importing a module creates a second set of module-level singletons
+        (memory stores, locks, FAISS handles) while other modules keep the
+        first, and import-time pollers start twice. Modules that need cleanup
+        define ``shutdown_module()`` (preferred) or ``shutdown()``; the hook
+        runs best-effort before the old module object is discarded so stop
+        hooks always run exactly once per live instance.
+        """
+        try:
+            old = sys.modules.get(f"modules.{module_id}")
+        except Exception:
+            return False
+        if old is None:
+            return False
+        for hook_name in ("shutdown_module", "shutdown", "stop"):
+            try:
+                hook = getattr(old, hook_name, None)
+            except Exception:
+                continue
+            if callable(hook):
+                try:
+                    hook()
+                except Exception as exc:
+                    logger.warning(
+                        "Module %s shutdown hook %s failed: %s", module_id, hook_name, exc
+                    )
+                return True
+        return False
 
     def _load_module_router(self, module_id: str):
         """Imports a module and adds its router to the app."""
@@ -137,6 +218,9 @@ class ModuleManager:
             # top-level function definitions differ from previously-captured references
             # (causing PicklingError in multiprocessing, stale patch() targets, etc.).
             if module_id in self._loaded_once:
+                # M-DATA-5: stop the old instance first so re-import does not
+                # leave two live singletons (stores, locks, pollers).
+                self._stop_module_instance(module_id)
                 # Hot-reload path: flush stale bytecode so code changes are picked up.
                 modules_to_remove = [
                     key for key in list(sys.modules.keys())
@@ -166,6 +250,9 @@ class ModuleManager:
 
     def _unload_module_router(self, module_id: str):
         """Finds and removes a module's router from the app."""
+        # M-DATA-5: stop the live instance (pollers, watchers) so disabling
+        # a module does not leave its background work running headless.
+        self._stop_module_instance(module_id)
         initial_route_count = len(self.app.router.routes)
         
         # FIX: Handle both regular routes (have tags) and Mount objects (don't have tags)
@@ -225,12 +312,11 @@ class ModuleManager:
                 self._unload_module_router(module_id)
 
             self.modules[module_id]['enabled'] = enabled
-            
-            # FIX: When saving, don't include load_error (runtime-only)
+
+            # M-SEC-3: runtime state goes to the data-dir overlay, never the
+            # git-tracked module.json (which may hold secrets in config).
             meta_to_save = {k: v for k, v in self.modules[module_id].items() if k != 'load_error'}
-            
-            meta_path = os.path.join(self.modules_dir, module_id, "module.json")
-            _write_manifest(meta_path, meta_to_save)
+            _write_overlay(module_id, meta_to_save)
                 
             # Clear the FlowRunner cache to ensure no stale executor classes are used
             # (FlowRunner handles its own internal state, so calling this static method is safe)
@@ -263,13 +349,11 @@ class ModuleManager:
             for module_id in modules_to_write:
                 self.modules[module_id]['order'] = id_to_meta[module_id].get('order')
         
-        # File I/O outside lock to avoid blocking other operations
+        # File I/O outside lock to avoid blocking other operations.
+        # M-SEC-3: overlays only; shipped manifests are read-only defaults.
         for module_id in modules_to_write:
-            meta_path = os.path.join(self.modules_dir, module_id, "module.json")
-            if os.path.exists(meta_path):
-                # Don't include load_error in saved metadata
-                meta_to_save = {k: v for k, v in id_to_meta[module_id].items() if k != 'load_error'}
-                _write_manifest(meta_path, meta_to_save)
+            meta_to_save = {k: v for k, v in id_to_meta[module_id].items() if k != 'load_error'}
+            _write_overlay(module_id, meta_to_save)
         
         # Log warning if operation took too long (potential lock contention)
         elapsed = time.time() - start_time
@@ -291,12 +375,12 @@ class ModuleManager:
             self.modules[module_id]['config'] = new_config
             
             # FIX: Don't persist load_error - it's runtime-only
-            # Only save config, enabled, order - not load_error
+            # Only save config, enabled, order - not load_error.
+            # M-SEC-3: to the data-dir overlay, never the tracked manifest.
             meta_to_save = {
-                k: v for k, v in self.modules[module_id].items() 
+                k: v for k, v in self.modules[module_id].items()
                 if k not in ('load_error',)
             }
-            
-            meta_path = os.path.join(self.modules_dir, module_id, "module.json")
-            _write_manifest(meta_path, meta_to_save)
+
+            _write_overlay(module_id, meta_to_save)
             return self.modules[module_id]

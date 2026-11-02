@@ -38,7 +38,7 @@
 
 <script>
     (function(){
-        const source = new EventSource('/chat/stream/{{ session_id }}');
+        const source = new EventSource('/chat/stream/{{ session_id }}?msg_id={{ msg_id }}');
         const contentDiv = document.getElementById('ai-content-{{ msg_id }}');
         const thinkingTrace = document.getElementById('thinking-trace-{{ msg_id }}');
         const statusDiv = contentDiv.parentElement.querySelector('.stream-status');
@@ -64,6 +64,13 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
         }
+        function renderMarkdownSafe(text) {
+            if (window.renderMarkdown) return window.renderMarkdown(text);
+            var html = "";
+            try { html = marked.parse(text || ""); } catch (e) { html = ""; }
+            if (window.DOMPurify) return DOMPurify.sanitize(html);
+            return "";
+        }
 
         function scrollToBottom() {
             const c = document.getElementById('chat-messages');
@@ -81,7 +88,7 @@
             const chunk = JSON.parse(event.data);
             if (chunk.text) {
                 mdBuffer += chunk.text;
-                contentDiv.innerHTML = marked.parse(mdBuffer);
+                contentDiv.innerHTML = renderMarkdownSafe(mdBuffer);
                 scrollToBottom();
             }
         };
@@ -158,7 +165,7 @@
             if (chunk.text) {
                 const ph = contentDiv.querySelector('.stream-placeholder');
                 if (ph) ph.remove();
-                contentDiv.innerHTML = marked.parse(chunk.text);
+                contentDiv.innerHTML = renderMarkdownSafe(chunk.text);
                 statusDiv.style.display = 'flex';
                 scrollToBottom();
             }

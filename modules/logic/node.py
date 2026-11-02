@@ -130,7 +130,13 @@ class ScriptExecutor:
             return input_data
         
         # FIX: Read timeout and max_memory from config, with fallbacks to class defaults
-        timeout = config.get("timeout", self.DEFAULT_TIMEOUT)
+        # M-ASYNC-1: cap the timeout so a misconfigured node cannot freeze the
+        # event loop; execution itself runs in an executor below.
+        try:
+            timeout = float(config.get("timeout", self.DEFAULT_TIMEOUT))
+        except (TypeError, ValueError):
+            timeout = self.DEFAULT_TIMEOUT
+        timeout = min(max(1.0, timeout), 120.0)
         max_memory_mb = config.get("max_memory_mb", self.DEFAULT_MAX_MEMORY_MB)
             
         # Define scope
@@ -149,8 +155,15 @@ class ScriptExecutor:
         )
         
         try:
-            # Execute code in sandbox with data and result in local scope
-            result = sandbox.execute(code, {'data': data_val, 'result': result_val})
+            # M-ASYNC-1: never run the synchronous sandbox call on the event
+            # loop; the tool dispatcher already uses this executor pattern.
+            import asyncio as _asyncio
+            from functools import partial as _partial
+
+            loop = _asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None, _partial(sandbox.execute, code, {'data': data_val, 'result': result_val}),
+            )
             # FIX: Return input_data as fallback when result is None (prevents branch termination)
             if result.get('result') is None:
                 logger.debug("Script executed but returned no result, passing through input data")

@@ -36,7 +36,9 @@ async def save_telegram_settings(
         return _not_found()
 
     config = module.get("config", {}).copy()
-    config["telegram_bot_token"] = bot_token
+    # M-SEC-4: secrets are never rendered; blank input keeps the stored value.
+    if str(bot_token or "").strip():
+        config["telegram_bot_token"] = bot_token
     config["telegram_chat_id"] = chat_id
     module_manager.update_module_config("messaging_bridge", config)
 
@@ -58,7 +60,8 @@ async def save_discord_settings(
         return _not_found()
 
     config = module.get("config", {}).copy()
-    config["discord_bot_token"] = bot_token
+    if str(bot_token or "").strip():
+        config["discord_bot_token"] = bot_token
     config["discord_channel_id"] = channel_id
     module_manager.update_module_config("messaging_bridge", config)
 
@@ -95,6 +98,7 @@ async def save_whatsapp_settings(
     api_key: str = Form(...),
     instance: str = Form(...),
     phone_number: str = Form(...),
+    webhook_secret: str = Form(default=""),
 ):
     module_manager = request.app.state.module_manager
     module = module_manager.modules.get("messaging_bridge")
@@ -103,7 +107,12 @@ async def save_whatsapp_settings(
 
     config = module.get("config", {}).copy()
     config["whatsapp_api_url"] = api_url
-    config["whatsapp_api_key"] = api_key
+    if str(api_key or "").strip():
+        config["whatsapp_api_key"] = api_key
+    # L-14: a per-webhook shared secret authenticates inbound webhook calls.
+    # Blank keeps the stored value (M-SEC-4: secrets are never re-rendered).
+    if str(webhook_secret or "").strip():
+        config["whatsapp_webhook_secret"] = webhook_secret
     config["whatsapp_instance"] = instance
     config["whatsapp_phone_number"] = phone_number
     module_manager.update_module_config("messaging_bridge", config)
@@ -120,6 +129,46 @@ async def whatsapp_webhook(request: Request):
         payload = await request.json()
     except Exception:
         return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    # L-14: when a webhook secret is configured, the caller must present it.
+    # Without it, anything on the Docker network could post messages that
+    # claim an allowlisted sender. Unconfigured setups keep the previous
+    # behaviour (global guard + sender allowlist) so existing single-host
+    # deployments do not break.
+    try:
+        module_manager = request.app.state.module_manager
+        module = (module_manager.modules.get("messaging_bridge")
+                  if module_manager else None)
+        secret = ((module.get("config", {}) or {}).get("whatsapp_webhook_secret")
+                  if module else None)
+    except Exception:
+        secret = None
+    if secret:
+        import hmac as _hmac
+
+        presented = request.headers.get("x-webhook-secret", "")
+        try:
+            ok = bool(presented) and _hmac.compare_digest(
+                str(presented).encode("utf-8"), str(secret).encode("utf-8")
+            )
+        except Exception:
+            ok = False
+        if not ok:
+            return JSONResponse(status_code=403, content={"error": "Forbidden"})
+    else:
+        # Warn once per process: without a secret the global guard and the
+        # sender allowlist are the only inbound checks.
+        global _webhook_secret_warned
+        try:
+            warned = _webhook_secret_warned
+        except NameError:
+            warned = False
+        if not warned:
+            _webhook_secret_warned = True
+            logger.warning(
+                "WhatsApp webhook has no shared secret configured; "
+                "set one in the messaging settings."
+            )
 
     try:
         handler = messaging_service.get_handler("whatsapp")

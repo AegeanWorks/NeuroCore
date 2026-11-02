@@ -427,7 +427,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-2">Password / App Password</label>
-                            <input type="password" name="imap_password" value="{{ module.config.imap_password }}"
+                            <input type="password" name="imap_password" value="" placeholder="{% if 'imap_password' in (module.secrets_configured or []) %}configured — leave blank to keep{% endif %}" autocomplete="off"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                             <p class="text-xs text-slate-500 mt-1">For Gmail, use an App Password (not your account password).</p>
                         </div>
@@ -505,7 +505,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-2">Password / App Password</label>
-                            <input type="password" name="smtp_password" value="{{ module.config.smtp_password }}"
+                            <input type="password" name="smtp_password" value="" placeholder="{% if 'smtp_password' in (module.secrets_configured or []) %}configured — leave blank to keep{% endif %}" autocomplete="off"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         </div>
                     </div>
@@ -600,7 +600,8 @@
 
                 <div>
                     <label class="block text-sm font-medium text-slate-400 mb-2">LLM API Key</label>
-                    <input type="password" name="llm_api_key" value="{{ settings.llm_api_key }}" placeholder="sk-..."
+                    <input type="password" name="llm_api_key" value="" placeholder="{% if settings.llm_api_key_configured %}configured — leave blank to keep{% else %}sk-...{% endif %}"
+                           autocomplete="off"
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                 </div>
 
@@ -640,6 +641,14 @@
                     <label class="block text-sm font-medium text-slate-400 mb-2">Embedding Model</label>
                     <input type="text" name="embedding_model" value="{{ settings.embedding_model }}" placeholder="e.g. text-embedding-nomic-embed-text-v1.5"
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Embedding API Key</label>
+                    <input type="password" name="embedding_api_key" value="" placeholder="{% if settings.embedding_api_key_configured %}configured — leave blank to keep{% else %}Only needed when the embedding host differs{% endif %}"
+                           autocomplete="off"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Only needed when the embedding endpoint needs a different key; otherwise the chat key is reused on the same host, and no key is sent to a different host.</p>
                 </div>
             </div>
             <div class="mt-4 flex justify-end">
@@ -871,7 +880,7 @@
             <div class="grid grid-cols-1 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
-                    <input type="password" name="bot_token" value="{{ module.config.bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                    <input type="password" name="bot_token" value="" placeholder="{% if 'bot_token' in (module.secrets_configured or []) %}configured — leave blank to keep{% else %}123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11{% endif %}" autocomplete="off"
                            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                 </div>
                 <div>
@@ -934,7 +943,7 @@
                 <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
-                        <input type="password" name="bot_token" value="{{ module.config.telegram_bot_token }}" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                        <input type="password" name="bot_token" value="" placeholder="{% if 'telegram_bot_token' in (module.secrets_configured or []) %}configured — leave blank to keep{% else %}123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11{% endif %}" autocomplete="off"
                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                     </div>
                     <div>
@@ -966,7 +975,7 @@
                 <div class="grid grid-cols-1 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-slate-400 mb-2">Bot Token</label>
-                        <input type="password" name="bot_token" value="{{ module.config.discord_bot_token }}" placeholder="OTk4..."
+                        <input type="password" name="bot_token" value="" placeholder="{% if 'discord_bot_token' in (module.secrets_configured or []) %}configured — leave blank to keep{% else %}OTk4...{% endif %}" autocomplete="off"
                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
                     <div>
@@ -1036,7 +1045,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-slate-400 mb-2">API Key</label>
-                        <input type="password" name="api_key" value="{{ module.config.whatsapp_api_key }}" placeholder="your-evolution-api-key"
+                        <input type="password" name="api_key" value="" placeholder="{% if 'whatsapp_api_key' in (module.secrets_configured or []) %}configured — leave blank to keep{% else %}your-evolution-api-key{% endif %}"
+                               autocomplete="off"
                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 transition-all">
                     </div>
                     <div>

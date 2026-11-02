@@ -30,6 +30,8 @@ Usage:
 import json
 import logging
 import os
+import re
+import tempfile
 import threading
 import time
 import uuid
@@ -45,8 +47,28 @@ logger = logging.getLogger(__name__)
 # Configuration
 SESSION_FILE = data_path("session.json")
 TRACE_FILE = data_path("execution_trace.jsonl")
+
+#: L-20: the execution trace is append-only and was never rotated, so every
+#: summary paid a full-file read on an ever-growing file. Past this size an
+#: append compacts the file to its most recent half (atomic replace).
+TRACE_MAX_BYTES = 5 * 1024 * 1024
+_TRACE_CHECK_EVERY = 64
 EPISODE_DIR = data_path("episodes")
 AGENT_ID = "neurocore"
+
+# M-SEC-9: episode ids become file names. Only a tight charset is allowed
+# so an imported flow cannot read or overwrite JSON outside the episodes
+# directory via ../ or absolute paths.
+_EPISODE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def validate_episode_id(episode_id: str) -> str:
+    """Return the id when safe to use as a file name, else raise ValueError."""
+    if not isinstance(episode_id, str) or not _EPISODE_ID_RE.match(episode_id):
+        raise ValueError(
+            f"Invalid episode id {episode_id!r}: must match [A-Za-z0-9_-]{{1,64}}"
+        )
+    return episode_id
 
 
 class TraceWriter:
@@ -58,6 +80,7 @@ class TraceWriter:
     def __init__(self, trace_file: str = TRACE_FILE):
         self.trace_file = trace_file
         self._lock = threading.Lock()
+        self._appends_since_check = 0
         self._ensure_directory()
     
     def _ensure_directory(self):
@@ -84,9 +107,55 @@ class TraceWriter:
                 # Open in append mode and write
                 with open(self.trace_file, 'a', encoding="utf-8") as f:
                     f.write(line)
-                    
+
+                # L-20: rotate by size. The check runs every N appends so the
+                # common path stays a single append; rotation keeps the most
+                # recent half of the file via an atomic replace.
+                self._appends_since_check += 1
+                if self._appends_since_check >= _TRACE_CHECK_EVERY:
+                    self._appends_since_check = 0
+                    self._rotate_if_oversized()
+
             except Exception as e:
                 raise e
+
+    def _rotate_if_oversized(self) -> None:
+        """Compact the trace file to its most recent half when over budget."""
+        try:
+            if not os.path.exists(self.trace_file):
+                return
+            if os.path.getsize(self.trace_file) <= TRACE_MAX_BYTES:
+                return
+            with open(self.trace_file, 'r', encoding="utf-8") as f:
+                lines = [ln for ln in f if ln.strip()]
+            keep = lines[len(lines) // 2:] or lines[-1:]
+            directory = os.path.dirname(self.trace_file) or "."
+            fd, tmp_path = tempfile.mkstemp(
+                dir=directory, prefix=".trace-", suffix=".tmp"
+            )
+            try:
+                with os.fdopen(fd, 'w', encoding="utf-8") as tmp:
+                    tmp.writelines(keep)
+                    tmp.flush()
+                    os.fsync(tmp.fileno())
+                os.replace(tmp_path, self.trace_file)
+                try:
+                    dir_fd = os.open(directory, os.O_RDONLY)
+                except OSError:
+                    dir_fd = None
+                if dir_fd is not None:
+                    try:
+                        os.fsync(dir_fd)
+                    finally:
+                        os.close(dir_fd)
+            except BaseException:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
+        except Exception as exc:
+            logger.debug("Trace rotation skipped: %s", exc)
     
     def read_all(self) -> List[Dict[str, Any]]:
         """Read all trace events from file."""
@@ -173,7 +242,8 @@ class EpisodeState:
         journal_expires_at: Optional[str] = None,
         generation: int = 1,
     ):
-        self.episode_id = episode_id or f"ep-{uuid.uuid4().hex[:8]}"
+        # M-SEC-9/L-19: 128-bit random ids (was 32-bit).
+        self.episode_id = validate_episode_id(episode_id) if episode_id else f"ep-{uuid.uuid4().hex}"
         self.session_id = session_id
         self.phase = phase
         self.replan_count = replan_count
@@ -808,6 +878,7 @@ class SessionManager:
     
     def _save_episode_by_id_to_file(self, episode_id: str, episode_data: Dict[str, Any]) -> None:
         """Save episode state to file by episode ID (atomic write)."""
+        validate_episode_id(episode_id)
         try:
             os.makedirs(self.episode_dir, exist_ok=True)
             episode_path = os.path.join(self.episode_dir, f"{episode_id}.json")
@@ -1014,7 +1085,8 @@ class SessionManager:
             }
     
     def _get_episode_path(self, episode_id: str) -> str:
-        """Get the file path for a specific episode."""
+        """Get the file path for a specific episode (validated, M-SEC-9)."""
+        validate_episode_id(episode_id)
         return os.path.join(self.episode_dir, f"{episode_id}.json")
     
     def list_episodes(self) -> List[Dict[str, Any]]:

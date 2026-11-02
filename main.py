@@ -35,8 +35,11 @@ from core.settings import settings
 
 async def verify_debug_key(x_debug_key: str = Header(...)):
     """Verify debug API key for protected debug endpoints."""
+    import hmac as _hmac
+
     debug_key = settings.get('debug_api_key')
-    if not debug_key or x_debug_key != debug_key:
+    # L-9: constant-time comparison so the key check does not leak prefix length.
+    if not debug_key or not _hmac.compare_digest(str(x_debug_key), str(debug_key)):
         raise HTTPException(status_code=403, detail="Invalid or missing debug API key")
     return x_debug_key
 
@@ -59,22 +62,52 @@ def _fire_repeater_nodes(app, flow_id: str, flow: dict, is_auto_start: bool = Fa
     connections = flow.get("connections", [])
     created_tasks = []
     
+    # One registry of running loops per flow+node so two triggers cannot
+    # run the same repeater twice (H-7 follow-up: duplicate loops double-notify).
+    registry = getattr(app.state, "repeater_loops", None)
+    if registry is None:
+        registry = {}
+        app.state.repeater_loops = registry
+
     for node in nodes:
         if node.get("nodeTypeId") in background_node_types:
-            has_incoming = any(c.get("to") == node.get("id") for c in connections)
-            if has_incoming:
-                event_type = "auto_start" if is_auto_start else "manual_trigger"
-                print(f"[{'System' if is_auto_start else 'Debug'}] {'Auto-starting' if is_auto_start else 'Manually firing'} flow '{flow.get('name')}' from {node['nodeTypeId']} '{node['id']}'.")
-                if settings.get("debug_mode"):
-                    debug_logger.log(flow_id, node['id'], node.get('name'), event_type, {})
-                runner = FlowRunner(flow_id)
-                task = asyncio.create_task(runner.run({"_repeat_count": 1}, start_node_id=node['id']))
-                
-                if hasattr(app.state, "background_tasks"):
-                    app.state.background_tasks.add(task)
-                    task.add_done_callback(lambda t, fid=flow_id, nid=node['id'], _app=app: background_task_callback(t, fid, nid, _app))
-                created_tasks.append(task)
-    
+            # H-7: repeaters with no incoming edges are the triggers (sources).
+            # The default flow's Repeater (node-12, feeding the Calendar
+            # Watcher) has only outgoing edges and was never started.
+            # Repeaters mid-flow keep their previous auto-start behaviour.
+            key = (flow_id, node.get("id"))
+            existing = registry.get(key)
+            if existing is not None and not existing.done():
+                continue
+            event_type = "auto_start" if is_auto_start else "manual_trigger"
+            print(f"[{'System' if is_auto_start else 'Debug'}] {'Auto-starting' if is_auto_start else 'Manually firing'} flow '{flow.get('name')}' from {node['nodeTypeId']} '{node['id']}'.")
+            if settings.get("debug_mode"):
+                debug_logger.log(flow_id, node['id'], node.get('name'), event_type, {})
+            runner = FlowRunner(flow_id)
+            task = asyncio.create_task(runner.run({"_repeat_count": 1}, start_node_id=node['id']))
+
+            registry[key] = task
+
+            if hasattr(app.state, "background_tasks"):
+                app.state.background_tasks.add(task)
+                def _cleanup(t, fid=flow_id, nid=node['id'], _app=app, _key=key):
+                    background_task_callback(t, fid, nid, _app)
+                    try:
+                        if _app.state.repeater_loops.get(_key) is t:
+                            del _app.state.repeater_loops[_key]
+                    except Exception:
+                        pass
+                task.add_done_callback(_cleanup)
+            else:
+                def _cleanup_registry(t, _app=app, _key=key):
+                    try:
+                        if _app.state.repeater_loops.get(_key) is t:
+                            del _app.state.repeater_loops[_key]
+                    except Exception:
+                        pass
+                task.add_done_callback(_cleanup_registry)
+            created_tasks.append(task)
+
     return created_tasks
 
 def background_task_callback(task, flow_id, node_id, app):
@@ -100,6 +133,23 @@ async def lifespan(app: FastAPI):
 
     # Initialize background tasks set to prevent GC of fire-and-forget tasks
     app.state.background_tasks = set()
+
+    # M-LIFE-1: @router.on_event("startup") handlers never run when the
+    # app uses a lifespan (this app does). Call module startup hooks
+    # explicitly so brain auto-start and similar init actually happen.
+    for mod_meta in module_manager.get_all_modules():
+        if not mod_meta.get("enabled"):
+            continue
+        mid = mod_meta.get("id")
+        try:
+            if mid == "brain":
+                from modules.brain.router import brain_startup
+                await brain_startup()
+            elif mid == "browser_automation":
+                from modules.browser_automation.router import startup_event
+                await startup_event()
+        except Exception as exc:
+            print(f"[System] Module startup hook failed for {mid}: {exc}")
 
     # Auto-start all active flows that contain Repeater nodes
     active_flow_ids = settings.get("active_ai_flows", [])
@@ -135,19 +185,38 @@ async def lifespan(app: FastAPI):
                 print(f"[System] {len(pending)} tasks did not complete in time")
     
     # Shutdown module managers if they have cleanup methods
+    # M-LIFE-1: router on_event("shutdown") handlers never run under a
+    # lifespan either; call them explicitly (e.g. browser service stop).
     if hasattr(app.state, "module_manager"):
         module_manager = app.state.module_manager
-        # Call shutdown on any modules that support it
         for module in module_manager.get_all_modules():
             if module.get("enabled"):
-                # Try to gracefully stop the module
-                mod = sys.modules.get(f"modules.{module['id']}")
-                if mod and hasattr(mod, 'shutdown'):
-                    await mod.shutdown()
+                mid = module.get("id")
+                try:
+                    if mid == "brain":
+                        from modules.brain.router import brain_shutdown
+                        await brain_shutdown()
+                    elif mid == "browser_automation":
+                        from modules.browser_automation.router import shutdown_event
+                        await shutdown_event()
+                    else:
+                        mod = sys.modules.get(f"modules.{mid}")
+                        if mod and hasattr(mod, 'shutdown'):
+                            await mod.shutdown()
+                except Exception as exc:
+                    print(f"[System] Module shutdown hook failed for {mid}: {exc}")
                 print(f"[System] Stopping module: {module.get('name', 'unknown')}")
     
     # Close the shared LLM client
     await close_shared_client()
+
+    # M-PERF-2: persist batched metrics counters on shutdown.
+    try:
+        from core.observability import metrics as _metrics
+
+        _metrics.flush()
+    except Exception as exc:
+        print(f"[System] Metrics flush failed: {exc}")
 
 # Fail closed: a non-loopback bind requires a token or an explicit, documented opt-out.
 validate_deployment_security()

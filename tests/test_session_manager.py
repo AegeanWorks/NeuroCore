@@ -402,14 +402,29 @@ class TestTraceWriter:
     def test_clear(self):
         """Test clearing trace."""
         from core.session_manager import TraceWriter
-        
+
         writer = TraceWriter(TEST_TRACE_FILE)
-        
+
         writer.append({"event": "test"})
         assert len(writer.read_all()) == 1
-        
+
         writer.clear()
         assert len(writer.read_all()) == 0
+
+    def test_rotation_caps_file_size(self, monkeypatch):
+        """L-20: an over-budget trace compacts to its most recent half."""
+        import core.session_manager as sm
+        from core.session_manager import TraceWriter
+
+        monkeypatch.setattr(sm, "TRACE_MAX_BYTES", 1024)
+        writer = TraceWriter(TEST_TRACE_FILE)
+        for i in range(64):
+            writer.append({"event": f"e{i}", "pad": "x" * 200})
+        events = writer.read_all()
+        # Compaction keeps the most recent half; the newest event survives.
+        assert len(events) == 32
+        assert events[0]["event"] == "e32"
+        assert events[-1]["event"] == "e63"
 
 
 class TestGetSessionManager:

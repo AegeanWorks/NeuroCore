@@ -177,6 +177,13 @@
                     function escapeHtml(str) {
                          return str ? String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
                     }
+                    function renderMarkdownSafe(text) {
+                        if (window.renderMarkdown) return window.renderMarkdown(text);
+                        var html = "";
+                        try { html = marked.parse(text || ""); } catch (e) { html = ""; }
+                        if (window.DOMPurify) return DOMPurify.sanitize(html);
+                        return "";
+                    }
 
                     source.onmessage = function(event) {
                         try {
@@ -189,7 +196,7 @@
                             const chunk = JSON.parse(event.data);
                             if (chunk.text) {
                                 mdBuffer += chunk.text;
-                                contentDiv.innerHTML = marked.parse(mdBuffer);
+                                contentDiv.innerHTML = renderMarkdownSafe(mdBuffer);
                                 const scrollable = document.getElementById('chat-messages');
                                 if (scrollable) scrollable.scrollTop = scrollable.scrollHeight;
                             }
@@ -405,7 +412,9 @@
 
 <script>
     document.querySelectorAll('.markdown-content').forEach(el => {
-        el.innerHTML = marked.parse(el.textContent);
+        var fn = window.renderMarkdown || (window.DOMPurify ? function (t) { return DOMPurify.sanitize(marked.parse(t || "")); } : null);
+        if (fn) el.innerHTML = fn(el.textContent);
+        else el.textContent = el.textContent;
     });
 
     // Brain command buttons in static history and streamed replies share this handler.

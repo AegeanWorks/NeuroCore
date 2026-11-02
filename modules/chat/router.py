@@ -24,10 +24,57 @@ BRAIN_PREFIX = "/brain"
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
-# Global dict to store active streaming queues for chat sessions
+# Global dict of active streaming queues, keyed by (session_id, msg_id).
+# M-ASYNC-3: one queue per session meant a second send replaced the first
+# turn's queue and the first task's cleanup deleted the second one's.
 active_streams = {}
-# Last background failure per session, so a late reader still sees the reason
+# Last background failure per (session, message), so a late reader still sees it
 last_stream_errors = {}
+
+
+def _stream_key(session_id: str, msg_id) -> tuple:
+    return (session_id, msg_id)
+
+
+def _latest_stream_for(session_id: str):
+    """Newest queue for a session (back-compat when no msg_id is given)."""
+    best = None
+    for (sid, mid), queue in active_streams.items():
+        try:
+            newer = best is None or mid > best[0]
+        except TypeError:
+            newer = best is None
+        if sid == session_id and newer:
+            best = (mid, queue)
+    return best[1] if best else None
+
+
+def _session_has_stream(session_id: str) -> bool:
+    return any(sid == session_id for sid, _ in active_streams)
+
+
+def _register_stream(key, queue, cap: int = 50) -> None:
+    """Register a per-message stream queue with bounded retention.
+
+    Queues are removed when their stream response closes (see
+    ``event_generator``'s finally block). Producer completion must NOT pop
+    the queue: items stay queued until a (possibly late) reader consumes
+    them. The cap evicts the oldest entries so never-opened streams cannot
+    grow without bound.
+    """
+    active_streams[key] = queue
+    while len(active_streams) > cap:
+        try:
+            oldest = next(iter(active_streams))
+        except StopIteration:
+            break
+        if oldest == key:
+            break
+        active_streams.pop(oldest, None)
+        last_stream_errors.pop(oldest, None)
+# M-ASYNC-2: keep strong refs to background chat tasks; asyncio holds tasks
+# weakly, so an unreferenced turn can be GC'd mid-flight.
+background_chat_tasks: set = set()
 
 
 def _module_meta(request: Request, module_id: str) -> dict:
@@ -334,7 +381,7 @@ async def chat_gui(request: Request, session_id: str = Query(None)):
     return templates.TemplateResponse(request, "chat_gui.html", {
         "session": active_session,
         "estimated_tokens": estimated_tokens,
-        "active_stream": active_session and active_session["id"] in active_streams,
+        "active_stream": bool(active_session and _session_has_stream(active_session["id"])),
         "brain_available": bool(brain),
         "brain_enabled": bool(brain.get("enabled")),
     })
@@ -493,11 +540,26 @@ async def send_message(
                                 status_code=400)
         # Detection never rewrites the user's message; only model output is redacted.
     if image and image.filename:
+        # M-PERF-1: bound inline base64 images at the boundary. The session
+        # store keeps every message in one JSON file, so an uncapped upload
+        # (any type/size) bloats every subsequent rewrite. SVG is rejected
+        # outright (scriptable); raster types only, 5 MB max.
+        _ALLOWED_IMAGE_MIMES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+        _MAX_IMAGE_BYTES = 5 * 1024 * 1024
+        mime_type = (image.content_type or "").lower().split(";")[0].strip()
+        if mime_type not in _ALLOWED_IMAGE_MIMES:
+            return HTMLResponse(
+                "Error: unsupported image type. Use PNG, JPEG, WEBP or GIF.",
+                status_code=400,
+            )
         contents = await image.read()
+        if len(contents) > _MAX_IMAGE_BYTES:
+            return HTMLResponse(
+                "Error: image too large (5 MB maximum).", status_code=400
+            )
         encoded = base64.b64encode(contents).decode("utf-8")
-        mime_type = image.content_type or "image/jpeg"
         image_url = f"data:{mime_type};base64,{encoded}"
-        
+
         user_content = [
             {"type": "text", "text": message},
             {"type": "image_url", "image_url": {"url": image_url}}
@@ -528,20 +590,30 @@ async def send_message(
     if brain_prompt is not None:
         msg_id = int(time.time() * 1000)
         queue = asyncio.Queue()
-        active_streams[session_id] = queue
+        brain_stream_key = _stream_key(session_id, msg_id)
+        _register_stream(brain_stream_key, queue)
         brain = _module_meta(request, "brain")
+        def _retain(coro):
+            # M-ASYNC-2: keep a strong ref so the turn cannot be GC'd
+            # mid-flight. Queue lifetime belongs to the stream response
+            # (removed on close), not to producer completion: a late GET
+            # must still find the queued events.
+            task = asyncio.create_task(coro)
+            background_chat_tasks.add(task)
+            task.add_done_callback(background_chat_tasks.discard)
+            return task
         if not brain or not brain.get("enabled"):
             text = ("The brain is off. Enable it from the chat rail or the Modules page, "
                     "then try /brain again.")
-            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+            _retain(_stream_brain_notice(session_id, text, queue))
         elif image and image.filename:
             text = "Brain turns are text-only; send the image with an ordinary chat message."
-            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+            _retain(_stream_brain_notice(session_id, text, queue))
         elif not brain_prompt:
             text = "Type a question after /brain, for example: /brain what are you working on?"
-            asyncio.create_task(_stream_brain_notice(session_id, text, queue))
+            _retain(_stream_brain_notice(session_id, text, queue))
         else:
-            asyncio.create_task(
+            _retain(
                 _run_brain_turn(session_id, message, brain_prompt, llm, queue)
             )
         return templates.TemplateResponse(
@@ -579,8 +651,9 @@ async def send_message(
         # However, to be safe, we'll try to stream.
         msg_id = int(time.time() * 1000)
         queue = asyncio.Queue()
-        active_streams[session_id] = queue
-        
+        stream_key = _stream_key(session_id, msg_id)
+        _register_stream(stream_key, queue)
+
         async def run_flow_background():
             from modules.chat.sessions import session_manager
             
@@ -597,7 +670,18 @@ async def send_message(
                     except (ValueError, TypeError) as _exc:
                         logger.debug("ignored exception: %s", _exc)
                 flow_result = await runner.run(initial_data, stream_queue=queue)
-                logger.info(f"[Chat] flow_result: {flow_result}")
+                # M-CHAT-1: never log full conversations / base64 images at INFO.
+                # Sizes at DEBUG only; content stays out of the log.
+                try:
+                    _fr = flow_result if isinstance(flow_result, dict) else {}
+                    logger.debug(
+                        "[Chat] flow done keys=%s content_len=%s msgs=%s",
+                        sorted(_fr.keys()),
+                        len(str(_fr.get("content", ""))),
+                        len(_fr.get("messages", []) or []),
+                    )
+                except Exception:
+                    pass
                 
                 ai_response = flow_result.get("content", "")
                 if not ai_response:
@@ -676,8 +760,11 @@ async def send_message(
                         if user_text is None: user_text = "Image/Multimodal Content"
                         if ai_text is None: ai_text = "Response"
                         
-                        summary_context = f"User: {user_text[:500]}\\nAI: {ai_text[:500]}"
-                        prompt = f"Generate a short, concise title (3-5 words) for this conversation based on the start:\\n\\n{summary_context}\\n\\nTitle:"
+                        summary_context = f"User: {user_text[:500]}\nAI: {ai_text[:500]}"
+                        prompt = (
+                            "Generate a short, concise title (3-5 words) for this "
+                            f"conversation based on the start:\n\n{summary_context}\n\nTitle:"
+                        )
                         
                         title_response = await llm.chat_completion(
                             messages=[{"role": "user", "content": prompt}],
@@ -695,15 +782,19 @@ async def send_message(
                 
             except Exception as e:
                 logger.exception(f"Stream generation error: {e}")
-                last_stream_errors[session_id] = str(e)
+                last_stream_errors[stream_key] = str(e)
                 await queue.put({"type": "error", "content": str(e)})
             finally:
                 await queue.put(None)
-                if session_id in active_streams:
-                    del active_streams[session_id]
+                # M-ASYNC-3: the queue stays registered until its stream
+                # response closes (event_generator finally removes it), so
+                # late readers still find it. Only the task ref is dropped.
+                # Identity-guarded removal lives in event_generator.
         
-        # Start the background execution
-        asyncio.create_task(run_flow_background())
+        # Start the background execution (M-ASYNC-2: retained, self-cleaning).
+        _bg_task = asyncio.create_task(run_flow_background())
+        background_chat_tasks.add(_bg_task)
+        _bg_task.add_done_callback(background_chat_tasks.discard)
         
         return templates.TemplateResponse(
             request, 
@@ -717,23 +808,43 @@ async def send_message(
         )
 
 @router.get("/stream/{session_id}")
-async def stream_chat(session_id: str):
+async def stream_chat(session_id: str, msg_id: int = None):
     from fastapi.responses import StreamingResponse
     import json
-    
-    queue = active_streams.get(session_id)
-    
+
+    # M-ASYNC-3: each message has its own queue; without a msg_id fall back
+    # to the newest queue for the session (back-compat).
+    if msg_id is not None:
+        queue = active_streams.get(_stream_key(session_id, msg_id))
+        lookup_key = _stream_key(session_id, msg_id)
+    else:
+        queue = _latest_stream_for(session_id)
+        lookup_key = None
+
     async def event_generator():
         if not queue:
             # The flow can finish before the browser opens the stream. Surface the
             # failure reason or the persisted assistant reply instead of a missing stream.
-            failure = last_stream_errors.pop(session_id, None)
+            failure = last_stream_errors.pop(lookup_key, None) if lookup_key else None
+            if failure is None:
+                # Back-compat: errors recorded without a message key, or a
+                # late reader without a msg_id asking for the newest failure.
+                failure = last_stream_errors.pop(session_id, None)
+            if failure is None and msg_id is None:
+                newest = None
+                for key in list(last_stream_errors):
+                    if isinstance(key, tuple) and len(key) == 2 and key[0] == session_id:
+                        if newest is None or key[1] > newest[1]:
+                            newest = key
+                if newest is not None:
+                    failure = last_stream_errors.pop(newest, None)
             if failure:
                 payload = json.dumps({"error": failure})
                 yield f"event: error\ndata: {payload}\n\n"
                 yield "event: done\ndata: {}\n\n"
                 return
-            from modules.chat.sessions import session_manager
+            # NOTE: module-global session_manager (patchable in tests), not a
+            # fresh import which would bypass monkeypatching.
             session = session_manager.get_session(session_id)
             last_reply = None
             if session:
@@ -778,10 +889,16 @@ async def stream_chat(session_id: str):
                     payload = json.dumps(chunk.get("content", []))
                     yield f"event: commands\ndata: {payload}\n\n"
         finally:
-            # A background turn may have replaced the queue for a newer request.
-            if active_streams.get(session_id) is queue:
+            # Identity-guarded per-message cleanup (M-ASYNC-3): a finished
+            # stream only removes its own queue. Fall back to the legacy
+            # session key for queues registered before this change.
+            removed = False
+            if lookup_key is not None and active_streams.get(lookup_key) is queue:
+                active_streams.pop(lookup_key, None)
+                removed = True
+            if not removed and active_streams.get(session_id) is queue:
                 active_streams.pop(session_id, None)
-                
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 

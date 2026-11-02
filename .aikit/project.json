@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "name": "neurocore",
-  "test_command": null,
+  "test_command": "python -m pytest -q",
   "gates": {
-    "lint": null
+    "lint": "python -m ruff check --select F821,F823 ."
   },
   "created": "2026-10-19",
   "has_ui": true,

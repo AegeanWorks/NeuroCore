@@ -40,7 +40,11 @@ def temp_modules_dir(tmp_path, monkeypatch):
 
     # Add the temp dir to sys.path so importlib can find the modules
     monkeypatch.syspath_prepend(str(modules_root))
-    
+
+    # M-SEC-3: keep runtime overlays out of the real data dir during tests.
+    import core.module_manager as mm
+    monkeypatch.setattr(mm, "RUNTIME_CONFIG_DIR", str(modules_root / "overlays"))
+
     # Invalidate import caches to ensure the new path is used
     importlib.invalidate_caches()
     yield str(modules_dir)
@@ -100,20 +104,24 @@ def test_hot_disable_module(temp_modules_dir, mock_app):
     assert client.get("/enabled_module/").status_code == 404
     assert manager.modules["enabled_module"]["enabled"] is False
 
-def test_update_module_config(temp_modules_dir, mock_app):
-    """Tests that updating module configuration writes to the file."""
+def test_update_module_config(temp_modules_dir, mock_app, tmp_path):
+    """Updating config writes the data-dir overlay, never the shipped manifest."""
     manager = ModuleManager(app=mock_app, modules_dir=temp_modules_dir)
-    
+
     new_config = {"key": "value"}
     manager.update_module_config("enabled_module", new_config)
-    
+
     assert manager.modules["enabled_module"]["config"] == new_config
-    
-    # Verify file write
-    config_path = os.path.join(temp_modules_dir, "enabled_module", "module.json")
-    with open(config_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        assert data["config"] == new_config
+
+    # Shipped manifest untouched (M-SEC-3: secrets must not land in git).
+    manifest = os.path.join(temp_modules_dir, "enabled_module", "module.json")
+    with open(manifest, "r", encoding="utf-8") as f:
+        assert "config" not in json.load(f)
+    # Runtime overlay carries the config.
+    overlay_dir = os.path.join(os.path.dirname(temp_modules_dir), "overlays")
+    with open(os.path.join(overlay_dir, "enabled_module.json"),
+                "r", encoding="utf-8") as f:
+        assert json.load(f)["config"] == new_config
 
 def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, mock_app):
     manager = ModuleManager(app=mock_app, modules_dir=temp_modules_dir)
@@ -124,4 +132,57 @@ def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, moc
 
     with open(manifest, encoding="utf-8") as f:
         assert json.load(f)["name"] == "Enabled Module"
-    assert [name for name in os.listdir(os.path.dirname(manifest)) if name.endswith(".tmp")] == []
+    overlay_dir = os.path.join(os.path.dirname(temp_modules_dir), "overlays")
+    if os.path.isdir(overlay_dir):
+        assert [name for name in os.listdir(overlay_dir) if name.endswith(".tmp")] == []
+
+
+def test_disable_runs_shutdown_hook(temp_modules_dir, mock_app):
+    """M-DATA-5: disabling stops the live instance (pollers do not linger)."""
+    manager = ModuleManager(app=mock_app, modules_dir=temp_modules_dir)
+    manager.load_enabled_modules()
+    stopped = []
+    sys.modules["modules.enabled_module"].shutdown_module = lambda: stopped.append("stopped")
+    try:
+        manager.disable_module("enabled_module")
+    finally:
+        try:
+            del sys.modules["modules.enabled_module"].shutdown_module
+        except AttributeError:
+            pass
+    assert stopped == ["stopped"]
+
+
+def test_reenable_stops_old_instance_first(temp_modules_dir, mock_app):
+    """M-DATA-5: re-enable stops the old singleton before re-importing."""
+    import types
+
+    manager = ModuleManager(app=mock_app, modules_dir=temp_modules_dir)
+    manager.load_enabled_modules()
+    calls = []
+    old = sys.modules.get("modules.enabled_module")
+    assert old is not None
+    old.shutdown_module = lambda: calls.append("stopped")
+    try:
+        manager.disable_module("enabled_module")
+        assert calls == ["stopped"]
+        manager.enable_module("enabled_module")
+        assert "shutdown_module" not in vars(sys.modules.get("modules.enabled_module", types.SimpleNamespace()))
+    finally:
+        mod = sys.modules.get("modules.enabled_module")
+        if mod is not None and getattr(mod, "shutdown_module", None) is not None:
+            try:
+                delattr(mod, "shutdown_module")
+            except AttributeError:
+                pass
+    client = TestClient(mock_app)
+    assert client.get("/enabled_module/").status_code == 200
+    # No duplicate registration: exactly one route serves the module root.
+    def _serves_enabled(route):
+        if "enabled_module" in (getattr(route, "tags", None) or []):
+            return True
+        context = getattr(route, "include_context", None)
+        if context is not None and "enabled_module" in (getattr(context, "tags", None) or []):
+            return True
+        return False
+    assert sum(1 for r in mock_app.router.routes if _serves_enabled(r)) == 1
