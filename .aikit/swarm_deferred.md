@@ -66,12 +66,13 @@ the whole batch back to re-analysis.
   GoalPursuit + replan counts, fast tests, no sandbox; deeper
   SubCall/REPL/synthesis internals deferred as own batch), retention
   validation + prune-loop fallbacks (`a0015c8`), GoalPursuit
-  coverage test (`05c9aa3`),   SubCall error-dict guard (`537f45a`), catalog listing dataset
-  handlers (`8421221`; publisher-controlled handle/name; vote
-  `item.id` sinks left — server-generated, not attacker-controlled).
-  Remaining agent_loop internals (REPL/synthesis/step-timeout
-  sites) still deferred as their own batch.
-
+  coverage test (`05c9aa3`), SubCall error-dict guard (`537f45a`),
+  catalog listing dataset handlers (`8421221`; publisher-controlled
+  handle/name). Vote `item.id` sinks CLOSED with provenance
+  evidence (catalog ids are server-side `uuid4`, routers.py:2643;
+  flow-import ids sanitized, routers.py:2299-2301 — not attacker
+  input). Remaining agent_loop internals (REPL/synthesis/
+  step-timeout sites) still deferred as their own batch.
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
   (`test_logic_nodes` `Script timeout`, 2–4 failures per run;
