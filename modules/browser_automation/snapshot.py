@@ -27,7 +27,14 @@ class SnapshotBudget:
 
     def validate(self) -> "SnapshotBudget":
         for name in ("max_html_chars", "max_text_chars", "max_screenshot_bytes"):
-            if int(getattr(self, name)) < 1:
+            try:
+                value = int(getattr(self, name))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"snapshot budget {name} must be an integer. "
+                    f"Why: {exc}. Fix: use a positive cap."
+                ) from exc
+            if value < 1:
                 raise ValueError(
                     f"snapshot budget {name} must be at least 1. "
                     "Why: a zero budget would return nothing. Fix: use a positive cap."
