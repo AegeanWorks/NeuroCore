@@ -99,97 +99,101 @@ class TrendMonitor:
         }
         if sample["pass_rate"] is None and not errors and providers == 0:
             return None
-        data = self.store.load()
-        samples = data.get("samples") if isinstance(data.get("samples"), list) else []
-        samples.append(sample)
-        data["samples"] = samples[-self.history:]
-        self.store.save(data)
+        with self.store.lock.held():
+            data = self.store.load()
+            samples = data.get("samples") if isinstance(data.get("samples"), list) else []
+            samples.append(sample)
+            data["samples"] = samples[-self.history:]
+            self.store.save(data)
         return sample
 
     def detect(self) -> List[Dict[str, Any]]:
         """Return zero or one finding; persisted dedupe prevents proposal spam."""
-        data = self.store.load()
-        samples = data.get("samples") if isinstance(data.get("samples"), list) else []
-        if len(samples) < 2 * self.window:
-            return []
-        current = samples[-self.window:]
-        previous = samples[-2 * self.window:-self.window]
-        now = self._clock()
-        try:
-            day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
-        except (OverflowError, OSError, ValueError):
-            logger.warning("Could not derive a trend day from clock value %r", now)
-            return []
-        proposals = self._prune_proposals(data.get("proposals"))
+        with self.store.lock.held():
+            # Hold the ledger lock across the whole read-modify-write so
+            # concurrent cycles cannot clobber each other's proposals.
+            data = self.store.load()
+            samples = data.get("samples") if isinstance(data.get("samples"), list) else []
+            if len(samples) < 2 * self.window:
+                return []
+            current = samples[-self.window:]
+            previous = samples[-2 * self.window:-self.window]
+            now = self._clock()
+            try:
+                day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+            except (OverflowError, OSError, ValueError):
+                logger.warning("Could not derive a trend day from clock value %r", now)
+                return []
+            proposals = self._prune_proposals(data.get("proposals"))
 
-        emitted_today = sum(
-            1 for item in proposals
-            if str(item.get("day") or "") == day
-        )
-        if emitted_today >= self.max_per_day:
-            return []
+            emitted_today = sum(
+                1 for item in proposals
+                if str(item.get("day") or "") == day
+            )
+            if emitted_today >= self.max_per_day:
+                return []
 
-        findings: List[Dict[str, Any]] = []
-        for metric, direction in (
-            ("pass_rate", "fall"),
-            ("provider_error_rate", "rise"),
-        ):
-            current_values = [
-                value for value in (self._value(item, metric) for item in current)
-                if value is not None
-            ]
-            previous_values = [
-                value for value in (self._value(item, metric) for item in previous)
-                if value is not None
-            ]
-            if len(current_values) < self.window or len(previous_values) < self.window:
-                continue
-            current_mean = self._mean(current_values)
-            previous_mean = self._mean(previous_values)
-            delta = (
-                previous_mean - current_mean
-                if direction == "fall"
-                else current_mean - previous_mean
-            )
-            if delta < self.min_delta:
-                continue
-            last = next(
-                (item for item in reversed(proposals)
-                 if item.get("metric") == metric),
-                None,
-            )
-            if last is not None:
-                try:
-                    last_at = float(last.get("detected_at", 0.0))
-                except (TypeError, ValueError):
-                    last_at = 0.0
-                if now - last_at < self.cooldown_seconds:
+            findings: List[Dict[str, Any]] = []
+            for metric, direction in (
+                ("pass_rate", "fall"),
+                ("provider_error_rate", "rise"),
+            ):
+                current_values = [
+                    value for value in (self._value(item, metric) for item in current)
+                    if value is not None
+                ]
+                previous_values = [
+                    value for value in (self._value(item, metric) for item in previous)
+                    if value is not None
+                ]
+                if len(current_values) < self.window or len(previous_values) < self.window:
                     continue
-            findings.append({
-                "metric": metric,
-                "direction": direction,
-                "previous_mean": round(previous_mean, 3),
-                "current_mean": round(current_mean, 3),
-                "delta": round(delta, 3),
-                "window": self.window,
-                "day": day,
-                "detected_at": now,
-                "reason": (
-                    f"{metric} {'fell' if direction == 'fall' else 'rose'} from "
-                    f"{previous_mean:.2f} to {current_mean:.2f} across the last "
-                    f"{self.window} samples"
-                ),
-            })
+                current_mean = self._mean(current_values)
+                previous_mean = self._mean(previous_values)
+                delta = (
+                    previous_mean - current_mean
+                    if direction == "fall"
+                    else current_mean - previous_mean
+                )
+                if delta < self.min_delta:
+                    continue
+                last = next(
+                    (item for item in reversed(proposals)
+                     if item.get("metric") == metric),
+                    None,
+                )
+                if last is not None:
+                    try:
+                        last_at = float(last.get("detected_at", 0.0))
+                    except (TypeError, ValueError):
+                        last_at = 0.0
+                    if now - last_at < self.cooldown_seconds:
+                        continue
+                findings.append({
+                    "metric": metric,
+                    "direction": direction,
+                    "previous_mean": round(previous_mean, 3),
+                    "current_mean": round(current_mean, 3),
+                    "delta": round(delta, 3),
+                    "window": self.window,
+                    "day": day,
+                    "detected_at": now,
+                    "reason": (
+                        f"{metric} {'fell' if direction == 'fall' else 'rose'} from "
+                        f"{previous_mean:.2f} to {current_mean:.2f} across the last "
+                        f"{self.window} samples"
+                    ),
+                })
 
-        if not findings:
-            self.store.save({**data, "proposals": proposals})
-            return []
-        finding = max(findings, key=lambda item: item["delta"])
-        proposals.append(finding)
-        data["proposals"] = proposals[-MAX_PROPOSALS:]
-        data["samples"] = samples[-self.history:]
-        self.store.save(data)
-        return [finding]
+            if not findings:
+                self.store.save({**data, "proposals": proposals})
+                return []
+            finding = max(findings, key=lambda item: item["delta"])
+            proposals.append(finding)
+            data["proposals"] = proposals[-MAX_PROPOSALS:]
+            data["samples"] = samples[-self.history:]
+            self.store.save(data)
+            return [finding]
 
     @staticmethod
     def _prune_proposals(raw: Any) -> List[Dict[str, Any]]:

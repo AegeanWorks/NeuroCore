@@ -117,6 +117,48 @@ def test_trend_route_reports_the_window():
     assert {"samples", "window", "history", "means", "proposals"} <= set(body)
 
 
+def test_concurrent_records_do_not_lose_samples(tmp_path, monkeypatch):
+    import threading
+
+    import modules.brain.trends as trends_module
+
+    real_load = trends_module.TrendStore.load
+    state = {"count": 0, "armed": True, "lock": threading.Lock()}
+    both_loaded = threading.Event()
+
+    def rendezvous_load(self):
+        data = real_load(self)
+        first = False
+        with state["lock"]:
+            if state["armed"]:
+                state["count"] += 1
+                if state["count"] == 1:
+                    first = True
+                else:
+                    state["armed"] = False
+                    both_loaded.set()
+        if first:
+            both_loaded.wait(timeout=5)
+        return data
+
+    monkeypatch.setattr(trends_module.TrendStore, "load", rendezvous_load)
+    now = [1000.0]
+    left = monitor(tmp_path, now, history=1000)
+    right = monitor(tmp_path, now, history=1000)
+
+    def work(tracker):
+        for _ in range(20):
+            assert tracker.record(snapshot(pass_rate=1.0)) is not None
+
+    first = threading.Thread(target=work, args=(left,))
+    second = threading.Thread(target=work, args=(right,))
+    first.start()
+    second.start()
+    first.join()
+    second.join()
+    assert len(left.store.load()["samples"]) == 40
+
+
 def test_trend_record_survives_malformed_snapshot_fields(tmp_path):
     tracker = monitor(tmp_path, [1000.0])
 
