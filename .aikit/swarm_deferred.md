@@ -1,11 +1,11 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-35 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+36 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
-1928907, 9b81cdb, ac42d74, 1552972). 319 repro tests green in the
-latest cumulative sweep (25.94s; 2 sandbox-heavy deselected by
-intent) plus 3 approvals (19.92s) and 10 LLM (2.76s) after. Each
+1928907, 9b81cdb, ac42d74, 1552972, a47c3c3). 319 repro tests green
+in the latest cumulative sweep (25.94s; 2 sandbox-heavy deselected
+by intent) plus 3 approvals (19.92s) and 10 LLM (2.76s) after. Each
 item below was returned by a swarm agent but NOT implemented, with
 the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
@@ -60,9 +60,10 @@ the whole batch back to re-analysis.
   excluded from gate run, same flake class), retry-count fallback
   (`1928907`), approvals ledger `.get(status)` (`9b81cdb`; parity
   with outbound `6010685`), LLM timeout fallback (`ac42d74`),
-  agent-loop config validation (`1552972`; 12 bare parses, fast
-  failing-first test, sandbox-heavy abort test untouched).
-  File-tree catalog sinks (`marketplace.html` id/handle/name)
+  agent-loop config validation (`1552972` main block; `a47c3c3` RLM /
+  Hybrid / GoalPursuit blocks + all 4 replan counts, fast tests, no
+  sandbox; deeper SubCall/REPL/synthesis internals deferred as own
+  batch). File-tree catalog sinks (`marketplace.html` id/handle/name)
   remain deferred as stated.
 
 ## Gating blocker (sent back to implementation, not fixed here)
