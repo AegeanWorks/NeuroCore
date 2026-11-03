@@ -1,17 +1,17 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-53 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+54 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
 1928907, 9b81cdb, ac42d74, 1552972, a47c3c3, a0015c8, 05c9aa3,
 537f45a, 8421221, 1861d1e, 4653f68, 80905de, 05692f6, 7aa4796,
-a3d480f, 5dee550, b783dca, cccc638, d4bb81b, 2e1e1fa, af1de74, e1f5770, 23a9892). 319 repro tests
+a3d480f, 5dee550, b783dca, cccc638, d4bb81b, 2e1e1fa, af1de74, e1f5770, 23a9892, 781cac0). 319 repro tests
 green in the latest cumulative sweep (25.94s; 2 sandbox-heavy
 deselected by intent) plus 3 approvals (19.92s), 10 LLM (2.76s),
 11 chat-node (14.07s), 1 plan-validation (9.26s), 1
 replan-validation, 8 goal-compress (2.41s), 2 email-service
 (14.04s), 1 reflection-timeout (31.40s), 1 event-bus limit
-(2.80s), 1 rotate-guard (1.69s), 12 budget-file (5.62s), and 1 trend-atomicity (7.12s), and 4 router-validation (2.76s), and 2 gauge-guard (2.49s) after. Each item
+(2.80s), 1 rotate-guard (1.69s), 12 budget-file (5.62s), and 1 trend-atomicity (7.12s), and 4 router-validation (2.76s), and 2 gauge-guard (2.49s), and 1 state-coercion after. Each item
 below was returned by a swarm agent but NOT implemented, with the
 reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
@@ -85,7 +85,7 @@ the whole batch back to re-analysis.
   helpers; DecomposeGoal depth reads verified safe by provenance),
   email bridge port/interval validation (`a3d480f`; fail-fast typed
   errors, proven no-thread/no-network via direct `_start_poller`
-  test), brain router numerics to typed 400s (`e1f5770`; 4 HTTP-level tests, closes the brain half of the router item), replan LLM-call numerics (`5dee550`; grouped typed error,
+  test), cycle-count coercion on brain-state load (`781cac0`; hand-edited state crashed the next cycle), brain router numerics to typed 400s (`e1f5770`; 4 HTTP-level tests, closes the brain half of the router item), replan LLM-call numerics (`5dee550`; grouped typed error,
   same fast-test pattern), reflection-save timeout fallback
   (`b783dca`; bare float discarded a whole successful run — proven
   via empty-content repro, full-run mocked test), event-bus
