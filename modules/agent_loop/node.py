@@ -3726,8 +3726,19 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         repl_state: dict = None,
     ) -> list:
         """Generate a revised plan for remaining work after a step failure."""
-        max_steps = int(config.get("max_steps", 10))
-        replan_result_max_chars = int(config.get("replan_result_max_chars", 600))
+        try:
+            max_steps = int(config.get("max_steps", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid max_steps. Why: {exc}. Fix: pass max_steps as an integer."
+            ) from exc
+        try:
+            replan_result_max_chars = int(config.get("replan_result_max_chars", 600))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "invalid replan_result_max_chars. Why: "
+                f"{exc}. Fix: pass replan_result_max_chars as an integer."
+            ) from exc
         if completed_steps:
             lines = []
             variables = (repl_state or {}).get("variables", {})

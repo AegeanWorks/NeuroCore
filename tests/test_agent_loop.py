@@ -165,6 +165,17 @@ class TestAgentLoopBasic:
         assert "max_tokens" in result["content"]
 
     @pytest.mark.asyncio
+    async def test_replan_rejects_bad_max_steps(self):
+        """A non-numeric replan max_steps must fail fast with Why/Fix."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_steps"):
+            await ex._replan(
+                "req", [], [], {}, "boom", {"max_steps": "abc"}
+            )
+
+    @pytest.mark.asyncio
     async def test_goal_pursuit_bad_config_is_rejected_with_hint(self):
         """GoalPursuit executor validates its config block the same way."""
         from modules.agent_loop.node import GoalPursuitExecutor
