@@ -1,14 +1,15 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-38 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+39 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
 1928907, 9b81cdb, ac42d74, 1552972, a47c3c3, a0015c8, 05c9aa3,
-537f45a). 319 repro tests green in the latest cumulative sweep
-(25.94s; 2 sandbox-heavy deselected by intent) plus 3 approvals
-(19.92s), 10 LLM (2.76s), 14 retention (4.01s), and 5 agent-loop
-config (87.10s) after. Each item below was returned by a swarm
-agent but NOT implemented, with the reason.
+537f45a, 8421221). 319 repro tests green in the latest cumulative
+sweep (25.94s; 2 sandbox-heavy deselected by intent) plus 3
+approvals (19.92s), 10 LLM (2.76s), 14 retention (4.01s), 5
+agent-loop config (87.10s), and 11 xss (12.23s) after. Each item
+below was returned by a swarm agent but NOT implemented, with the
+reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -65,11 +66,11 @@ the whole batch back to re-analysis.
   GoalPursuit + replan counts, fast tests, no sandbox; deeper
   SubCall/REPL/synthesis internals deferred as own batch), retention
   validation + prune-loop fallbacks (`a0015c8`), GoalPursuit
-  coverage test (`05c9aa3`), SubCall error-dict guard (`537f45a`).
-  File-tree catalog sinks (`marketplace.html` id/handle/name)
-  remain deferred as stated. Remaining agent_loop internals
-  (REPL/synthesis/step-timeout sites) still deferred as their own
-  batch.
+  coverage test (`05c9aa3`),   SubCall error-dict guard (`537f45a`), catalog listing dataset
+  handlers (`8421221`; publisher-controlled handle/name; vote
+  `item.id` sinks left — server-generated, not attacker-controlled).
+  Remaining agent_loop internals (REPL/synthesis/step-timeout
+  sites) still deferred as their own batch.
 
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
