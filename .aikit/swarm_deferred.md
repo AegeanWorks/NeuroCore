@@ -43,6 +43,7 @@ the whole batch back to re-analysis.
 - Core router 400-mapping for delegation/handoff: CLOSED, no HTTP surface exists — `DelegationContract.child` / `new_packet` have no production callers (only `from_dict` deserialization in agent_loop); typed Why/Fix errors already surface as failed flows. Nothing to map.
 - `create_article/study/finding` parity done; remaining
   `update_*` field validation (variables/evidence JSON, p_value etc.).
+- S-BRAIN-R2 D1 (comparability asymmetry): `compare_results` treats an incomparable suite as NOT a regression (IDEA-1207, evaluation.py:17-32) but a different-flow baseline AS a regression (:34-47) — inconsistent conservatism. Changing either direction alters promotion gating; needs a product decision with ADR, so deferred, not implemented.
 - Marketplace catalog sinks (`marketplace.html:154,179,193,201,219,
   223` — server-controlled id/handle/name) for data-attr refactor.
 - Flow-runner `_finalize_run_summary` outcome detail, retention
