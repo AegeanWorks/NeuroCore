@@ -63,6 +63,10 @@ class BrainState:
             state.actions = []
         if not isinstance(state.last_snapshot, dict):
             state.last_snapshot = {}
+        try:
+            state.cycle_count = int(state.cycle_count)
+        except (TypeError, ValueError):
+            state.cycle_count = 0
         return state
 
 

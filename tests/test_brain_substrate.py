@@ -12,7 +12,14 @@ from modules.brain.events import EventBus
 from modules.brain.learning import LearningLoop, LearningStore
 from modules.brain.self_model import BrainSelfModel
 from modules.brain.service import BrainService
-from modules.brain.state import BrainStateStore
+from modules.brain.state import BrainState, BrainStateStore
+
+
+def test_from_dict_coerces_bad_cycle_count():
+    state = BrainState.from_dict({"mode": "observe", "cycle_count": "bad"})
+    assert state.cycle_count == 0
+    state.cycle_count += 1
+    assert state.cycle_count == 1
 
 
 @pytest.mark.asyncio
