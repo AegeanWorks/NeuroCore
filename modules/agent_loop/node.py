@@ -565,7 +565,16 @@ class AgentBaseExecutor:
             or repl_state.get("sub_call_model")
             or settings.get("default_model")
         )
-        max_tokens = int(args.get("max_tokens", 2000))
+        try:
+            max_tokens = int(args.get("max_tokens", 2000))
+        except (TypeError, ValueError):
+            return {
+                "tool_call_id": "",
+                "role": "tool",
+                "name": "sub_call",
+                "content": "Error: max_tokens must be an integer",
+                "success": False,
+            }
 
         repl_state["sub_call_count"] = repl_state.get("sub_call_count", 0) + 1
         old_depth = repl_state.get("recursion_depth", 0)

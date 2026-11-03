@@ -155,6 +155,16 @@ class TestAgentLoopBasic:
             )
 
     @pytest.mark.asyncio
+    async def test_sub_call_bad_max_tokens_returns_error_result(self):
+        """A non-numeric SubCall max_tokens returns an error result, not a crash."""
+        executor = make_executor()
+        result = await executor._execute_sub_call(
+            {"prompt": "2+2", "max_tokens": "abc"}, {}
+        )
+        assert result["success"] is False
+        assert "max_tokens" in result["content"]
+
+    @pytest.mark.asyncio
     async def test_goal_pursuit_bad_config_is_rejected_with_hint(self):
         """GoalPursuit executor validates its config block the same way."""
         from modules.agent_loop.node import GoalPursuitExecutor
