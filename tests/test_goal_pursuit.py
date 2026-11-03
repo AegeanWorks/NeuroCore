@@ -346,6 +346,26 @@ async def test_receive_single_step_success():
     assert result["remaining_steps"] == []
 
 
+async def test_receive_bad_reflection_timeout_falls_back():
+    ex = make_executor()
+
+    plan_resp = llm_response(plan_json("Research AI"))
+    step_resp = llm_response("AI is growing rapidly in 2025.")
+    eval_resp = llm_response(eval_json(True, "Information found", "AI is growing rapidly in 2025."))
+
+    ex.llm.chat_completion = AsyncMock(side_effect=[plan_resp, step_resp, eval_resp])
+
+    with patch.object(ex, "_load_tool_library", return_value={}), \
+         patch.object(ex, "_load_tools", return_value={}):
+        result = await ex.receive(
+            {"messages": MESSAGES},
+            config={"enable_synthesis": False, "reflection_save_timeout": "abc"},
+        )
+
+    assert result["content"]
+    assert len(result["completed_steps"]) == 1
+
+
 # ---------------------------------------------------------------------------
 # receive() — multi-step with synthesis
 # ---------------------------------------------------------------------------

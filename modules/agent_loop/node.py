@@ -5901,7 +5901,10 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             # Save a post-run reflection so future goal runs can learn from this one.
             # Awaited with a timeout so the lesson is durably written before receive()
             # returns; if the embedding call takes too long we skip gracefully.
-            _reflection_timeout = float(config.get("reflection_save_timeout", 8.0))
+            try:
+                _reflection_timeout = float(config.get("reflection_save_timeout", 8.0))
+            except (TypeError, ValueError):
+                _reflection_timeout = 8.0
             try:
                 await asyncio.wait_for(
                     self._save_run_reflection(
