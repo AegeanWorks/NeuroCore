@@ -77,8 +77,12 @@ class ToolCallContext:
         if len(self.progress) >= MAX_PROGRESS_ITEMS:
             return False
         self._last_progress = now
+        try:
+            clamped = None if fraction is None else round(float(fraction), 3)
+        except (TypeError, ValueError):
+            clamped = None
         self.progress.append({
-            "fraction": None if fraction is None else round(float(fraction), 3),
+            "fraction": clamped,
             "note": (note or "")[:200],
             "at_ms": self.elapsed_ms(),
         })

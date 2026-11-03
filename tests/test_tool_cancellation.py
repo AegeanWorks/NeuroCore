@@ -15,6 +15,12 @@ from modules.tools.calls import (
 )
 
 
+def test_progress_bad_fraction_falls_back_to_none():
+    context = ToolCallContext(call_id="c1", tool="Calculator")
+    assert context.emit_progress(fraction="abc", force=True) is True
+    assert context.progress[-1]["fraction"] is None
+
+
 def test_registry_registers_and_gets_a_call():
     registry = CallRegistry()
     context = registry.register("Calculator", timeout=5)
