@@ -592,6 +592,15 @@ class TestTraceWriterMalformedLines:
         assert any("malformed" in record.message.lower() for record in caplog.records)
 
 
+def test_session_file_json_list_recovers(tmp_path):
+    from core.session_manager import SessionManager
+
+    fp = tmp_path / "session.json"
+    fp.write_text("[]", encoding="utf-8")
+    manager = SessionManager(session_file=str(fp))
+    assert manager._session_id is not None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

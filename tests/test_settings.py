@@ -35,3 +35,10 @@ def test_save_and_load_settings(settings_manager):
 def test_get_with_default(settings_manager):
     assert settings_manager.get("non_existent", "fallback") == "fallback"
     assert settings_manager.get("temperature") == 0.7
+
+def test_nested_model_limits_merge_preserves_defaults(tmp_path):
+    fp = tmp_path / "settings.json"
+    fp.write_text(json.dumps({"model_limits": {"other": {"max_output_tokens": 1, "max_context_tokens": 2, "aliases": []}}}), encoding="utf-8")
+    manager = SettingsManager(file_path=str(fp))
+    assert "local-model" in manager.settings["model_limits"]
+    assert "other" in manager.settings["model_limits"]

@@ -121,13 +121,25 @@ class DelegationContract:
         depth = self.depth + 1
         if depth > MAX_DELEGATION_DEPTH:
             raise DelegationDepthExceeded(depth, MAX_DELEGATION_DEPTH)
+        try:
+            timeout = float(kwargs.pop("timeout", self.timeout))
+        except (TypeError, ValueError) as exc:
+            raise DelegationError(
+                f"invalid timeout. Why: {exc}. Fix: pass seconds as a number."
+            ) from exc
+        try:
+            retry = int(kwargs.pop("retry", self.retry))
+        except (TypeError, ValueError) as exc:
+            raise DelegationError(
+                f"invalid retry. Why: {exc}. Fix: pass a retry count as an integer."
+            ) from exc
         return DelegationContract(
             task_id=task_id, delegatee_role=delegatee_role,
             capability_set=tuple(capability_set),
             expected_output_schema=kwargs.pop("expected_output_schema", {}),
             context_task_ids=kwargs.pop("context_task_ids", (self.task_id,)),
-            timeout=float(kwargs.pop("timeout", self.timeout)),
-            retry=int(kwargs.pop("retry", self.retry)),
+            timeout=timeout,
+            retry=retry,
             depth=depth,
         ).validate()
 

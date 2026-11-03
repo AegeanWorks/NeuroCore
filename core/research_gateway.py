@@ -366,7 +366,12 @@ async def search(source: str, query: str, limit: int = 5, *,
     if not isinstance(query, str) or not query.strip():
         raise SourcePolicyError("query is required")
     query = query.strip()[:MAX_QUERY_CHARS]
-    limit = max(1, min(int(limit), MAX_LIMIT))
+    try:
+        limit = max(1, min(int(limit), MAX_LIMIT))
+    except (TypeError, ValueError) as exc:
+        raise SourcePolicyError(
+            f"invalid limit. Why: {exc}. Fix: pass a result count as an integer."
+        ) from exc
     key = _cache_key(source, query, limit)
     cached = _cache.get(key)
     if cached and (time.time() - float(cached.get("_stored_at", 0))) < CACHE_TTL_SECONDS:

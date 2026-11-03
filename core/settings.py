@@ -81,7 +81,14 @@ class SettingsManager:
                     loaded_settings = json.load(f)
                     merged_settings = copy.deepcopy(DEFAULT_SETTINGS)
                     if isinstance(loaded_settings, dict):
-                        merged_settings.update(copy.deepcopy(loaded_settings))
+                        for key, value in copy.deepcopy(loaded_settings).items():
+                            if (
+                                isinstance(value, dict)
+                                and isinstance(merged_settings.get(key), dict)
+                            ):
+                                merged_settings[key].update(value)
+                            else:
+                                merged_settings[key] = value
                     return merged_settings
             except (json.JSONDecodeError, IOError) as exc:
                 # M-DATA-2: quarantine the corrupt file instead of silently

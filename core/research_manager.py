@@ -197,6 +197,14 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_hypothesis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict) or not str(data.get("title", "")).strip():
+            raise ValueError(
+                "hypothesis needs a title. Why: title is required. Fix: pass title."
+            )
+        if not str(data.get("statement", "")).strip():
+            raise ValueError(
+                "hypothesis needs a statement. Why: statement is required. Fix: pass statement."
+            )
         with self._lock:
             now = _now()
             row = {

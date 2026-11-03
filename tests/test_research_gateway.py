@@ -293,6 +293,11 @@ def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_
     assert len(manager.articles) == 1, "a cache hit does not duplicate the article"
 
 
+def test_search_rejects_non_integer_limit():
+    with pytest.raises(SourcePolicyError):
+        asyncio.run(search("wikipedia", "x", "abc"))
+
+
 def test_the_cache_is_bounded_and_evicts_the_oldest(monkeypatch, tmp_path):
     monkeypatch.setattr(gateway, "MAX_CACHE_ENTRIES", 2)
     cache = gateway._Cache(str(tmp_path / "cache.json"))

@@ -473,6 +473,9 @@ class SessionManager:
                 try:
                     with open(self.session_file, 'r', encoding="utf-8") as f:
                         data = json.load(f)
+                        if not isinstance(data, dict):
+                            self._create_new_session()
+                            return
                         self._session_id = data.get('session_id')
                         self._state = data.get('state', {})
                         self._tick = data.get('tick', 0)

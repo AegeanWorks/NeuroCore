@@ -23,7 +23,18 @@ class SubflowExecutor:
             raise ValueError(
                 f"subflow cycle detected: {' -> '.join(stack + (flow_id,))}"
             )
-        max_depth = int(config.get("max_depth", 8) or 8)
+        raw_depth = config.get("max_depth", 8)
+        if isinstance(raw_depth, bool) or not isinstance(raw_depth, int):
+            raise ValueError(
+                "subflow node needs max_depth as an integer. "
+                f"Why: got {raw_depth!r}. Fix: pass a non-negative integer."
+            )
+        if raw_depth < 0:
+            raise ValueError(
+                "subflow node needs max_depth as a non-negative integer. "
+                f"Why: got {raw_depth!r}. Fix: pass 0 or a positive integer."
+            )
+        max_depth = raw_depth
         if len(stack) >= max_depth:
             raise ValueError(f"subflow depth limit ({max_depth}) exceeded")
 
@@ -33,6 +44,8 @@ class SubflowExecutor:
                 flow_id, flow_manager_override=_SUBFLOW_MANAGER.get()
             )
             result = await runner.run(input_data or {})
+            if result is None:
+                return None
             return result if isinstance(result, dict) else {"result": result}
         finally:
             _SUBFLOW_STACK.reset(token)

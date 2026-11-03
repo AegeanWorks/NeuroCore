@@ -245,3 +245,7 @@ class TestStats:
         rm.create_finding({"title": "F", "summary": "S", "conclusion": "C"})
         stats = rm.get_stats()
         assert stats == {"hypotheses": 1, "articles": 1, "study_designs": 1, "findings": 1}
+
+    def test_create_hypothesis_missing_title_is_value_error(self, rm):
+        with pytest.raises(ValueError, match="title"):
+            rm.create_hypothesis({})
