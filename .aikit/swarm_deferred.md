@@ -50,6 +50,8 @@ the whole batch back to re-analysis.
   paging, session-trace `read_all` memory cap, bridge fan-out
   swallow, SandboxStartupError mapping — each needs its own repro
   + targeted gate run.
+- S-BRAIN-R2 B4 (config-file race) DROPPED after failed repro: `apply` runs under the store file lock with refresh, so the read-modify-write is already serialized; concurrent applies keep both keys (verified live).
+- S-BRAIN-R2 B6 (ledger lock held across slow eval/publish): `improvement.evaluate` awaits the evaluation runner and `reactivity` awaits bus publish inside `@engine_transaction_async`; a second concurrent evaluate times out at 10s. Needs a split into lock-free run + locked commit with quota re-validation, plus a slow-runner contention test; structural refactor, not a minimal diff. Repro: two concurrent `evaluate` calls on a 30s-task suite, second raises filelock Timeout.
 - KB/memory/tool/messaging/browser/calendar/chat/meta edge cases
   from swarm docs — triage queue, one module per batch, minimal
   diffs, no scope creep into filed items.
