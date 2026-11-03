@@ -249,3 +249,15 @@ class TestStats:
     def test_create_hypothesis_missing_title_is_value_error(self, rm):
         with pytest.raises(ValueError, match="title"):
             rm.create_hypothesis({})
+
+    def test_create_article_missing_title_is_value_error(self, rm):
+        with pytest.raises(ValueError, match="title"):
+            rm.create_article({})
+
+    def test_create_study_design_missing_field_is_value_error(self, rm):
+        with pytest.raises(ValueError):
+            rm.create_study_design({"title": "T"})
+
+    def test_create_finding_missing_field_is_value_error(self, rm):
+        with pytest.raises(ValueError):
+            rm.create_finding({"title": "T"})

@@ -323,6 +323,10 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_article(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict) or not str(data.get("title", "")).strip():
+            raise ValueError(
+                "article needs a title. Why: title is required. Fix: pass title."
+            )
         with self._lock:
             now = _now()
             row = {
@@ -407,6 +411,11 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_study_design(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        for field in ("title", "study_type", "population"):
+            if not isinstance(data, dict) or not str(data.get(field, "")).strip():
+                raise ValueError(
+                    f"study design needs {field}. Why: {field} is required. Fix: pass {field}."
+                )
         with self._lock:
             now = _now()
             row = {
@@ -520,6 +529,11 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_finding(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        for field in ("title", "summary", "conclusion"):
+            if not isinstance(data, dict) or not str(data.get(field, "")).strip():
+                raise ValueError(
+                    f"finding needs {field}. Why: {field} is required. Fix: pass {field}."
+                )
         with self._lock:
             now = _now()
             row = {
