@@ -1,8 +1,10 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-18 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
-3293730, 26f8ab9, 28e0c94). 150 repro tests green. Each item below was
-returned by a swarm agent but NOT implemented, with the reason.
+21 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343). 150+ repro tests
+green (150 sweep + 23 prompt + 30 planner + 23 memory, overlapping
+targets). Each item below was returned by a swarm agent but NOT
+implemented, with the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -42,6 +44,11 @@ the whole batch back to re-analysis.
 - KB/memory/tool/messaging/browser/calendar/chat/meta edge cases
   from swarm docs — triage queue, one module per batch, minimal
   diffs, no scope creep into filed items.
+- Landed since v1 of this list, for the record: Hangul U+D7AF token
+  range (`651e99e`), planner `max_steps` Why/Fix (`49326b9`),
+  memory `recall_access_weight` fallback (`974f343`), marketplace
+  file-tree dataset handler (`28e0c94`). File-tree catalog sinks
+  (`marketplace.html` id/handle/name) remain deferred as stated.
 
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
