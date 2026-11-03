@@ -76,11 +76,23 @@ class TrendMonitor:
                  max_per_day: int = DEFAULT_MAX_PER_DAY):
         self.store = store or TrendStore()
         self._clock = clock or time.time
-        self.window = max(2, int(window))
-        self.history = max(2 * self.window, int(history))
-        self.min_delta = max(0.0, min(1.0, float(min_delta)))
-        self.cooldown_seconds = max(0.0, float(cooldown_seconds))
-        self.max_per_day = max(1, int(max_per_day))
+        try:
+            window = int(window)
+            history = int(history)
+            min_delta = float(min_delta)
+            cooldown_seconds = float(cooldown_seconds)
+            max_per_day = int(max_per_day)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "trend monitor limits must be numbers. "
+                f"Why: {exc}. Fix: pass numeric window, history, "
+                "min_delta, cooldown_seconds and max_per_day."
+            ) from exc
+        self.window = max(2, window)
+        self.history = max(2 * self.window, history)
+        self.min_delta = max(0.0, min(1.0, min_delta))
+        self.cooldown_seconds = max(0.0, cooldown_seconds)
+        self.max_per_day = max(1, max_per_day)
 
     @staticmethod
     def _value(sample: Dict[str, Any], metric: str) -> Optional[float]:

@@ -3,6 +3,7 @@
 import glob
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -136,6 +137,12 @@ def test_trend_route_reports_the_window():
     assert response.status_code == 200
     body = response.json()
     assert {"samples", "window", "history", "means", "proposals"} <= set(body)
+
+
+def test_bad_monitor_limits_are_rejected_with_hint(tmp_path):
+    now = [1000.0]
+    with pytest.raises(ValueError, match="must be numbers"):
+        monitor(tmp_path, now, window="abc")
 
 
 def test_concurrent_records_do_not_lose_samples(tmp_path, monkeypatch):
