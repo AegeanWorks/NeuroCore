@@ -15,6 +15,15 @@ from modules.brain.service import BrainService
 from modules.brain.state import BrainStateStore
 
 
+@pytest.mark.asyncio
+async def test_recent_zero_and_negative_return_empty():
+    bus = EventBus()
+    await bus.publish("x", "s")
+    assert bus.recent(0) == []
+    assert bus.recent(-1) == []
+    assert len(bus.recent(1)) == 1
+
+
 class NullMemoryBridge:
     def add_entry(self, text, **kwargs):
         return -1
