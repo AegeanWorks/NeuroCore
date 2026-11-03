@@ -445,3 +445,42 @@ class TestEmailBridgeRouter:
                 assert response.status_code == 200
                 trigger = json.loads(response.headers["hx-trigger"])
                 assert trigger["showMessage"]["level"] == "success"
+
+
+class TestEmailBridgeServicePorts:
+    """Bad port/interval config must fail fast with Why/Fix, before threads."""
+
+    def _service(self):
+        from types import SimpleNamespace
+
+        from modules.email_bridge.service import EmailService
+
+        svc = EmailService.__new__(EmailService)
+        svc._handler = SimpleNamespace(smtp=None)
+        svc._running = False
+        svc._imap = None
+        svc._thread = None
+        return svc
+
+    def _full_config(self, **overrides):
+        config = {
+            "imap_host": "imap.x",
+            "imap_username": "u",
+            "imap_password": "p",
+            "smtp_host": "smtp.x",
+            "smtp_username": "u",
+            "smtp_password": "p",
+            "smtp_from_address": "f@x",
+        }
+        config.update(overrides)
+        return config
+
+    def test_bad_smtp_port_is_rejected(self):
+        svc = self._service()
+        with pytest.raises(ValueError, match="smtp_port"):
+            svc._start_poller(self._full_config(smtp_port="abc"))
+
+    def test_bad_imap_port_is_rejected(self):
+        svc = self._service()
+        with pytest.raises(ValueError, match="imap_port"):
+            svc._start_poller(self._full_config(imap_port="abc"))
