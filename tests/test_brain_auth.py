@@ -228,6 +228,11 @@ def test_legacy_and_caller_supplied_tokens_still_authenticate(tmp_path):
     assert registry.authenticate("my.chosen.token").name == "chosen"
 
 
+def test_bad_iterations_is_rejected_with_hint(tmp_path):
+    with pytest.raises(ValueError, match="iterations"):
+        BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations="abc")
+
+
 def test_rotate_does_not_reenable_disabled_actor(tmp_path):
     registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
     registry.create("alice")
