@@ -261,3 +261,8 @@ class TestStats:
     def test_create_finding_missing_field_is_value_error(self, rm):
         with pytest.raises(ValueError):
             rm.create_finding({"title": "T"})
+
+    def test_update_hypothesis_invalid_confidence_is_value_error(self, rm):
+        h = rm.create_hypothesis({"title": "T", "statement": "S"})
+        with pytest.raises(ValueError, match="confidence_level"):
+            rm.update_hypothesis(h["id"], {"confidence_level": "abc"})

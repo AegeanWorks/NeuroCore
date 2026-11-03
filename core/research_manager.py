@@ -273,6 +273,13 @@ class ResearchManager:
                 conn.close()
 
     def update_hypothesis(self, hypothesis_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "confidence_level" in (data or {}):
+            try:
+                float(data["confidence_level"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid confidence_level. Why: {exc}. Fix: pass a number."
+                ) from exc
         with self._lock:
             existing = self.get_hypothesis(hypothesis_id)
             if not existing:
