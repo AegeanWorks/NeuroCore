@@ -3800,17 +3800,26 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             .replace("{replan_history_section}", replan_history_section)
         )
         model = config.get("model") or settings.get("default_model")
+        try:
+            replan_temperature = float(config.get("planning_temperature", 0.1))
+            replan_retries = int(config.get("max_llm_retries", 3))
+            replan_delay = float(config.get("retry_delay", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan LLM config. Why: {exc}. Fix: pass numbers for "
+                "planning_temperature, max_llm_retries and retry_delay."
+            ) from exc
         response = await self._llm_with_retry(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Create a revised plan to achieve: {original_request}"},
             ],
             model=model,
-            temperature=float(config.get("planning_temperature", 0.1)),
+            temperature=replan_temperature,
             max_tokens=max(500, 60 * max_steps),
             tools=[],
-            max_retries=int(config.get("max_llm_retries", 3)),
-            retry_delay=float(config.get("retry_delay", 1.0)),
+            max_retries=replan_retries,
+            retry_delay=replan_delay,
         )
         if not response or "choices" not in response:
             logger.warning("[GoalPursuit] Replan LLM call failed; no revised plan generated")

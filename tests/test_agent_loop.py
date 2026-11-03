@@ -165,6 +165,21 @@ class TestAgentLoopBasic:
         assert "max_tokens" in result["content"]
 
     @pytest.mark.asyncio
+    async def test_replan_rejects_bad_llm_config(self):
+        """A non-numeric replan temperature must fail fast with Why/Fix."""
+        from unittest.mock import AsyncMock
+
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor()
+        ex._llm_with_retry = AsyncMock()
+        with pytest.raises(ValueError, match="replan LLM config"):
+            await ex._replan(
+                "req", [], [], {}, "boom", {"planning_temperature": "abc"}
+            )
+        ex._llm_with_retry.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_replan_rejects_bad_max_steps(self):
         """A non-numeric replan max_steps must fail fast with Why/Fix."""
         from modules.agent_loop.node import GoalPursuitExecutor
