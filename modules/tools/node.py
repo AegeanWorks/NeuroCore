@@ -200,11 +200,9 @@ class ToolDispatcherExecutor:
             deferred_id = (deferred.get("id") if isinstance(deferred, dict) else None)
             if not deferred_id:
                 deferred_id = f"deferred-id-{deferred_index}"
-            deferred_name = "unknown"
-            try:
-                deferred_name = (deferred.get("function") or {}).get("name") or "unknown"
-            except AttributeError:
-                pass
+            # Non-dict deferred entries have no function payload; default the name.
+            _fn = deferred.get("function") if isinstance(deferred, dict) else None
+            deferred_name = (_fn.get("name") if isinstance(_fn, dict) else None) or "unknown"
             results.append({
                 "tool_call_id": deferred_id,
                 "role": "tool",

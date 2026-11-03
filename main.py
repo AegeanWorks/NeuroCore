@@ -95,7 +95,7 @@ def _fire_repeater_nodes(app, flow_id: str, flow: dict, is_auto_start: bool = Fa
                     try:
                         if _app.state.repeater_loops.get(_key) is t:
                             del _app.state.repeater_loops[_key]
-                    except Exception:
+                    except Exception:  # hygiene: allow best-effort done-callback cleanup; entry may already be gone
                         pass
                 task.add_done_callback(_cleanup)
             else:
@@ -103,7 +103,7 @@ def _fire_repeater_nodes(app, flow_id: str, flow: dict, is_auto_start: bool = Fa
                     try:
                         if _app.state.repeater_loops.get(_key) is t:
                             del _app.state.repeater_loops[_key]
-                    except Exception:
+                    except Exception:  # hygiene: allow best-effort done-callback cleanup; entry may already be gone
                         pass
                 task.add_done_callback(_cleanup_registry)
             created_tasks.append(task)

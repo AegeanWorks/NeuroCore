@@ -870,7 +870,7 @@ class TestWhatsappWebhookSecret:
         handler = type("H", (), {"handle_incoming_webhook": lambda self, p: seen.append(p)})()
         monkeypatch.setattr(r, "messaging_service",
                             type("M", (), {"get_handler": lambda self, name: handler})())
-        r._webhook_secret_warned = True
+        monkeypatch.setattr(r, "_webhook_secret_warned", True, raising=False)
         resp = await r.whatsapp_webhook(_StubRequest({"a": 2}, {}))
         assert resp.status_code == 200
         assert seen == [{"a": 2}]

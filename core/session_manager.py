@@ -151,8 +151,8 @@ class TraceWriter:
             except BaseException:
                 try:
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
+                except OSError as _exc:
+                    logger.debug("Trace temp cleanup skipped: %s", _exc)
                 raise
         except Exception as exc:
             logger.debug("Trace rotation skipped: %s", exc)

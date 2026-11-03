@@ -109,8 +109,8 @@ def _library_path(tool: str) -> str:
                 candidate = os.path.join(LIBRARY_DIR, entry)
                 if os.path.isfile(candidate):
                     return candidate
-    except OSError:
-        pass
+    except OSError as _exc:
+        logger.debug("Library directory listing skipped: %s", _exc)
     return exact
 
 

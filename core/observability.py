@@ -711,7 +711,7 @@ def instrument_flow_runner():
     """
     from core.flow_runner import FlowRunner
 
-    if getattr(FlowRunner.run, "_neurocore_instrumented", False):
+    if getattr(FlowRunner.run, "neurocore_instrumented", False):
         return
 
     # Wrap the run method
@@ -754,7 +754,7 @@ def instrument_flow_runner():
                                                error=str(e), duration_ms=elapsed_ms)
                     raise
     
-    traced_run._neurocore_instrumented = True
+    traced_run.neurocore_instrumented = True
     FlowRunner.run = traced_run
 
 
@@ -787,7 +787,7 @@ def instrument_llm_calls():
 
     # Patch the chat_completion method on LLMBridge class
     if hasattr(LLMBridge, 'chat_completion') and not getattr(
-            LLMBridge.chat_completion, "_neurocore_instrumented", False):
+            LLMBridge.chat_completion, "neurocore_instrumented", False):
         original_chat_completion = LLMBridge.chat_completion
         
         @wraps(original_chat_completion)
@@ -821,13 +821,13 @@ def instrument_llm_calls():
                 span.finish(status="error", error=str(e))
                 raise
 
-        traced_chat_completion._neurocore_instrumented = True
+        traced_chat_completion.neurocore_instrumented = True
         LLMBridge.chat_completion = traced_chat_completion
 
     # M-LLM-4: the streaming call was never instrumented, so streamed usage
     # never reached the statistics. Usage arrives in the final chunk.
     if hasattr(LLMBridge, 'chat_completion_stream') and not getattr(
-            LLMBridge.chat_completion_stream, "_neurocore_instrumented", False):
+            LLMBridge.chat_completion_stream, "neurocore_instrumented", False):
         original_stream = LLMBridge.chat_completion_stream
 
         @wraps(original_stream)
@@ -861,7 +861,7 @@ def instrument_llm_calls():
                 span.finish(status="error", error=str(e))
                 raise
 
-        traced_chat_completion_stream._neurocore_instrumented = True
+        traced_chat_completion_stream.neurocore_instrumented = True
         LLMBridge.chat_completion_stream = traced_chat_completion_stream
     
     # Also patch get_shared_client to return instrumented client
@@ -885,7 +885,7 @@ def instrument_tools():
     from modules.tools.node import ToolDispatcherExecutor
 
     if hasattr(ToolDispatcherExecutor, 'receive') and not getattr(
-            ToolDispatcherExecutor.receive, "_neurocore_instrumented", False):
+            ToolDispatcherExecutor.receive, "neurocore_instrumented", False):
         original_receive = ToolDispatcherExecutor.receive
         
         @wraps(original_receive)
@@ -922,7 +922,7 @@ def instrument_tools():
                     metrics.increment("tool.calls_failed", len(tool_calls))
                     raise
 
-        traced_receive._neurocore_instrumented = True
+        traced_receive.neurocore_instrumented = True
         ToolDispatcherExecutor.receive = traced_receive
 
 

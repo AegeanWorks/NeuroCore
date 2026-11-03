@@ -10,7 +10,7 @@
 - **Total Classes**: `489`
 - **Total Top-Level Functions**: `2664`
 - **Total Class Methods**: `2404`
-- **Total Source Lines**: `97369`
+- **Total Source Lines**: `97370`
 
 ---
 
@@ -412,7 +412,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1553` lines (`75608` bytes)
+**Size**: `1553` lines (`75678` bytes)
 
 **Classes:**
 - `class FlowRunner`
@@ -566,7 +566,7 @@
 ---
 
 ### [`core/module_manager.py`](core/module_manager.py)
-**Size**: `386` lines (`17810` bytes)
+**Size**: `387` lines (`17902` bytes)
 
 **Classes:**
 - `class ModuleManager`
@@ -639,7 +639,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1149` lines (`43089` bytes)
+**Size**: `1149` lines (`43081` bytes)
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -877,7 +877,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3625` lines (`158805` bytes)
+**Size**: `3625` lines (`158999` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -1123,7 +1123,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1278` lines (`47272` bytes)
+**Size**: `1278` lines (`47328` bytes)
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -1300,7 +1300,7 @@
 ---
 
 ### [`main.py`](main.py)
-**Size**: `262` lines (`11079` bytes)
+**Size**: `262` lines (`11237` bytes)
 
 **Functions:**
 - `async def verify_debug_key(x_debug_key)` - *Verify debug API key for protected debug endpoints.*
@@ -2734,7 +2734,7 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `904` lines (`40811` bytes)
+**Size**: `904` lines (`40858` bytes)
 
 **Functions:**
 - `def _stream_key(session_id, msg_id)`
@@ -3140,7 +3140,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1824` lines (`85627` bytes)
+**Size**: `1824` lines (`85753` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -3661,7 +3661,7 @@
 ---
 
 ### [`modules/reasoning_book/service.py`](modules/reasoning_book/service.py)
-**Size**: `164` lines (`6724` bytes)
+**Size**: `164` lines (`6853` bytes)
 
 **Classes:**
 - `class ReasoningBookService`
@@ -4097,7 +4097,7 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `258` lines (`11948` bytes)
+**Size**: `256` lines (`12008` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -4115,7 +4115,7 @@
 ### [`modules/tools/outbound.py`](modules/tools/outbound.py)
 > *Outbound tools draft; only the user's approval sends (IDEA-032).*
 
-**Size**: `137` lines (`5979` bytes)
+**Size**: `137` lines (`6042` bytes)
 
 **Classes:**
 - `class OutboundDrafts` - *The draft ledger: pending drafts, claimed at most once, then settled.*
@@ -4170,7 +4170,7 @@
 ---
 
 ### [`modules/tools/router.py`](modules/tools/router.py)
-**Size**: `722` lines (`28558` bytes)
+**Size**: `722` lines (`28735` bytes)
 
 **Functions:**
 - `def _sanitize_tool_name(name)` - *Sanitize tool name to prevent path traversal attacks.*
@@ -7112,7 +7112,7 @@
 ### [`tests/test_messaging_bridge.py`](tests/test_messaging_bridge.py)
 > *Tests for modules/messaging_bridge — node executors, service routing, and bridges.*
 
-**Size**: `876` lines (`35069` bytes)
+**Size**: `876` lines (`35107` bytes)
 
 **Classes:**
 - `class TestMessagingInputExecutor`
@@ -7297,7 +7297,7 @@
 ---
 
 ### [`tests/test_module_manager.py`](tests/test_module_manager.py)
-**Size**: `188` lines (`8243` bytes)
+**Size**: `188` lines (`8363` bytes)
 
 **Functions:**
 - `def temp_modules_dir(tmp_path, monkeypatch)` - *Creates a temporary module directory structure for testing.*
@@ -8496,7 +8496,7 @@
 ### [`tests/test_tool_sandbox.py`](tests/test_tool_sandbox.py)
 > *Tests for the Tool Sandbox security system.*
 
-**Size**: `613` lines (`21923` bytes)
+**Size**: `615` lines (`22069` bytes)
 
 **Classes:**
 - `class TestRestrictedImport` - *Tests for the restricted import hook.*

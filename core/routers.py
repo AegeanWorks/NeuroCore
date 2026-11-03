@@ -460,8 +460,8 @@ def _redacted_settings(settings_man) -> dict:
         if _is_secret_key(key):
             try:
                 redacted[f"{key}_configured"] = bool(raw.get(key))
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("Configured flag for %s skipped: %s", key, _exc)
     return redacted
 
 
@@ -601,8 +601,8 @@ async def logout(request: Request):
 
     try:
         revoke_browser_session(request.cookies.get(SESSION_COOKIE))
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("Logout session revoke best-effort failed: %s", _exc)
     response = RedirectResponse("/login", status_code=302)
     response.delete_cookie(SESSION_COOKIE, path="/")
     return response
@@ -1208,8 +1208,8 @@ async def set_active_flow(request: Request, flow_id: str, action: str = Form("to
                     try:
                         if registry.get(_key) is t:
                             del registry[_key]
-                    except Exception:
-                        pass
+                    except Exception as _exc:
+                        logger.debug("Flow registry cleanup skipped: %s", _exc)
                 # Add callback to remove task from set when done to prevent memory leak
                 task.add_done_callback(_cleanup)
                 if hasattr(request.app.state, 'background_tasks'):

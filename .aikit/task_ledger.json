@@ -1,48 +1,17 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-delivery",
-    "last_phase": "in_progress",
+    "task_id": "neurocore-gate-trio",
+    "last_phase": "phase 4 verification",
     "active_phase": 5,
     "status": "completed",
-    "updated_at": 1793496488.387189,
-    "owner": "commandcode:audit-fix",
-    "started_by": "commandcode:audit-fix",
+    "updated_at": 1793725910.142038,
+    "owner": "kilo:1",
+    "started_by": "kilo:1",
     "continuations": [],
-    "completed_at": 1793496488.65241
+    "completed_at": 1793725922.9887464
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1206-typed-checks",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1206-typed-checks' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793446267.6694129,
-      "timestamp_str": "2026-10-31 14:31:07",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1208-indexed-browser",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[1/4] modules/browser_automation/indexed.py: ElementRef, ActionExpectation, ActionResult, generation-scoped ids, bounded build_snapshot, expectation poll. [2/4] the service gains snapshot/click_element/type_element with generation invalidation on navigation; the router accepts element_id/expect_*/timeout_ms and a snapshot action; selector paths stay. [3/4] Failing-first tests for done, unverified, stale, postcondition, policy refusal, budget refusal and expectation parity. [4/4] aikit check neurocore: 4/4 gates; ADR-097, IDEAS, README and the map updated; 24 new browser tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793446267.811767,
-      "timestamp_str": "2026-10-31 14:31:07",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1208-indexed-browser",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1208-indexed-browser' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793446293.5293272,
-      "timestamp_str": "2026-10-31 14:31:33",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "idea-1209-snapshot-budget",
       "phase": "planning",
@@ -256,6 +225,45 @@
       "timestamp": 1793496488.652412,
       "timestamp_str": "2026-11-01 04:28:08",
       "agent": "commandcode:audit-fix"
+    },
+    {
+      "task_id": "neurocore-gate-trio",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/4] Fix 3 pre-existing gates: sandbox timeout flake (2 tests 5s->30s), hygiene silent-except x20 + external-url x2 in vendored JS (log-or-allow), guidelines private-attribute x5 (public marker rename + monkeypatch). [2/4] hygiene fixes. [3/4] guidelines fixes. [4/4] full gates (README + aikit check neurocore), ADR-109, commit no-push.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793725475.2109687,
+      "timestamp_str": "2026-11-03 20:04:35",
+      "agent": "kilo:1",
+      "impact_assessment": {
+        "why": "Prior audit left 3 failing gates: order-dependent sandbox timeouts, silent excepts, cross-object private assigns",
+        "benefits": "All aikit check neurocore gates pass; no behavior change; flaky timeouts gain spawn headroom",
+        "risks": "contract: test timeout values only, public attr rename (internal idempotency marker), log-only except fills; dependency: stdlib only; concurrency: none; state: none",
+        "mitigation": "Failing-first repro before each fix; full gate re-run; explicit staging; no push"
+      },
+      "plan_digest": "3514e9f567056072eff0fc9fb3bf9db8156978e2cfa6d55e5bf934bfbd289cfa"
+    },
+    {
+      "task_id": "neurocore-gate-trio",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/4] aikit check neurocore: 5/5 gates (test 250.6s, lint, hygiene, guidelines, secrets); 68 sandbox+bridge tests pass; map refreshed; ADR-109 appended. checklists: passed. Uncommitted: commit delivery is not authorized beyond this repo.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793725910.142038,
+      "timestamp_str": "2026-11-03 20:11:50",
+      "agent": "kilo:1"
+    },
+    {
+      "task_id": "neurocore-gate-trio",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-gate-trio' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793725922.9887493,
+      "timestamp_str": "2026-11-03 20:12:02",
+      "agent": "kilo:1"
     }
   ]
 }

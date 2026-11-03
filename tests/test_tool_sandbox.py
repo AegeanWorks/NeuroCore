@@ -313,20 +313,22 @@ class TestExecuteSandboxed:
     
     def test_basic_execution(self):
         """Test basic sandboxed execution."""
+        # 30s, not 5s: the child-process spawn alone costs ~3s on Windows,
+        # so a 5s budget flakes under full-suite load (order-dependent).
         result = execute_sandboxed(
             "result = args['value'] * 2",
             {'value': 21},
-            timeout=5.0
+            timeout=30.0
         )
         assert result == 42
-    
+
     def test_security_violation(self):
         """Test that security violations are caught."""
         with pytest.raises(SecurityError):
             execute_sandboxed(
                 "import os; result = os.getcwd()",
                 {},
-                timeout=5.0
+                timeout=30.0
             )
 
 

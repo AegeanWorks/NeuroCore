@@ -304,8 +304,8 @@ class MemoryStore:
             self.unsaved_changes = 0
             try:
                 self._write_index_meta(getattr(self.faiss_index, "ntotal", 0))
-            except Exception:
-                pass
+            except Exception as _exc:
+                logger.debug("FAISS index meta sidecar skipped: %s", _exc)
         except Exception as e:
             logger.error(f"Failed to save FAISS index: {e}")
 
@@ -401,8 +401,8 @@ class MemoryStore:
             if not os.path.exists(self._index_meta_path()):
                 try:
                     self._write_index_meta(self.faiss_index.ntotal)
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    logger.debug("FAISS index meta bootstrap skipped: %s", _exc)
         except Exception as e:
             logger.error(f"Error during FAISS index sync: {e}. Rebuilding...")
             self._build_faiss_index()
