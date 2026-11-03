@@ -1,15 +1,15 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-39 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+40 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
 1928907, 9b81cdb, ac42d74, 1552972, a47c3c3, a0015c8, 05c9aa3,
-537f45a, 8421221). 319 repro tests green in the latest cumulative
-sweep (25.94s; 2 sandbox-heavy deselected by intent) plus 3
-approvals (19.92s), 10 LLM (2.76s), 14 retention (4.01s), 5
-agent-loop config (87.10s), and 11 xss (12.23s) after. Each item
-below was returned by a swarm agent but NOT implemented, with the
-reason.
+537f45a, 8421221, 1861d1e). 319 repro tests green in the latest
+cumulative sweep (25.94s; 2 sandbox-heavy deselected by intent)
+plus 3 approvals (19.92s), 10 LLM (2.76s), 14 retention (4.01s), 5
+agent-loop config (87.10s), 11 xss (12.23s), and 11 chat-node
+(14.07s) after. Each item below was returned by a swarm agent but
+NOT implemented, with the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -71,8 +71,9 @@ the whole batch back to re-analysis.
   handle/name). Vote `item.id` sinks CLOSED with provenance
   evidence (catalog ids are server-side `uuid4`, routers.py:2643;
   flow-import ids sanitized, routers.py:2299-2301 — not attacker
-  input). Remaining agent_loop internals (REPL/synthesis/
-  step-timeout sites) still deferred as their own batch.
+  input), chat malformed tool_calls fall-through (`1861d1e`).
+  Remaining agent_loop internals (REPL/synthesis/step-timeout
+  sites) still deferred as their own batch.
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
   (`test_logic_nodes` `Script timeout`, 2–4 failures per run;
