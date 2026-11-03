@@ -263,12 +263,20 @@ class ReactivityEngine:
         for metric, limits in self.metric_thresholds.items():
             if not isinstance(limits, dict) or metric not in gauges:
                 continue
-            value = float(gauges[metric])
-            minimum = limits.get("min")
-            maximum = limits.get("max")
+            try:
+                value = float(gauges[metric])
+                minimum = limits.get("min")
+                maximum = limits.get("max")
+                if minimum is not None:
+                    minimum = float(minimum)
+                if maximum is not None:
+                    maximum = float(maximum)
+            except (TypeError, ValueError) as exc:
+                logger.warning("Skipping malformed gauge %r: %s", metric, exc)
+                continue
             breach = (
-                (minimum is not None and value < float(minimum))
-                or (maximum is not None and value > float(maximum))
+                (minimum is not None and value < minimum)
+                or (maximum is not None and value > maximum)
             )
             if breach:
                 events.append(BrainEvent(

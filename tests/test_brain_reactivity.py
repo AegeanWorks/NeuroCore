@@ -19,6 +19,28 @@ from modules.brain.state import BrainStateStore
 from tests.test_brain_substrate import FakeSelfModel, NullMemoryBridge
 
 
+def test_malformed_gauge_value_does_not_crash_poll(tmp_path):
+    bus = EventBus()
+    engine = ReactivityEngine(
+        bus,
+        store=ReactionStore(str(tmp_path / "reactions.json")),
+        config={"metric_thresholds": {"q": {"max": 5}}},
+        metrics_provider=lambda: {"q": "bad"},
+    )
+    assert engine._metric_events() == []
+
+
+def test_malformed_threshold_is_skipped_not_fatal(tmp_path):
+    bus = EventBus()
+    engine = ReactivityEngine(
+        bus,
+        store=ReactionStore(str(tmp_path / "reactions.json")),
+        config={"metric_thresholds": {"q": {"max": "bad"}}},
+        metrics_provider=lambda: {"q": 9.0},
+    )
+    assert engine._metric_events() == []
+
+
 def make_engine(tmp_path, **config):
     bus = EventBus()
     engine = ReactivityEngine(
