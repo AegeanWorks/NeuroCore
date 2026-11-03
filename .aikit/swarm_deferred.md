@@ -1,10 +1,10 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-25 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+26 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
-89336b3). 222 repro tests green in the latest cumulative sweep
-(92.21s). Each item below was returned by a swarm agent but NOT
-implemented, with the reason.
+89336b3, a05ac2e). 222 repro tests green in the latest cumulative
+sweep (92.21s) plus 67 messaging (32.16s) after. Each item below was
+returned by a swarm agent but NOT implemented, with the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -48,9 +48,9 @@ the whole batch back to re-analysis.
   range (`651e99e`), planner `max_steps` Why/Fix (`49326b9`),
   memory `recall_access_weight` fallback (`974f343`), marketplace
   file-tree dataset handler (`28e0c94`), calendar fsync parity
-  (`c41c9c9`), chat session limit fallbacks (`89336b3`). File-tree
-  catalog sinks (`marketplace.html` id/handle/name) remain deferred
-  as stated.
+  (`c41c9c9`), chat session limit fallbacks (`89336b3`), telegram
+  chat-id guard (`a05ac2e`). File-tree catalog sinks
+  (`marketplace.html` id/handle/name) remain deferred as stated.
 
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
