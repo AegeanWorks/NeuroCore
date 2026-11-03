@@ -400,6 +400,11 @@ python -m pytest
 python -m pytest --cov=.
 ```
 
+Capability ladder (measured, not prose): Rung 1 `tests/test_planning_recovery_rung.py`
+(plan→execute→recover, 6/6 + 3/3 recovery); Rung 2
+`tests/test_memory_durability_rung.py` (persist→reload→scoped-recall→consolidate,
+8/8 + 100% isolation train-only).
+
 A flow test can record a real provider exchange once and replay it without a model:
 
 ```python

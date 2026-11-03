@@ -2510,6 +2510,73 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (an explicit
   retry/exhaustion state instead of a silent drop) and PRINCIPLE-014 (failing-first delivery,
   acceptance, retry, exhaustion, bounds and replay tests).
+
+### ADR-103: Recoverable tool planning is measured, not rebuilt
+- **Date**: 2026-11-02
+- **Status**: Accepted
+- **Context**: Replan flags, `max_replan_depth`, the repetition guard, the execution
+  budget, model-limit clamps and tool cancellation already existed, but nothing measured
+  plan-decompose-then-execute-then-recover-then-stay-under-budget as one joint
+  capability with success, recovery and cost numbers.
+- **Decision**:
+  1. Add `tests/test_planning_recovery_rung.py` (`planning-recovery-rung-v1`): 6
+     deterministic headless tasks (3 clean multi-step, 3 with one injected tool
+     failure: transient error, unknown tool, timeout class) driven through the existing
+     `PlannerExecutor` plan shape and `AgentLoopExecutor.receive` with fake LLM and
+     fake sandbox sequences.
+  2. Anti-gaming is structural: each task asserts exact tool-derived tokens in the
+     final content plus a minimum succeeded-tool count from the trace, with held-out
+     ids, so a correct text with no tool work fails. The suite carries
+     `RUNG_SUITE_DIGEST`; a task change must update it.
+  3. Cost envelope per task is `<=8` LLM calls, `<=12` tool calls, `<=5 s`, inside the
+     existing budget defaults (50/50/600 s). Targets: success `>=5/6`, recovery
+     `3/3`, runaway identical-repeat aborts via `LoopGuard`, budget exhaustion
+     raises `BudgetExceeded`. No new module, node type, or memory primitive; no
+     prod-code change — the rung reuses the existing rails.
+- **Consequences**: The first AGI-ladder rung ships as numbers (6/6 success, 3/3
+  recovery on this hardware) rather than prose. A future prod change that breaks
+  recovery fails this file before any new capability is claimed. Runaway and
+  ceiling behavior stay covered by the existing guard and budget, now pinned by a
+  joint eval instead of isolated unit tests.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (reuse
+  before new code), PRINCIPLE-010 (bounded cost), PRINCIPLE-014 (repeatable eval)
+  and PRINCIPLE-019 (fake tools only; sandbox, tiers, and cancel unchanged).
+
+### ADR-104: Durable scoped memory is measured as a joint rung, not rebuilt
+- **Date**: 2026-11-02
+- **Status**: Accepted
+- **Context**: Rung 1 measured plan-then-execute-then-recover. Memory pieces
+  (scope predicates, budget receipts, link boosts, train-only consolidation,
+  guardrail memory surface, edit receipts with conditional undo) each passed in
+  isolation, but nothing proved write-then-reload-then-recall-then-consolidate
+  as one chain with scope isolation and cost bounds.
+- **Decision**:
+  1. Add `tests/test_memory_durability_rung.py`
+     (`memory-durability-rung-v1`): 8 deterministic headless tasks
+     (persist/reload, scope isolation, budget receipt, link promotion,
+     skill consolidation, avoidance+holdout, guardrail surface, edit/undo)
+     on temp SQLite with FAISS disabled and explicit small vectors, through
+     the public `MemoryStore`, `MemoryRecallBudget.fit`, and `LearningLoop`
+     (injected `MemoryBridge` + temp `LearningStore`) APIs only.
+  2. Anti-gaming is structural: each task asserts exact stored tokens
+     reloaded from a fresh connection/instance plus row/receipt counts and
+     JSON payload fields (skill/avoidance action, signature, occurrences,
+     error class); holdout outcomes never consolidate; second consolidation
+     is idempotent. The suite carries `RUNG_SUITE_DIGEST`.
+  3. Cost envelope per task is `<=5 s` wall, `0` LLM/network/FAISS calls, file
+     informational `<=60 s`. Targets: `8/8` success, `100%` isolation,
+     `100%` train-only precision. No new module, node type, or memory
+     primitive; no prod-code change — the rung reuses the existing rails.
+- **Consequences**: The second AGI-ladder rung ships as numbers (8/8 on this
+  hardware) rather than prose. A future prod change that breaks persistence,
+  scoping, budgeting, linking, consolidation, guarding, or undo fails this
+  file before any new capability is claimed. Runaway and ceiling behavior stay
+  covered by the existing budget, caps, and confirm phrases, now pinned by a
+  joint eval instead of isolated unit tests.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (reuse
+  before new code), PRINCIPLE-010 (bounded cost), PRINCIPLE-014 (repeatable eval)
+  and PRINCIPLE-019 (temp DB only; sandbox, tiers, and cancel unchanged).
+
 ### ADR-105: Home dashboard keeper; data views wait for LLM and saved data
 - **Date**: 2026-11-03
 - **Status**: Accepted
