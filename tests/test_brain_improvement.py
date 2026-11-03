@@ -1,6 +1,19 @@
 """Eval-gated flow improvement: preview, quotas, promotion and rollback."""
 
 import pytest
+
+
+def test_improvement_rejects_non_numeric_limits(tmp_path):
+    from unittest.mock import MagicMock
+
+    from modules.brain.improvement import ImprovementEngine, ImprovementStore
+
+    with pytest.raises(ValueError, match="must be integers"):
+        ImprovementEngine(
+            flow_manager=MagicMock(),
+            store=ImprovementStore(path=str(tmp_path / "improve.json")),
+            max_candidates_per_day="abc",
+        )
 from fastapi.testclient import TestClient
 
 import modules.brain.service as brain_service_module

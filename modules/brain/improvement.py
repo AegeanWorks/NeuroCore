@@ -125,10 +125,21 @@ class ImprovementEngine:
         self.evaluation_runner = evaluation_runner or EvaluationRunner()
         self.eval_store = eval_store or EvalStore()
         self.store = store or ImprovementStore()
-        self.max_candidates_per_day = max(1, int(max_candidates_per_day))
-        self.max_evaluations_per_day = max(1, int(max_evaluations_per_day))
-        self.max_promotions_per_day = max(1, int(max_promotions_per_day))
-        self.max_candidates = max(10, int(max_candidates))
+        try:
+            max_candidates_per_day = int(max_candidates_per_day)
+            max_evaluations_per_day = int(max_evaluations_per_day)
+            max_promotions_per_day = int(max_promotions_per_day)
+            max_candidates = int(max_candidates)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "improvement limits must be integers. "
+                f"Why: {exc}. Fix: pass integer caps for candidates, "
+                "evaluations and promotions per day."
+            ) from exc
+        self.max_candidates_per_day = max(1, max_candidates_per_day)
+        self.max_evaluations_per_day = max(1, max_evaluations_per_day)
+        self.max_promotions_per_day = max(1, max_promotions_per_day)
+        self.max_candidates = max(10, max_candidates)
         self.generator = generator
         self.require_goal_link = bool(require_goal_link)
         self.goal_lookup = goal_lookup or default_goal_lookup
