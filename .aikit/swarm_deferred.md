@@ -51,6 +51,8 @@ the whole batch back to re-analysis.
   + targeted gate run.
 - S-BRAIN-R2 B4 (config-file race) DROPPED after failed repro: `apply` runs under the store file lock with refresh, so the read-modify-write is already serialized; concurrent applies keep both keys (verified live).
 - S-BRAIN-R2 B6 (ledger lock held across slow eval/publish): `improvement.evaluate` awaits the evaluation runner and `reactivity` awaits bus publish inside `@engine_transaction_async`; a second concurrent evaluate times out at 10s. Needs a split into lock-free run + locked commit with quota re-validation, plus a slow-runner contention test; structural refactor, not a minimal diff. Repro: two concurrent `evaluate` calls on a 30s-task suite, second raises filelock Timeout.
+- S-BRAIN-R2 E5 (cap-hit invisibility): `process_event` returns the same `None` for duplicates, mutes, unknown types and quota caps; quota `used/limit` is already visible in `summary()`/`status()`, so this is an observability nicety (capped-drop counter), not a defect — deferred as an improvement with no repro of harm.
+- S-BRAIN-R2 E6 (empty `allowed_tools` allowlist accepted): `[]` passes narrowing-only validation and would disable all tool use; changing it to reject risks breaking a legitimate disable-all intent — needs a product decision (and ADR) on empty-means-disabled vs empty-means-invalid, so deferred.
 - KB/memory/tool/messaging/browser/calendar/chat/meta edge cases
   from swarm docs — triage queue, one module per batch, minimal
   diffs, no scope creep into filed items.
