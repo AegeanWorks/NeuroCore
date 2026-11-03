@@ -120,8 +120,16 @@ class ConfigurationEngine:
         self.configurable_modules = set(
             configurable_modules or CONFIGURABLE_MODULES
         )
-        self.max_changes_per_day = max(1, int(max_changes_per_day))
-        self.max_changes = max(10, int(max_changes))
+        try:
+            max_changes_per_day = int(max_changes_per_day)
+            max_changes = int(max_changes)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "configuration change limits must be integers. "
+                f"Why: {exc}. Fix: pass integer max_changes_per_day and max_changes."
+            ) from exc
+        self.max_changes_per_day = max(1, max_changes_per_day)
+        self.max_changes = max(10, max_changes)
         self.require_goal_link = bool(require_goal_link)
         self.goal_lookup = goal_lookup or default_goal_lookup
 

@@ -3,6 +3,11 @@
 import json
 
 import pytest
+
+
+def test_engine_rejects_non_numeric_change_limits(tmp_path):
+    with pytest.raises(ValueError, match="must be integers"):
+        make_engine(tmp_path, max_changes_per_day="abc")
 from fastapi.testclient import TestClient
 
 import modules.brain.service as brain_service_module
