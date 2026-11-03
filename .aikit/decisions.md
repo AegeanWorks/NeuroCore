@@ -2635,3 +2635,39 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   re-surveying commits 11-20.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003
   (evidence before synthesis) and PRINCIPLE-014 (quote, don't paraphrase).
+
+### ADR-108: Audit wave 30 (commits 21-30) — two findings, both remediated
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: Commits 21-30 (`0b020d9` telegram through `d5e9948` node
+  selection/I-O revert) add telegram, conditional/script logic nodes, tool
+  library, plus two surgical UI fixes (`94d0b5f` ID-based node removal,
+  `4f176b0` server-reload reorder guard). Net wave diff: 77 files,
+  +4164/-1296.
+- **Decision**: Record two TRUE historical findings, both already remediated
+  upstream, so no prod-code change here:
+  1. Bare `exec(code, {}, local_scope)` in `modules/logic/node.py:43`
+     (`ScriptExecutor`) and `modules/tools/node.py:46` at `d5e9948` —
+     server-side execution of flow-authored code with no sandboxing.
+     Remediation (verified this audit): current tree has NO bare `exec(`
+     in `modules/logic/` or `modules/tools/node.py`; only
+     `modules/tools/sandbox.py:886` (`exec(code, exec_globals)`) and a test
+     remain, i.e. execution moved behind the sandbox delivered by later
+     runtime-hardening commits.
+  2. `llm_api_key` reflected into `web/templates/settings.html`
+     (`value="{{ settings.llm_api_key }}"`) at `d5e9948` — secret rendered
+     into served HTML. Remediation (verified this audit): current
+     `web/templates/settings.html` contains no `llm_api_key` reference;
+     the settings surface was reworked by later security hardening.
+  Corroborating clean evidence: `94d0b5f` quoted verbatim (one-line selector
+  `.absolute.bg-slate-800` -> `div[id^="node-"]`); no hardcoded secrets at
+  `d5e9948` (key defaults empty, password-type input). Unverifiable items
+  were dropped per the audit contract — no claim above rests on paraphrase.
+- **Consequences**: Wave 30 closes with nothing left to fix; a failing-first
+  test is not owed because both findings are already dead code paths in the
+  current tree. If script-node sandboxing ever regresses, this ADR names the
+  exact re-check (`git grep -n "exec(" -- modules/logic/ modules/tools/`).
+  Future audits cite this ADR instead of re-surveying commits 21-30.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003
+  (verify-then-drop), PRINCIPLE-014 (failing-first only for live defects)
+  and PRINCIPLE-019 (secret handling traced to remediation).
