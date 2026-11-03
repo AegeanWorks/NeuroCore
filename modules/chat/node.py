@@ -51,7 +51,7 @@ class ChatOutputExecutor:
                     # Fallback: Check for tool calls to give better error/info
                     if message.get("tool_calls"):
                         return {"content": f"<i>(Tool Call Generated: {message['tool_calls'][0]['function']['name']})</i>"}
-                except (IndexError, AttributeError, TypeError) as _exc:
+                except (IndexError, AttributeError, KeyError, TypeError) as _exc:
                     logger.debug("ignored exception: %s", _exc)
             
             # 3. Fallback/Echo (if input was just messages)
