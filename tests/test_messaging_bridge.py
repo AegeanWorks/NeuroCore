@@ -99,6 +99,29 @@ class TestMessagingOutputExecutor:
         setattr(MessagingOutputExecutor, "_bridge_cache", {})
         return MessagingOutputExecutor()
 
+    async def test_bad_telegram_chat_id_skips_send(self, executor):
+        from unittest.mock import AsyncMock, patch
+
+        mock_bridge = AsyncMock()
+        mock_bridge.send_message = AsyncMock(return_value=True)
+
+        config_data = {
+            "telegram_bot_token": "tok",
+            "telegram_chat_id": "abc",
+            "discord_bot_token": "",
+            "discord_channel_id": "",
+            "signal_api_url": "",
+            "signal_phone_number": "",
+        }
+
+        with patch("modules.messaging_bridge.node.ConfigLoader.get_config", return_value=config_data):
+            with patch("modules.messaging_bridge.telegram_bridge.TelegramBridge", return_value=mock_bridge) as tg:
+                data = {"content": "hello", "_messaging_platform": "telegram", "_messaging_reply_to": ""}
+                result = await executor.receive(data, config={"platform": "telegram"})
+                assert result == data
+                tg.assert_not_called()
+                mock_bridge.send_message.assert_not_called()
+
     async def test_no_content_passes_through(self, executor):
         data = {"messages": []}
         result = await executor.receive(data)

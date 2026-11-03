@@ -117,10 +117,14 @@ class MessagingOutputExecutor:
             chat_id = reply_to or str(mod_config.get("telegram_chat_id", ""))
             if not token or not chat_id:
                 return
+            try:
+                chat_id_int = int(chat_id)
+            except (TypeError, ValueError):
+                return
             cache_key = f"telegram:{token}:{chat_id}"
             if cache_key not in self._bridge_cache:
-                self._bridge_cache[cache_key] = TelegramBridge(token, int(chat_id))
-            await self._bridge_cache[cache_key].send_message(content, int(chat_id))
+                self._bridge_cache[cache_key] = TelegramBridge(token, chat_id_int)
+            await self._bridge_cache[cache_key].send_message(content, chat_id_int)
 
         elif platform == "discord":
             from .discord_bridge import DiscordBridge
