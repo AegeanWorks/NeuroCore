@@ -19,6 +19,18 @@ from modules.brain.state import BrainStateStore
 from tests.test_brain_substrate import FakeSelfModel, NullMemoryBridge
 
 
+def test_bad_reactivity_limits_are_rejected_with_hint(tmp_path):
+    from modules.brain.events import EventBus
+    from modules.brain.reactivity import ReactivityEngine, ReactionStore
+
+    with pytest.raises(ValueError, match="must be numbers"):
+        ReactivityEngine(
+            EventBus(),
+            store=ReactionStore(str(tmp_path / "reactions.json")),
+            config={"poll_interval_seconds": "abc"},
+        )
+
+
 def test_malformed_gauge_value_does_not_crash_poll(tmp_path):
     bus = EventBus()
     engine = ReactivityEngine(

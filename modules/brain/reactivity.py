@@ -73,11 +73,24 @@ class ReactivityEngine:
         self.bus = bus
         self.store = store or ReactionStore()
         self.config = {**DEFAULT_CONFIG, **(config or {})}
-        self.interval = max(5.0, float(self.config.get("poll_interval_seconds", 60)))
-        self.min_salience = min(1.0, max(0.0, float(self.config.get("min_salience", 0.5))))
-        self.dedupe_window = max(1, int(self.config.get("dedupe_window_seconds", 900)))
-        self.max_reactions_per_hour = max(1, int(self.config.get("max_reactions_per_hour", 20)))
-        self.max_reactions = max(10, int(self.config.get("max_reactions", 200)))
+        try:
+            interval = float(self.config.get("poll_interval_seconds", 60))
+            min_salience = float(self.config.get("min_salience", 0.5))
+            dedupe_window = int(self.config.get("dedupe_window_seconds", 900))
+            max_reactions_per_hour = int(self.config.get("max_reactions_per_hour", 20))
+            max_reactions = int(self.config.get("max_reactions", 200))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "reactivity limits must be numbers. "
+                f"Why: {exc}. Fix: pass numeric poll_interval_seconds, "
+                "min_salience, dedupe_window_seconds, max_reactions_per_hour "
+                "and max_reactions."
+            ) from exc
+        self.interval = max(5.0, interval)
+        self.min_salience = min(1.0, max(0.0, min_salience))
+        self.dedupe_window = max(1, dedupe_window)
+        self.max_reactions_per_hour = max(1, max_reactions_per_hour)
+        self.max_reactions = max(10, max_reactions)
         self.watch_paths = list(self.config.get("watch_paths") or [])
         self.metric_thresholds = dict(self.config.get("metric_thresholds") or {})
         self.calendar_provider = calendar_provider or self._default_calendar
