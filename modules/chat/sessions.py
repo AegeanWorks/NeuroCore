@@ -44,8 +44,14 @@ class SessionManager:
     def __init__(self, storage_file=SESSIONS_FILE, max_sessions: int = 200,
                  max_messages: int = 2000, lock_timeout: float = 5.0):
         self.storage_file = storage_file
-        self.max_sessions = max(0, int(max_sessions))
-        self.max_messages = max(0, int(max_messages))
+        try:
+            self.max_sessions = max(0, int(max_sessions))
+        except (TypeError, ValueError):
+            self.max_sessions = 200
+        try:
+            self.max_messages = max(0, int(max_messages))
+        except (TypeError, ValueError):
+            self.max_messages = 2000
         # Unified in-process lock for all operations, plus an OS file lock so separate
         # workers cannot interleave read-modify-write cycles on the shared JSON store.
         self._lock = threading.Lock()
