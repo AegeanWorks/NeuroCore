@@ -176,7 +176,8 @@
                         <div class="mt-4 flex flex-col space-y-1">
                             <span class="text-xs text-slate-500 truncate max-w-[200px]" title="{{ item.filename }}">📄 {{ item.filename }}</span>
                             {% if item.uploader_handle is defined and item.uploader_handle %}
-                            <button onclick="event.stopPropagation(); filterByHandle('{{ item.uploader_handle }}')"
+                            <button onclick="event.stopPropagation(); filterByHandle(this.dataset.handle)"
+                                    data-handle="{{ item.uploader_handle }}"
                                     class="text-[10px] text-slate-600 font-mono hover:text-blue-400 transition-colors text-left flex flex-col leading-snug"
                                     title="Show all items from this user">
                                 <span>👤 {{ item.uploader_handle }}</span>
@@ -216,11 +217,11 @@
                                 </span>
                                 {% endif %}
                                 {% if item.id in owned_ids %}
-                                <button onclick="event.stopPropagation(); openDeleteMarketplaceModal('{{ item.id }}', '{{ (item.name or '')|replace('\'', '\\\'') }}')" class="bg-red-950/30 hover:bg-red-950/50 text-red-500 hover:text-red-400 px-3 py-1.5 rounded-xl text-xs font-bold border border-red-800/20 transition-all">
+                                <button onclick="event.stopPropagation(); openDeleteMarketplaceModal(this.dataset.item, this.dataset.name)" data-item="{{ item.id }}" data-name="{{ item.name or '' }}" class="bg-red-950/30 hover:bg-red-950/50 text-red-500 hover:text-red-400 px-3 py-1.5 rounded-xl text-xs font-bold border border-red-800/20 transition-all">
                                     Delete
                                 </button>
                                 {% endif %}
-                                <button onclick="event.stopPropagation(); confirmDownload('{{ item.id }}', '{{ (item.name or '')|replace("'", "\\'") }}')" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-slate-700 transition-all flex items-center space-x-1">
+                                <button onclick="event.stopPropagation(); confirmDownload(this.dataset.item, this.dataset.name)" data-item="{{ item.id }}" data-name="{{ item.name or '' }}" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold border border-slate-700 transition-all flex items-center space-x-1">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                     <span>Import</span>
                                 </button>
