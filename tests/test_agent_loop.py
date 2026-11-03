@@ -176,6 +176,18 @@ class TestAgentLoopBasic:
             )
 
     @pytest.mark.asyncio
+    async def test_goal_pursuit_bad_sub_call_limit_is_rejected_with_hint(self):
+        """A non-numeric max_sub_calls must fail fast with Why/Fix."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        executor = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_sub_calls"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_sub_calls": "abc"},
+            )
+
+    @pytest.mark.asyncio
     async def test_goal_pursuit_bad_config_is_rejected_with_hint(self):
         """GoalPursuit executor validates its config block the same way."""
         from modules.agent_loop.node import GoalPursuitExecutor
