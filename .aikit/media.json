@@ -41,6 +41,26 @@
       }
     }
   },
-  "screenshots": [],
+  "screenshots": [
+    {
+      "path": "assets/screenshots/2026-11-03-home.png",
+      "alt": "NeuroCore dashboard at 2026-11-03",
+      "caption": "Home dashboard from python main.py (http://localhost:8000): nav, overview counts, quick actions, recent sessions. Counts reflect the live owner database; chat/flow/memory/tools views need LLM plus saved data — see ADR-105.",
+      "commit": "10ebfa5fefee0c67d48a9fa87113b3631febb842",
+      "taken_at": "2026-11-03",
+      "viewport": "1440x900",
+      "width": 1440,
+      "height": 900,
+      "status": "approved",
+      "review": {
+        "status": "approved",
+        "reviewer": "agent:kilo",
+        "method": "vision",
+        "notes": "Real Playwright capture of the served dashboard: all nav items, four overview cards, six quick actions and the recent session all legible. No message content exposed, only counts.",
+        "score": 90,
+        "reviewed_at": "2026-11-03"
+      }
+    }
+  ],
   "model": "community/scriptsnsenses-sys/flux-2-dev-free"
 }

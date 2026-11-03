@@ -497,3 +497,11 @@ community tools where files or credentials must stay private.
 ## 📜 License
 
 Free for personal use under the Aegean License 1.1 (AL-1.1); see [LICENSE](LICENSE). Any commercial use needs the Aegean Commercial License 1.0 (ACL-1.0); see [COMMERCIAL.md](COMMERCIAL.md).
+
+<!-- aegean:screenshots:start -->
+## Screenshots
+
+<a href="https://github.com/AegeanWorks/Neurocore/commit/10ebfa5"><img src="assets/screenshots/2026-11-03-home.png" alt="NeuroCore dashboard at 2026-11-03"></a>
+
+*commit `10ebfa5` · 2026-11-03 · viewport 1440x900 · home dashboard; data views need LLM and saved data (ADR-105)*
+<!-- aegean:screenshots:end -->

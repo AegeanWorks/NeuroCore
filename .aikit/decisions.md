@@ -2510,3 +2510,17 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (an explicit
   retry/exhaustion state instead of a silent drop) and PRINCIPLE-014 (failing-first delivery,
   acceptance, retry, exhaustion, bounds and replay tests).
+### ADR-105: Home dashboard keeper; data views wait for LLM and saved data
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: No registered screenshots existed; four legacy captures sit in
+  root `screenshots/` with no commits. Chat and flow views need a live LLM and
+  saved flows; the flow canvas loads empty without them.
+- **Decision**: Register `2026-11-03-home.png` (`python main.py` dashboard via
+  Playwright, commit `10ebfa5`, viewport 1440x900) in `.aikit/media.json` and
+  the README `aegean:screenshots` block. Only counts are shown, no message
+  content. Legacy root captures stay untouched as history. Chat, flow, memory
+  and tools views wait for an LLM-backed session.
+- **Consequences**: README proves the real dashboard. Reproduce with: `python
+  main.py`, open `http://localhost:8000`, screenshot. Browsing left no repo
+  residue (state lives in ignored `data/`).
