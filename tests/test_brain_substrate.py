@@ -12,7 +12,16 @@ from modules.brain.events import EventBus
 from modules.brain.learning import LearningLoop, LearningStore
 from modules.brain.self_model import BrainSelfModel
 from modules.brain.service import BrainService
+from modules.brain.kernel import BrainKernel, KernelStore
 from modules.brain.state import BrainState, BrainStateStore
+
+
+def test_kernel_rejects_non_numeric_thresholds(tmp_path):
+    with pytest.raises(ValueError, match="must be numbers"):
+        BrainKernel(
+            store=KernelStore(path=str(tmp_path / "kernel.json")),
+            degrade_threshold="abc",
+        )
 
 
 def test_from_dict_coerces_bad_cycle_count():

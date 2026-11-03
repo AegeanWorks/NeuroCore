@@ -110,10 +110,21 @@ class BrainKernel:
                  store: Optional[KernelStore] = None,
                  clock: Optional[Callable[[], float]] = None,
                  dwell_seconds: float = DWELL_SECONDS):
-        self.degrade_threshold = float(degrade_threshold)
-        self.safe_threshold = float(safe_threshold)
-        self.safe_exit_threshold = float(safe_exit_threshold)
-        self.dwell_seconds = max(0.0, float(dwell_seconds))
+        try:
+            degrade_threshold = float(degrade_threshold)
+            safe_threshold = float(safe_threshold)
+            safe_exit_threshold = float(safe_exit_threshold)
+            dwell_seconds = float(dwell_seconds)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "brain kernel thresholds must be numbers. "
+                f"Why: {exc}. Fix: pass numeric degrade_threshold, "
+                "safe_threshold, safe_exit_threshold and dwell_seconds."
+            ) from exc
+        self.degrade_threshold = degrade_threshold
+        self.safe_threshold = safe_threshold
+        self.safe_exit_threshold = safe_exit_threshold
+        self.dwell_seconds = max(0.0, dwell_seconds)
         self._clock = clock or time.time
         self.store = store or KernelStore()
         self.state = self._state_from(self.store.load())
