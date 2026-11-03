@@ -104,12 +104,19 @@ class CheckVerdict:
 def from_legacy(check: Dict[str, Any], index: int = 0) -> CheckSpec:
     """Adapt an existing loose check dict; defaults keep today's behaviour."""
     identifier = str(check.get("id") or f"{check.get('type', 'check')}-{index + 1}")
+    try:
+        weight = float(check.get("weight", 1.0))
+    except (TypeError, ValueError) as exc:
+        raise InvalidCheckSpec(
+            f"check '{identifier}' has a non-numeric weight. "
+            f"Why: {exc}. Fix: use a number for weight."
+        ) from exc
     return CheckSpec(
         id=identifier,
         type=str(check.get("type") or ""),
         field=str(check.get("field", "content")),
         value=check.get("value"),
-        weight=float(check.get("weight", 1.0)),
+        weight=weight,
         metric=check.get("metric"),
         required=bool(check.get("required", True)),
         threshold=check.get("threshold"),
