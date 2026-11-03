@@ -46,7 +46,7 @@ class ToolApprovals:
               tier: str = "high") -> Dict[str, Any]:
         with self._lock.held():
             data = self._load()
-            if sum(item["status"] == "pending" for item in data["approvals"].values()) >= MAX_PENDING:
+            if sum(item.get("status") == "pending" for item in data["approvals"].values()) >= MAX_PENDING:
                 raise ValueError(f"{MAX_PENDING} approvals already await review")
             approval = {
                 "id": uuid.uuid4().hex[:12],
@@ -64,7 +64,7 @@ class ToolApprovals:
     def pending(self) -> List[Dict[str, Any]]:
         with self._lock.held():
             items = self._load()["approvals"].values()
-            return sorted((item for item in items if item["status"] == "pending"),
+            return sorted((item for item in items if item.get("status") == "pending"),
                           key=lambda item: item["created_at"])
 
     def transition(self, approval_id: str, expected: str, status: str,
@@ -74,8 +74,8 @@ class ToolApprovals:
             approval = data["approvals"].get(approval_id)
             if approval is None:
                 raise KeyError(f"no approval {approval_id!r}")
-            if approval["status"] != expected:
-                raise ValueError(f"approval {approval_id} is {approval['status']}, not {expected}")
+            if approval.get("status") != expected:
+                raise ValueError(f"approval {approval_id} is {approval.get('status')}, not {expected}")
             approval.update(status=status, settled_at=time.time())
             if result is not None:
                 approval["result"] = result
