@@ -2613,3 +2613,25 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
   audits cite this ADR instead of re-surveying commits 1-10.
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003
   (evidence before synthesis) and PRINCIPLE-014 (quote, don't paraphrase).
+
+### ADR-107: Audit wave 20 (commits 11-20) — memory system verified clean
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: Commits 11-20 (`3e77d5d` toast/system-prompt through `825de4e`
+  multimodal chat + memory extraction) build long-term memory: memory system
+  (`633d168`), consolidation with `parent_id` chaining + `MemoryConsolidator`
+  (`4a3ad10`), memory browser, system-prompt module. Net wave diff: 43 files,
+  +1975/-93.
+- **Decision**: Verify, don't rewrite. Evidence quoted from the wave-20
+  boundary tree (`825de4e`): `modules/memory/`
+  (`arbiter`, `backend`, `consolidation`, `node`, `router`) plus
+  `modules/system_prompt/` all present; `4a3ad10` stat (15 files, +436/-103)
+  matches its message claims (`parent_id` column, `set_parent` archive,
+  `recall_min_score` 0.0->0.8, `save_confidence_threshold` 0.75->0.85). No
+  hardcoded secrets at the boundary (key flows via settings with empty
+  default). No prod-code change — superseded by later hardening.
+- **Consequences**: Wave 20 closes with zero carry-forward defects; no
+  failing-first test is owed. Future audits cite this ADR instead of
+  re-surveying commits 11-20.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003
+  (evidence before synthesis) and PRINCIPLE-014 (quote, don't paraphrase).
