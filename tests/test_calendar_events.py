@@ -174,3 +174,14 @@ def test_update_event_persisted(event_manager):
     # Re-fetch from storage
     found = event_manager.get_event_by_id(event_id)
     assert found["title"] == "Persisted"
+
+
+def test_save_events_fsyncs_before_replace(temp_event_file, monkeypatch):
+    import modules.calendar.events as events_mod
+
+    calls = []
+    real_fsync = events_mod.os.fsync
+    monkeypatch.setattr(events_mod.os, "fsync", lambda fd: calls.append(fd) or real_fsync(fd))
+    manager = EventManager(storage_file=temp_event_file)
+    manager.add_event("Fsync Check", "2026-09-01 10:00")
+    assert calls, "save must fsync the temp file before replace"

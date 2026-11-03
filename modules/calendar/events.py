@@ -51,6 +51,8 @@ class EventManager:
         dir_path = os.path.dirname(self.storage_file) or "."
         with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
             json.dump(events, tmp, indent=4)
+            tmp.flush()
+            os.fsync(tmp.fileno())
             tmp_path = tmp.name
         os.replace(tmp_path, self.storage_file)  # Atomic on POSIX, works on Windows
 
@@ -68,6 +70,8 @@ class EventManager:
             dir_path = os.path.dirname(self.storage_file) or "."
             with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
                 json.dump(events, tmp, indent=4)
+                tmp.flush()
+                os.fsync(tmp.fileno())
                 tmp_path = tmp.name
             os.replace(tmp_path, self.storage_file)  # Atomic on POSIX, works on Windows
 
