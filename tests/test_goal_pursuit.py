@@ -34,6 +34,34 @@ def llm_response(content: str) -> dict:
     return {"choices": [{"message": {"content": content, "tool_calls": []}}]}
 
 
+@pytest.mark.asyncio
+async def test_compress_lessons_bad_threshold_falls_back():
+    """A non-numeric compress threshold must not crash lesson prep."""
+    ex = make_executor()
+    assert await ex._compress_lessons(["a"], {"lessons_compress_threshold": "abc"}) == "a"
+
+
+@pytest.mark.asyncio
+async def test_compress_lessons_bad_chunk_size_falls_back():
+    """A non-numeric chunk size must not crash lesson chunking."""
+    ex = make_executor()
+    long_lessons = ["x" * 2000, "y" * 2000]
+    ex._llm_with_retry = AsyncMock(return_value=llm_response("S"))
+    result = await ex._compress_lessons(long_lessons, {"lessons_chunk_size": "abc"})
+    assert isinstance(result, str) and result
+
+
+@pytest.mark.asyncio
+async def test_compress_step_results_bad_thresholds_fall_back():
+    """Non-numeric synthesis thresholds must not crash compression."""
+    ex = make_executor()
+    repl_state = {"variables": {"step_1_result": "x"}}
+    assert await ex._compress_step_results(
+        repl_state,
+        {"synthesis_compress_threshold": "abc", "synthesis_per_var_threshold": "abc"},
+    ) == 0
+
+
 def plan_json(*actions) -> str:
     """Serialize a list of step dicts to JSON."""
     return json.dumps([

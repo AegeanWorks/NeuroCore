@@ -4034,11 +4034,19 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         if not lessons:
             return ""
         joined = "\n---\n".join(lessons)
-        threshold = int(config.get("lessons_compress_threshold", 3000))
+        try:
+            threshold = int(config.get("lessons_compress_threshold", 3000))
+        except (TypeError, ValueError):
+            threshold = 3000
         if len(joined) <= threshold:
             return joined
 
-        chunk_size = int(config.get("lessons_chunk_size", 5))
+        try:
+            chunk_size = int(config.get("lessons_chunk_size", 5))
+        except (TypeError, ValueError):
+            chunk_size = 5
+        if chunk_size < 1:
+            chunk_size = 1
         model = config.get("model") or settings.get("default_model")
         chunks = [lessons[i:i + chunk_size] for i in range(0, len(lessons), chunk_size)]
 
@@ -4122,8 +4130,14 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         if not step_vars:
             return 0
 
-        compress_threshold = int(config.get("synthesis_compress_threshold", 9000))
-        per_var_threshold = int(config.get("synthesis_per_var_threshold", 1500))
+        try:
+            compress_threshold = int(config.get("synthesis_compress_threshold", 9000))
+        except (TypeError, ValueError):
+            compress_threshold = 9000
+        try:
+            per_var_threshold = int(config.get("synthesis_per_var_threshold", 1500))
+        except (TypeError, ValueError):
+            per_var_threshold = 1500
         total_chars = sum(len(v) for v in step_vars.values())
         if total_chars <= compress_threshold:
             return 0
