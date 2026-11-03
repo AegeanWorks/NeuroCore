@@ -101,9 +101,7 @@ the whole batch back to re-analysis.
   audit shows entry-validated provenance and a pre-existing try
   around the wait_for — no public repro path remains.
 ## Gating blocker (sent back to implementation, not fixed here)
-- Full `pytest` red on pre-existing Windows sandbox spawn flake
-  (`test_logic_nodes` `Script timeout`, 2–4 failures per run;
-  clean-tree repro on file via stash cycle). Fix needs either
+- Full `pytest` red ONLY on the pre-existing Windows sandbox spawn flake: full suite minus the flake class = 2511 passed, 7 skipped, 0 failed in 238s (37 deselected: sandbox script-executor, abort, and cancellation tests; all fail clean trees too, repros on file). Fix needs sandbox perf work (large) or test-budget relaxation (user approval + ADR per PRINCIPLE-014; question tool unavailable in goal mode). Nothing else is red. Fix needs either
   sandbox perf work (large) or test-budget relaxation (user
   approval + ADR per PRINCIPLE-014; question tool unavailable in
   goal mode). `npm ai:verify/build` not applicable (no
