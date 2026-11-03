@@ -40,7 +40,7 @@ the whole batch back to re-analysis.
   (verified), sandbox path untouched.
 
 ## Deferred true-class items (real, need isolated failing-first batches)
-- Core router 400-mapping for delegation/handoff validation (HTML-template routes, separate S-CORE router work; brain-router numerics closed in `e1f5770`).
+- Core router 400-mapping for delegation/handoff: CLOSED, no HTTP surface exists — `DelegationContract.child` / `new_packet` have no production callers (only `from_dict` deserialization in agent_loop); typed Why/Fix errors already surface as failed flows. Nothing to map.
 - `create_article/study/finding` parity done; remaining
   `update_*` field validation (variables/evidence JSON, p_value etc.).
 - Marketplace catalog sinks (`marketplace.html:154,179,193,201,219,
