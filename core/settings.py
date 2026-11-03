@@ -116,6 +116,8 @@ class SettingsManager:
             dir_path = os.path.dirname(self.file_path) or "."
             with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
                 json.dump(self.settings, tmp, indent=4)
+                tmp.flush()
+                os.fsync(tmp.fileno())
                 tmp_path = tmp.name
             os.replace(tmp_path, self.file_path)  # Atomic on POSIX, works on Windows too
     
