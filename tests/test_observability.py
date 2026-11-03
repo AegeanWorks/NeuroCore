@@ -470,6 +470,11 @@ class TestGetTokenStats:
         stats = get_token_stats()
         assert stats["total"]["calls_failed"] == 2
 
+    def test_malformed_counter_key_skipped(self):
+        metrics.increment("llm.tokens_used{model=x", 5)
+        stats = get_token_stats()
+        assert stats["by_model"] == {}
+
 
 class TestEnableTraceFileExport:
     """Tests for enable_trace_file_export and is_trace_file_export_enabled."""

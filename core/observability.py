@@ -962,12 +962,15 @@ def get_token_stats() -> Dict[str, Any]:
 
     by_model: Dict[str, Dict[str, int]] = {}
     for key, value in counters.items():
-        if "{" not in key or "model=" not in key:
+        if "{" not in key or "}" not in key or "model=" not in key:
             continue
         brace = key.index("{")
         metric_name = key[:brace]
-        tags_str = key[brace + 1 : key.index("}")]
-        tags = dict(t.split("=", 1) for t in tags_str.split(",") if "=" in t)
+        try:
+            tags_str = key[brace + 1 : key.index("}")]
+            tags = dict(t.split("=", 1) for t in tags_str.split(",") if "=" in t)
+        except ValueError:
+            continue
         model = tags.get("model", "unknown")
         if model not in by_model:
             by_model[model] = {
