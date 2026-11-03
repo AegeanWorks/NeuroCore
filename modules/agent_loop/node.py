@@ -1882,15 +1882,31 @@ Call set_final() when complete."""
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 20))
-        max_tokens = int(config.get("max_tokens", 2000))
-        temperature = float(config.get("temperature", 0.1))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
-        stdout_preview_length = int(config.get("stdout_preview_length", 500))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 20)
+        max_tokens = _cfg_int("max_tokens", 2000)
+        temperature = _cfg_float("temperature", 0.1)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
+        stdout_preview_length = _cfg_int("stdout_preview_length", 500)
         model = config.get("model") or settings.get("default_model")
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
         checkpoint_interval = config.get("checkpoint_interval", 1)
@@ -1899,7 +1915,12 @@ Call set_final() when complete."""
             checkpoint_interval = 1
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         episode = None
@@ -2646,20 +2667,41 @@ class HybridAgentExecutor(AgentBaseExecutor):
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 15))
-        max_tokens = int(config.get("max_tokens", 4096))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 15)
+        max_tokens = _cfg_int("max_tokens", 4096)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
         tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        large_output_threshold = int(config.get("large_output_threshold", 3000))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        large_output_threshold = _cfg_int("large_output_threshold", 3000)
         stream_queue = config.get("_stream_queue")
         model = config.get("model") or settings.get("default_model")
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)
@@ -4600,19 +4642,35 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             sm = None
 
         # --- Config ---
-        max_iterations_per_step = int(config.get("max_iterations_per_step", 10))
-        max_tokens = int(config.get("max_tokens", 4096))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations_per_step = _cfg_int("max_iterations_per_step", 10)
+        max_tokens = _cfg_int("max_tokens", 4096)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
         tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 300))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        large_output_threshold = int(config.get("large_output_threshold", 3000))
+        timeout = _cfg_float("timeout", 300)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        large_output_threshold = _cfg_int("large_output_threshold", 3000)
         enable_step_evaluation = bool(config.get("enable_step_evaluation", True))
         enable_synthesis = bool(config.get("enable_synthesis", True))
-        max_step_retries = int(config.get("max_step_retries", 2))
-        step_timeout = float(config.get("step_timeout", 0))
+        max_step_retries = _cfg_int("max_step_retries", 2)
+        step_timeout = _cfg_float("step_timeout", 0)
         enable_dependency_graph = bool(config.get("enable_dependency_graph", True))
         enable_ask_user = bool(config.get("enable_ask_user", True))
         ask_user_auto_proceed = bool(config.get("ask_user_auto_proceed", False))
@@ -4620,11 +4678,11 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         # "hybrid" — always use the hybrid loop (full outputs inline)
         # "rlm"    — always use the RLM loop (metadata stubs, constant context)
         step_execution_mode = str(config.get("step_execution_mode", "auto"))
-        context_pressure_threshold = float(config.get("context_pressure_threshold", 0.7))
-        max_context_tokens = int(config.get("max_context_tokens", 8000))
+        context_pressure_threshold = _cfg_float("context_pressure_threshold", 0.7)
+        max_context_tokens = _cfg_int("max_context_tokens", 8000)
         enable_subgoals = bool(config.get("enable_subgoals", True))
-        subgoal_depth = int(config.get("_subgoal_depth", 0))
-        max_subgoal_depth = int(config.get("max_subgoal_depth", 2))
+        subgoal_depth = _cfg_int("_subgoal_depth", 0)
+        max_subgoal_depth = _cfg_int("max_subgoal_depth", 2)
         stream_queue = config.get("_stream_queue")
         model = config.get("model") or settings.get("default_model")
 
@@ -4700,7 +4758,12 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                 logger.warning(f"[GoalPursuit] Episode init failed: {e}")
 
         # --- Replan depth guard ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
         if episode:
             replan_count = max(replan_count, episode.replan_count)
 

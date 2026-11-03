@@ -131,6 +131,30 @@ class TestAgentLoopBasic:
             )
 
     @pytest.mark.asyncio
+    async def test_rlm_bad_config_is_rejected_with_hint(self):
+        """RLM executor validates its config block the same way."""
+        from modules.agent_loop.node import RLMAgentLoopExecutor
+
+        executor = RLMAgentLoopExecutor()
+        with pytest.raises(ValueError, match="max_tokens"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_tokens": "abc"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_hybrid_bad_config_is_rejected_with_hint(self):
+        """Hybrid executor validates its config block the same way."""
+        from modules.agent_loop.node import HybridAgentExecutor
+
+        executor = HybridAgentExecutor()
+        with pytest.raises(ValueError, match="timeout"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"timeout": "abc"},
+            )
+
+    @pytest.mark.asyncio
     async def test_max_iterations_respected(self):
         """Loop must stop at max_iterations even if LLM keeps returning tool calls."""
         tool_call = make_tool_call("Calculator", '{"expression": "1+1"}')
