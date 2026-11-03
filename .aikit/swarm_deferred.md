@@ -87,8 +87,10 @@ the whole batch back to re-analysis.
   same fast-test pattern), reflection-save timeout fallback
   (`b783dca`; bare float discarded a whole successful run — proven
   via empty-content repro, full-run mocked test).
-  Remaining agent_loop internals (REPL/step-timeout sites) still
-  deferred — internal-state only, no public-surface repro.
+  DecomposeGoal depth reads (`node.py:3306-3307`) and
+  `sub_step_timeout` (`:3332`) CLOSED with evidence: full-file
+  audit shows entry-validated provenance and a pre-existing try
+  around the wait_for — no public repro path remains.
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
   (`test_logic_nodes` `Script timeout`, 2–4 failures per run;
