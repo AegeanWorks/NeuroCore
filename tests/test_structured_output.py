@@ -112,6 +112,28 @@ class TestStructuredCompletion:
         assert result.age == 30
     
     @pytest.mark.asyncio
+    async def test_bad_max_retries_falls_back_to_default(self):
+        """A non-numeric max_retries must not crash before the first attempt."""
+        mock_bridge = Mock()
+        mock_bridge.chat_completion = AsyncMock(return_value={
+            "choices": [{
+                "message": {
+                    "content": '{"name": "John", "age": 30}'
+                }
+            }]
+        })
+
+        result = await structured_completion(
+            messages=[{"role": "user", "content": "Create a person"}],
+            schema=Person,
+            llm_bridge=mock_bridge,
+            max_retries="abc",
+        )
+
+        assert isinstance(result, Person)
+        assert result.name == "John"
+
+    @pytest.mark.asyncio
     async def test_validation_error_triggers_retry(self):
         """Test that validation error triggers retry with corrected message."""
         mock_bridge = Mock()
