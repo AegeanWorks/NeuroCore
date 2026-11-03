@@ -40,6 +40,7 @@ the whole batch back to re-analysis.
   (verified), sandbox path untouched.
 
 ## Deferred true-class items (real, need isolated failing-first batches)
+- Constructor-coercion sweep CLOSED across `modules/brain`: 8 constructors (auth, config, kernel, learning, improvement, reactivity, trends, service) now reject bad config with typed Why/Fix errors; loaders coerce-or-quarantine on read; `_apply_brain_option` internals and service readiness reads verified upstream-validated or internally-built with no public repro path — dropped with reason, not implemented.
 - Core router 400-mapping for delegation/handoff: CLOSED, no HTTP surface exists — `DelegationContract.child` / `new_packet` have no production callers (only `from_dict` deserialization in agent_loop); typed Why/Fix errors already surface as failed flows. Nothing to map.
 - `create_article/study/finding` parity done; remaining
   `update_*` field validation (variables/evidence JSON, p_value etc.).
