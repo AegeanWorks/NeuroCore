@@ -37,7 +37,17 @@ class RetentionPolicy:
     stale_after_days: float = 7.0
 
     def validate(self) -> "RetentionPolicy":
-        if self.completion_days <= 0 or self.journal_days < 0:
+        try:
+            completion = float(self.completion_days)
+            journal = float(self.journal_days)
+            max_episodes = int(self.max_episodes)
+            stale_after = float(self.stale_after_days)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "retention policy values must be numbers. "
+                f"Why: {exc}. Fix: use days and counts, e.g. 30, 7, 500."
+            ) from exc
+        if completion <= 0 or journal < 0:
             raise ValueError(
                 "retention durations must be positive (completion_days > 0, journal_days >= 0). "
                 "Why: a zero window would purge a fresh result. Fix: use days, e.g. 30 and 7."
@@ -81,7 +91,11 @@ def _episode_files(episode_dir: str, page_size: int) -> List[str]:
         )
     except OSError:
         return []
-    return names[:max(1, page_size)]
+    try:
+        limit = max(1, int(page_size))
+    except (TypeError, ValueError):
+        limit = DEFAULT_PAGE_SIZE
+    return names[:limit]
 
 
 def _tombstone_path(episode_dir: str) -> str:
@@ -185,9 +199,13 @@ def prune_episodes(episode_dir: str, policy: Optional[RetentionPolicy] = None,
         if dry_run:
             continue
 
+        try:
+            generation = int(data.get("generation") or 1)
+        except (TypeError, ValueError):
+            generation = 1
         tombstones[episode_id] = {
             "episode_id": episode_id,
-            "generation": int(data.get("generation") or 1),
+            "generation": generation,
             "purged_at": _iso(now),
             "reason": "completion_retention",
             "policy_version": POLICY_VERSION,

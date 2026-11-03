@@ -135,6 +135,17 @@ def test_scan_is_bounded_by_page_size(episode_dir):
     assert counts["purged_status"] == 2
 
 
+def test_policy_validation_rejects_non_numeric_values():
+    with pytest.raises(ValueError, match="must be numbers"):
+        RetentionPolicy(completion_days="abc").validate()
+
+
+def test_corrupt_generation_falls_back_instead_of_aborting(episode_dir):
+    _write_episode(episode_dir, "badgen", age_days=40, generation="abc")
+    counts = prune_episodes(episode_dir, now=NOW, dry_run=False)
+    assert counts["purged_status"] == 1
+
+
 def test_policy_validation_refuses_a_zero_window():
     with pytest.raises(ValueError):
         RetentionPolicy(completion_days=0).validate()
