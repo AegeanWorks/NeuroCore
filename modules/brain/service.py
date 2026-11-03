@@ -608,15 +608,24 @@ class BrainService:
             logger.warning("Could not record the evaluation in the kernel: %s", exc)
         if self.kernel.can_write_memory():
             for task in result.get("tasks", []):
-                self.learning.record_outcome(
-                    action=f"evaluation:{task.get('id', 'unknown')}",
-                    input_data={"task": task.get("id"), "suite": result.get("suite")},
-                    output=task.get("output", ""),
-                    success=bool(task.get("passed")),
-                    error=task.get("error"),
-                    latency_ms=float(task.get("latency_ms", 0.0)),
-                    tags=["evaluation", str(result.get("suite", "suite"))],
-                )
+                try:
+                    self.self_budget.reserve("learning_write")
+                except SelfBudgetExceeded as exc:
+                    logger.warning("Skipping evaluation outcome write: %s", exc)
+                    continue
+                try:
+                    self.learning.record_outcome(
+                        action=f"evaluation:{task.get('id', 'unknown')}",
+                        input_data={"task": task.get("id"), "suite": result.get("suite")},
+                        output=task.get("output", ""),
+                        success=bool(task.get("passed")),
+                        error=task.get("error"),
+                        latency_ms=float(task.get("latency_ms", 0.0)),
+                        tags=["evaluation", str(result.get("suite", "suite"))],
+                    )
+                except Exception as exc:
+                    self.self_budget.release("learning_write")
+                    logger.warning("Could not record evaluation outcome: %s", exc)
         self.eval_store.save_last(result)
         async with self._state_lock:
             # Do not turn a not-yet-captured self snapshot into a partial one; the next

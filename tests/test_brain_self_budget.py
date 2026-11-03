@@ -85,6 +85,36 @@ def test_the_service_bounds_learning_writes(tmp_path, monkeypatch):
     assert service.self_budget_status()["counts"]["learning_write"] == 1
 
 
+def test_run_evaluation_respects_learning_write_cap(tmp_path, monkeypatch):
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "state"))
+    from modules.brain.service import BrainService
+
+    runner = MagicMock()
+    runner.run = AsyncMock(return_value={
+        "pass_rate": 1.0,
+        "suite": "s",
+        "tasks": [
+            {"id": "t1", "passed": True, "output": "o1", "latency_ms": 1},
+            {"id": "t2", "passed": True, "output": "o2", "latency_ms": 1},
+        ],
+    })
+    kernel = MagicMock()
+    kernel.can_write_memory.return_value = True
+    learning = MagicMock()
+    service = BrainService(
+        config={"self_budget_caps": {"learning_write": 1}},
+        evaluation_runner=runner,
+        kernel=kernel,
+        learning=learning,
+    )
+    asyncio.run(service.run_evaluation())
+    assert learning.record_outcome.call_count == 1
+    assert service.self_budget.snapshot()["counts"]["learning_write"] == 1
+
+
 def test_the_budget_route_reports_counts():
     from fastapi.testclient import TestClient
 
