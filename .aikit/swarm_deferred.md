@@ -1,12 +1,13 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-30 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+31 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
-89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48). 222 repro
-tests green in the latest cumulative sweep (92.21s) plus 67
-messaging (32.16s), 7 outbound (57.57s), 11 KB-node (26.72s), and
-10 loop-guard unit (24.09s) after. Each item below was returned by
-a swarm agent but NOT implemented, with the reason.
+89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2).
+222 repro tests green in the latest cumulative sweep (92.21s) plus
+67 messaging (32.16s), 7 outbound (57.57s), 11 KB-node (26.72s),
+10 loop-guard unit (24.09s), and 11 cancellation unit (50.76s)
+after. Each item below was returned by a swarm agent but NOT
+implemented, with the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -54,9 +55,10 @@ the whole batch back to re-analysis.
   chat-id guard (`a05ac2e`), outbound ledger `.get(status)`
   (`6010685`), KB query hardening (`286291d`), loop-guard limit
   fallbacks (`9867d1c`; sandbox-driven abort test left untouched as
-  same spawn-flake class), snapshot budget typed error (`9020d48`).
-  File-tree catalog sinks (`marketplace.html` id/handle/name)
-  remain deferred as stated.
+  same spawn-flake class), snapshot budget typed error (`9020d48`),
+  heartbeat fraction fallback (`f70b8d2`; sandbox-heavy cancel tests
+  excluded from gate run, same flake class). File-tree catalog sinks
+  (`marketplace.html` id/handle/name) remain deferred as stated.
 
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest` red on pre-existing Windows sandbox spawn flake
