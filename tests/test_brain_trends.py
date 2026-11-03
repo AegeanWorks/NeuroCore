@@ -1,9 +1,30 @@
 """Bounded metric-trend detection and its reviewable proposals."""
 
+import glob
+import os
+
 from fastapi.testclient import TestClient
 
 from main import app
 from modules.brain.trends import TrendMonitor, TrendStore
+
+
+def test_corrupt_trend_ledger_is_quarantined_not_silently_kept(tmp_path):
+    path = tmp_path / "trends.json"
+    path.write_text("{not json", encoding="utf-8")
+    store = TrendStore(str(path))
+    assert store.load() == {}
+    leftovers = glob.glob(str(tmp_path / "trends.json.corrupt-*"))
+    assert len(leftovers) == 1
+    assert not os.path.exists(path)
+
+
+def test_non_dict_trend_ledger_is_quarantined(tmp_path):
+    path = tmp_path / "trends.json"
+    path.write_text("[]", encoding="utf-8")
+    store = TrendStore(str(path))
+    assert store.load() == {}
+    assert len(glob.glob(str(tmp_path / "trends.json.corrupt-*"))) == 1
 
 
 def snapshot(pass_rate=1.0, errors=0):

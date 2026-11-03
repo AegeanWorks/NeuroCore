@@ -43,8 +43,21 @@ class TrendStore:
                     data = json.load(handle)
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
                 logger.warning("Could not read brain trend ledger: %s", exc)
+                self._quarantine()
                 return {}
-            return data if isinstance(data, dict) else {}
+            if not isinstance(data, dict):
+                self._quarantine()
+                return {}
+            return data
+
+    def _quarantine(self) -> None:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        target = f"{self.path}.corrupt-{stamp}"
+        try:
+            os.replace(self.path, target)
+            logger.error("Quarantined invalid brain trend ledger as %s", target)
+        except OSError as exc:
+            logger.error("Could not quarantine brain trend ledger: %s", exc)
 
     def save(self, data: Dict[str, Any]) -> None:
         with self.lock.held():
