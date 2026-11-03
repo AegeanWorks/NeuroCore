@@ -36,6 +36,14 @@ async def test_memory_stats_type_is_html_escaped(monkeypatch):
     assert "&lt;img src=x" in html
 
 
+def test_marketplace_file_tree_uses_dataset_not_interpolation():
+    base = Path(__file__).resolve().parent.parent / "web" / "templates"
+    item = (base / "marketplace_item.html").read_text(encoding="utf-8")
+    assert "loadFile(this.dataset.item, this.dataset.path)" in item
+    assert "loadFile('{{ item.id }}'" not in item
+    assert "'{{ entry.path }}'" not in item
+
+
 def test_marketplace_templates_escape_stored_content():
     base = Path(__file__).resolve().parent.parent / "web" / "templates"
     item = (base / "marketplace_item.html").read_text(encoding="utf-8")
