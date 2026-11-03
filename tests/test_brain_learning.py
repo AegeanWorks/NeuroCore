@@ -2,6 +2,21 @@
 
 import json
 
+import pytest
+
+
+def test_learning_loop_rejects_non_numeric_limits(tmp_path):
+    from unittest.mock import MagicMock
+
+    from modules.brain.learning import LearningLoop, LearningStore
+
+    with pytest.raises(ValueError, match="must be numbers"):
+        LearningLoop(
+            memory=MagicMock(),
+            store=LearningStore(path=str(tmp_path / "learning.json")),
+            max_experiences="abc",
+        )
+
 from fastapi.testclient import TestClient
 
 import modules.brain.service as brain_service_module
