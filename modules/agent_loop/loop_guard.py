@@ -57,8 +57,14 @@ class LoopGuard:
     """Watch a bounded call history and return a warning or an abort decision."""
 
     def __init__(self, history: int = 12, repeat_limit: int = 3):
-        self.history = max(4, int(history))
-        self.repeat_limit = max(2, int(repeat_limit))
+        try:
+            self.history = max(4, int(history))
+        except (TypeError, ValueError):
+            self.history = 12
+        try:
+            self.repeat_limit = max(2, int(repeat_limit))
+        except (TypeError, ValueError):
+            self.repeat_limit = 3
         self._signatures: List[str] = []
         self._warned: set = set()
         self.violations = 0
