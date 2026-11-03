@@ -162,6 +162,8 @@ class BrainActorRegistry:
         record = data["actors"].get(name)
         if record is None:
             raise ValueError(f"actor '{name}' does not exist")
+        if not record.get("enabled", True):
+            raise ValueError(f"actor '{name}' is disabled; re-enable before rotating")
         key_id, secret = self._new_token(None)
         salt = secrets.token_hex(16)
         record.update({

@@ -228,6 +228,15 @@ def test_legacy_and_caller_supplied_tokens_still_authenticate(tmp_path):
     assert registry.authenticate("my.chosen.token").name == "chosen"
 
 
+def test_rotate_does_not_reenable_disabled_actor(tmp_path):
+    registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
+    registry.create("alice")
+    registry.disable("alice")
+    with pytest.raises(ValueError, match="disabled"):
+        registry.rotate("alice")
+    assert registry.list()[0]["enabled"] is False
+
+
 def test_last_used_is_written_at_most_once_a_minute(tmp_path, monkeypatch):
     registry = BrainActorRegistry(path=str(tmp_path / "actors.json"), iterations=10000)
     token = registry.create("alice")["token"]
