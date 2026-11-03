@@ -1,17 +1,17 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-49 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+50 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
 1928907, 9b81cdb, ac42d74, 1552972, a47c3c3, a0015c8, 05c9aa3,
 537f45a, 8421221, 1861d1e, 4653f68, 80905de, 05692f6, 7aa4796,
-a3d480f, 5dee550, b783dca, cccc638, d4bb81b). 319 repro tests
+a3d480f, 5dee550, b783dca, cccc638, d4bb81b, 2e1e1fa). 319 repro tests
 green in the latest cumulative sweep (25.94s; 2 sandbox-heavy
 deselected by intent) plus 3 approvals (19.92s), 10 LLM (2.76s),
 11 chat-node (14.07s), 1 plan-validation (9.26s), 1
 replan-validation, 8 goal-compress (2.41s), 2 email-service
 (14.04s), 1 reflection-timeout (31.40s), 1 event-bus limit
-(2.80s), and 1 rotate-guard (1.69s) after. Each item
+(2.80s), 1 rotate-guard (1.69s), and 12 budget-file (5.62s) after. Each item
 below was returned by a swarm agent but NOT implemented, with the
 reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
@@ -91,7 +91,7 @@ the whole batch back to re-analysis.
   non-positive limit (`cccc638`; from audited S-BRAIN-R2
   re-analysis after the original batch failed for a fabricated
   file:line), rotate-guard for disabled actors (`d4bb81b`;
-  fail-closed, same re-analysis batch).
+  fail-closed, same re-analysis batch). learning-write budget on evaluation outcomes (`2e1e1fa`; reserve/skip/release pattern, mocked-runner test).
   DecomposeGoal depth reads (`node.py:3306-3307`) and
   `sub_step_timeout` (`:3332`) CLOSED with evidence: full-file
   audit shows entry-validated provenance and a pre-existing try
