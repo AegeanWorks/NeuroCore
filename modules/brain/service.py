@@ -87,10 +87,20 @@ class BrainService:
         self.mode = str(merged.get("mode", "observe"))
         if self.mode not in VALID_MODES:
             self.mode = "observe"
-        self.cycle_interval = max(5.0, float(merged.get("cycle_interval_seconds", 60)))
-        self.max_cycles_per_hour = max(1, int(merged.get("max_cycles_per_hour", 60)))
-        self.max_autonomous_actions = max(1, int(merged.get(
-            "max_autonomous_actions_per_cycle", DEFAULT_MAX_ACTIONS_PER_CYCLE)))
+        try:
+            cycle_interval = float(merged.get("cycle_interval_seconds", 60))
+            max_cycles_per_hour = int(merged.get("max_cycles_per_hour", 60))
+            max_autonomous_actions = int(merged.get(
+                "max_autonomous_actions_per_cycle", DEFAULT_MAX_ACTIONS_PER_CYCLE))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "brain cycle limits must be numbers. "
+                f"Why: {exc}. Fix: pass numeric cycle_interval_seconds, "
+                "max_cycles_per_hour and max_autonomous_actions_per_cycle."
+            ) from exc
+        self.cycle_interval = max(5.0, cycle_interval)
+        self.max_cycles_per_hour = max(1, max_cycles_per_hour)
+        self.max_autonomous_actions = max(1, max_autonomous_actions)
         self.auto_start = bool(merged.get("auto_start", False))
 
         self.self_model = self_model or BrainSelfModel()

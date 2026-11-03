@@ -31,6 +31,29 @@ def test_from_dict_coerces_bad_cycle_count():
     assert state.cycle_count == 1
 
 
+def test_service_rejects_non_numeric_cycle_limits(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from modules.brain.service import BrainService
+
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "state"))
+    with pytest.raises(ValueError, match="must be numbers"):
+        BrainService(
+            config={"cycle_interval_seconds": "abc"},
+            self_model=MagicMock(),
+            event_bus=MagicMock(),
+            state_store=MagicMock(),
+            evaluation_runner=MagicMock(),
+            eval_store=MagicMock(),
+            learning=MagicMock(),
+            improvement=MagicMock(),
+            configuration=MagicMock(),
+            kernel=MagicMock(),
+            drift=MagicMock(),
+            trends=MagicMock(),
+        )
+
+
 @pytest.mark.asyncio
 async def test_recent_zero_and_negative_return_empty():
     bus = EventBus()
