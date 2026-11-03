@@ -43,6 +43,30 @@ def test_rejects_absolute_member(tmp_path):
         extract_zip_safely(str(archive), str(tmp_path / "dest"))
 
 
+def test_partial_file_removed_on_write_error(tmp_path, monkeypatch):
+    import builtins
+    import core.archive as archive_mod
+
+    archive = tmp_path / "ok.zip"
+    _write_zip(archive, [("a.txt", "x" * 100)])
+    dest = tmp_path / "dest"
+
+    real_open = builtins.open
+
+    def flaky_open(path, mode="r", *args, **kwargs):
+        stream = real_open(path, mode, *args, **kwargs)
+        if isinstance(path, str) and path.endswith("a.txt") and "w" in mode:
+            stream.write(b"partial")
+            stream.close()
+            raise OSError("disk full")
+        return stream
+
+    monkeypatch.setattr(builtins, "open", flaky_open)
+    with pytest.raises(OSError):
+        archive_mod.extract_zip_safely(str(archive), str(dest))
+    assert not (dest / "a.txt").exists()
+
+
 def test_rejects_symlink_member(tmp_path):
     archive = tmp_path / "link.zip"
     _write_symlink_zip(archive)

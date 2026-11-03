@@ -108,7 +108,7 @@ def extract_zip_safely(archive_path: str, dest_dir: str, strip_root: bool = Fals
                                 f"archive expands beyond the allowed size at "
                                 f"'{info.filename}'")
                         sink.write(chunk)
-            except ArchiveSecurityError:
+            except (ArchiveSecurityError, OSError):
                 try:
                     os.remove(target)
                 except OSError as exc:
