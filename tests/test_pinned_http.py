@@ -20,3 +20,11 @@ def test_an_explicit_port_stays_on_the_url_and_the_host_header():
 def test_an_ipv6_address_is_bracketed_and_its_zone_dropped():
     url, _headers, _extensions = pinned_target("https://example.com/a", "2606:2800:220:1::1%eth0")
     assert url == "https://[2606:2800:220:1::1]/a"
+
+
+def test_embedding_key_not_sent_on_unparseable_host():
+    from core.llm import LLMBridge
+
+    assert LLMBridge._same_host("nota-url", "http://x:1/v1") is False
+    assert LLMBridge._same_host("http://a:1/v1", "http://a:1/v1") is True
+    assert LLMBridge._same_host("http://a:1/v1", "http://b:1/v1") is False

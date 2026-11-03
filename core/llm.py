@@ -208,10 +208,10 @@ class LLMBridge:
             from urllib.parse import urlsplit
             a, b = urlsplit(first or ""), urlsplit(second or "")
             if not a.netloc or not b.netloc:
-                return True
+                return False
             return (a.scheme, a.hostname, a.port) == (b.scheme, b.hostname, b.port)
         except Exception:
-            return True
+            return False
 
     async def chat_completion(self, messages, model: str = None, temperature: float = None, max_tokens: int = None, tools: list = None, tool_choice: str = None, response_format: dict = None, raise_errors: bool = False):
         """Sends a chat completion request to the LLM API.
