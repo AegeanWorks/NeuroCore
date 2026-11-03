@@ -1,14 +1,15 @@
 # NeuroCore swarm — filed-but-deferred list (Stage 3/4 output, not waste)
 
-41 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
+42 fixes landed (commits 7f1d932, f409048, ea33730, 3489ff5, e9bd5b4,
 3293730, 26f8ab9, 28e0c94, 651e99e, 49326b9, 974f343, c41c9c9,
 89336b3, a05ac2e, 6010685, 286291d, 9867d1c, 9020d48, f70b8d2,
 1928907, 9b81cdb, ac42d74, 1552972, a47c3c3, a0015c8, 05c9aa3,
-537f45a, 8421221, 1861d1e, 4653f68). 319 repro tests green in the
-latest cumulative sweep (25.94s; 2 sandbox-heavy deselected by
-intent) plus 3 approvals (19.92s), 10 LLM (2.76s), 11 chat-node
-(14.07s), and 1 plan-validation (9.26s) after. Each item below was
-returned by a swarm agent but NOT implemented, with the reason.
+537f45a, 8421221, 1861d1e, 4653f68, 80905de). 319 repro tests green
+in the latest cumulative sweep (25.94s; 2 sandbox-heavy deselected
+by intent) plus 3 approvals (19.92s), 10 LLM (2.76s), 11 chat-node
+(14.07s), 1 plan-validation (9.26s), and 1 replan-validation
+after. Each item below was returned by a swarm agent but NOT
+implemented, with the reason.
 Rule: no file:line + repro = not a finding; fabricated batch fails
 the whole batch back to re-analysis.
 
@@ -72,7 +73,8 @@ the whole batch back to re-analysis.
   flow-import ids sanitized, routers.py:2299-2301 — not attacker
   input), chat malformed tool_calls fall-through (`1861d1e`),
   GoalPursuit plan-creation validation (`4653f68`; LLM-call
-  numerics guarded, same fast-test pattern).
+  numerics guarded, same fast-test pattern), _replan numerics
+  (`80905de`; same class, fast test, no sandbox).
   Remaining agent_loop internals (REPL/synthesis/step-timeout
   sites) still deferred as their own batch.
 ## Gating blocker (sent back to implementation, not fixed here)
