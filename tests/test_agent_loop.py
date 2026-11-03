@@ -155,6 +155,18 @@ class TestAgentLoopBasic:
             )
 
     @pytest.mark.asyncio
+    async def test_goal_pursuit_bad_config_is_rejected_with_hint(self):
+        """GoalPursuit executor validates its config block the same way."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        executor = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_tokens"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_tokens": "abc"},
+            )
+
+    @pytest.mark.asyncio
     async def test_max_iterations_respected(self):
         """Loop must stop at max_iterations even if LLM keeps returning tool calls."""
         tool_call = make_tool_call("Calculator", '{"expression": "1+1"}')
