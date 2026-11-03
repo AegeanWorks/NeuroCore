@@ -2591,3 +2591,25 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - **Consequences**: README proves the real dashboard. Reproduce with: `python
   main.py`, open `http://localhost:8000`, screenshot. Browsing left no repo
   residue (state lives in ignored `data/`).
+
+### ADR-106: Audit wave 10 (commits 1-10) — foundation verified clean
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: Oldest 10 commits (`6be535e` Initial commit through `2d8000b`
+  flow node configuration) lay the foundation: testing suite + core LLM bridge
+  (`51901c7`), modular architecture with DI (`af712f2`), HTMX UI (`ce2aded`),
+  AI Flow builder (`853f38d`), README (`7f82279`), flow/node configuration
+  (`2d8000b`). Net wave diff: 46 files, +3542/-0.
+- **Decision**: Verify, don't rewrite. Evidence quoted from the wave-10
+  boundary tree (`2d8000b`): `tests/run_tests.py` ("Starting NeuroCore Test
+  Runner...", root-on-`sys.path` bootstrap) plus 11 test modules
+  (`test_chat_module`, `test_flow_manager`, `test_core_llm`, ...); no
+  `exec(`/`eval(`/`shell=True` and no hardcoded secrets in the wave scope
+  (`git grep` over the boundary tree returns only settings-plumbed
+  `llm_api_key` with an empty default). No prod-code change — history is
+  superseded by 480 later commits and the findings below.
+- **Consequences**: Wave 10 closes with zero carry-forward defects; no
+  failing-first test is owed because there is nothing left to fix. Future
+  audits cite this ADR instead of re-surveying commits 1-10.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003
+  (evidence before synthesis) and PRINCIPLE-014 (quote, don't paraphrase).
