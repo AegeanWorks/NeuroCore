@@ -3501,7 +3501,12 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         planning_assumptions: str = "",
     ) -> list:
         """Call LLM to create an initial step-by-step plan."""
-        max_steps = int(config.get("max_steps", 10))
+        try:
+            max_steps = int(config.get("max_steps", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid max_steps. Why: {exc}. Fix: pass max_steps as an integer."
+            ) from exc
         prompt = config.get("planning_prompt", self._DEFAULT_PLANNING_PROMPT)
         prompt = prompt.replace("{request}", user_request).replace("{max_steps}", str(max_steps))
 
@@ -3536,17 +3541,26 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                 # the context block and the constraint so JSON-only output is enforced.
                 prompt += f"\n\n{block}\n\n{json_instruction}"
         model = config.get("model") or settings.get("default_model")
+        try:
+            planning_temperature = float(config.get("planning_temperature", 0.1))
+            max_retries = int(config.get("max_llm_retries", 3))
+            retry_delay = float(config.get("retry_delay", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid planning config. Why: {exc}. Fix: pass numbers for "
+                "planning_temperature, max_llm_retries and retry_delay."
+            ) from exc
         response = await self._llm_with_retry(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_request},
             ],
             model=model,
-            temperature=float(config.get("planning_temperature", 0.1)),
+            temperature=planning_temperature,
             max_tokens=max(500, 60 * max_steps),
             tools=[],
-            max_retries=int(config.get("max_llm_retries", 3)),
-            retry_delay=float(config.get("retry_delay", 1.0)),
+            max_retries=max_retries,
+            retry_delay=retry_delay,
         )
         if not response or "choices" not in response:
             return []

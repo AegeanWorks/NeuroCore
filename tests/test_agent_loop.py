@@ -1218,6 +1218,17 @@ class TestHybridAgentExecutor:
     def _repl_state(self):
         return {"variables": {}, "_var_counts": {}}
 
+    @pytest.mark.asyncio
+    async def test_create_plan_rejects_bad_max_steps(self):
+        """A non-numeric max_steps must fail fast with Why/Fix, before any LLM call."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor.__new__(GoalPursuitExecutor)
+        ex._llm_with_retry = AsyncMock()
+        with pytest.raises(ValueError, match="max_steps"):
+            await ex._create_plan("do things", {"max_steps": "abc"})
+        ex._llm_with_retry.assert_not_awaited()
+
     # --- excluded tools set ---
 
     def test_excluded_tools_set(self):
