@@ -981,23 +981,44 @@ class AgentLoopExecutor(AgentBaseExecutor):
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 10))
-        max_tokens = int(config.get("max_tokens", 2048))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
-        tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        max_context_tokens = int(config.get("max_context_tokens", 6000))
-        compact_threshold = int(config.get("compact_threshold", 0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
 
-        compact_keep_last = int(config.get("compact_keep_last", 6))
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 10)
+        max_tokens = _cfg_int("max_tokens", 2048)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
+        tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        max_context_tokens = _cfg_int("max_context_tokens", 6000)
+        compact_threshold = _cfg_int("compact_threshold", 0)
+
+        compact_keep_last = _cfg_int("compact_keep_last", 6)
         # Fix 1: read max_tool_output_chars from config
-        max_tool_output_chars = int(config.get("max_tool_output_chars", 0))
+        max_tool_output_chars = _cfg_int("max_tool_output_chars", 0)
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)

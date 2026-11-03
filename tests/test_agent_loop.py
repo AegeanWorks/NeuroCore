@@ -121,6 +121,16 @@ class TestAgentLoopBasic:
         assert result["agent_loop_trace"][1]["tool_calls"] == []
 
     @pytest.mark.asyncio
+    async def test_bad_max_iterations_is_rejected_with_hint(self):
+        """A non-numeric max_iterations must fail fast with Why/Fix, not crash deep."""
+        executor = make_executor()
+        with pytest.raises(ValueError, match="max_iterations"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_iterations": "abc"},
+            )
+
+    @pytest.mark.asyncio
     async def test_max_iterations_respected(self):
         """Loop must stop at max_iterations even if LLM keeps returning tool calls."""
         tool_call = make_tool_call("Calculator", '{"expression": "1+1"}')
