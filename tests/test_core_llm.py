@@ -133,7 +133,12 @@ async def test_chat_completion_clamps_max_tokens_and_reports_the_clamp(monkeypat
     ]
 
 
-@pytest.mark.asyncio
+def test_bad_timeout_falls_back_to_default():
+    from core.llm import LLMBridge
+
+    assert LLMBridge(base_url="http://x:1/v1", timeout="abc").timeout == 60.0
+
+
 async def test_llm_bridge_uses_injected_client():
     """Test that LLMBridge uses the provided AsyncClient if available."""
     

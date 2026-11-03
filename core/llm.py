@@ -143,7 +143,10 @@ class LLMBridge:
         self.embedding_api_key = embedding_api_key
         self.embedding_model = embedding_model
         self.client = client
-        self.timeout = timeout
+        try:
+            self.timeout = float(timeout)
+        except (TypeError, ValueError):
+            self.timeout = 60.0
         if cassette_mode not in ("live", "record", "replay"):
             raise ValueError(
                 f"unknown cassette_mode {cassette_mode!r}; choose live, record or replay"
