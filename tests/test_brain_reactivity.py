@@ -1,6 +1,8 @@
 """Reactivity: proposals, dedupe, mute, sources, kernel gating and API."""
 
+import asyncio
 import os
+import threading
 import time
 
 import pytest
@@ -15,13 +17,12 @@ from modules.brain.learning import LearningLoop, LearningStore
 from modules.brain.reactivity import ReactionStore, ReactivityEngine
 from modules.brain.service import BrainService
 from modules.brain.state import BrainStateStore
-
 from tests.test_brain_substrate import FakeSelfModel, NullMemoryBridge
 
 
 def test_bad_reactivity_limits_are_rejected_with_hint(tmp_path):
     from modules.brain.events import EventBus
-    from modules.brain.reactivity import ReactivityEngine, ReactionStore
+    from modules.brain.reactivity import ReactionStore, ReactivityEngine
 
     with pytest.raises(ValueError, match="must be numbers"):
         ReactivityEngine(
@@ -29,6 +30,34 @@ def test_bad_reactivity_limits_are_rejected_with_hint(tmp_path):
             store=ReactionStore(str(tmp_path / "reactions.json")),
             config={"poll_interval_seconds": "abc"},
         )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_events_share_the_broadcast_window(tmp_path):
+    """Two overlapping process_event calls must both complete, with
+    overlapping subscriber broadcasts — the ledger lock must not be
+    held across the slow bus.publish fan-out."""
+    left, left_bus = make_engine(tmp_path)
+    right, right_bus = make_engine(tmp_path)
+    slow_left, slow_right = SlowBus(left_bus), SlowBus(right_bus)
+    left.bus = slow_left
+    right.bus = slow_right
+
+    def evt(i):
+        return BrainEvent(
+            type="calendar.upcoming", source="calendar",
+            payload={"id": f"evt-{i}", "title": "Standup"}, salience=0.9,
+            dedupe_key=f"calendar:evt-{i}",
+        )
+
+    a, b = await asyncio.gather(
+        left.process_event(evt(1)), right.process_event(evt(2))
+    )
+    assert a is not None and b is not None
+    assert a["status"] == "pending" and b["status"] == "pending"
+    windows = sorted(slow_left.windows + slow_right.windows)
+    (s1, e1), (s2, e2) = windows
+    assert s2 < e1, "broadcasts did not overlap: lock held across publish"
 
 
 def test_malformed_gauge_value_does_not_crash_poll(tmp_path):
@@ -51,6 +80,27 @@ def test_malformed_threshold_is_skipped_not_fatal(tmp_path):
         metrics_provider=lambda: {"q": 9.0},
     )
     assert engine._metric_events() == []
+
+
+class SlowBus:
+    """Wraps EventBus.publish with a fixed delay while recording windows."""
+
+    def __init__(self, bus):
+        self._bus = bus
+        self.windows = []
+        self._lock = threading.Lock()
+
+    async def publish(self, *args, **kwargs):
+        import time
+
+        start = time.monotonic()
+        with self._lock:
+            self.windows.append([start, None])
+            slot = self.windows[-1]
+        await asyncio.sleep(0.5)
+        result = await self._bus.publish(*args, **kwargs)
+        slot[1] = time.monotonic()
+        return result
 
 
 def make_engine(tmp_path, **config):

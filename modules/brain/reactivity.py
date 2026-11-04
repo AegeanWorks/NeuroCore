@@ -145,51 +145,59 @@ class ReactivityEngine:
             return
         await self.process_event(event)
 
-    @engine_transaction_async
     async def process_event(self, event: BrainEvent) -> Optional[Dict[str, Any]]:
-        if event.type.startswith("reaction.") or event.salience < self.min_salience:
-            return None
-        if self.can_react is not None and not self.can_react() and event.type not in {
-            "kernel.safe", "drift.high", "metric.threshold",
-        }:
-            return None
+        # Phase 1 — locked, fast: refresh, validate, record.
+        # The subscriber broadcast below runs unlocked so one slow
+        # subscriber cannot hold the ledger lock.
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            if event.type.startswith("reaction.") or event.salience < self.min_salience:
+                return None
+            if self.can_react is not None and not self.can_react() and event.type not in {
+                "kernel.safe", "drift.high", "metric.threshold",
+            }:
+                return None
 
-        key = self._dedupe_key(event)
-        now = datetime.now(timezone.utc)
-        self._prune(now)
-        if key in self.muted:
-            return None
-        if key in self.event_keys:
-            return None
-        if len(self.reaction_times) >= self.max_reactions_per_hour:
-            return None
+            key = self._dedupe_key(event)
+            now = datetime.now(timezone.utc)
+            self._prune(now)
+            if key in self.muted:
+                return None
+            if key in self.event_keys:
+                return None
+            if len(self.reaction_times) >= self.max_reactions_per_hour:
+                return None
 
-        rule = REACTION_RULES.get(event.type)
-        if rule is None and event.type == "manual":
-            rule = ("manual", "Review a manual event")
-        if rule is None:
-            return None
+            rule = REACTION_RULES.get(event.type)
+            if rule is None and event.type == "manual":
+                rule = ("manual", "Review a manual event")
+            if rule is None:
+                return None
 
-        kind, default_title = rule
-        title = str(event.payload.get("title") or event.payload.get("metric") or default_title)
-        reaction = {
-            "id": uuid.uuid4().hex,
-            "event_id": event.id,
-            "event_type": event.type,
-            "source": event.source,
-            "key": key,
-            "kind": kind,
-            "title": title,
-            "rationale": f"{event.type} from {event.source} with salience {event.salience:.2f}",
-            "salience": round(event.salience, 3),
-            "status": "pending",
-            "created_at": utc_now(),
-        }
-        self.reactions.append(reaction)
-        self.reactions = self.reactions[-self.max_reactions:]
-        self.event_keys[key] = reaction["created_at"]
-        self.reaction_times.append(reaction["created_at"])
-        self._save()
+            kind, default_title = rule
+            title = str(event.payload.get("title") or event.payload.get("metric") or default_title)
+            reaction = {
+                "id": uuid.uuid4().hex,
+                "event_id": event.id,
+                "event_type": event.type,
+                "source": event.source,
+                "key": key,
+                "kind": kind,
+                "title": title,
+                "rationale": f"{event.type} from {event.source} with salience {event.salience:.2f}",
+                "salience": round(event.salience, 3),
+                "status": "pending",
+                "created_at": utc_now(),
+            }
+            self.reactions.append(reaction)
+            self.reactions = self.reactions[-self.max_reactions:]
+            self.event_keys[key] = reaction["created_at"]
+            self.reaction_times.append(reaction["created_at"])
+            self._save()
+        # Phase 2 — unlocked: notify subscribers.
         await self.bus.publish(
             "reaction.proposed", "reactivity",
             payload={"reaction_id": reaction["id"], "kind": kind, "title": title},
