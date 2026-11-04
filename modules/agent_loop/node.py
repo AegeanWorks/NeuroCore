@@ -10,6 +10,7 @@ from core.execution_budget import spend
 from core.llm import LLMBridge
 from core.session_manager import EpisodeState, get_session_manager
 from core.settings import settings
+from core.useless_gate import UselessGate, is_useless_result
 from modules.agent_loop.loop_guard import LoopGuard
 from modules.agent_loop.prompt_digest import guard_system_messages, snapshot_system_messages
 from modules.agent_loop.tool_journal import run_journaled_tool
@@ -2462,6 +2463,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         final_response = None
         had_tool_error = False
         _consecutive_unhelpful = 0  # iterations where every result was unhelpful
+        _useless_gate = UselessGate()  # IDEA-1335: explicit USELESS judgments only
         guard = LoopGuard()
         system_snapshot = snapshot_system_messages(llm_messages)
 
@@ -2631,6 +2633,30 @@ class HybridAgentExecutor(AgentBaseExecutor):
                 logger.warning(
                     f"[HybridLoop] Stuck after {_consecutive_unhelpful} "
                     "unhelpful iterations — injecting redirect"
+                )
+                break
+
+            # ── IDEA-1335: explicit USELESS-evidence stop (finish-only) ──
+            # Counts only explicit judgments, never heuristics, so it cannot
+            # fire on today's tool results (which carry no such flag).
+            _useless_all = bool(_iter_tool_results) and all(
+                is_useless_result(msg) for msg in _iter_tool_results
+            )
+            _receipt = _useless_gate.record(_useless_all)
+            if _receipt["restricted"]:
+                llm_messages.append({
+                    "role": "user",
+                    "content": (
+                        "[USELESS GATE] The last "
+                        f"{_receipt['consecutive_useless']} tool iterations "
+                        "were judged USELESS. Only `finish` remains; "
+                        "conclude from verified evidence."
+                    ),
+                })
+                iteration_trace["useless_gate"] = _receipt
+                logger.warning(
+                    "[HybridLoop] Useless-gate restricted after "
+                    f"{_receipt['consecutive_useless']} USELESS iterations"
                 )
                 break
 

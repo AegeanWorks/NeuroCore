@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `371`
-- **Total Classes**: `494`
-- **Total Top-Level Functions**: `2754`
-- **Total Class Methods**: `2453`
-- **Total Source Lines**: `99971`
+- **Total Python Modules**: `377`
+- **Total Classes**: `505`
+- **Total Top-Level Functions**: `2787`
+- **Total Class Methods**: `2473`
+- **Total Source Lines**: `100794`
 
 ---
 
@@ -29,6 +29,28 @@
 - `def _safe_member_path(dest_dir, member)` - *The absolute write path for `member`, or raise when it escapes `dest_dir`.*
 - `def _common_root(infos)` - *The single shared top-level directory of the archive as ``dir/``, or ``''``.*
 - `def extract_zip_safely(archive_path, dest_dir, strip_root, max_member_bytes, max_total_bytes)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
+
+---
+
+### [`core/auth_registry.py`](core/auth_registry.py)
+> *Minimal OAuth client + OIDC connector registry (no network, no secrets).*
+
+**Size**: `152` lines (`5401` bytes)
+
+**Classes:**
+- `class OAuthClient`
+  - Method `.validate_redirect(uri)` - *True only for an explicitly registered redirect URI.*
+- `class OAuthClientRegistry`
+  - Method `.register(client)`
+  - Method `.get(client_id)`
+- `class Connector`
+  - Method `.map_claims(claims)` - *Map upstream OIDC claims to local identity fields.*
+- `class ConnectorRegistry`
+  - Method `.register(connector)`
+  - Method `.get(connector_id)`
+
+**Functions:**
+- `def _is_https(url)`
 
 ---
 
@@ -1029,6 +1051,38 @@
 
 ---
 
+### [`core/run_ledger.py`](core/run_ledger.py)
+> *Run ledger primitives: asset graph, event log, state machine, result store.*
+
+**Size**: `327` lines (`10867` bytes)
+
+**Classes:**
+- `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
+- `class RunState`
+- `class RunEvent`
+  - Method `.to_dict()`
+  - Method `.from_dict(data)`
+- `class Asset`
+  - Method `.to_dict()`
+  - Method `.from_dict(data)`
+- `class StoredResult`
+- `class ResultStore` - *Bounded file-backed result persistence with expiry.*
+  - Method `.__init__(directory, max_bytes)`
+  - Method `.save(result_id, data, ttl_seconds)`
+  - Method `.is_expired(result_id, now)`
+  - Method `.load(result_id)`
+  - Method `.as_dict(record)`
+  - Method `.check_version(data)`
+
+**Functions:**
+- `def transition(state, new_state)` - *Return new_state when allowed, else raise InvalidTransition.*
+- `def append_event(path, event)` - *Append one event as JSONL with a single fsync (one fsync per file).*
+- `def read_events(path)` - *Read a JSONL event log; refuse unknown versions without modifying.*
+- `def is_stale(asset, upstream_materialized_at)` - *True when an upstream materialization is newer than this asset.*
+- `def materialize(asset, run_id, upstream)` - *Record a materialization; refuse when an upstream asset is stale.*
+
+---
+
 ### [`core/schemas/__init__.py`](core/schemas/__init__.py)
 > *Scientific Schemas for NeuroCore*
 
@@ -1299,6 +1353,23 @@
 
 ---
 
+### [`core/useless_gate.py`](core/useless_gate.py)
+> *Harness-enforced stop rule on consecutive USELESS tool evidence (IDEA-1335).*
+
+**Size**: `86` lines (`2751` bytes)
+
+**Classes:**
+- `class UselessGate`
+  - Method `.__post_init__()`
+  - Method `.record(useless)` - *Record one tool-iteration judgment; return the audit receipt.*
+  - Method `.allowed(requested)` - *Enforce finish-only when restricted, else pass through.*
+  - Method `.reset()`
+
+**Functions:**
+- `def is_useless_result(result)` - *True only for an explicit USELESS judgment (no heuristics).*
+
+---
+
 ### [`main.py`](main.py)
 **Size**: `262` lines (`11237` bytes)
 
@@ -1329,7 +1400,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `6164` lines (`284655` bytes)
+**Size**: `6190` lines (`285955` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -4586,6 +4657,22 @@
 - `def test_strips_single_root_directory(tmp_path)`
 - `async def test_import_route_refuses_zip_slip(tmp_path, monkeypatch)`
 - `async def test_import_route_extracts_safe_module(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_auth_registry.py`](tests/test_auth_registry.py)
+> *Failing-first tests for core/auth_registry.py (IDEA-1299, IDEA-1301).*
+
+**Size**: `83` lines (`2335` bytes)
+
+**Functions:**
+- `def test_oauth_register_and_validate_redirect()`
+- `def test_oauth_refuses_empty_redirects()`
+- `def test_oauth_refuses_uri_bound()`
+- `def test_connector_maps_claims()`
+- `def test_connector_refuses_missing_issuer()`
+- `def test_connector_refuses_plain_http_issuer()`
+- `def test_connector_disabled_refuses_mapping()`
 
 ---
 
@@ -8021,6 +8108,27 @@
 
 ---
 
+### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
+> *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
+
+**Size**: `93` lines (`2768` bytes)
+
+**Functions:**
+- `def test_state_allows_running_then_completed()`
+- `def test_state_refuses_pending_to_completed()`
+- `def test_state_terminal_is_closed()`
+- `def test_event_log_roundtrip_jsonl(tmp_path)`
+- `def test_event_refuses_unknown_version(tmp_path)`
+- `def test_asset_materialize_updates_timestamp()`
+- `def test_asset_refuses_never_materialized_upstream()`
+- `def test_is_stale_when_upstream_newer()`
+- `def test_result_store_save_load_and_expiry(tmp_path)`
+- `def test_result_store_expired_returns_none(tmp_path)`
+- `def test_result_store_refuses_oversize(tmp_path)`
+- `def test_result_missing_returns_none(tmp_path)`
+
+---
+
 ### [`tests/test_runtime_paths.py`](tests/test_runtime_paths.py)
 > *Runtime state must stay inside the project, whatever the launch directory is.*
 
@@ -8923,6 +9031,22 @@
 - `def test_only_tool_messages_are_fenced_once_and_the_caller_list_is_untouched()`
 - `async def test_the_llm_bridge_sends_tool_results_fenced(httpx_mock)`
 - `async def test_knowledge_context_fences_each_retrieved_chunk()`
+
+---
+
+### [`tests/test_useless_gate.py`](tests/test_useless_gate.py)
+> *Failing-first tests for core/useless_gate.py (IDEA-1335).*
+
+**Size**: `56` lines (`1501` bytes)
+
+**Functions:**
+- `def test_explicit_useless_flag_counts()`
+- `def test_no_heuristics_on_content()`
+- `def test_gate_restricts_only_at_k()`
+- `def test_gate_resets_on_useful()`
+- `def test_gate_default_k_is_five()`
+- `def test_gate_rejects_zero_k()`
+- `def test_gate_passthrough_when_open()`
 
 ---
 

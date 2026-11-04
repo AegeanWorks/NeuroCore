@@ -1,55 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-gate-trio",
+    "task_id": "neurocore-approved-7",
     "last_phase": "phase 4 verification",
-    "active_phase": 5,
-    "status": "completed",
-    "updated_at": 1793725910.142038,
-    "owner": "kilo:1",
-    "started_by": "kilo:1",
-    "continuations": [],
-    "completed_at": 1793725922.9887464
+    "active_phase": 4,
+    "status": "in_progress",
+    "updated_at": 1793815082.8714275,
+    "owner": "kilo:2",
+    "started_by": "kilo:2",
+    "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1209-snapshot-budget",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/4] modules/browser_automation/snapshot.py: SnapshotBudget, measure_html/text/screenshot and typed SnapshotRefusal. [2/4] get_html, extract_text and screenshot measure against the budget and refuse by default; allow_truncate reports omitted_* and a resume hint; the router forwards allow_truncate. [3/4] Failing-first tests for passthrough, refusal, opt-in truncation, an independent text cap, the byte ceiling and validation. [4/4] ADR-098, IDEAS, README, map, aikit check neurocore.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793446293.6702769,
-      "timestamp_str": "2026-10-31 14:31:33",
-      "agent": "kilo:1",
-      "impact_assessment": {
-        "why": "IDEA-1209 was approved: page reads were cut silently with a marker and screenshots had no ceiling, so a caller could not tell a cut element from an absent one.",
-        "benefits": "A missing element is unambiguous; a caller can narrow scope or opt into a reported truncation; the image payload is bounded.",
-        "risks": "contract: the three read methods gain optional arguments and get_html can now return success=false; dependency: stdlib only; concurrency: none; state: none.",
-        "mitigation": "Truncation is only implicit when the caller opts in, the refusal names the scope and budget it measured, and existing callers receive an explicit receipt instead of a silent cut."
-      }
-    },
-    {
-      "task_id": "idea-1209-snapshot-budget",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-098, IDEAS, README and the map updated; budget tests are part of the 24 new browser tests. checklists: passed. Uncommitted: commit delivery is not authorized.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793446327.9450102,
-      "timestamp_str": "2026-10-31 14:32:07",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1209-snapshot-budget",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1209-snapshot-budget' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793446328.0892217,
-      "timestamp_str": "2026-10-31 14:32:08",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "idea-1237-trace-context",
       "phase": "planning",
@@ -264,6 +225,46 @@
       "timestamp": 1793725922.9887493,
       "timestamp_str": "2026-11-03 20:12:02",
       "agent": "kilo:1"
+    },
+    {
+      "task_id": "neurocore-approved-7",
+      "phase": "planning",
+      "phase_num": 2,
+      "description": "[1/5] Planning Approved-7: run-ledger (1271-1274) in core/outcomes.py + assets, OAuth pair (1299+1301) minimal records, stop-rule k5 (1335) in agent_loop; tests per area; ADR + gates",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793814263.7688599,
+      "timestamp_str": "2026-11-04 20:44:23",
+      "agent": "kilo:2",
+      "impact_assessment": {
+        "why": "7 Approved neurocore ideas verified deep-checked; gaps real in outcomes/flow_context/budget/agent_loop; implement without changing existing contracts",
+        "benefits": "Reconstructable runs via event log + state machine; bounded results; provenance-ready assets; auditable OAuth registry; USELESS-loop stop",
+        "risks": "contract: outcomes.py additive only, no existing signature change; dependency: stdlib + pydantic only; concurrency: ContextVar budget unchanged; state: JSONL logs versioned, loaders refuse unknown version",
+        "mitigation": "Additive enums/records, invalid transitions refuse, expired results return None, OAuth validate-only no network, k5 scoped to tool-source finish-only with receipt"
+      },
+      "plan_digest": "e62e4ba5c5130aeb5e281b3d2543bbe3efbded882bc426413602e524c7b88437"
+    },
+    {
+      "task_id": "neurocore-approved-7",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[4/5] ADR-112 recorded; 26 new tests green; loop+outcomes 138 passed; ruff clean on new files",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793814503.4984615,
+      "timestamp_str": "2026-11-04 20:48:23",
+      "agent": "kilo:2"
+    },
+    {
+      "task_id": "neurocore-approved-7",
+      "phase": "phase 4 verification",
+      "phase_num": 4,
+      "description": "[5/5] aikit check neurocore: 5/5 gates pass; checklists: passed. Uncommitted: commit delivery is authorized per wave-push policy.",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1793815082.8714275,
+      "timestamp_str": "2026-11-04 20:58:02",
+      "agent": "kilo:2"
     }
   ]
 }
