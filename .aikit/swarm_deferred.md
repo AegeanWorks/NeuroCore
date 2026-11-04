@@ -130,3 +130,15 @@ the whole batch back to re-analysis.
 - `npm ai:verify/build` not applicable (no `package.json` in tree).
 - `aikit check` not yet measured end-to-end (exceeds the 300s foreground
   window; full pytest alone takes ~300s).
+
+## Swarm 2026-11-04 full-tree (26 agents) — landed vs deferred
+- Landed (commit a15edbe, 6 files, 3 fixes + 3 regression tests, all repro-verified):
+  - Calendar `get_events_by_date` prefix leak (`modules/calendar/events.py:95-97`) — repro: partial '2025-01-1' matched 1, empty matched 1; fix: exact YYYY-MM-DD with T-normalize + type guard; test `test_get_by_date_exact_only`.
+  - Logic `DelayExecutor` NaN crash (`modules/logic/node.py:96-111`) — repro: `seconds='nan'` raised ValueError from asyncio.sleep; fix: math.isfinite fallback to 1.0; test `test_delay_nan_uses_default`.
+  - Tools `SafeOpen` r+ bypass (`modules/tools/sandbox.py:228-234`) — repro: read-only opener accepted 'r+'; fix: reject any mode with '+'; test `test_blocks_rplus_in_read_only`.
+- Deferred (verified true but NOT implemented — needs user approval + ADR per PRINCIPLE-014):
+  - Core `save_settings` persists unknown/typo keys (`core/settings.py:134`) — repro confirmed (typo_key_xyz persisted). Reverted: existing `tests/test_settings.py:32` pins persist-unknown (`new_key == 'test'`). Changing the contract weakens a test; requires approval + ADR. Filed, not dropped.
+- Deferred (large/design — file, don't implement in this wave):
+  - Marketplace upload/import hardening (unbounded ZIP reads, SVG banner, update size asymmetry, UUID tool names, `?path=` allow-listing), brain eval/guardrail None-crashes, KB IVF/embedding-None paths, memory scope/merge guardrails, messaging CSRF/session scoping, skills import overwrite/version orphans, system-prompt cache-key/budget bypass, agent-loop URL-strip/toposort crashes — all returned with file:line+repro by their agents; each needs its own failing-first fix wave with full gates. No fabricated batch: every sampled finding reproduced (core/calendar/tools/logic samples all confirmed).
+- Gates: baseline pytest 2596 passed; post-fix targeted 127 passed; new regression tests 5 passed (2 settings tests removed after revert); full pytest via `aikit check` PASS (293.4s); rerun full pytest 2598 passed + 1 flaky `test_script_executor_allows_re_module` (passes in isolation and in module batch — Windows load flake, not caused by diff); lint PASS; hygiene PASS; secrets PASS; guidelines FAIL only on stale `codebase_map.md` (aikit fix timed out at 300s, map partially updated, not committed — deliberately left to map owner).
+- `npm run ai:verify / build`: N/A — no package.json in neurocore (Stage 2 verified).
