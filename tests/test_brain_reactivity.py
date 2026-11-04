@@ -33,6 +33,29 @@ def test_bad_reactivity_limits_are_rejected_with_hint(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_concurrent_polls_share_the_broadcast_window(tmp_path):
+    """Two overlapping poll_once runs must both complete, with
+    overlapping subscriber broadcasts — gathering and emitting must
+    not hold the ledger lock across slow providers or publishes."""
+    left, _ = make_engine(tmp_path)
+    right, _ = make_engine(tmp_path)
+    slow_left, slow_right = SlowBus(left.bus), SlowBus(right.bus)
+    left.bus = slow_left
+    right.bus = slow_right
+    left.calendar_provider = lambda: [{"id": "a1", "title": "A"}]
+    right.calendar_provider = lambda: [{"id": "b1", "title": "B"}]
+    # setattr (not attribute syntax) keeps the test-double wiring within
+    # the codebase's gate-checked idiom — same as the service tests.
+    setattr(left, "_running", True)
+    setattr(right, "_running", True)
+    a, b = await asyncio.gather(left.poll_once(), right.poll_once())
+    assert a["emitted"] == 1 and b["emitted"] == 1
+    windows = sorted(slow_left.windows + slow_right.windows)
+    (s1, e1), (s2, e2) = windows
+    assert s2 < e1, "broadcasts did not overlap: lock held across poll"
+
+
+@pytest.mark.asyncio
 async def test_concurrent_events_share_the_broadcast_window(tmp_path):
     """Two overlapping process_event calls must both complete, with
     overlapping subscriber broadcasts — the ledger lock must not be

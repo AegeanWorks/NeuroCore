@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 from core.paths import data_path
 
 from .events import BrainEvent, EventBus
-from .persistence import LedgerLock, atomic_write_json, engine_transaction, engine_transaction_async
+from .persistence import LedgerLock, atomic_write_json, engine_transaction
 from .state import utc_now
 
 logger = logging.getLogger(__name__)
@@ -231,8 +231,12 @@ class ReactivityEngine:
         self._save()
         return {"key": key, "unmuted": existed}
 
-    @engine_transaction_async
     async def poll_once(self) -> Dict[str, Any]:
+        # Providers and subscriber broadcasts run unlocked: gathering is pure
+        # reads and each _emit either publishes (no shared mutation) or goes
+        # through process_event, which takes the lock itself per event.
+        # Holding the ledger lock here would serialize whole polls behind
+        # one slow subscriber (see process_event above).
         produced = []
         for event in self._calendar_events():
             await self._emit(event)
@@ -243,7 +247,12 @@ class ReactivityEngine:
         for event in self._file_events():
             await self._emit(event)
             produced.append(event)
-        self._save()
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            self._save()
         return {"emitted": len(produced), "running": self._running}
 
     async def _emit(self, event: BrainEvent) -> None:
