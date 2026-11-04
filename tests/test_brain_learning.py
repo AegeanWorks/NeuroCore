@@ -3,6 +3,16 @@
 import json
 
 import pytest
+from fastapi.testclient import TestClient
+
+import modules.brain.service as brain_service_module
+from main import app
+from modules.brain.evaluation import EvalStore
+from modules.brain.learning import LearningLoop, LearningStore
+from modules.brain.service import BrainService
+from modules.brain.state import BrainStateStore
+
+from tests.test_brain_substrate import FakeSelfModel
 
 
 def test_learning_loop_rejects_non_numeric_limits(tmp_path):
@@ -16,17 +26,6 @@ def test_learning_loop_rejects_non_numeric_limits(tmp_path):
             store=LearningStore(path=str(tmp_path / "learning.json")),
             max_experiences="abc",
         )
-
-from fastapi.testclient import TestClient
-
-import modules.brain.service as brain_service_module
-from main import app
-from modules.brain.evaluation import EvalStore
-from modules.brain.learning import LearningLoop, LearningStore
-from modules.brain.service import BrainService
-from modules.brain.state import BrainStateStore
-
-from tests.test_brain_substrate import FakeSelfModel
 
 
 class FakeMemoryBridge:

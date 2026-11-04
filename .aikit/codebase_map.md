@@ -10,7 +10,7 @@
 - **Total Classes**: `494`
 - **Total Top-Level Functions**: `2754`
 - **Total Class Methods**: `2453`
-- **Total Source Lines**: `99972`
+- **Total Source Lines**: `99971`
 
 ---
 
@@ -4969,7 +4969,7 @@
 ### [`tests/test_brain_learning.py`](tests/test_brain_learning.py)
 > *Learning loop: outcomes, consolidation into global memory and held-out recall.*
 
-**Size**: `437` lines (`14363` bytes)
+**Size**: `436` lines (`14362` bytes)
 
 **Classes:**
 - `class FakeMemoryBridge` - *In-memory stand-in for the global MemoryStore used by the learning loop.*
