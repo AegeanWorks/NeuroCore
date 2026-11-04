@@ -2716,3 +2716,65 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-003
   (read-before-write, failing-first repro), PRINCIPLE-009 R5 (no
   cross-object private assign) and PRINCIPLE-014 (100% pass gate).
+
+### ADR-110: Rung 3 measures headless tool reliability with no new production code
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: Rungs 1 (planning recovery) and 2 (memory durability) laddered
+  plan and memory, but the tool path (gate, tier hold, policy deny, cancel,
+  budget, journal replay) had only isolated unit tests and no shared,
+  measured capability with success/recovery/cost numbers. A real sandbox
+  spawn costs ~21s on Windows, too slow and flaky for a repeatable rung.
+- **Decision**:
+  1. Add `tests/test_tool_reliability_rung.py` (7 tasks + suite digest):
+     clean Calculator chain (real LOW gate, real static safety gate on the
+     shipped source, stubbed execution per the Rung 1 fake-sandbox
+     precedent, real budget spend + ok receipt), unknown/HIGH hold plus
+     `max_tools_per_turn` truncation, approval run-once, enforced policy
+     deny, cancel receipt, budget exhaustion, episode-journal replay safety.
+  2. No production code, no new module/node/primitive; real process
+     isolation stays covered by `tests/test_tool_sandbox.py` (38 tests).
+     `model_limits` is an LLM-bridge ceiling and explicitly out of scope.
+  3. Target: 7/7 success, 4/4 hold/deny/cancel/replay, each task <= 5s.
+- **Consequences**: The tool path has one repeatable number that moves with
+  the code; the rung runs in ~10s headless. A stubbed execution step means
+  sandbox regressions are caught by the sandbox suite, not the rung, which
+  is the documented split. README ladder updated in the same change.
+
+### ADR-111: qwenFS DeltaNet toy lands as a pure in-memory FileTable, no tool wrapper
+- **Date**: 2026-11-03
+- **Status**: Accepted
+- **Context**: Stage 3 transfers the qwenFS mechanism (DeltaNet tables + disk
+  paging, circuit layers LOOKUP=3/COPY=7/PAIR=6/TABLE=4, disk.py
+  mount/Pager/copy_rows, 32-file limit) into NeuroCore as a verifiable toy.
+  The transfer must not touch model weights, must not write to the filesystem
+  from the sandbox, must keep the remote-only LLM boundary, and must inherit
+  the memory safety contracts (scope isolation, guardrail screening, budgeted
+  recall rendering).
+- **Decision**:
+  1. Add `modules/memory/file_table.py`: `FileTable` with
+     write/read/list/link/unlink/list_links/list_backlinks/mount/page over
+     four dicts (version/path/count/link tables) plus `FilePager`
+     (page/copy_rows), exact-match semantics, admitted 32-file cap
+     (`MAX_FILES`), per-method `scope`/`require_scope`/`scope_policy`.
+  2. Writes are screened by `screen_memory_text` (blocked -> `-1`, the
+     `add_entry` rejected answer); every read path filters through
+     `scope_clauses` predicates (shared policy admits legacy unscoped rows);
+     bulk output renders only via `budget.fit`/`budget.render`.
+  3. Add `tests/test_memory_file_table.py` (12 tests): scripted-session
+     matrix writes/overwrites/missing/list/link/duplicate/unlink/dense-graph/
+     mount-page plus scope isolation, require_scope refusal, blocked-write
+     `-1`, budgeted render and the 32-file cap.
+  4. No tool wrapper and no `memory/node.py` wiring: the cheaper alternative
+     is adopted — the toy is imported directly where needed, so no new HIGH
+     tier surface, no sandbox writes, no remote LLM involvement.
+- **Consequences**: The mechanism is testable without weights, disk or
+  network (`tests/test_memory_file_table.py`: 12/12). Rejected alternative:
+  weight-resident transfer via the remote `LLMBridge` — structurally wrong
+  for this repo because `core/llm.py` is remote-only and the toy must run
+  headless on dicts; recorded here so the option stays closed.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003
+  (read-before-write, exact-match evidence), PRINCIPLE-009 (no import cycle,
+  constructor-free stateless tables behind one class) and PRINCIPLE-014
+  (memory subset 104/104, full suite clean except pre-existing
+  `test_script_executor_modify_data`).

@@ -14,15 +14,15 @@
     "web/templates/ai_flow_list.html",
     "web/templates/ai_flow_versions.html",
     "web/templates/brain.html",
+    "web/templates/brain_rail.html",
     "web/templates/calendar_gui.html",
     "web/templates/calendar_sidebar.html",
     "web/templates/chat_gui.html",
     "web/templates/chat_message_pair.html",
     "web/templates/chat_message_streaming.html",
-    "web/templates/chat_session_list.html",
-    "web/templates/chat_sidebar.html"
+    "web/templates/chat_session_list.html"
   ],
-  "ui_checked_at": "2026-10-28",
+  "ui_checked_at": "2026-11-04",
   "ui_source": "detected",
   "topics": [
     "aikit",
@@ -56,5 +56,6 @@
     "source-available",
     "aegean-license",
     "commercial-license"
-  ]
+  ],
+  "ui_required": true
 }
