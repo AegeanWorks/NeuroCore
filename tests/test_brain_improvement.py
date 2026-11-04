@@ -1,5 +1,9 @@
 """Eval-gated flow improvement: preview, quotas, promotion and rollback."""
 
+import asyncio
+import threading
+import time
+
 import pytest
 
 
@@ -98,6 +102,47 @@ def test_preview_applies_operations_without_saving(tmp_path):
     assert manager.get_flow("echo-flow")["name"] == "Echo"
     with pytest.raises(FlowEvolutionError):
         evolution.preview("echo-flow", [{"op": "connect", "from": "in", "to": "missing"}])
+
+
+class SlowEvalRunner(FakeEvalRunner):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.windows = []
+        self._lock = threading.Lock()
+
+    async def run(self, flow_id=None, **kwargs):
+        start = time.monotonic()
+        with self._lock:
+            self.windows.append([start, None])
+            slot = self.windows[-1]
+        await asyncio.sleep(0.5)
+        result = await super().run(flow_id, **kwargs)
+        slot[1] = time.monotonic()
+        return result
+
+
+@pytest.mark.asyncio
+async def test_concurrent_evaluations_share_the_run_window(tmp_path):
+    """The slow evaluation run must not hold the ledger lock: two
+    overlapping evaluations from separate engine instances (separate
+    file locks, same ledger file) must overlap in wall-clock time
+    instead of serializing until one hits the 10s file-lock timeout."""
+    manager = make_flow_manager(tmp_path)
+    left, _ = make_engine(tmp_path, manager)
+    right, _ = make_engine(tmp_path, manager)
+    runner = SlowEvalRunner(pass_rate=1.0)
+    left.evaluation_runner = runner
+    right.evaluation_runner = runner
+    first = await left.propose("echo-flow", rename_ops("A"), "A")
+    second = await right.propose("echo-flow", rename_ops("B"), "B")
+    a, b = await asyncio.gather(
+        left.evaluate(first["id"]),
+        right.evaluate(second["id"]),
+    )
+    assert a["status"] == "passed"
+    assert b["status"] == "passed"
+    (s1, e1), (s2, e2) = sorted(runner.windows)
+    assert s2 < e1, "evaluation runs did not overlap: lock held across the run"
 
 
 async def test_candidate_is_promoted_only_after_evaluation_and_can_rollback(tmp_path):

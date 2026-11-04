@@ -240,23 +240,31 @@ class ImprovementEngine:
             goal_kind=goal_kind,
         )
 
-    @engine_transaction_async
     async def evaluate(self, candidate_id: str, approve: bool = False,
                        approved_by: Optional[str] = None) -> Dict[str, Any]:
-        self._prune_quotas()
-        candidate = self.candidates.get(candidate_id)
-        if candidate is None:
-            raise ValueError(f"candidate '{candidate_id}' does not exist")
-        if candidate.get("status") == "promoted":
-            return candidate
-        if approve and not (isinstance(approved_by, str) and approved_by.strip()):
-            raise ValueError("approved_by is required to promote a candidate")
-        if len(self.evaluation_times) >= self.max_evaluations_per_day:
-            raise QuotaExceededError("daily improvement evaluation quota exceeded")
+        # Phase 1 — locked and fast: refresh once, validate, snapshot inputs.
+        # The file lock is released before the slow evaluation run below so
+        # concurrent evaluations (and reads) are not serialized behind it.
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            self._prune_quotas()
+            candidate = self.candidates.get(candidate_id)
+            if candidate is None:
+                raise ValueError(f"candidate '{candidate_id}' does not exist")
+            if candidate.get("status") == "promoted":
+                return candidate
+            if approve and not (isinstance(approved_by, str) and approved_by.strip()):
+                raise ValueError("approved_by is required to promote a candidate")
+            if len(self.evaluation_times) >= self.max_evaluations_per_day:
+                raise QuotaExceededError("daily improvement evaluation quota exceeded")
+            flow_id = candidate["flow_id"]
+            operations = candidate["operations"]
+            baseline = self.eval_store.load_baseline()
 
-        flow_id = candidate["flow_id"]
-        operations = candidate["operations"]
-        baseline = self.eval_store.load_baseline()
+        # Phase 2 — unlocked: preview plus the slow evaluation run.
         evaluation = None
         error = None
         try:
@@ -275,101 +283,116 @@ class ImprovementEngine:
         except Exception as exc:
             error = str(exc)
 
-        if error is not None or evaluation is None:
-            candidate.update({
-                "status": "failed",
-                "reasons": [error or "evaluation failed"],
-                "updated_at": utc_now(),
-                "evaluation": {},
-                "comparison": {},
-            })
-            self.evaluation_times.append(candidate["updated_at"])
-            self._save()
-            return candidate
+        # Phase 3 — locked and fast: revalidate against fresh state, then commit.
+        # Another worker may have promoted the candidate or consumed the daily
+        # evaluation quota while the run was in flight.
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            self._prune_quotas()
+            candidate = self.candidates.get(candidate_id)
+            if candidate is None:
+                raise ValueError(f"candidate '{candidate_id}' no longer exists")
+            if candidate.get("status") == "promoted":
+                return candidate
+            if len(self.evaluation_times) >= self.max_evaluations_per_day:
+                raise QuotaExceededError("daily improvement evaluation quota exceeded")
 
-        comparison = compare_results(evaluation, baseline)
-        baseline_reasons = self._baseline_quality_reasons(baseline, flow_id)
-        candidate_rate = float(evaluation.get("pass_rate", 0.0))
-        candidate_failed = list(evaluation.get("failed_tasks", []))
-        candidate_perfect = candidate_rate == 1.0 and not candidate_failed
-        # An incomparable suite is not a pass: an edited check must not look like an improvement
-        # (IDEA-1207). A legacy comparison record without the key keeps working.
-        comparable = comparison.get("comparable", True) is not False
-        promotable = (
-            not baseline_reasons
-            and candidate_perfect
-            and comparable
-            and not comparison["regression"]
-        )
-        summary = {
-            "suite": evaluation.get("suite"),
-            "flow_id": evaluation.get("flow_id"),
-            "pass_rate": evaluation.get("pass_rate"),
-            "failed_tasks": evaluation.get("failed_tasks", []),
-            "avg_latency_ms": evaluation.get("avg_latency_ms"),
-            "duration_ms": evaluation.get("duration_ms"),
-            "score": evaluation.get("score"),
-            "failure_reason": evaluation.get("failure_reason"),
-            "suite_digest": evaluation.get("suite_digest"),
-        }
-
-        if approve and promotable:
-            self._revalidate_goal(candidate)
-            if len(self.promotion_times) >= self.max_promotions_per_day:
+            if error is not None or evaluation is None:
                 candidate.update({
-                    "status": "blocked",
-                    "evaluation": summary,
-                    "comparison": comparison,
-                    "reasons": ["daily improvement promotion quota exceeded"],
-                    "approved_by": approved_by,
+                    "status": "failed",
+                    "reasons": [error or "evaluation failed"],
                     "updated_at": utc_now(),
+                    "evaluation": {},
+                    "comparison": {},
                 })
                 self.evaluation_times.append(candidate["updated_at"])
                 self._save()
-                raise QuotaExceededError("daily improvement promotion quota exceeded")
-            self.evolution.mutate(flow_id, operations)
-            versions = self.evolution.history(flow_id)
-            promotion_version = versions[0]["version"] if versions else None
-            candidate.update({
-                "status": "promoted",
-                "evaluation": summary,
-                "comparison": comparison,
-                "reasons": [],
-                "approved_by": approved_by,
-                "promotion_version": promotion_version,
-                "promoted_at": utc_now(),
-                "updated_at": utc_now(),
-            })
-            self.promotion_times.append(candidate["promoted_at"])
-            self.flow_latest_promotion[flow_id] = candidate_id
-            if candidate.get("goal_id"):
-                self.goal_marker(str(candidate["goal_id"]))
-        else:
-            reasons = list(comparison.get("reasons", [])) + baseline_reasons
-            if candidate_rate < 1.0:
-                reasons.append(
-                    f"pass rate {candidate_rate} is below a perfect score"
-                )
-            if candidate_failed:
-                reasons.append(
-                    f"candidate still fails: {', '.join(candidate_failed)}"
-                )
-            if not comparable:
-                reasons.append(
-                    "evaluation suite changed since the baseline: "
-                    f"{comparison.get('incomparable_reason') or 'not comparable'}"
-                )
-            candidate.update({
-                "status": "passed" if promotable else "failed",
-                "evaluation": summary,
-                "comparison": comparison,
-                "reasons": reasons,
-                "updated_at": utc_now(),
-            })
+                return candidate
 
-        self.evaluation_times.append(candidate["updated_at"])
-        self._save()
-        return candidate
+            comparison = compare_results(evaluation, baseline)
+            baseline_reasons = self._baseline_quality_reasons(baseline, flow_id)
+            candidate_rate = float(evaluation.get("pass_rate", 0.0))
+            candidate_failed = list(evaluation.get("failed_tasks", []))
+            candidate_perfect = candidate_rate == 1.0 and not candidate_failed
+            # An incomparable suite is not a pass: an edited check must not look like an improvement
+            # (IDEA-1207). A legacy comparison record without the key keeps working.
+            comparable = comparison.get("comparable", True) is not False
+            promotable = (
+                not baseline_reasons
+                and candidate_perfect
+                and comparable
+                and not comparison["regression"]
+            )
+            summary = {
+                "suite": evaluation.get("suite"),
+                "flow_id": evaluation.get("flow_id"),
+                "pass_rate": evaluation.get("pass_rate"),
+                "failed_tasks": evaluation.get("failed_tasks", []),
+                "avg_latency_ms": evaluation.get("avg_latency_ms"),
+                "duration_ms": evaluation.get("duration_ms"),
+                "score": evaluation.get("score"),
+                "failure_reason": evaluation.get("failure_reason"),
+                "suite_digest": evaluation.get("suite_digest"),
+            }
+
+            if approve and promotable:
+                self._revalidate_goal(candidate)
+                if len(self.promotion_times) >= self.max_promotions_per_day:
+                    candidate.update({
+                        "status": "blocked",
+                        "evaluation": summary,
+                        "comparison": comparison,
+                        "reasons": ["daily improvement promotion quota exceeded"],
+                        "approved_by": approved_by,
+                        "updated_at": utc_now(),
+                    })
+                    self.evaluation_times.append(candidate["updated_at"])
+                    self._save()
+                    raise QuotaExceededError("daily improvement promotion quota exceeded")
+                self.evolution.mutate(flow_id, operations)
+                versions = self.evolution.history(flow_id)
+                promotion_version = versions[0]["version"] if versions else None
+                candidate.update({
+                    "status": "promoted",
+                    "evaluation": summary,
+                    "comparison": comparison,
+                    "reasons": [],
+                    "approved_by": approved_by,
+                    "promotion_version": promotion_version,
+                    "promoted_at": utc_now(),
+                    "updated_at": utc_now(),
+                })
+                self.promotion_times.append(candidate["promoted_at"])
+                self.flow_latest_promotion[flow_id] = candidate_id
+                if candidate.get("goal_id"):
+                    self.goal_marker(str(candidate["goal_id"]))
+            else:
+                reasons = list(comparison.get("reasons", [])) + baseline_reasons
+                if candidate_rate < 1.0:
+                    reasons.append(
+                        f"pass rate {candidate_rate} is below a perfect score"
+                    )
+                if candidate_failed:
+                    reasons.append(
+                        f"candidate still fails: {', '.join(candidate_failed)}"
+                    )
+                if not comparable:
+                    reasons.append(
+                        "evaluation suite changed since the baseline: "
+                        f"{comparison.get('incomparable_reason') or 'not comparable'}"
+                    )
+                candidate.update({
+                    "status": "passed" if promotable else "failed",
+                    "evaluation": summary,
+                    "comparison": comparison,
+                    "reasons": reasons,
+                    "updated_at": utc_now(),
+                })
+
+            self.evaluation_times.append(candidate["updated_at"])
+            self._save()
+            return candidate
 
     @engine_transaction_async
     async def rollback(self, candidate_id: str) -> Dict[str, Any]:
