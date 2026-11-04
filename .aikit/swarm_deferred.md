@@ -102,6 +102,11 @@ the whole batch back to re-analysis.
   `sub_step_timeout` (`:3332`) CLOSED with evidence: full-file
   audit shows entry-validated provenance and a pre-existing try
   around the wait_for — no public repro path remains.
+## Final verification (2026-11-04, current tree)
+- Full unfiltered `pytest`: **2556 passed, 7 skipped, 0 failed in 185s** (second consecutive green run after the 2555/0 run; both include all spawn-flake tests with no deselects).
+- `aikit check`: test PASS, lint PASS, hygiene PASS, secrets PASS; guidelines code-structure checks now PASS after the setattr-idiom fix (`1404f1a`); the sole remaining item is the other lane's in-progress `codebase_map.md`, deliberately untouched.
+- `npm run ai:verify / build`: not applicable — no `package.json` anywhere in the repo (Stage 2 verified).
+
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest`, unfiltered, measured GREEN on 2026-11-04: 2555 passed,
   7 skipped, 0 failed in 302s — including the sandbox-spawn tests that
