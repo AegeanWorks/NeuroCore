@@ -237,6 +237,12 @@ class ReactivityEngine:
         # through process_event, which takes the lock itself per event.
         # Holding the ledger lock here would serialize whole polls behind
         # one slow subscriber (see process_event above).
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            baselines = dict(self.file_state)
         produced = []
         for event in self._calendar_events():
             await self._emit(event)
@@ -244,14 +250,14 @@ class ReactivityEngine:
         for event in self._metric_events():
             await self._emit(event)
             produced.append(event)
-        for event in self._file_events():
+        file_events, observed = self._file_events(baselines)
+        for event in file_events:
             await self._emit(event)
             produced.append(event)
-        lock = self.store.lock
-        outer = not lock.reentrant
         with lock.held():
             if outer:
                 self._reload_from_store()
+            self.file_state.update(observed)
             self._save()
         return {"emitted": len(produced), "running": self._running}
 
@@ -318,8 +324,15 @@ class ReactivityEngine:
                 ))
         return events
 
-    def _file_events(self) -> List[BrainEvent]:
-        events = []
+    def _file_events(self, baselines: Dict[str, list]) -> tuple:
+        """Scan watched paths against read-only baselines.
+
+        Returns (events, observed) where observed maps every seen path to
+        its current [mtime, size]. The caller merges observed into fresh
+        store state under the lock, so gathering itself stays lock-free.
+        """
+        events: List[BrainEvent] = []
+        observed: Dict[str, list] = {}
         for raw_path in self.watch_paths:
             path = Path(raw_path)
             if not path.exists():
@@ -333,9 +346,9 @@ class ReactivityEngine:
                 except OSError:
                     continue
                 key = str(item)
-                previous = self.file_state.get(key)
+                previous = baselines.get(key)
                 current = [stat.st_mtime, stat.st_size]
-                self.file_state[key] = current
+                observed[key] = current
                 if previous is None:
                     continue
                 if previous[0] != current[0] or previous[1] != current[1]:
@@ -346,7 +359,7 @@ class ReactivityEngine:
                         salience=0.6,
                         dedupe_key=f"file:{key}:{current[0]}:{current[1]}",
                     ))
-        return events
+        return events, observed
 
     async def _poll_loop(self) -> None:
         try:
