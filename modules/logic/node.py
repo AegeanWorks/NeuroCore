@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 from functools import partial as _partial
 from core.debug import debug_logger
 from core.settings import settings
@@ -99,7 +100,11 @@ class DelayExecutor:
             # TypeError: Non-numeric type in config
             logger.warning(f"Invalid delay seconds value, using default: {e}")
             seconds = 1.0
-        
+
+        if not math.isfinite(seconds):
+            logger.warning(f"Invalid delay seconds value (NaN/inf), using default 1.0")
+            seconds = 1.0
+
         if seconds < 0:
             seconds = 0
         

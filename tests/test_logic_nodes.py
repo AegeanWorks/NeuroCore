@@ -488,3 +488,14 @@ async def test_script_executor_allows_re_module():
     
     assert "error" not in result
     assert result["match"] is True
+
+
+@pytest.mark.asyncio
+async def test_delay_nan_uses_default():
+    """DelayExecutor must not crash on NaN/inf (swarm logic)."""
+    executor = DelayExecutor()
+    with patch("modules.logic.node.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        result = await executor.receive({"a": 1}, config={"seconds": "nan"})
+        assert result == {"a": 1}
+        mock_sleep.assert_awaited_once()
+        assert mock_sleep.call_args[0][0] == 1.0

@@ -613,3 +613,19 @@ class TestToolDispatcherIntegration:
         # For now, we just verify the structure is in place
         result = await dispatcher.receive(input_data, {"allowed_tools": []})
         assert "tool_results" in result
+
+
+def test_blocks_rplus_in_read_only(tmp_path):
+    """SafeOpen read-only must reject r+/w modes (swarm sandbox)."""
+    target = tmp_path / "x.txt"
+    target.write_text("a")
+    opener = SafeOpen([str(tmp_path)], True)
+    with pytest.raises(SecurityError):
+        opener(str(target), "r+")
+    with pytest.raises(SecurityError):
+        opener(str(target), "w")
+    # pure reads still work
+    with opener(str(target), "r") as fh:
+        assert fh.read() == "a"
+    with opener(str(target), "rb") as fh:
+        assert fh.read() == b"a"

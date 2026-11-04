@@ -185,3 +185,11 @@ def test_save_events_fsyncs_before_replace(temp_event_file, monkeypatch):
     manager = EventManager(storage_file=temp_event_file)
     manager.add_event("Fsync Check", "2026-09-01 10:00")
     assert calls, "save must fsync the temp file before replace"
+
+
+def test_get_by_date_exact_only(event_manager):
+    """Partial-day prefixes and empty strings must not match (swarm B5)."""
+    event_manager.add_event("Exact", "2025-01-15 10:00")
+    assert event_manager.get_events_by_date("2025-01-1") == []
+    assert event_manager.get_events_by_date("") == []
+    assert len(event_manager.get_events_by_date("2025-01-15")) == 1
