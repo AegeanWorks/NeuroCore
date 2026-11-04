@@ -2510,3 +2510,14 @@ contract, a dependency, a data format or the architecture; IDs are consecutive a
 - Cross-principle check: no principle section changed. Serves PRINCIPLE-013 (an explicit
   retry/exhaustion state instead of a silent drop) and PRINCIPLE-014 (failing-first delivery,
   acceptance, retry, exhaustion, bounds and replay tests).
+### ADR-112: Approved-7 wave 1 - run ledger, auth registry, USELESS gate land as additive libraries
+- **Context**: IDEA-1271/1272/1273/1274 (asset graph, run event log, state machine, result store), IDEA-1299/1301 (OAuth client, connector), IDEA-1335 (k=5 USELESS stop) were Approved and deep-checked. core/outcomes.py is a 53-line forward-only listener with no event log, no state set, no asset record; core/execution_budget.py counts only; agent_loop tracks unhelpful heuristics but no explicit USELESS rule.
+- **Decision**:
+  1. Add core/run_ledger.py (stdlib-only, FORMAT_VERSION=1): RunState enum with closed transitions + InvalidTransition, RunEvent JSONL append/read with version refusal, Asset materialize() refusing never-materialized or newer upstream, ResultStore file-backed with 1MB bound, TTL expiry (expired loads None), temp+fsync+replace writes.
+  2. Add core/auth_registry.py (validate-only, no network/secrets): OAuthClientRegistry refuses empty redirect lists and >10 URIs; ConnectorRegistry refuses missing/non-https issuer and >32 mappings; map_claims is pure.
+  3. Add core/useless_gate.py (k=5): explicit-flag only (useless True or judgment USELESS, no content heuristics), finish-only restriction with timestamped receipt; wire minimally into modules/agent_loop/node.py after stuck detection (never fires today - no producer sets the flag).
+  4. Add tests/test_run_ledger.py (12), tests/test_auth_registry.py (7), tests/test_useless_gate.py (7): 26/26 green; loop + outcomes regression 138 passed.
+  5. flow_runner/outcomes contracts unchanged this wave; ledger wiring follows once a consumer needs file I/O per run.
+- **Consequences**: Gaps closed as tested libraries; OAuth stays registry-only (IDEA-1300/1302 remain deferred - no end-user/secret store). Rejected alternative: in-place outcomes.py rewrite + per-run file append in flow_runner - higher regression risk for no caller benefit yet; recorded here so the option stays closed.
+- Cross-principle check: no principle section changed. Serves PRINCIPLE-003 (read-before-write, grep evidence), PRINCIPLE-009 (no import cycle, stdlib registries), PRINCIPLE-010 (one fsync per file), PRINCIPLE-014 (new tests green, loop/outcomes clean).
+
