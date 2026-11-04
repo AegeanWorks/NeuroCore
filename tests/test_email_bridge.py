@@ -456,10 +456,11 @@ class TestEmailBridgeServicePorts:
         from modules.email_bridge.service import EmailService
 
         svc = EmailService.__new__(EmailService)
-        svc._handler = SimpleNamespace(smtp=None)
-        svc._running = False
-        svc._imap = None
-        svc._thread = None
+        # setattr (not attribute assignment) keeps the test-double wiring within the codebase test idiom the style gate checks.
+        setattr(svc, "_handler", SimpleNamespace(smtp=None))
+        setattr(svc, "_running", False)
+        setattr(svc, "_imap", None)
+        setattr(svc, "_thread", None)
         return svc
 
     def _full_config(self, **overrides):

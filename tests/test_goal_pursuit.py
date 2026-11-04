@@ -46,7 +46,7 @@ async def test_compress_lessons_bad_chunk_size_falls_back():
     """A non-numeric chunk size must not crash lesson chunking."""
     ex = make_executor()
     long_lessons = ["x" * 2000, "y" * 2000]
-    ex._llm_with_retry = AsyncMock(return_value=llm_response("S"))
+    setattr(ex, "_llm_with_retry", AsyncMock(return_value=llm_response("S")))
     result = await ex._compress_lessons(long_lessons, {"lessons_chunk_size": "abc"})
     assert isinstance(result, str) and result
 

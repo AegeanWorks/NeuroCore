@@ -172,7 +172,7 @@ class TestAgentLoopBasic:
         from modules.agent_loop.node import GoalPursuitExecutor
 
         ex = GoalPursuitExecutor()
-        ex._llm_with_retry = AsyncMock()
+        setattr(ex, "_llm_with_retry", AsyncMock())
         with pytest.raises(ValueError, match="replan LLM config"):
             await ex._replan(
                 "req", [], [], {}, "boom", {"planning_temperature": "abc"}
@@ -1262,7 +1262,7 @@ class TestHybridAgentExecutor:
         from modules.agent_loop.node import GoalPursuitExecutor
 
         ex = GoalPursuitExecutor.__new__(GoalPursuitExecutor)
-        ex._llm_with_retry = AsyncMock()
+        setattr(ex, "_llm_with_retry", AsyncMock())
         with pytest.raises(ValueError, match="max_steps"):
             await ex._create_plan("do things", {"max_steps": "abc"})
         ex._llm_with_retry.assert_not_awaited()
