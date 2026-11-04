@@ -5,6 +5,18 @@ import threading
 import time
 
 import pytest
+from fastapi.testclient import TestClient
+
+import modules.brain.service as brain_service_module
+from core.flow_evolution import FlowEvolution, FlowEvolutionError
+from core.flow_manager import FlowManager
+from main import app
+from modules.brain.evaluation import EvalStore, EvaluationRunner
+from modules.brain.improvement import ImprovementEngine, ImprovementStore
+from modules.brain.service import BrainService
+from modules.brain.state import BrainStateStore
+
+from tests.test_brain_substrate import FakeSelfModel, temp_learning
 
 
 def test_improvement_rejects_non_numeric_limits(tmp_path):
@@ -18,18 +30,6 @@ def test_improvement_rejects_non_numeric_limits(tmp_path):
             store=ImprovementStore(path=str(tmp_path / "improve.json")),
             max_candidates_per_day="abc",
         )
-from fastapi.testclient import TestClient
-
-import modules.brain.service as brain_service_module
-from core.flow_evolution import FlowEvolution, FlowEvolutionError
-from core.flow_manager import FlowManager
-from main import app
-from modules.brain.evaluation import EvalStore, EvaluationRunner
-from modules.brain.improvement import ImprovementEngine, ImprovementStore
-from modules.brain.service import BrainService
-from modules.brain.state import BrainStateStore
-
-from tests.test_brain_substrate import FakeSelfModel, temp_learning
 
 
 class FakeEvalRunner:
