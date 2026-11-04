@@ -111,6 +111,7 @@ the whole batch back to re-analysis.
   Durable green needs sandbox perf work (large) or test-budget
   relaxation (user approval + ADR per PRINCIPLE-014; question tool
   unavailable in goal mode). Nothing else is red.
+- `aikit check` update 2026-11-05: test+lint+hygiene+secrets PASS; guidelines failed ONLY on (a) 7 direct-private-attribute test assignments — FIXED via the codebase's own setattr test idiom (`1404f1a`, code-structure now OK on re-check), and (b) a stale `codebase_map.md` that is the other lane's in-progress audit work (uncommitted changes) — deliberately untouched.
 - `npm ai:verify/build` not applicable (no `package.json` in tree).
 - `aikit check` not yet measured end-to-end (exceeds the 300s foreground
   window; full pytest alone takes ~300s).
