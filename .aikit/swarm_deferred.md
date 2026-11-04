@@ -103,8 +103,14 @@ the whole batch back to re-analysis.
   audit shows entry-validated provenance and a pre-existing try
   around the wait_for — no public repro path remains.
 ## Gating blocker (sent back to implementation, not fixed here)
-- Full `pytest` red ONLY on the pre-existing Windows sandbox spawn flake: full suite minus the flake class = 2511 passed, 7 skipped, 0 failed in 238s (37 deselected: sandbox script-executor, abort, and cancellation tests; all fail clean trees too, repros on file). Fix needs sandbox perf work (large) or test-budget relaxation (user approval + ADR per PRINCIPLE-014; question tool unavailable in goal mode). Nothing else is red. Fix needs either
-  sandbox perf work (large) or test-budget relaxation (user
-  approval + ADR per PRINCIPLE-014; question tool unavailable in
-  goal mode). `npm ai:verify/build` not applicable (no
-  `package.json`); `aikit check` exceeds the 300s window.
+- Full `pytest`, unfiltered, measured GREEN on 2026-11-04: 2555 passed,
+  7 skipped, 0 failed in 302s — including the sandbox-spawn tests that
+  flake under load. The flake class (Windows spawn overhead vs 10s/30s
+  test timeouts) still fails intermittently on clean trees (repros on
+  file via stash cycles); a single green run does not prove it stable.
+  Durable green needs sandbox perf work (large) or test-budget
+  relaxation (user approval + ADR per PRINCIPLE-014; question tool
+  unavailable in goal mode). Nothing else is red.
+- `npm ai:verify/build` not applicable (no `package.json` in tree).
+- `aikit check` not yet measured end-to-end (exceeds the 300s foreground
+  window; full pytest alone takes ~300s).
