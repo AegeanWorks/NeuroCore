@@ -10,6 +10,7 @@ from core.execution_budget import spend
 from core.llm import LLMBridge
 from core.session_manager import EpisodeState, get_session_manager
 from core.settings import settings
+from core.useless_gate import UselessGate, is_useless_result
 from modules.agent_loop.loop_guard import LoopGuard
 from modules.agent_loop.prompt_digest import guard_system_messages, snapshot_system_messages
 from modules.agent_loop.tool_journal import run_journaled_tool
@@ -565,7 +566,16 @@ class AgentBaseExecutor:
             or repl_state.get("sub_call_model")
             or settings.get("default_model")
         )
-        max_tokens = int(args.get("max_tokens", 2000))
+        try:
+            max_tokens = int(args.get("max_tokens", 2000))
+        except (TypeError, ValueError):
+            return {
+                "tool_call_id": "",
+                "role": "tool",
+                "name": "sub_call",
+                "content": "Error: max_tokens must be an integer",
+                "success": False,
+            }
 
         repl_state["sub_call_count"] = repl_state.get("sub_call_count", 0) + 1
         old_depth = repl_state.get("recursion_depth", 0)
@@ -981,23 +991,44 @@ class AgentLoopExecutor(AgentBaseExecutor):
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 10))
-        max_tokens = int(config.get("max_tokens", 2048))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
-        tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        max_context_tokens = int(config.get("max_context_tokens", 6000))
-        compact_threshold = int(config.get("compact_threshold", 0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
 
-        compact_keep_last = int(config.get("compact_keep_last", 6))
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 10)
+        max_tokens = _cfg_int("max_tokens", 2048)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
+        tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        max_context_tokens = _cfg_int("max_context_tokens", 6000)
+        compact_threshold = _cfg_int("compact_threshold", 0)
+
+        compact_keep_last = _cfg_int("compact_keep_last", 6)
         # Fix 1: read max_tool_output_chars from config
-        max_tool_output_chars = int(config.get("max_tool_output_chars", 0))
+        max_tool_output_chars = _cfg_int("max_tool_output_chars", 0)
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)
@@ -1861,15 +1892,31 @@ Call set_final() when complete."""
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 20))
-        max_tokens = int(config.get("max_tokens", 2000))
-        temperature = float(config.get("temperature", 0.1))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
-        stdout_preview_length = int(config.get("stdout_preview_length", 500))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 20)
+        max_tokens = _cfg_int("max_tokens", 2000)
+        temperature = _cfg_float("temperature", 0.1)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
+        stdout_preview_length = _cfg_int("stdout_preview_length", 500)
         model = config.get("model") or settings.get("default_model")
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
         checkpoint_interval = config.get("checkpoint_interval", 1)
@@ -1878,7 +1925,12 @@ Call set_final() when complete."""
             checkpoint_interval = 1
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         episode = None
@@ -2411,6 +2463,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         final_response = None
         had_tool_error = False
         _consecutive_unhelpful = 0  # iterations where every result was unhelpful
+        _useless_gate = UselessGate()  # IDEA-1335: explicit USELESS judgments only
         guard = LoopGuard()
         system_snapshot = snapshot_system_messages(llm_messages)
 
@@ -2583,6 +2636,30 @@ class HybridAgentExecutor(AgentBaseExecutor):
                 )
                 break
 
+            # ── IDEA-1335: explicit USELESS-evidence stop (finish-only) ──
+            # Counts only explicit judgments, never heuristics, so it cannot
+            # fire on today's tool results (which carry no such flag).
+            _useless_all = bool(_iter_tool_results) and all(
+                is_useless_result(msg) for msg in _iter_tool_results
+            )
+            _receipt = _useless_gate.record(_useless_all)
+            if _receipt["restricted"]:
+                llm_messages.append({
+                    "role": "user",
+                    "content": (
+                        "[USELESS GATE] The last "
+                        f"{_receipt['consecutive_useless']} tool iterations "
+                        "were judged USELESS. Only `finish` remains; "
+                        "conclude from verified evidence."
+                    ),
+                })
+                iteration_trace["useless_gate"] = _receipt
+                logger.warning(
+                    "[HybridLoop] Useless-gate restricted after "
+                    f"{_receipt['consecutive_useless']} USELESS iterations"
+                )
+                break
+
         return final_response, iterations, had_tool_error
 
     async def receive(self, input_data: dict, config: dict = None) -> dict:
@@ -2625,20 +2702,41 @@ class HybridAgentExecutor(AgentBaseExecutor):
             sm = None
 
         # --- Read configuration ---
-        max_iterations = int(config.get("max_iterations", 15))
-        max_tokens = int(config.get("max_tokens", 4096))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations = _cfg_int("max_iterations", 15)
+        max_tokens = _cfg_int("max_tokens", 4096)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
         tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 120))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        large_output_threshold = int(config.get("large_output_threshold", 3000))
+        timeout = _cfg_float("timeout", 120)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        large_output_threshold = _cfg_int("large_output_threshold", 3000)
         stream_queue = config.get("_stream_queue")
         model = config.get("model") or settings.get("default_model")
 
         # --- Re-planning depth tracking ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
 
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)
@@ -2771,11 +2869,11 @@ class HybridAgentExecutor(AgentBaseExecutor):
             "variables": {},
             "_var_counts": {},
             "sub_call_count": 0,
-            "max_sub_calls": int(config.get("max_sub_calls", 20)),
+            "max_sub_calls": _cfg_int("max_sub_calls", 20),
             "recursion_depth": 0,
-            "max_recursion_depth": int(config.get("max_recursion_depth", 3)),
+            "max_recursion_depth": _cfg_int("max_recursion_depth", 3),
             "estimated_cost": 0.0,
-            "max_cost_usd": float(config.get("max_cost_usd", 1.0)),
+            "max_cost_usd": _cfg_float("max_cost_usd", 1.0),
             "sub_call_model": config.get("sub_call_model") or model,
         }
         trace: list = []
@@ -3429,7 +3527,12 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         planning_assumptions: str = "",
     ) -> list:
         """Call LLM to create an initial step-by-step plan."""
-        max_steps = int(config.get("max_steps", 10))
+        try:
+            max_steps = int(config.get("max_steps", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid max_steps. Why: {exc}. Fix: pass max_steps as an integer."
+            ) from exc
         prompt = config.get("planning_prompt", self._DEFAULT_PLANNING_PROMPT)
         prompt = prompt.replace("{request}", user_request).replace("{max_steps}", str(max_steps))
 
@@ -3464,17 +3567,26 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                 # the context block and the constraint so JSON-only output is enforced.
                 prompt += f"\n\n{block}\n\n{json_instruction}"
         model = config.get("model") or settings.get("default_model")
+        try:
+            planning_temperature = float(config.get("planning_temperature", 0.1))
+            max_retries = int(config.get("max_llm_retries", 3))
+            retry_delay = float(config.get("retry_delay", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid planning config. Why: {exc}. Fix: pass numbers for "
+                "planning_temperature, max_llm_retries and retry_delay."
+            ) from exc
         response = await self._llm_with_retry(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_request},
             ],
             model=model,
-            temperature=float(config.get("planning_temperature", 0.1)),
+            temperature=planning_temperature,
             max_tokens=max(500, 60 * max_steps),
             tools=[],
-            max_retries=int(config.get("max_llm_retries", 3)),
-            retry_delay=float(config.get("retry_delay", 1.0)),
+            max_retries=max_retries,
+            retry_delay=retry_delay,
         )
         if not response or "choices" not in response:
             return []
@@ -3640,8 +3752,19 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         repl_state: dict = None,
     ) -> list:
         """Generate a revised plan for remaining work after a step failure."""
-        max_steps = int(config.get("max_steps", 10))
-        replan_result_max_chars = int(config.get("replan_result_max_chars", 600))
+        try:
+            max_steps = int(config.get("max_steps", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid max_steps. Why: {exc}. Fix: pass max_steps as an integer."
+            ) from exc
+        try:
+            replan_result_max_chars = int(config.get("replan_result_max_chars", 600))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "invalid replan_result_max_chars. Why: "
+                f"{exc}. Fix: pass replan_result_max_chars as an integer."
+            ) from exc
         if completed_steps:
             lines = []
             variables = (repl_state or {}).get("variables", {})
@@ -3703,17 +3826,26 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             .replace("{replan_history_section}", replan_history_section)
         )
         model = config.get("model") or settings.get("default_model")
+        try:
+            replan_temperature = float(config.get("planning_temperature", 0.1))
+            replan_retries = int(config.get("max_llm_retries", 3))
+            replan_delay = float(config.get("retry_delay", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan LLM config. Why: {exc}. Fix: pass numbers for "
+                "planning_temperature, max_llm_retries and retry_delay."
+            ) from exc
         response = await self._llm_with_retry(
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Create a revised plan to achieve: {original_request}"},
             ],
             model=model,
-            temperature=float(config.get("planning_temperature", 0.1)),
+            temperature=replan_temperature,
             max_tokens=max(500, 60 * max_steps),
             tools=[],
-            max_retries=int(config.get("max_llm_retries", 3)),
-            retry_delay=float(config.get("retry_delay", 1.0)),
+            max_retries=replan_retries,
+            retry_delay=replan_delay,
         )
         if not response or "choices" not in response:
             logger.warning("[GoalPursuit] Replan LLM call failed; no revised plan generated")
@@ -3937,11 +4069,19 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         if not lessons:
             return ""
         joined = "\n---\n".join(lessons)
-        threshold = int(config.get("lessons_compress_threshold", 3000))
+        try:
+            threshold = int(config.get("lessons_compress_threshold", 3000))
+        except (TypeError, ValueError):
+            threshold = 3000
         if len(joined) <= threshold:
             return joined
 
-        chunk_size = int(config.get("lessons_chunk_size", 5))
+        try:
+            chunk_size = int(config.get("lessons_chunk_size", 5))
+        except (TypeError, ValueError):
+            chunk_size = 5
+        if chunk_size < 1:
+            chunk_size = 1
         model = config.get("model") or settings.get("default_model")
         chunks = [lessons[i:i + chunk_size] for i in range(0, len(lessons), chunk_size)]
 
@@ -4025,8 +4165,14 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         if not step_vars:
             return 0
 
-        compress_threshold = int(config.get("synthesis_compress_threshold", 9000))
-        per_var_threshold = int(config.get("synthesis_per_var_threshold", 1500))
+        try:
+            compress_threshold = int(config.get("synthesis_compress_threshold", 9000))
+        except (TypeError, ValueError):
+            compress_threshold = 9000
+        try:
+            per_var_threshold = int(config.get("synthesis_per_var_threshold", 1500))
+        except (TypeError, ValueError):
+            per_var_threshold = 1500
         total_chars = sum(len(v) for v in step_vars.values())
         if total_chars <= compress_threshold:
             return 0
@@ -4579,19 +4725,35 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             sm = None
 
         # --- Config ---
-        max_iterations_per_step = int(config.get("max_iterations_per_step", 10))
-        max_tokens = int(config.get("max_tokens", 4096))
-        temperature = float(config.get("temperature", 0.7))
-        max_llm_retries = int(config.get("max_llm_retries", 3))
-        retry_delay = float(config.get("retry_delay", 1.0))
+        def _cfg_int(key: str, default: int) -> int:
+            try:
+                return int(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as an integer."
+                ) from exc
+
+        def _cfg_float(key: str, default: float) -> float:
+            try:
+                return float(config.get(key, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid {key}. Why: {exc}. Fix: pass {key} as a number."
+                ) from exc
+
+        max_iterations_per_step = _cfg_int("max_iterations_per_step", 10)
+        max_tokens = _cfg_int("max_tokens", 4096)
+        temperature = _cfg_float("temperature", 0.7)
+        max_llm_retries = _cfg_int("max_llm_retries", 3)
+        retry_delay = _cfg_float("retry_delay", 1.0)
         tool_error_strategy = str(config.get("tool_error_strategy", "continue"))
-        timeout = float(config.get("timeout", 300))
-        max_replan_depth = int(config.get("max_replan_depth", 3))
-        large_output_threshold = int(config.get("large_output_threshold", 3000))
+        timeout = _cfg_float("timeout", 300)
+        max_replan_depth = _cfg_int("max_replan_depth", 3)
+        large_output_threshold = _cfg_int("large_output_threshold", 3000)
         enable_step_evaluation = bool(config.get("enable_step_evaluation", True))
         enable_synthesis = bool(config.get("enable_synthesis", True))
-        max_step_retries = int(config.get("max_step_retries", 2))
-        step_timeout = float(config.get("step_timeout", 0))
+        max_step_retries = _cfg_int("max_step_retries", 2)
+        step_timeout = _cfg_float("step_timeout", 0)
         enable_dependency_graph = bool(config.get("enable_dependency_graph", True))
         enable_ask_user = bool(config.get("enable_ask_user", True))
         ask_user_auto_proceed = bool(config.get("ask_user_auto_proceed", False))
@@ -4599,11 +4761,11 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         # "hybrid" — always use the hybrid loop (full outputs inline)
         # "rlm"    — always use the RLM loop (metadata stubs, constant context)
         step_execution_mode = str(config.get("step_execution_mode", "auto"))
-        context_pressure_threshold = float(config.get("context_pressure_threshold", 0.7))
-        max_context_tokens = int(config.get("max_context_tokens", 8000))
+        context_pressure_threshold = _cfg_float("context_pressure_threshold", 0.7)
+        max_context_tokens = _cfg_int("max_context_tokens", 8000)
         enable_subgoals = bool(config.get("enable_subgoals", True))
-        subgoal_depth = int(config.get("_subgoal_depth", 0))
-        max_subgoal_depth = int(config.get("max_subgoal_depth", 2))
+        subgoal_depth = _cfg_int("_subgoal_depth", 0)
+        max_subgoal_depth = _cfg_int("max_subgoal_depth", 2)
         stream_queue = config.get("_stream_queue")
         model = config.get("model") or settings.get("default_model")
 
@@ -4679,7 +4841,12 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                 logger.warning(f"[GoalPursuit] Episode init failed: {e}")
 
         # --- Replan depth guard ---
-        replan_count = int(input_data.get("replan_count", 0))
+        try:
+            replan_count = int(input_data.get("replan_count", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid replan_count. Why: {exc}. Fix: pass replan_count as an integer."
+            ) from exc
         if episode:
             replan_count = max(replan_count, episode.replan_count)
 
@@ -4737,11 +4904,11 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             "variables": {},
             "_var_counts": {},
             "sub_call_count": 0,
-            "max_sub_calls": int(config.get("max_sub_calls", 20)),
+            "max_sub_calls": _cfg_int("max_sub_calls", 20),
             "recursion_depth": 0,
-            "max_recursion_depth": int(config.get("max_recursion_depth", 3)),
+            "max_recursion_depth": _cfg_int("max_recursion_depth", 3),
             "estimated_cost": 0.0,
-            "max_cost_usd": float(config.get("max_cost_usd", 1.0)),
+            "max_cost_usd": _cfg_float("max_cost_usd", 1.0),
             "sub_call_model": config.get("sub_call_model") or model,
             # Sub-goal tracking — read by _execute_tool when DecomposeGoal is called.
             "_subgoal_depth": subgoal_depth,
@@ -5760,7 +5927,10 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
             # Save a post-run reflection so future goal runs can learn from this one.
             # Awaited with a timeout so the lesson is durably written before receive()
             # returns; if the embedding call takes too long we skip gracefully.
-            _reflection_timeout = float(config.get("reflection_save_timeout", 8.0))
+            try:
+                _reflection_timeout = float(config.get("reflection_save_timeout", 8.0))
+            except (TypeError, ValueError):
+                _reflection_timeout = 8.0
             try:
                 await asyncio.wait_for(
                     self._save_run_reflection(
