@@ -107,6 +107,16 @@ the whole batch back to re-analysis.
 - `aikit check`: test PASS, lint PASS, hygiene PASS, secrets PASS; guidelines code-structure checks now PASS after the setattr-idiom fix (`1404f1a`); the sole remaining item is the other lane's in-progress `codebase_map.md`, deliberately untouched.
 - `npm run ai:verify / build`: not applicable — no `package.json` anywhere in the repo (Stage 2 verified).
 
+## Final verification (2026-11-04, final tree)
+- Full unfiltered `pytest`: 2558 passed, 7 skipped, 0 failed in 211s
+  (EXIT:0) — third consecutive green run including the spawn-flake
+  tests with no deselects. All 66 fixes plus the style batch covered.
+- `aikit check`: test+lint+hygiene+secrets PASS; guidelines code checks
+  PASS; the sole failure is the other lane's in-progress
+  `codebase_map.md`, deliberately untouched.
+- `npm run ai:verify / build`: not applicable — no `package.json`
+  anywhere in the repo (verified Stage 2).
+
 ## Gating blocker (sent back to implementation, not fixed here)
 - Full `pytest`, unfiltered, measured GREEN on 2026-11-04: 2555 passed,
   7 skipped, 0 failed in 302s — including the sandbox-spawn tests that
