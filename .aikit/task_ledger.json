@@ -3,31 +3,15 @@
   "active_task": {
     "task_id": "neurocore-approved-7",
     "last_phase": "phase 4 verification",
-    "active_phase": 4,
-    "status": "in_progress",
+    "active_phase": 5,
+    "status": "completed",
     "updated_at": 1793815082.8714275,
     "owner": "kilo:2",
     "started_by": "kilo:2",
-    "continuations": []
+    "continuations": [],
+    "completed_at": 1793815097.0593321
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1237-trace-context",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/4] extend the existing TraceContext with root-once sampling and current_span_ids (no duplicate module). [2/4] emit_outcome stamps trace/span/parent ids via a registered provider to avoid an import cycle. [3/4] Failing-first tests for root/child links, deterministic sampling, stamping, passthrough and a broken provider. [4/4] ADR-099, IDEAS, README, map, aikit check neurocore.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793456564.3801212,
-      "timestamp_str": "2026-10-31 17:22:44",
-      "agent": "kilo:1",
-      "impact_assessment": {
-        "why": "IDEA-1237 was approved: outcomes were bare dicts, so a flow or tool result could not be joined to the step that produced it.",
-        "benefits": "Outcomes carry trace and parent-span identity; sampling is decided once per trace; untraced behaviour is byte-identical.",
-        "risks": "contract: emit_outcome may add three keys and TraceContext gains fields; dependency: stdlib contextvars only; concurrency: contextvar isolation; state: none.",
-        "mitigation": "The caller's dict is copied, never mutated, and a failing provider only logs at debug."
-      }
-    },
     {
       "task_id": "idea-1237-trace-context",
       "phase": "phase 4 verification",
@@ -264,6 +248,16 @@
       "status": "in_progress",
       "timestamp": 1793815082.8714275,
       "timestamp_str": "2026-11-04 20:58:02",
+      "agent": "kilo:2"
+    },
+    {
+      "task_id": "neurocore-approved-7",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-approved-7' completed successfully.",
+      "status": "completed",
+      "timestamp": 1793815097.0593333,
+      "timestamp_str": "2026-11-04 20:58:17",
       "agent": "kilo:2"
     }
   ]

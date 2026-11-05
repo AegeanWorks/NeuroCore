@@ -24,6 +24,9 @@ DEFAULT_SETTINGS = {
     "debug_mode": False,
     "ui_wide_mode": False,
     "ui_show_footer": True,
+    # Out-of-scope surfaces ship disabled; re-enable from Settings > General.
+    "marketplace_enabled": False,
+    "research_enabled": False,
     "request_timeout": 60.0,
     "max_node_loops": 100,
     "module_allowlist": [],  # Issue 9: Module allowlist for hot-loading security
@@ -171,8 +174,9 @@ class SettingsManager:
             validated["max_node_loops"] = int(loops)
         
         # Issue 2.2: Strict boolean parsing - bool("false") returns True in Python!
-        # debug_mode, ui_wide_mode, ui_show_footer: booleans
-        for bool_field in ["debug_mode", "ui_wide_mode", "ui_show_footer"]:
+        # debug_mode, ui_wide_mode, ui_show_footer, marketplace/research flags: booleans
+        for bool_field in ["debug_mode", "ui_wide_mode", "ui_show_footer",
+                           "marketplace_enabled", "research_enabled"]:
             if bool_field in new_settings:
                 validated[bool_field] = self._parse_bool(new_settings[bool_field], bool_field)
         

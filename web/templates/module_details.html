@@ -338,15 +338,22 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-2">Restrict to Tools (optional)</label>
-                            <input type="text" name="enabled_tools" value="{{ module.config.enabled_tools | join(', ') if module.config.enabled_tools else '' }}" placeholder="Leave empty to allow all tools"
+                            <input type="text" id="enabled_tools" name="enabled_tools" value="{{ module.config.enabled_tools | join(', ') if module.config.enabled_tools else '' }}" placeholder="Leave empty to allow all tools"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            <p class="text-xs text-slate-500 mt-2">Enter tool names separated by commas, e.g. <code class="text-slate-400">web_search, calculator</code>. Empty = no restriction.</p>
+                            <p class="text-xs text-slate-500 mt-2">Enter tool names separated by commas, e.g. <code class="text-slate-400">Calculator, FetchURL</code>. Empty = no restriction. JSON arrays are also accepted.</p>
+                            <div hx-get="/system_prompt/available-tools" hx-trigger="load" hx-swap="innerHTML" class="mt-3 max-h-48 overflow-y-auto custom-scrollbar border border-slate-800 rounded-xl p-2">
+                                <p class="text-xs text-slate-600 p-2">Loading tools…</p>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-2">Inject Skills (optional)</label>
                             <input type="text" name="enabled_skills" value="{{ module.config.enabled_skills | join(', ') if module.config.enabled_skills else '' }}" placeholder="Leave empty to disable skill injection"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                             <p class="text-xs text-slate-500 mt-2">Enter skill IDs separated by commas, e.g. <code class="text-slate-400">code_reviewer, summarizer</code>. Empty = no skills injected.</p>
+                            <label class="block text-sm font-medium text-slate-400 mb-2 mt-4">Max Token Budget</label>
+                            <input type="number" name="max_token_budget" value="{{ module.config.max_token_budget or 4000 }}" min="500" max="32000" step="100"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">System prompt plus injected context is truncated to this budget (chars ≈ tokens). Default: 4000.</p>
                         </div>
                     </div>
                 </div>
@@ -568,7 +575,351 @@
     </script>
     {% endif %}
 
-    {% if module.config and has_visible_config and module.id != 'agent_loop' and module.id != 'reflection' and module.id != 'planner' and module.id != 'system_prompt' and module.id != 'skills' and module.id != 'email_bridge' %}
+    {% if module.id == 'brain' %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        {% if not module.enabled %}
+        <p class="text-xs text-amber-400/80 mb-4">This module is currently disabled — you can configure it below and enable it with the toggle above when ready.</p>
+        {% endif %}
+        <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <div class="space-y-6">
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Operation</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Mode</label>
+                            <select name="mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                                <option value="observe" {% if module.config.mode == 'observe' %}selected{% endif %}>observe — watch only, no actions</option>
+                                <option value="suggest" {% if module.config.mode == 'suggest' %}selected{% endif %}>suggest — propose, never apply</option>
+                                <option value="auto" {% if module.config.mode == 'auto' %}selected{% endif %}>auto — act within guardrails</option>
+                            </select>
+                            <p class="text-xs text-slate-500 mt-2">Observe is safest. Auto requires goal links and stays inside daily caps.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Cycle Interval (sec)</label>
+                            <input type="number" name="cycle_interval_seconds" value="{{ module.config.cycle_interval_seconds }}" min="5" max="3600"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Cycles / Hour</label>
+                            <input type="number" name="max_cycles_per_hour" value="{{ module.config.max_cycles_per_hour }}" min="1" max="1000"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-6 mt-4">
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="hidden" name="save_auto_start" value="1">
+                            <input type="checkbox" name="auto_start" value="true" {% if module.config.auto_start %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300">Auto-start brain loop</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="hidden" name="save_reactivity_auto_start" value="1">
+                            <input type="checkbox" name="reactivity_auto_start" value="true" {% if module.config.reactivity_auto_start %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300">Auto-start reactivity engine</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="hidden" name="save_capture_flow_outcomes" value="1">
+                            <input type="checkbox" name="capture_flow_outcomes" value="true" {% if module.config.capture_flow_outcomes %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300">Learn from flow outcomes</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="hidden" name="save_inject_flow_context" value="1">
+                            <input type="checkbox" name="inject_flow_context" value="true" {% if module.config.inject_flow_context %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300">Inject flow context</span>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="hidden" name="save_require_goal_link" value="1">
+                            <input type="checkbox" name="require_goal_link" value="true" {% if module.config.require_goal_link %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300">Require goal link</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Learning & Safety Caps</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Experiences</label>
+                            <input type="number" name="max_experiences" value="{{ module.config.max_experiences }}" min="10" max="10000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Skills</label>
+                            <input type="number" name="max_skills" value="{{ module.config.max_skills }}" min="10" max="5000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Min Occurrences</label>
+                            <input type="number" name="min_occurrences" value="{{ module.config.min_occurrences }}" min="1" max="100" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Holdout Ratio</label>
+                            <input type="number" name="holdout_ratio" value="{{ module.config.holdout_ratio }}" step="0.05" min="0.0" max="0.5" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Candidates / Day</label>
+                            <input type="number" name="max_candidates_per_day" value="{{ module.config.max_candidates_per_day }}" min="1" max="200" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Evals / Day</label>
+                            <input type="number" name="max_evaluations_per_day" value="{{ module.config.max_evaluations_per_day }}" min="1" max="200" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Promotions / Day</label>
+                            <input type="number" name="max_promotions_per_day" value="{{ module.config.max_promotions_per_day }}" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Candidates</label>
+                            <input type="number" name="max_candidates" value="{{ module.config.max_candidates }}" min="10" max="2000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Config Changes / Day</label>
+                            <input type="number" name="max_config_changes_per_day" value="{{ module.config.max_config_changes_per_day }}" min="1" max="200" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Configurable Modules</label>
+                            <input type="text" name="configurable_modules" value="{{ module.config.configurable_modules | join(', ') if module.config.configurable_modules else '' }}" placeholder="planner, reflection, reasoning_book"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Comma-separated. The brain may only tune these modules.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-950/50 rounded-xl border border-slate-800 p-6">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Trends & Reactivity</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Trend Window</label>
+                            <input type="number" name="trend_window" value="{{ module.config.trend_window }}" min="2" max="500" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Trend History</label>
+                            <input type="number" name="trend_history" value="{{ module.config.trend_history }}" min="10" max="10000" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Min Delta</label>
+                            <input type="number" name="trend_min_delta" value="{{ module.config.trend_min_delta }}" step="0.05" min="0" max="10" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Trends / Day</label>
+                            <input type="number" name="trend_max_per_day" value="{{ module.config.trend_max_per_day }}" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Cooldown (sec)</label>
+                            <input type="number" name="trend_cooldown_seconds" value="{{ module.config.trend_cooldown_seconds }}" min="0" max="604800" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Poll Interval (sec)</label>
+                            <input type="number" name="poll_interval_seconds" value="{{ module.config.poll_interval_seconds }}" min="5" max="3600" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Min Salience</label>
+                            <input type="number" name="min_salience" value="{{ module.config.min_salience }}" step="0.05" min="0" max="1" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Reactions / Hour</label>
+                            <input type="number" name="max_reactions_per_hour" value="{{ module.config.max_reactions_per_hour }}" min="1" max="500" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Dedupe Window (sec)</label>
+                            <input type="number" name="dedupe_window_seconds" value="{{ module.config.dedupe_window_seconds }}" min="0" max="86400" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Watch Paths (comma-separated)</label>
+                            <input type="text" name="watch_paths" value="{{ module.config.watch_paths | join(', ') if module.config.watch_paths else '' }}" placeholder="Leave empty to watch nothing"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Allowed Tools (comma-separated)</label>
+                        <input type="text" name="allowed_tools" value="{{ module.config.allowed_tools | join(', ') if module.config.allowed_tools else '' }}" placeholder="Calculator, TimeZoneConverter, SystemTime, FetchURL"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">Tools the brain may use when proposing flows. Keep this list short.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Brain Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'browser_automation' %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Browser Settings</h3>
+        {% if not module.enabled %}
+        <p class="text-xs text-amber-400/80 mb-4">This module is currently disabled — you can configure it below and enable it with the toggle above when ready.</p>
+        {% endif %}
+        <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <div class="space-y-4">
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="hidden" name="save_headless" value="1">
+                    <input type="checkbox" name="headless" value="true" {% if module.config.headless %}checked{% endif %}
+                           class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                    <div>
+                        <span class="text-sm font-medium text-slate-300">Headless mode</span>
+                        <p class="text-xs text-slate-500">Run Chromium without a visible window. Disable only for local debugging.</p>
+                    </div>
+                </label>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Timeout (ms)</label>
+                        <input type="number" name="timeout" value="{{ module.config.timeout }}" min="1000" max="300000" step="1000"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <p class="text-xs text-slate-500 mt-2">Default wait for page actions. Default: 30000.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Viewport Width</label>
+                        <input type="number" name="viewport_width" value="{{ module.config.default_viewport.width if module.config.default_viewport else 1280 }}" min="320" max="7680"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Viewport Height</label>
+                        <input type="number" name="viewport_height" value="{{ module.config.default_viewport.height if module.config.default_viewport else 720 }}" min="240" max="4320"
+                               class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500">Takes effect on browser restart. Disable the module and re-enable it to restart the browser with new settings.</p>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Browser Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'autonomous_agent' %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Autonomous Agent Settings</h3>
+        {% if not module.enabled %}
+        <p class="text-xs text-amber-400/80 mb-4">This module is currently disabled — you can configure it below and enable it with the toggle above when ready.</p>
+        {% endif %}
+        <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <div class="space-y-4">
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="hidden" name="save_auto_start" value="1">
+                    <input type="checkbox" name="auto_start" value="true" {% if module.config.auto_start %}checked{% endif %}
+                           class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                    <div>
+                        <span class="text-sm font-medium text-slate-300">Auto-start agent service</span>
+                        <p class="text-xs text-slate-500">Start the self-governing loop when NeuroCore boots. Supervised autonomy is recommended.</p>
+                    </div>
+                </label>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Agent Config Path</label>
+                    <input type="text" name="agent_config_path" value="{{ module.config.agent_config_path }}" placeholder="modules/autonomous_agent/config/agent.json"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <p class="text-xs text-slate-500 mt-2">Personality, sandbox limits, memory retention and channel wiring live in this JSON file. Edit it directly for fine-grained control.</p>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Agent Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'tools' %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-4">Tool Runtime Settings</h3>
+        {% if not module.enabled %}
+        <p class="text-xs text-amber-400/80 mb-4">This module is currently disabled — you can configure it below and enable it with the toggle above when ready.</p>
+        {% endif %}
+        <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <input type="hidden" name="save_supported_primitives" value="1">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Manifest Version</label>
+                    <input type="number" name="manifest_version" value="{{ module.config.manifest_version }}" min="1" max="99"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all md:w-48">
+                    <p class="text-xs text-slate-500 mt-2">Bump when the tool manifest schema changes. Normally stays at 2.</p>
+                </div>
+                <div>
+                    <span class="block text-sm font-medium text-slate-400 mb-2">Enabled Runtime Primitives</span>
+                    <p class="text-xs text-slate-500 mb-3">Uncheck a primitive to fail-closed: tools requiring it are refused instead of running. The list below shows every primitive this runtime knows.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        {% for prim in ['sandbox', 'library_source', 'rlm_library_source', 'outbound_staging', 'human_approval', 'network', 'inline_source', 'progress', 'cancel'] %}
+                        <label class="flex items-center space-x-3 cursor-pointer p-3 rounded-lg border border-slate-800 hover:border-slate-700 transition-colors">
+                            <input type="checkbox" name="supported_primitives" value="{{ prim }}" {% if prim in (module.config.supported_primitives or []) %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <span class="text-sm text-slate-300 font-mono">{{ prim }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Tool Settings</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.id == 'messaging_bridge' and module.enabled %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="text-base font-semibold text-white mb-1">Access Controls</h3>
+        <p class="text-xs text-slate-500 mb-4">Deny-by-default: a platform with no sender ids admits nobody (Telegram falls back to its chat id, Discord to its channel id). Chats are an optional second layer — empty means no extra chat restriction. IDs are matched exactly — separate multiple ids with commas or spaces.</p>
+        <form hx-post="/messaging_bridge/settings/save/access" hx-swap="none"
+              hx-on::after-request="const btn = this.querySelector('button[type=submit]'); const orig = btn.innerText; btn.innerText = 'Saved!'; btn.classList.remove('bg-blue-600', 'hover:bg-blue-500'); btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500'); setTimeout(() => { btn.innerText = orig; btn.classList.add('bg-blue-600', 'hover:bg-blue-500'); btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500'); }, 2000);">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Telegram Senders</label>
+                    <input type="text" name="telegram_allowed_senders" value="{{ (module.config.telegram_allowed_senders or []) | join(', ') }}" placeholder="e.g. 123456789"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Telegram Chats</label>
+                    <input type="text" name="telegram_allowed_chats" value="{{ (module.config.telegram_allowed_chats or []) | join(', ') }}" placeholder="Optional chat ids"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Discord Senders</label>
+                    <input type="text" name="discord_allowed_senders" value="{{ (module.config.discord_allowed_senders or []) | join(', ') }}" placeholder="e.g. 987654321"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Discord Chats</label>
+                    <input type="text" name="discord_allowed_chats" value="{{ (module.config.discord_allowed_chats or []) | join(', ') }}" placeholder="Optional channel ids"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Signal Senders</label>
+                    <input type="text" name="signal_allowed_senders" value="{{ (module.config.signal_allowed_senders or []) | join(', ') }}" placeholder="e.g. +12025551234"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Signal Chats</label>
+                    <input type="text" name="signal_allowed_chats" value="{{ (module.config.signal_allowed_chats or []) | join(', ') }}" placeholder="Optional group ids"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">WhatsApp Senders</label>
+                    <input type="text" name="whatsapp_allowed_senders" value="{{ (module.config.whatsapp_allowed_senders or []) | join(', ') }}" placeholder="e.g. +12025551234"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">WhatsApp Chats</label>
+                    <input type="text" name="whatsapp_allowed_chats" value="{{ (module.config.whatsapp_allowed_chats or []) | join(', ') }}" placeholder="Optional chat ids"
+                           class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Access Controls</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if module.config and has_visible_config and module.id not in ['agent_loop', 'reflection', 'planner', 'system_prompt', 'skills', 'email_bridge', 'memory', 'chat', 'llm_module', 'messaging_bridge', 'telegram', 'brain', 'browser_automation', 'autonomous_agent', 'tools'] %}
     <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
         <h3 class="font-semibold text-lg mb-4">Configuration</h3>
         <form hx-post="/modules/{{ module.id }}/config" hx-swap="none"
@@ -578,6 +929,13 @@
                 <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors">Save Configuration</button>
             </div>
         </form>
+    </div>
+    {% endif %}
+
+    {% if not has_visible_config and module.id not in ['agent_loop', 'reflection', 'planner', 'system_prompt', 'skills', 'email_bridge', 'memory', 'chat', 'llm_module', 'messaging_bridge', 'telegram', 'brain', 'browser_automation', 'autonomous_agent', 'tools', 'memory_browser'] %}
+    <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 mt-6">
+        <h3 class="font-semibold text-lg mb-2">No Module Settings</h3>
+        <p class="text-sm text-slate-400">This module has no top-level settings — it is configured per flow node instead. Open an AI flow, drop in one of its nodes, and tune the options there.</p>
     </div>
     {% endif %}
 
@@ -778,13 +1136,52 @@
                             <label class="block text-sm font-medium text-slate-400 mb-2">Minimum Score</label>
                             <input type="number" name="recall_min_score" value="{{ module.config.recall_min_score }}" step="0.05" min="0.0" max="1.0"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            <p class="text-xs text-slate-500 mt-2">Minimum similarity (0.0 to 1.0) needed to retrieve a memory. Higher values return only very relevant memories. Lower returns more but may include noise. Default: 0.8</p>
+                            <p class="text-xs text-slate-500 mt-2">Minimum similarity (0.0 to 1.0) needed to retrieve a memory. Higher values return only very relevant memories. Lower returns more but may include noise. Default: 0.3</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-400 mb-2">Access Weight</label>
                             <input type="number" name="recall_access_weight" value="{{ module.config.recall_access_weight }}" step="0.05" min="0.0" max="1.0"
                                    class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                             <p class="text-xs text-slate-500 mt-2">How much to boost frequently accessed memories (0.0 to 1.0). Set to 0.0 to disable. Higher values make popular memories appear more often. Default: 0.1</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Link Boost</label>
+                            <input type="number" name="recall_link_boost" value="{{ module.config.recall_link_boost }}" step="0.1" min="0.0" max="5.0"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Extra score for memories linked to the current context. Default: 0.5</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Total Chars</label>
+                            <input type="number" name="recall_max_total_chars" value="{{ module.config.recall_max_total_chars }}" min="500" max="20000" step="100"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Total recall budget injected into the prompt. Default: 4000</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Max Item Chars</label>
+                            <input type="number" name="recall_max_item_chars" value="{{ module.config.recall_max_item_chars }}" min="100" max="5000" step="50"
+                                   class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            <p class="text-xs text-slate-500 mt-2">Truncation per memory item. Default: 800</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-400 mb-2">Scope Policy</label>
+                            <select name="memory_scope_policy" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-200">
+                                <option value="strict" {% if module.config.memory_scope_policy == 'strict' %}selected{% endif %}>strict — only same user/agent/run</option>
+                                <option value="shared" {% if module.config.memory_scope_policy == 'shared' %}selected{% endif %}>shared — also include legacy unscoped rows</option>
+                            </select>
+                            <p class="text-xs text-slate-500 mt-2">Strict isolates people from each other. Shared additionally returns old rows with no owner.</p>
+                        </div>
+                        <div class="flex items-start space-x-3 pt-8">
+                            <input type="hidden" name="save_memory_scope_required" value="1">
+                            <input type="checkbox" name="memory_scope_required" value="true" {% if module.config.memory_scope_required %}checked{% endif %}
+                                   class="w-5 h-5 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900">
+                            <div>
+                                <span class="text-sm text-slate-300">Require scope</span>
+                                <p class="text-xs text-slate-500">Refuse recall/write when no user/agent/run id is present. Recommended for multi-user setups.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

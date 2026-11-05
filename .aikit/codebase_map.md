@@ -6,11 +6,11 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `377`
+- **Total Python Modules**: `379`
 - **Total Classes**: `505`
-- **Total Top-Level Functions**: `2787`
+- **Total Top-Level Functions**: `2811`
 - **Total Class Methods**: `2473`
-- **Total Source Lines**: `100794`
+- **Total Source Lines**: `101411`
 
 ---
 
@@ -899,7 +899,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3625` lines (`158999` bytes)
+**Size**: `3796` lines (`168890` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -1251,7 +1251,7 @@
 ---
 
 ### [`core/settings.py`](core/settings.py)
-**Size**: `297` lines (`13572` bytes)
+**Size**: `301` lines (`13813` bytes)
 
 **Classes:**
 - `class SettingsManager`
@@ -1371,13 +1371,14 @@
 ---
 
 ### [`main.py`](main.py)
-**Size**: `262` lines (`11237` bytes)
+**Size**: `285` lines (`12090` bytes)
 
 **Functions:**
 - `async def verify_debug_key(x_debug_key)` - *Verify debug API key for protected debug endpoints.*
 - `def _fire_repeater_nodes(app, flow_id, flow, is_auto_start)` - *Fire all repeater nodes in a flow.*
 - `def background_task_callback(task, flow_id, node_id, app)`
 - `async def lifespan(app)` - *Handles startup and shutdown events for the application.*
+- `async def feature_flag_gate(request, call_next)`
 - `async def debug_fire_flow()`
 
 ---
@@ -2736,7 +2737,7 @@
 ---
 
 ### [`modules/calendar/events.py`](modules/calendar/events.py)
-**Size**: `217` lines (`8644` bytes)
+**Size**: `219` lines (`8743` bytes)
 
 **Classes:**
 - `class EventManager`
@@ -3161,7 +3162,7 @@
 ---
 
 ### [`modules/logic/node.py`](modules/logic/node.py)
-**Size**: `406` lines (`17995` bytes)
+**Size**: `411` lines (`18153` bytes)
 
 **Classes:**
 - `class ContextLengthRouterExecutor` - *Routes to RLM or standard LLM based on estimated token count.*
@@ -3428,11 +3429,11 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `402` lines (`18996` bytes)
+**Size**: `477` lines (`22808` bytes)
 
 **Functions:**
 - `async def get_stats(request)`
-- `async def save_memory_settings(request, recall_limit, recall_min_score, save_confidence_threshold, consolidation_threshold, auto_consolidation_hours, arbiter_model, arbiter_prompt, similarity_threshold, belief_ttl_days, recall_access_weight)`
+- `async def save_memory_settings(request, recall_limit, recall_min_score, save_confidence_threshold, save_default_confidence, save_delay, consolidation_threshold, auto_consolidation_hours, arbiter_model, arbiter_prompt, similarity_threshold, belief_ttl_days, recall_access_weight, recall_link_boost, recall_max_total_chars, recall_max_item_chars, memory_scope_policy)`
 - `async def consolidation_status(request)`
 - `async def consolidate_memories(request)`
 - `async def wipe_memories(request, confirm)`
@@ -3566,7 +3567,7 @@
 ---
 
 ### [`modules/messaging_bridge/router.py`](modules/messaging_bridge/router.py)
-**Size**: `185` lines (`6094` bytes)
+**Size**: `226` lines (`7749` bytes)
 
 **Functions:**
 - `def _success(message)`
@@ -3575,6 +3576,8 @@
 - `async def save_discord_settings(request, bot_token, channel_id)`
 - `async def save_signal_settings(request, api_url, phone_number)`
 - `async def save_whatsapp_settings(request, api_url, api_key, instance, phone_number, webhook_secret)`
+- `def _parse_id_list(raw)` - *Parse a comma/space-separated allowlist into a clean list of ids.*
+- `async def save_access_settings(request)` - *Save sender/chat allowlists for every platform in one form.*
 - `async def whatsapp_webhook(request)` - *Receives inbound message events pushed by Evolution API.*
 
 ---
@@ -4324,7 +4327,7 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `1087` lines (`47071` bytes)
+**Size**: `1087` lines (`47099` bytes)
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
@@ -5349,7 +5352,7 @@
 ---
 
 ### [`tests/test_calendar_events.py`](tests/test_calendar_events.py)
-**Size**: `187` lines (`6149` bytes)
+**Size**: `195` lines (`6517` bytes)
 
 **Functions:**
 - `def temp_event_file()`
@@ -5370,6 +5373,7 @@
 - `def test_update_event_nonexistent_returns_none(event_manager)` - *update_event() with a non-existent id should return None.*
 - `def test_update_event_persisted(event_manager)` - *update_event() changes should be persisted to storage.*
 - `def test_save_events_fsyncs_before_replace(temp_event_file, monkeypatch)`
+- `def test_get_by_date_exact_only(event_manager)` - *Partial-day prefixes and empty strings must not match (swarm B5).*
 
 ---
 
@@ -5657,7 +5661,7 @@
 ---
 
 ### [`tests/test_core_improvements.py`](tests/test_core_improvements.py)
-**Size**: `99` lines (`3953` bytes)
+**Size**: `103` lines (`4190` bytes)
 
 **Functions:**
 - `def client()`
@@ -6082,6 +6086,22 @@
 - `async def test_timeout_zero_still_means_no_asyncio_deadline(monkeypatch)`
 - `async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch)`
 - `def test_missing_provider_usage_charges_an_estimate()`
+
+---
+
+### [`tests/test_feature_flags.py`](tests/test_feature_flags.py)
+> *Marketplace and Research ship disabled; opt-in via Settings.*
+
+**Size**: `71` lines (`2412` bytes)
+
+**Functions:**
+- `def client()`
+- `def flags_off()` - *Force both flags off for the test, restoring previous values after.*
+- `def test_flags_default_off()`
+- `def test_disabled_routes_404(client, flags_off)`
+- `def test_enabled_routes_open(client, flags_off)`
+- `def test_navbar_hides_disabled_links(client, flags_off)`
+- `def test_settings_save_toggles_flags(client, flags_off)`
 
 ---
 
@@ -6882,7 +6902,7 @@
 ---
 
 ### [`tests/test_logic_nodes.py`](tests/test_logic_nodes.py)
-**Size**: `490` lines (`18582` bytes)
+**Size**: `501` lines (`19033` bytes)
 
 **Functions:**
 - `async def test_delay_executor_valid()` - *Test that DelayExecutor waits for the specified time.*
@@ -6919,6 +6939,7 @@
 - `async def test_script_executor_allows_safe_code()` - *ScriptExecutor should allow safe code to execute.*
 - `async def test_script_executor_allows_json_module()` - *ScriptExecutor should allow json module usage.*
 - `async def test_script_executor_allows_re_module()` - *ScriptExecutor should allow re module usage.*
+- `async def test_delay_nan_uses_default()` - *DelayExecutor must not crash on NaN/inf (swarm logic).*
 
 ---
 
@@ -7547,6 +7568,26 @@
 
 ---
 
+### [`tests/test_module_settings_forms.py`](tests/test_module_settings_forms.py)
+> *Typed module-settings forms: backend parsing, clamping and preservation.*
+
+**Size**: `180` lines (`7201` bytes)
+
+**Functions:**
+- `def client()`
+- `def _mock_module(monkey_id, config)`
+- `def test_system_prompt_comma_lists_and_budget(client)`
+- `def test_brain_save_clamps_and_mode(client)`
+- `def test_brain_rejects_bad_mode(client)`
+- `def test_browser_automation_viewport(client)`
+- `def test_autonomous_agent_save(client)`
+- `def test_messaging_access_parsing(client)`
+- `def test_tools_primitives_filtered(client)`
+- `def test_memory_save_clamps_out_of_range(client)`
+- `def test_messaging_access_doc_is_deny_by_default()`
+
+---
+
 ### [`tests/test_node_retry.py`](tests/test_node_retry.py)
 > *Per-node retry policy: parsing, backoff, classification and bounded attempts.*
 
@@ -8082,7 +8123,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `317` lines (`12085` bytes)
+**Size**: `323` lines (`12352` bytes)
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -8788,7 +8829,7 @@
 ### [`tests/test_tool_sandbox.py`](tests/test_tool_sandbox.py)
 > *Tests for the Tool Sandbox security system.*
 
-**Size**: `615` lines (`22069` bytes)
+**Size**: `631` lines (`22611` bytes)
 
 **Classes:**
 - `class TestRestrictedImport` - *Tests for the restricted import hook.*
@@ -8837,6 +8878,9 @@
 - `class TestToolDispatcherIntegration` - *Integration tests with the ToolDispatcherExecutor.*
   - Method `async def .test_dispatcher_uses_sandbox()` - *Test that the tool dispatcher uses the sandbox.*
   - Method `async def .test_dispatcher_catches_security_errors()` - *Test that security errors are properly caught and reported.*
+
+**Functions:**
+- `def test_blocks_rplus_in_read_only(tmp_path)` - *SafeOpen read-only must reject r+/w modes (swarm sandbox).*
 
 ---
 

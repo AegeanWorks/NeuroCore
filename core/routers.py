@@ -481,7 +481,7 @@ def _module_details_context(module: dict, settings_man) -> dict:
 
 # Centralized definition of config keys that should be hidden from the generic JSON editor
 HIDDEN_CONFIG_KEYS = {
-    'memory': ['save_default_confidence', 'save_confidence_threshold', 'recall_limit', 'recall_min_score', 'consolidation_threshold', 'auto_consolidation_hours', 'arbiter_model', 'arbiter_prompt', 'similarity_threshold', 'belief_ttl_days', 'recall_access_weight'],
+    'memory': ['save_default_confidence', 'save_delay', 'recall_link_boost', 'recall_max_total_chars', 'recall_max_item_chars', 'memory_scope_policy', 'memory_scope_required', 'save_confidence_threshold', 'recall_limit', 'recall_min_score', 'consolidation_threshold', 'auto_consolidation_hours', 'arbiter_model', 'arbiter_prompt', 'similarity_threshold', 'belief_ttl_days', 'recall_access_weight'],
     'llm_module': ['temperature', 'max_tokens'],
     'chat': ['auto_rename_turns', 'auto_compact_tokens', 'compact_keep_last'],
     'agent_loop': ['max_iterations', 'max_tokens', 'temperature', 'max_llm_retries', 'retry_delay', 'timeout', 'tool_error_strategy', 'include_plan_in_context', 'include_memory_context', 'include_knowledge_context', 'include_reasoning_context', 'compact_threshold', 'compact_keep_last'],
@@ -491,6 +491,11 @@ HIDDEN_CONFIG_KEYS = {
         'discord_bot_token', 'discord_channel_id',
         'signal_api_url', 'signal_phone_number',
         'whatsapp_api_url', 'whatsapp_api_key', 'whatsapp_instance', 'whatsapp_phone_number',
+        'whatsapp_webhook_secret',
+        'telegram_allowed_senders', 'telegram_allowed_chats',
+        'discord_allowed_senders', 'discord_allowed_chats',
+        'signal_allowed_senders', 'signal_allowed_chats',
+        'whatsapp_allowed_senders', 'whatsapp_allowed_chats',
     ],
     'email_bridge': [
         'imap_host', 'imap_port', 'imap_use_ssl', 'imap_username', 'imap_password',
@@ -862,14 +867,38 @@ async def save_module_config(request: Request, module_id: str, module_manager: M
         
         # Handle system_prompt module specially
         if module_id == "system_prompt":
-            new_config = {}
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
             if "system_prompt" in form_data:
                 new_config["system_prompt"] = form_data["system_prompt"]
-            if "enabled_tools" in form_data:
+            for _key in ("enabled_tools", "enabled_skills"):
+                if _key in form_data:
+                    raw = form_data[_key]
+                    if isinstance(raw, (list, tuple)):
+                        items = [str(v).strip() for v in raw if str(v).strip()]
+                    else:
+                        text = str(raw or "").strip()
+                        if not text:
+                            items = []
+                        else:
+                            try:
+                                parsed = json.loads(text)
+                                if isinstance(parsed, list):
+                                    items = [str(v).strip() for v in parsed if str(v).strip()]
+                                else:
+                                    items = [s.strip() for s in text.split(",") if s.strip()]
+                            except (json.JSONDecodeError, ValueError):
+                                items = [s.strip() for s in text.split(",") if s.strip()]
+                    # Deduplicate while preserving order.
+                    seen = set()
+                    new_config[_key] = [x for x in items if not (x in seen or seen.add(x))]
+            if "max_token_budget" in form_data:
                 try:
-                    new_config["enabled_tools"] = json.loads(form_data["enabled_tools"])
-                except json.JSONDecodeError:
-                    new_config["enabled_tools"] = []
+                    budget = int(form_data["max_token_budget"])
+                    new_config["max_token_budget"] = max(500, min(32000, budget))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
         # Handle reflection module with custom prompt
         elif module_id == "reflection":
             new_config = {}
@@ -1007,12 +1036,147 @@ async def save_module_config(request: Request, module_id: str, module_manager: M
             if section in ('smtp', ''):
                 new_config['smtp_use_tls'] = form_data.get('smtp_use_tls') == 'true'
 
+        elif module_id == "brain":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "mode" in form_data and str(form_data["mode"]) in ("observe", "suggest", "auto"):
+                new_config["mode"] = str(form_data["mode"])
+            for _int_key, _lo, _hi in (
+                ("cycle_interval_seconds", 5, 3600),
+                ("max_cycles_per_hour", 1, 1000),
+                ("max_experiences", 10, 10000),
+                ("max_skills", 10, 5000),
+                ("min_occurrences", 1, 100),
+                ("max_candidates_per_day", 1, 200),
+                ("max_evaluations_per_day", 1, 200),
+                ("max_promotions_per_day", 1, 50),
+                ("max_candidates", 10, 2000),
+                ("max_config_changes_per_day", 1, 200),
+                ("trend_window", 2, 500),
+                ("trend_history", 10, 10000),
+                ("trend_max_per_day", 1, 50),
+                ("trend_cooldown_seconds", 0, 604800),
+                ("poll_interval_seconds", 5, 3600),
+                ("dedupe_window_seconds", 0, 86400),
+                ("max_reactions_per_hour", 1, 500),
+            ):
+                if _int_key in form_data:
+                    try:
+                        new_config[_int_key] = max(_lo, min(_hi, int(float(form_data[_int_key]))))
+                    except (ValueError, TypeError) as _exc:
+                        logger.debug("ignored exception: %s", _exc)
+            for _float_key, _lo, _hi in (
+                ("holdout_ratio", 0.0, 0.5),
+                ("trend_min_delta", 0.0, 10.0),
+                ("min_salience", 0.0, 1.0),
+            ):
+                if _float_key in form_data:
+                    try:
+                        new_config[_float_key] = max(_lo, min(_hi, float(form_data[_float_key])))
+                    except (ValueError, TypeError) as _exc:
+                        logger.debug("ignored exception: %s", _exc)
+            for _bool_key in ("auto_start", "reactivity_auto_start", "capture_flow_outcomes",
+                              "inject_flow_context", "require_goal_link"):
+                if _bool_key in form_data or form_data.get(f"save_{_bool_key}") == "1":
+                    new_config[_bool_key] = form_data.get(_bool_key) == "true"
+            if "configurable_modules" in form_data:
+                raw = form_data["configurable_modules"]
+                text = str(raw or "").strip()
+                if not text:
+                    items = []
+                else:
+                    try:
+                        parsed = json.loads(text)
+                        items = [str(v).strip() for v in parsed] if isinstance(parsed, list) else [s.strip() for s in text.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        items = [s.strip() for s in text.split(",") if s.strip()]
+                seen = set()
+                new_config["configurable_modules"] = [x for x in items if not (x in seen or seen.add(x))]
+            if "watch_paths" in form_data:
+                raw = str(form_data["watch_paths"] or "").strip()
+                if not raw:
+                    new_config["watch_paths"] = []
+                else:
+                    try:
+                        parsed = json.loads(raw)
+                        new_config["watch_paths"] = list(parsed) if isinstance(parsed, list) else [s.strip() for s in raw.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        new_config["watch_paths"] = [s.strip() for s in raw.split(",") if s.strip()]
+            if "allowed_tools" in form_data:
+                raw = str(form_data["allowed_tools"] or "").strip()
+                if not raw:
+                    new_config["allowed_tools"] = []
+                else:
+                    try:
+                        parsed = json.loads(raw)
+                        items = [str(v).strip() for v in parsed] if isinstance(parsed, list) else [s.strip() for s in raw.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        items = [s.strip() for s in raw.split(",") if s.strip()]
+                    seen = set()
+                    new_config["allowed_tools"] = [x for x in items if not (x in seen or seen.add(x))]
+
+        elif module_id == "browser_automation":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "headless" in form_data or form_data.get("save_headless") == "1":
+                new_config["headless"] = form_data.get("headless") == "true"
+            if "timeout" in form_data:
+                try:
+                    new_config["timeout"] = max(1000, min(300000, int(form_data["timeout"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            viewport = dict(current_config.get("default_viewport", {}) or {})
+            if "viewport_width" in form_data:
+                try:
+                    viewport["width"] = max(320, min(7680, int(form_data["viewport_width"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            if "viewport_height" in form_data:
+                try:
+                    viewport["height"] = max(240, min(4320, int(form_data["viewport_height"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            new_config["default_viewport"] = viewport
+
+        elif module_id == "autonomous_agent":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "agent_config_path" in form_data:
+                path = str(form_data["agent_config_path"] or "").strip()
+                if path:
+                    new_config["agent_config_path"] = path
+            if "auto_start" in form_data or form_data.get("save_auto_start") == "1":
+                new_config["auto_start"] = form_data.get("auto_start") == "true"
+
+        elif module_id == "tools":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "manifest_version" in form_data:
+                try:
+                    new_config["manifest_version"] = int(form_data["manifest_version"])
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            # Checkboxes post one value per checked primitive; a hidden
+            # marker tells us the form was submitted so unchecked = disabled.
+            if form_data.get("save_supported_primitives") == "1":
+                raw = form_data.getlist("supported_primitives") if hasattr(form_data, "getlist") else form_data.get("supported_primitives", [])
+                if isinstance(raw, str):
+                    raw = [raw]
+                allowed = {"sandbox", "library_source", "rlm_library_source",
+                           "outbound_staging", "human_approval", "network",
+                           "inline_source", "progress", "cancel"}
+                new_config["supported_primitives"] = sorted({str(v) for v in (raw or []) if str(v) in allowed})
+
         else:
 
             # Standard JSON config
             if "config_json" not in form_data:
                 return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Missing config_json field"}})})
-            
+
             new_config = json.loads(form_data["config_json"])
         
         # Preserve hidden keys by merging from existing config
@@ -2843,6 +3007,13 @@ async def save_settings_route(request: Request, settings_man: SettingsManager = 
         
     if "save_ui_show_footer" in form_data:
         updates["ui_show_footer"] = form_data.get("ui_show_footer") == "on"
+
+    # Optional out-of-scope surfaces (default off).
+    if "save_marketplace_enabled" in form_data:
+        updates["marketplace_enabled"] = form_data.get("marketplace_enabled") == "on"
+
+    if "save_research_enabled" in form_data:
+        updates["research_enabled"] = form_data.get("research_enabled") == "on"
 
     # Catch validation errors and return 400 with helpful message
     try:

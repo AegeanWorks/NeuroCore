@@ -245,11 +245,17 @@ def test_the_routes_list_sources_and_map_errors(monkeypatch):
 
     monkeypatch.setattr(gateway, "search", fake_search)
 
-    with TestClient(app) as client:
-        listing = client.get("/research/sources")
-        ok = client.post("/research/fetch", json={"source": "arxiv", "query": "x", "limit": 2})
-        bad = client.post("/research/fetch", json={"source": "reddit", "query": "x"})
-        down = client.post("/research/fetch", json={"source": "down", "query": "x"})
+    from core.settings import settings as _settings
+    original = _settings.settings.get("research_enabled", False)
+    _settings.settings["research_enabled"] = True
+    try:
+        with TestClient(app) as client:
+            listing = client.get("/research/sources")
+            ok = client.post("/research/fetch", json={"source": "arxiv", "query": "x", "limit": 2})
+            bad = client.post("/research/fetch", json={"source": "reddit", "query": "x"})
+            down = client.post("/research/fetch", json={"source": "down", "query": "x"})
+    finally:
+        _settings.settings["research_enabled"] = original
 
     assert listing.status_code == 200
     assert {item["id"] for item in listing.json()["sources"]} == {"wikipedia", "arxiv", "pubmed"}

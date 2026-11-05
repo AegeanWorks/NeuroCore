@@ -21,6 +21,7 @@ def test_hidden_config_preservation(client):
     mock_module = {
         "id": "memory",
         "name": "Memory",
+        "enabled": True,
         "config": {
             "visible_key": "visible_value",
             "save_confidence_threshold": 0.99 # Hidden key
@@ -31,9 +32,12 @@ def test_hidden_config_preservation(client):
     app.dependency_overrides[get_module_manager] = lambda: mock_mm
     
     # 1. Test GET details (should hide the key)
+    # Memory now renders a typed settings form instead of the raw JSON
+    # editor, so arbitrary keys are not echoed; the hidden key must
+    # still be stripped from the formatted config context.
     response = client.get("/modules/memory/details")
     assert response.status_code == 200
-    assert "visible_key" in response.text
+    assert "Long-Term Memory Settings" in response.text
     # The hidden key should NOT be in the textarea content
     assert "save_confidence_threshold" not in response.context["formatted_config"]
     

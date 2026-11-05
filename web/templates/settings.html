@@ -86,6 +86,35 @@
                             </div>
 
                             <div class="border-t border-slate-800 pt-6">
+                                <h3 class="text-lg font-bold text-white mb-4">Optional Features</h3>
+                                <p class="text-xs text-slate-500 mb-4">Out-of-scope surfaces ship disabled. Enable them here if you need them.</p>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="flex items-center space-x-3 cursor-pointer">
+                                            <div class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" name="marketplace_enabled" class="sr-only peer" {% if settings.marketplace_enabled %}checked{% endif %}>
+                                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </div>
+                                            <span class="text-sm font-medium text-slate-400">Marketplace</span>
+                                        </label>
+                                        <input type="hidden" name="save_marketplace_enabled" value="1">
+                                        <p class="text-xs text-slate-600 mt-2 pl-14">Public sharing catalog for flows, tools and skills.</p>
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center space-x-3 cursor-pointer">
+                                            <div class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" name="research_enabled" class="sr-only peer" {% if settings.research_enabled %}checked{% endif %}>
+                                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </div>
+                                            <span class="text-sm font-medium text-slate-400">Research Suite</span>
+                                        </label>
+                                        <input type="hidden" name="save_research_enabled" value="1">
+                                        <p class="text-xs text-slate-600 mt-2 pl-14">Hypotheses, experiments, metrics and paper drafting.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border-t border-slate-800 pt-6">
                                 <h3 class="text-lg font-bold text-white mb-4">System Debugging</h3>
                                 <div>
                                     <label class="flex items-center space-x-3 cursor-pointer">
@@ -102,6 +131,7 @@
                         </div>
                     </form>
                     
+                    {% if settings.marketplace_enabled %}
                     <div class="mt-8 border-t border-slate-800 pt-6">
                         <h3 class="text-lg font-bold text-white mb-4">Marketplace Identity</h3>
                         <div class="space-y-3">
@@ -137,6 +167,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="mt-8 border-t border-slate-800 pt-6">
                         <h3 class="text-lg font-bold text-white mb-4">Data Management</h3>

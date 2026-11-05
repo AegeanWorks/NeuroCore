@@ -9,7 +9,8 @@ os.chdir(PROJECT_ROOT)
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from core.debug import debug_logger
@@ -231,6 +232,28 @@ app.include_router(core_router)
 
 # Trusted-host guard: only loopback hosts are accepted unless NEUROCORE_ALLOWED_HOSTS opts in.
 install_security_middleware(app)
+
+# Out-of-scope surfaces ship disabled (opt-in via Settings > General).
+# One prefix gate covers every current and future route under it, including
+# htmx partials, without touching each route definition.
+_FEATURE_PREFIX_FLAGS = {
+    "/marketplace": "marketplace_enabled",
+    "/research": "research_enabled",
+}
+
+
+@app.middleware("http")
+async def feature_flag_gate(request: Request, call_next):
+    path = request.url.path
+    for prefix, flag in _FEATURE_PREFIX_FLAGS.items():
+        if path == prefix or path.startswith(prefix + "/"):
+            if not settings.get(flag, False):
+                return JSONResponse(
+                    status_code=404,
+                    content={"detail": f"{prefix[1:]} is disabled"},
+                )
+            break
+    return await call_next(request)
 
 # Debug Endpoint to manually fire all active flows
 @app.post("/debug/fire-flow", dependencies=[Depends(verify_debug_key)])

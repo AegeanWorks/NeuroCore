@@ -71,34 +71,109 @@ async def get_stats(request: Request):
 
 @router.post("/settings/save")
 async def save_memory_settings(
-    request: Request, 
-    recall_limit: int = Form(None), 
+    request: Request,
+    recall_limit: int = Form(None),
     recall_min_score: float = Form(None),
     save_confidence_threshold: float = Form(None),
+    save_default_confidence: float = Form(None),
+    save_delay: float = Form(None),
     consolidation_threshold: float = Form(None),
     auto_consolidation_hours: float = Form(None),
     arbiter_model: str = Form(None),
     arbiter_prompt: str = Form(None),
     similarity_threshold: float = Form(None),
     belief_ttl_days: int = Form(None),
-    recall_access_weight: float = Form(None)
+    recall_access_weight: float = Form(None),
+    recall_link_boost: float = Form(None),
+    recall_max_total_chars: int = Form(None),
+    recall_max_item_chars: int = Form(None),
+    memory_scope_policy: str = Form(None),
 ):
     module_manager = request.app.state.module_manager
     memory_module = module_manager.modules.get("memory")
     if not memory_module:
         return Response(status_code=404)
-        
+
+    form = await request.form()
     config = memory_module.get("config", {}).copy()
-    if recall_limit is not None: config["recall_limit"] = recall_limit
-    if recall_min_score is not None: config["recall_min_score"] = recall_min_score
-    if save_confidence_threshold is not None: config["save_confidence_threshold"] = save_confidence_threshold
-    if consolidation_threshold is not None: config["consolidation_threshold"] = consolidation_threshold
-    if auto_consolidation_hours is not None: config["auto_consolidation_hours"] = auto_consolidation_hours
+
+    def _clamp_int(value, lo, hi):
+        try:
+            return max(lo, min(hi, int(float(value))))
+        except (ValueError, TypeError):
+            return None
+
+    def _clamp_float(value, lo, hi):
+        try:
+            return max(lo, min(hi, float(value)))
+        except (ValueError, TypeError):
+            return None
+
+    # Server-side clamps mirror the typed form min/max so a crafted POST
+    # cannot store negative or unbounded budgets. Unparseable values keep
+    # the stored config instead of raising 422/500.
+    _int_bounds = {
+        "recall_limit": (1, 20),
+        "belief_ttl_days": (1, 365),
+        "recall_max_total_chars": (500, 20000),
+        "recall_max_item_chars": (100, 5000),
+    }
+    _float_bounds = {
+        "recall_min_score": (0.0, 1.0),
+        "save_confidence_threshold": (0.0, 1.0),
+        "save_default_confidence": (0.0, 1.0),
+        "save_delay": (0.0, 60.0),
+        "consolidation_threshold": (0.5, 1.0),
+        "auto_consolidation_hours": (0.0, 720.0),
+        "similarity_threshold": (0.0, 1.0),
+        "recall_access_weight": (0.0, 1.0),
+        "recall_link_boost": (0.0, 5.0),
+    }
+    for _key, (_lo, _hi) in _int_bounds.items():
+        if _key in form:
+            _clamped = _clamp_int(form.get(_key), _lo, _hi)
+            if _clamped is not None:
+                config[_key] = _clamped
+    for _key, (_lo, _hi) in _float_bounds.items():
+        if _key in form:
+            _clamped = _clamp_float(form.get(_key), _lo, _hi)
+            if _clamped is not None:
+                config[_key] = _clamped
+    # FastAPI Form() params above still bind when valid; keep them as a
+    # fallback for clients posting typed values (form dict already handled).
+    if recall_limit is not None and "recall_limit" not in form:
+        config["recall_limit"] = max(1, min(20, int(recall_limit)))
+    if recall_min_score is not None and "recall_min_score" not in form:
+        config["recall_min_score"] = max(0.0, min(1.0, float(recall_min_score)))
+    if save_confidence_threshold is not None and "save_confidence_threshold" not in form:
+        config["save_confidence_threshold"] = max(0.0, min(1.0, float(save_confidence_threshold)))
+    if save_default_confidence is not None and "save_default_confidence" not in form:
+        config["save_default_confidence"] = max(0.0, min(1.0, float(save_default_confidence)))
+    if save_delay is not None and "save_delay" not in form:
+        config["save_delay"] = max(0.0, min(60.0, float(save_delay)))
+    if consolidation_threshold is not None and "consolidation_threshold" not in form:
+        config["consolidation_threshold"] = max(0.5, min(1.0, float(consolidation_threshold)))
+    if auto_consolidation_hours is not None and "auto_consolidation_hours" not in form:
+        config["auto_consolidation_hours"] = max(0.0, min(720.0, float(auto_consolidation_hours)))
     if arbiter_model is not None: config["arbiter_model"] = arbiter_model
     if arbiter_prompt is not None: config["arbiter_prompt"] = arbiter_prompt
-    if similarity_threshold is not None: config["similarity_threshold"] = similarity_threshold
-    if belief_ttl_days is not None: config["belief_ttl_days"] = belief_ttl_days
-    if recall_access_weight is not None: config["recall_access_weight"] = recall_access_weight
+    if similarity_threshold is not None and "similarity_threshold" not in form:
+        config["similarity_threshold"] = max(0.0, min(1.0, float(similarity_threshold)))
+    if belief_ttl_days is not None and "belief_ttl_days" not in form:
+        config["belief_ttl_days"] = max(1, min(365, int(belief_ttl_days)))
+    if recall_access_weight is not None and "recall_access_weight" not in form:
+        config["recall_access_weight"] = max(0.0, min(1.0, float(recall_access_weight)))
+    if recall_link_boost is not None and "recall_link_boost" not in form:
+        config["recall_link_boost"] = max(0.0, min(5.0, float(recall_link_boost)))
+    if recall_max_total_chars is not None and "recall_max_total_chars" not in form:
+        config["recall_max_total_chars"] = max(500, min(20000, int(recall_max_total_chars)))
+    if recall_max_item_chars is not None and "recall_max_item_chars" not in form:
+        config["recall_max_item_chars"] = max(100, min(5000, int(recall_max_item_chars)))
+    if memory_scope_policy in ("strict", "shared"): config["memory_scope_policy"] = memory_scope_policy
+    # Checkbox posts "true" when checked; hidden marker distinguishes
+    # an unchecked box (disable) from a form that omits the field.
+    if "memory_scope_required" in form or "save_memory_scope_required" in form:
+        config["memory_scope_required"] = form.get("memory_scope_required") == "true"
     
     module_manager.update_module_config("memory", config)
     

@@ -122,6 +122,47 @@ async def save_whatsapp_settings(
     return _success("WhatsApp settings saved")
 
 
+def _parse_id_list(raw) -> list:
+    """Parse a comma/space-separated allowlist into a clean list of ids."""
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        items = []
+        for part in raw:
+            items.extend(str(part).replace(",", " ").split())
+        return [i.strip() for i in items if i.strip()]
+    return [i.strip() for i in str(raw).replace(",", " ").split() if i.strip()]
+
+
+@router.post("/settings/save/access")
+async def save_access_settings(request: Request):
+    """Save sender/chat allowlists for every platform in one form.
+
+    Deny-by-default (ADR-083): an empty sender list denies every sender;
+    chats empty means no extra chat restriction once the sender is allowed.
+    Telegram falls back to telegram_chat_id and Discord to discord_channel_id
+    when no explicit list is given. Restart is unnecessary: the access gate
+    reads config on every message.
+    """
+    module_manager = request.app.state.module_manager
+    module = module_manager.modules.get("messaging_bridge")
+    if not module:
+        return _not_found()
+
+    form = await request.form()
+    config = module.get("config", {}).copy()
+    for platform in ("telegram", "discord", "signal", "whatsapp"):
+        senders_key = f"{platform}_allowed_senders"
+        chats_key = f"{platform}_allowed_chats"
+        if senders_key in form:
+            config[senders_key] = _parse_id_list(form.get(senders_key))
+        if chats_key in form:
+            config[chats_key] = _parse_id_list(form.get(chats_key))
+    module_manager.update_module_config("messaging_bridge", config)
+
+    return _success("Access controls saved")
+
+
 @router.post("/webhook/whatsapp")
 async def whatsapp_webhook(request: Request):
     """Receives inbound message events pushed by Evolution API."""
