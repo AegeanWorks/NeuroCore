@@ -444,9 +444,9 @@ class LLMBridge:
         # M-LLM-3: prefer the dedicated embedding key; fall back to the main
         # key only when both endpoints share a host; otherwise send no key
         # rather than leaking the chat credential to another provider.
-        embedding_key = self.embedding_api_key
+        embedding_key = self.embedding_api_key  # aikit:allow-secret -- assigns an in-process variable read; no literal credential on the line
         if not embedding_key and self.api_key and self._same_host(self.base_url, self.embedding_base_url):
-            embedding_key = self.api_key
+            embedding_key = self.api_key  # aikit:allow-secret -- assigns an in-process variable read; no literal credential on the line
         if embedding_key:
             headers["Authorization"] = f"Bearer {embedding_key}"
         

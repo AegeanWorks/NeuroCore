@@ -1,40 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-main-index-validation",
+    "task_id": "pr8-audit-merge-rebuild",
     "last_phase": "in_progress",
-    "active_phase": 4,
+    "active_phase": 1,
     "status": "in_progress",
-    "updated_at": 1794667956.0956142,
+    "updated_at": 1794673234.018637,
     "owner": "claude:pr8",
     "started_by": "claude:pr8",
     "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-delivery",
-      "phase": "in_progress",
-      "phase_num": 4,
-      "description": "checklists: passed (test, hygiene, guidelines, secrets; 4/4). Deliver the accumulated runtime hardening and agent capabilities.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793496488.387189,
-      "timestamp_str": "2026-11-01 04:28:08",
-      "agent": "commandcode:audit-fix",
-      "handoff": {
-        "next": "commit the validated working tree and push"
-      }
-    },
-    {
-      "task_id": "neurocore-delivery",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-delivery' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793496488.652412,
-      "timestamp_str": "2026-11-01 04:28:08",
-      "agent": "commandcode:audit-fix"
-    },
     {
       "task_id": "neurocore-gate-trio",
       "phase": "planning",
@@ -279,6 +255,27 @@
       "status": "in_progress",
       "timestamp": 1794667956.0956142,
       "timestamp_str": "2026-11-14 17:52:36",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "pr8-audit-merge-rebuild",
+      "phase": "in_progress",
+      "phase_num": 1,
+      "description": "Rebuild audit branch as single merge commit with secrets pragmas and delivery fixes baked in; clear push-time range scan",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794673234.018637,
+      "timestamp_str": "2026-11-14 19:20:34",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "neurocore-main-index-validation",
+      "phase": "superseded",
+      "phase_num": 4,
+      "description": "Superseded by 'pr8-audit-merge-rebuild' without --complete or --reset",
+      "status": "superseded",
+      "timestamp": 1794673234.018637,
+      "timestamp_str": "2026-11-14 19:20:34",
       "agent": "claude:pr8"
     }
   ]

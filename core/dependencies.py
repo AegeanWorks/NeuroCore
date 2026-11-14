@@ -68,7 +68,7 @@ def get_llm_bridge(settings: SettingsManager = Depends(get_settings_manager)) ->
                 api_key=current_api_key,
                 embedding_base_url=current_embedding_base_url,
                 embedding_model=current_embedding_model,
-                embedding_api_key=current_embedding_api_key,
+                embedding_api_key=current_embedding_api_key,  # aikit:allow-secret -- assigns an in-process variable read; no literal credential on the line
                 timeout=current_timeout,
             )
         else:
@@ -86,7 +86,7 @@ def get_llm_bridge(settings: SettingsManager = Depends(get_settings_manager)) ->
                     api_key=current_api_key,
                     embedding_base_url=current_embedding_base_url,
                     embedding_model=current_embedding_model,
-                    embedding_api_key=current_embedding_api_key,
+                    embedding_api_key=current_embedding_api_key,  # aikit:allow-secret -- assigns an in-process variable read; no literal credential on the line
                     timeout=current_timeout,
                 )
         

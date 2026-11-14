@@ -6,14 +6,14 @@
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `379`
-- **Total Classes**: `505`
-- **Total Top-Level Functions**: `2821`
+- **Total Python Modules**: `391`
+- **Total Classes**: `506`
+- **Total Top-Level Functions**: `2842`
 - **Total Class Methods**: `2477`
-- **Total Source Lines**: `101663`
+- **Total Source Lines**: `102252`
 
 ## 🧭 Map Coverage
-- **Indexed**: python (`379` module(s))
+- **Indexed**: python (`391` module(s))
 - **Not indexed by this map**: javascript (`4` file(s))
 
 > Only Python symbols are catalogued. A language above is reported as not indexed, never as verified by this map.
@@ -144,7 +144,7 @@
 ---
 
 ### [`core/dependencies.py`](core/dependencies.py)
-**Size**: `103` lines (`4441` bytes)
+**Size**: `103` lines (`4633` bytes)
 
 **Functions:**
 - `def get_settings_manager()` - *Dependency to get the global settings manager instance.*
@@ -512,7 +512,7 @@
 ---
 
 ### [`core/llm.py`](core/llm.py)
-**Size**: `479` lines (`20697` bytes)
+**Size**: `479` lines (`20889` bytes)
 
 **Classes:**
 - `class LLMBridge`
@@ -1377,6 +1377,130 @@
 
 **Functions:**
 - `def is_useless_result(result)` - *True only for an explicit USELESS judgment (no heuristics).*
+
+---
+
+### [`docs/audit_repro/repro_allowlist.py`](docs/audit_repro/repro_allowlist.py)
+> *Audit finding H-8: module_allowlist does not stop a flow from executing a module's node code.*
+
+**Size**: `44` lines (`1734` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_dispatcher.py`](docs/audit_repro/repro_dispatcher.py)
+> *Audit finding H-4: the tool dispatcher drops calls beyond max_tools_per_turn.*
+
+**Size**: `38` lines (`1716` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_fence.py`](docs/audit_repro/repro_fence.py)
+> *Audit finding M-SEC-1: a tool result that starts with a fence-shaped header is not fenced.*
+
+**Size**: `23` lines (`936` bytes)
+
+---
+
+### [`docs/audit_repro/repro_flow_runner.py`](docs/audit_repro/repro_flow_runner.py)
+> *Audit findings H-2, H-3, H-9, M-FLOW-1..4: FlowRunner scheduling/result bugs and the planner skip.*
+
+**Size**: `205` lines (`9147` bytes)
+
+**Functions:**
+- `def make_executor(node_type_id)`
+- `async def fake_get_executor_class(cls, module_id, node_type_id)`
+- `def node(nid, ntype)`
+- `async def scenario_bfs_double_run()` - *chat_input -> A -> B -> D and chat_input -> D (D has parents at depth 1 and 3).*
+- `async def scenario_stale_final_output()` - *in -> llm -> router -> {tool -> llm (loop), out}; 'out' returns None at the end (e.g. a sink that stops).*
+- `async def scenario_usage_double_count()` - *in -> llm -> p1 -> p2 (pass-through nodes forward `usage`).*
+- `async def scenario_bridge_topological()` - *Bridges A->C, B->C (A,B feed C), no input source -> topological mode.*
+- `async def scenario_keyerror_escapes()` - *A node raising KeyError with raise_errors=False.*
+- `async def scenario_attributeerror_swallowed()`
+- `def scenario_planner_skips_blocked_step()`
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_fts.py`](docs/audit_repro/repro_fts.py)
+> *Audit finding H-5: knowledge-base keyword search fails for ordinary questions.*
+
+**Size**: `31` lines (`1459` bytes)
+
+**Functions:**
+- `def kb_sanitize(query)`
+
+---
+
+### [`docs/audit_repro/repro_llm_retry.py`](docs/audit_repro/repro_llm_retry.py)
+> *Audit findings M-LLM-1 / M-LLM-2: the LLM node retries deterministic failures and ignores*
+
+**Size**: `43` lines (`1671` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_mem_keyword.py`](docs/audit_repro/repro_mem_keyword.py)
+> *Audit finding H-6: memory recall finds nothing for natural-language questions on default installs.*
+
+**Size**: `28` lines (`1256` bytes)
+
+---
+
+### [`docs/audit_repro/repro_on_event.py`](docs/audit_repro/repro_on_event.py)
+> *Audit finding M-LIFE-1: module-level @router.on_event handlers never run.*
+
+**Size**: `42` lines (`1242` bytes)
+
+**Functions:**
+- `async def on_startup()`
+- `async def on_shutdown()`
+- `async def lifespan(app)`
+
+---
+
+### [`docs/audit_repro/repro_repeater.py`](docs/audit_repro/repro_repeater.py)
+> *Audit finding H-7: the default flow's reminder loop is never started.*
+
+**Size**: `25` lines (`1230` bytes)
+
+---
+
+### [`docs/audit_repro/repro_retry.py`](docs/audit_repro/repro_retry.py)
+> *Audit finding L-1: run_with_retry raises UnboundLocalError on a malformed retry_after.*
+
+**Size**: `41` lines (`1174` bytes)
+
+**Classes:**
+- `class TransientError`
+
+**Functions:**
+- `async def operation()`
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_vision_clamp.py`](docs/audit_repro/repro_vision_clamp.py)
+> *Audit finding H-1: default model limits refuse a chat request carrying one ordinary image.*
+
+**Size**: `33` lines (`1572` bytes)
+
+---
+
+### [`docs/audit_repro/run_all.py`](docs/audit_repro/run_all.py)
+> *Run every audit reproduction script in an isolated state directory and print its verdicts.*
+
+**Size**: `36` lines (`1404` bytes)
+
+**Functions:**
+- `def main()`
 
 ---
 
