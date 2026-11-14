@@ -379,7 +379,10 @@ class ResultStore:
             return None
         if self.is_expired(result_id):
             return None
-        with open(record.path, "rb") as handle:
+        # The stored record.path is informational only: deriving the target
+        # from the id keeps a tampered index from reading outside the store.
+        target = self._resolve_target(record.result_id)
+        with open(target, "rb") as handle:
             return handle.read()
 
     def as_dict(self, record: StoredResult) -> Dict[str, Any]:

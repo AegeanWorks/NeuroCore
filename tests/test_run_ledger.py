@@ -1,5 +1,6 @@
 """Failing-first tests for core/run_ledger.py (IDEA-1271..1274)."""
 
+import json
 import os
 
 import pytest
@@ -139,3 +140,24 @@ def test_result_store_rejects_unknown_index_version(tmp_path):
         handle.write(payload)
     with pytest.raises(ValueError):
         ResultStore(str(tmp_path))
+
+
+def test_load_ignores_tampered_index_path(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"store-local")
+    secret = str(tmp_path.parent / "outside-result.bin")
+    with open(secret, "wb") as handle:
+        handle.write(b"EXFIL")
+    try:
+        index_path = str(tmp_path / "index.json")
+        with open(index_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        payload["records"][0]["path"] = secret
+        with open(index_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        reopened = ResultStore(str(tmp_path))
+        assert reopened.load("r1") == b"store-local"
+        with open(secret, "rb") as handle:
+            assert handle.read() == b"EXFIL"
+    finally:
+        os.remove(secret)

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `379`
 - **Total Classes**: `505`
-- **Total Top-Level Functions**: `2816`
+- **Total Top-Level Functions**: `2817`
 - **Total Class Methods**: `2476`
-- **Total Source Lines**: `101552`
+- **Total Source Lines**: `101577`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`379` module(s))
@@ -1060,7 +1060,7 @@
 ### [`core/run_ledger.py`](core/run_ledger.py)
 > *Run ledger primitives: asset graph, event log, state machine, result store.*
 
-**Size**: `420` lines (`14622` bytes)
+**Size**: `423` lines (`14826` bytes)
 
 **Classes:**
 - `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
@@ -8161,7 +8161,7 @@
 ### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
 > *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
 
-**Size**: `141` lines (`4473` bytes)
+**Size**: `163` lines (`5282` bytes)
 
 **Functions:**
 - `def test_state_allows_running_then_completed()`
@@ -8181,6 +8181,7 @@
 - `def test_dependent_still_refuses_materialized_when_upstream_newer()`
 - `def test_result_store_reopens_with_persisted_index(tmp_path)`
 - `def test_result_store_rejects_unknown_index_version(tmp_path)`
+- `def test_load_ignores_tampered_index_path(tmp_path)`
 
 ---
 

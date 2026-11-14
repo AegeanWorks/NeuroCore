@@ -1,64 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-pr8-wave1",
+    "task_id": "neurocore-pr8-load-fix",
     "last_phase": "in_progress",
     "active_phase": 4,
     "status": "in_progress",
-    "updated_at": 1794654860.3496883,
+    "updated_at": 1794657675.823031,
     "owner": "claude:pr8",
     "started_by": "claude:pr8",
     "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1237-trace-context",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1237-trace-context' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793456610.7631385,
-      "timestamp_str": "2026-10-31 17:23:30",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1238-prompt-registry",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/4] modules/brain/prompt_registry.py: PromptVersion, digest_prompt, publish/move_label/resolve/history/rollback/compare and state dump/load. [2/4] immutability, idempotent republish, monotonic versions, reserved-label and unknown-version refusals. [3/4] Failing-first tests for versioning, digest covers config, label moves, rollback, comparison and round-trip. [4/4] ADR-100, IDEAS, README, map, aikit check neurocore.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793456729.510474,
-      "timestamp_str": "2026-10-31 17:25:29",
-      "agent": "kilo:1",
-      "impact_assessment": {
-        "why": "IDEA-1238 was approved: prompt text had no version, digest or label, so a rollout was an in-place edit and a rollback meant finding old prose by hand.",
-        "benefits": "Two runs are comparable by (name, version) or digest; a rollout is a label move; a rollback is one audited operation.",
-        "risks": "contract: new module and state shape; dependency: stdlib hashlib/json; concurrency: in-memory, caller owns persistence; state: explicit JSON export.",
-        "mitigation": "Empty prompts, unknown versions and the reserved 'latest' label are refused with Why/Fix; state round-trips in tests."
-      }
-    },
-    {
-      "task_id": "idea-1238-prompt-registry",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-100, IDEAS, README and the map updated; 16 new prompt-registry tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793456858.18472,
-      "timestamp_str": "2026-10-31 17:27:38",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1238-prompt-registry",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1238-prompt-registry' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793456858.4107916,
-      "timestamp_str": "2026-10-31 17:27:38",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "idea-1242-delegation-contract",
       "phase": "planning",
@@ -257,6 +209,62 @@
       "status": "in_progress",
       "timestamp": 1794654860.3496883,
       "timestamp_str": "2026-11-14 14:14:20",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "neurocore-pr8-wave1",
+      "phase": "in_progress",
+      "phase_num": 5,
+      "description": "[3/3] Pushed merge + fixes + UI evidence via aikit publish; PR #8: MERGEABLE/CLEAN",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794655261.998518,
+      "timestamp_str": "2026-11-14 14:21:01",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "neurocore-pr8-wave1",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-pr8-wave1' completed successfully.",
+      "status": "completed",
+      "timestamp": 1794655262.211232,
+      "timestamp_str": "2026-11-14 14:21:02",
+      "agent": "claude:pr8",
+      "delivery": {
+        "roots": [
+          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
+        ],
+        "forced": false
+      }
+    },
+    {
+      "task_id": "neurocore-pr8-load-fix",
+      "phase": "in_progress",
+      "phase_num": 2,
+      "description": "[1/2] Plan: PR #8 delta re-verified clean except one residual bug - ResultStore.load() follows record.path from index.json (tampered index = arbitrary read outside the store, repro in scratch); fix by deriving the target from the validated id via _resolve_target",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794656858.2167947,
+      "timestamp_str": "2026-11-14 14:47:38",
+      "agent": "claude:pr8",
+      "impact_assessment": {
+        "why": "The delivered P1 fix left the read side open to the same escape class the finding targeted",
+        "benefits": "ResultStore becomes end-to-end traversal-safe on both write and read paths",
+        "risks": "contract: load() no longer honors a customized record.path (none existed outside repro); dependency: none; concurrency: unchanged; state: index.json format unchanged (no migration)",
+        "mitigation": "failing-first repro test, slice re-read, full suite + 5/5 gates before publish"
+      },
+      "plan_digest": "293581c0dcfd3d475106bd0e588c59ed6f2de106bd80c962249f8ccc7c1fa927"
+    },
+    {
+      "task_id": "neurocore-pr8-load-fix",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "[2/2] load() now resolves the target from the validated id; tampered-index repro test green; run_ledger/auth/useless 32/32; aikit check neurocore: 5/5 gates pass; checklists: passed",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794657675.823031,
+      "timestamp_str": "2026-11-14 15:01:15",
       "agent": "claude:pr8"
     }
   ]
