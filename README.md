@@ -400,6 +400,13 @@ python -m pytest
 python -m pytest --cov=.
 ```
 
+Capability ladder (measured, not prose): Rung 1 `tests/test_planning_recovery_rung.py`
+(plan→execute→recover, 6/6 + 3/3 recovery); Rung 2
+`tests/test_memory_durability_rung.py` (persist→reload→scoped-recall→consolidate,
+8/8 + 100% isolation train-only); Rung 3 `tests/test_tool_reliability_rung.py`
+(headless gate→spend→receipt→budget with hold/deny/cancel/replay, 7/7 + 4/4
+recovery; process isolation stays in `tests/test_tool_sandbox.py`).
+
 A flow test can record a real provider exchange once and replay it without a model:
 
 ```python
@@ -497,3 +504,11 @@ community tools where files or credentials must stay private.
 ## 📜 License
 
 Free for personal use under the Aegean License 1.1 (AL-1.1); see [LICENSE](LICENSE). Any commercial use needs the Aegean Commercial License 1.0 (ACL-1.0); see [COMMERCIAL.md](COMMERCIAL.md).
+
+<!-- aegean:screenshots:start -->
+## Screenshots
+
+<a href="https://github.com/AegeanWorks/Neurocore/commit/10ebfa5"><img src="assets/screenshots/2026-11-03-home.png" alt="NeuroCore dashboard at 2026-11-03"></a>
+
+*commit `10ebfa5` · 2026-11-03 · viewport 1440x900 · home dashboard; data views need LLM and saved data (ADR-105)*
+<!-- aegean:screenshots:end -->

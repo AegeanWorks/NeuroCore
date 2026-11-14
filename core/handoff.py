@@ -92,6 +92,12 @@ def new_packet(packet_id: str, from_step: str, to_step: str, context_summary: st
                artifacts: Optional[List[str]] = None,
                context_items: Optional[List[Dict[str, Any]]] = None,
                retry_limit: int = 1) -> HandoffPacket:
+    try:
+        retry_count = int(retry_limit)
+    except (TypeError, ValueError) as exc:
+        raise HandoffError(
+            f"invalid retry_limit. Why: {exc}. Fix: pass a retry count as an integer."
+        ) from exc
     return HandoffPacket(
         packet_id=str(packet_id),
         from_step=str(from_step),
@@ -99,7 +105,7 @@ def new_packet(packet_id: str, from_step: str, to_step: str, context_summary: st
         context_summary=_clip(context_summary),
         artifacts=list(artifacts or []),
         context_items=list(context_items or []),
-        retry_limit=int(retry_limit),
+        retry_limit=retry_count,
     ).validate()
 
 

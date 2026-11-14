@@ -49,6 +49,20 @@ async def test_memory_recall_success(mock_store, mock_llm_bridge):
     assert result["messages"] == input_data["messages"]
 
 @pytest.mark.asyncio
+async def test_memory_recall_bad_access_weight_falls_back(mock_store, mock_llm_bridge):
+    executor = MemoryRecallExecutor()
+
+    f = Future()
+    f.set_result([{"text": "User likes apples", "score": 0.9}])
+    mock_store.executor.submit.return_value = f
+
+    input_data = {"messages": [{"role": "user", "content": "What do I like?"}]}
+    result = await executor.receive(input_data, config={"recall_access_weight": "abc"})
+    assert "_memory_context" in result
+    assert "User likes apples" in result["_memory_context"]
+
+
+@pytest.mark.asyncio
 async def test_memory_recall_no_results(mock_store, mock_llm_bridge):
     """Test that nothing changes if no memories are found."""
     executor = MemoryRecallExecutor()

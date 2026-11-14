@@ -12,6 +12,17 @@ from .lenses import EpistemicCritique, build_lens_prompt, context_text, lens_ena
 
 logger = logging.getLogger(__name__)
 
+# M-DATA-3/M-ASYNC-2: retain fire-and-forget reasoning-book saves so they
+# cannot be garbage-collected mid-flight; entries drop on completion.
+_pending_log_tasks: set = set()
+
+
+def _log_thought_retained(service, *args, **kwargs):
+    task = asyncio.create_task(service.log_thought(*args, **kwargs))
+    _pending_log_tasks.add(task)
+    task.add_done_callback(_pending_log_tasks.discard)
+    return task
+
 
 class ReflectionExecutor:
     def __init__(self):
@@ -185,7 +196,7 @@ class ReflectionExecutor:
             try:
                 if reasoning_service := self._get_reasoning_service():
                     entry = f"Reflection: Max retries ({max_reflection_retries}) exceeded, forcing completion"
-                    asyncio.create_task(reasoning_service.log_thought(entry, source="Reflection"))
+                    _log_thought_retained(reasoning_service, entry, source="Reflection")
             except Exception as _exc:
                 logger.debug("ignored exception: %s", _exc)  # Fail silently in tests/prod
 
@@ -206,7 +217,7 @@ class ReflectionExecutor:
             try:
                 if reasoning_service := self._get_reasoning_service():
                     entry = "Reflection: No content to evaluate, defaulting to satisfied"
-                    asyncio.create_task(reasoning_service.log_thought(entry, source="Reflection"))
+                    _log_thought_retained(reasoning_service, entry, source="Reflection")
             except Exception as _exc:
                 logger.debug("ignored exception: %s", _exc)  # Fail silently
             
@@ -298,7 +309,7 @@ class ReflectionExecutor:
             try:
                 if reasoning_service := self._get_reasoning_service():
                     entry = f"Reflection on step: satisfied={reflection_result['satisfied']}. {reflection_result['reason']}"
-                    asyncio.create_task(reasoning_service.log_thought(entry, source="Reflection"))
+                    _log_thought_retained(reasoning_service, entry, source="Reflection")
             except Exception as _exc:
                 logger.debug("ignored exception: %s", _exc)  # Fail silently
 
@@ -326,7 +337,7 @@ class ReflectionExecutor:
             try:
                 if reasoning_service := self._get_reasoning_service():
                     entry = f"Reflection error: {str(e)}"
-                    asyncio.create_task(reasoning_service.log_thought(entry, source="Reflection"))
+                    _log_thought_retained(reasoning_service, entry, source="Reflection")
             except Exception as _exc:
                 logger.debug("ignored exception: %s", _exc)  # Fail silently
             

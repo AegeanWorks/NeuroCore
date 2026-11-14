@@ -28,14 +28,21 @@ def wrap_untrusted(text: Any, source: str) -> str:
 
 
 def fence_tool_messages(messages: Any) -> Any:
-    """A copy of ``messages`` with every tool result fenced; the caller's list is left untouched."""
+    """A copy of ``messages`` with every tool result fenced; the caller's list is left untouched.
+
+    M-SEC-1: always wrap. Content that already looks fenced is wrapped
+    again instead of passed through, so look-alike attacker text cannot
+    skip the fence. A ``_fenced`` marker records the wrapping out of band.
+    """
     if not isinstance(messages, list):
         return messages
     fenced: List[Any] = []
     for message in messages:
         content = message.get("content") if isinstance(message, dict) else None
         if (isinstance(message, dict) and message.get("role") == "tool"
-                and isinstance(content, str) and not _FENCED.match(content)):
-            message: Dict[str, Any] = {**message, "content": wrap_untrusted(content, message.get("name") or "tool")}
+                and isinstance(content, str)):
+            message = {**message,
+                       "content": wrap_untrusted(content, message.get("name") or "tool"),
+                       "_fenced": True}
         fenced.append(message)
     return fenced

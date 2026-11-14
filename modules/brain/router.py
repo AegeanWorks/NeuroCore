@@ -124,11 +124,18 @@ async def brain_events(limit: int = 50):
 async def brain_publish_event(body: dict = Body(default_factory=dict),
                               actor: BrainActor = Depends(require_role("operator"))):
     service = get_brain_service()
+    try:
+        salience = float(body.get("salience", 0.5))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: salience must be a number ({exc}). Fix: pass salience as a number.",
+        ) from exc
     event = await service.publish_event(
         event_type=str(body.get("type") or "manual"),
         source=str(actor.name),
         payload=body.get("payload") if isinstance(body.get("payload"), dict) else {},
-        salience=float(body.get("salience", 0.5)),
+        salience=salience,
         dedupe_key=body.get("dedupe_key"),
     )
     if event is None:
@@ -289,9 +296,14 @@ async def brain_learn_consolidate(_actor: BrainActor = Depends(require_role("ope
 
 @router.post("/learn/recall")
 async def brain_learn_recall(body: dict = Body(default_factory=dict)):
-    return await get_brain_service().evaluate_learning_recall(
-        top_k=max(1, min(int(body.get("top_k", 3)), 20))
-    )
+    try:
+        top_k = max(1, min(int(body.get("top_k", 3)), 20))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: top_k must be an integer ({exc}). Fix: pass top_k as an integer.",
+        ) from exc
+    return await get_brain_service().evaluate_learning_recall(top_k=top_k)
 
 
 @router.post("/learn/suggest")
@@ -299,9 +311,14 @@ async def brain_learn_suggest(body: dict = Body(...)):
     query = body.get("query")
     if not isinstance(query, str) or not query.strip():
         raise HTTPException(status_code=400, detail="query is required")
-    return get_brain_service().suggest_learning(
-        query, top_k=max(1, min(int(body.get("top_k", 3)), 20))
-    )
+    try:
+        top_k = max(1, min(int(body.get("top_k", 3)), 20))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: top_k must be an integer ({exc}). Fix: pass top_k as an integer.",
+        ) from exc
+    return get_brain_service().suggest_learning(query, top_k=top_k)
 
 
 @router.post("/goals/review")
@@ -607,96 +624,14 @@ async def brain_move_prompt_label(name: str, body: dict = Body(...),
     if version is None or not labels:
         raise HTTPException(status_code=400, detail="version and labels are required")
     try:
-        return reg.move_label(name, int(version), labels, actor=actor.name)
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/rollback")
-async def brain_rollback_prompt_label(name: str, body: dict = Body(...),
-                                      actor: BrainActor = Depends(require_role("operator"))):
-    """Rollback a rollout label to its previous target."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    label = body.get("label")
-    if not label:
-        raise HTTPException(status_code=400, detail="label is required")
-    try:
-        res = reg.rollback(name, label, actor=actor.name)
-        if res is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: no rollback history for label '{label}' on prompt '{name}'. Fix: move_label first."
-            )
-        return res.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-# --- Prompt Registry (ADR-100 / IDEA-1238) ---
-
-@router.get("/prompts/{name}")
-async def brain_get_prompt(name: str, label: Optional[str] = None):
-    """Retrieve version history or a specific label for a prompt."""
-    from .prompt_registry import default_registry
-    reg = default_registry()
-    if label:
-        resolved = reg.resolve(name, label)
-        if resolved is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: prompt '{name}' has no version under label '{label}'. Fix: check published versions."
-            )
-        return resolved.as_dict()
-    versions = reg.history(name)
-    if not versions:
+        version_number = int(version)
+    except (TypeError, ValueError) as exc:
         raise HTTPException(
-            status_code=404,
-            detail=f"Why: prompt '{name}' has no published versions. Fix: publish version 1 first."
-        )
-    return {
-        "name": name,
-        "versions": [v.as_dict() for v in versions],
-        "latest": reg.resolve(name, "latest").as_dict() if reg.resolve(name, "latest") else None,
-        "labels": {
-            lbl: reg.resolve(name, lbl).version
-            for lbl in sorted({l for v in versions for l in v.labels})
-            if reg.resolve(name, lbl)
-        },
-    }
-
-
-@router.post("/prompts/{name}/publish")
-async def brain_publish_prompt(name: str, body: dict = Body(...),
-                               _actor: BrainActor = Depends(require_role("operator"))):
-    """Publish an immutable version of a prompt; identical content is idempotent."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    prompt = body.get("prompt")
-    config = body.get("config")
-    tags = body.get("tags")
-    commit_message = str(body.get("commit_message", ""))
-    labels = body.get("labels")
+            status_code=400,
+            detail=f"Why: version must be an integer ({exc}). Fix: pass version as an integer.",
+        ) from exc
     try:
-        version = reg.publish(name, prompt, config=config, tags=tags,
-                              commit_message=commit_message, labels=labels)
-        return version.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/labels")
-async def brain_move_prompt_label(name: str, body: dict = Body(...),
-                                  actor: BrainActor = Depends(require_role("operator"))):
-    """Move a rollout label to a specific prompt version."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    version = body.get("version")
-    labels = body.get("labels")
-    if version is None or not labels:
-        raise HTTPException(status_code=400, detail="version and labels are required")
-    try:
-        return reg.move_label(name, int(version), labels, actor=actor.name)
+        return reg.move_label(name, version_number, labels, actor=actor.name)
     except PromptConflict as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -749,95 +684,6 @@ async def brain_config_apply(body: dict = Body(...),
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-# --- Prompt Registry (ADR-100 / IDEA-1238) ---
-
-@router.get("/prompts/{name}")
-async def brain_get_prompt(name: str, label: Optional[str] = None):
-    """Retrieve version history or a specific label for a prompt."""
-    from .prompt_registry import default_registry
-    reg = default_registry()
-    if label:
-        resolved = reg.resolve(name, label)
-        if resolved is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: prompt '{name}' has no version under label '{label}'. Fix: check published versions."
-            )
-        return resolved.as_dict()
-    versions = reg.history(name)
-    if not versions:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Why: prompt '{name}' has no published versions. Fix: publish version 1 first."
-        )
-    return {
-        "name": name,
-        "versions": [v.as_dict() for v in versions],
-        "latest": reg.resolve(name, "latest").as_dict() if reg.resolve(name, "latest") else None,
-        "labels": {
-            lbl: reg.resolve(name, lbl).version
-            for lbl in sorted({l for v in versions for l in v.labels})
-            if reg.resolve(name, lbl)
-        },
-    }
-
-
-@router.post("/prompts/{name}/publish")
-async def brain_publish_prompt(name: str, body: dict = Body(...),
-                               _actor: BrainActor = Depends(require_role("operator"))):
-    """Publish an immutable version of a prompt; identical content is idempotent."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    prompt = body.get("prompt")
-    config = body.get("config")
-    tags = body.get("tags")
-    commit_message = str(body.get("commit_message", ""))
-    labels = body.get("labels")
-    try:
-        version = reg.publish(name, prompt, config=config, tags=tags,
-                              commit_message=commit_message, labels=labels)
-        return version.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/labels")
-async def brain_move_prompt_label(name: str, body: dict = Body(...),
-                                  actor: BrainActor = Depends(require_role("operator"))):
-    """Move a rollout label to a specific prompt version."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    version = body.get("version")
-    labels = body.get("labels")
-    if version is None or not labels:
-        raise HTTPException(status_code=400, detail="version and labels are required")
-    try:
-        return reg.move_label(name, int(version), labels, actor=actor.name)
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/rollback")
-async def brain_rollback_prompt_label(name: str, body: dict = Body(...),
-                                      actor: BrainActor = Depends(require_role("operator"))):
-    """Rollback a rollout label to its previous target."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    label = body.get("label")
-    if not label:
-        raise HTTPException(status_code=400, detail="label is required")
-    try:
-        res = reg.rollback(name, label, actor=actor.name)
-        if res is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: no rollback history for label '{label}' on prompt '{name}'. Fix: move_label first."
-            )
-        return res.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @router.post("/config/rollback")
 async def brain_config_rollback(body: dict = Body(...),
                                 module_manager=Depends(get_module_manager),
@@ -855,90 +701,3 @@ async def brain_config_rollback(body: dict = Body(...),
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-# --- Prompt Registry (ADR-100 / IDEA-1238) ---
-
-@router.get("/prompts/{name}")
-async def brain_get_prompt(name: str, label: Optional[str] = None):
-    """Retrieve version history or a specific label for a prompt."""
-    from .prompt_registry import default_registry
-    reg = default_registry()
-    if label:
-        resolved = reg.resolve(name, label)
-        if resolved is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: prompt '{name}' has no version under label '{label}'. Fix: check published versions."
-            )
-        return resolved.as_dict()
-    versions = reg.history(name)
-    if not versions:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Why: prompt '{name}' has no published versions. Fix: publish version 1 first."
-        )
-    return {
-        "name": name,
-        "versions": [v.as_dict() for v in versions],
-        "latest": reg.resolve(name, "latest").as_dict() if reg.resolve(name, "latest") else None,
-        "labels": {
-            lbl: reg.resolve(name, lbl).version
-            for lbl in sorted({l for v in versions for l in v.labels})
-            if reg.resolve(name, lbl)
-        },
-    }
-
-
-@router.post("/prompts/{name}/publish")
-async def brain_publish_prompt(name: str, body: dict = Body(...),
-                               _actor: BrainActor = Depends(require_role("operator"))):
-    """Publish an immutable version of a prompt; identical content is idempotent."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    prompt = body.get("prompt")
-    config = body.get("config")
-    tags = body.get("tags")
-    commit_message = str(body.get("commit_message", ""))
-    labels = body.get("labels")
-    try:
-        version = reg.publish(name, prompt, config=config, tags=tags,
-                              commit_message=commit_message, labels=labels)
-        return version.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/labels")
-async def brain_move_prompt_label(name: str, body: dict = Body(...),
-                                  actor: BrainActor = Depends(require_role("operator"))):
-    """Move a rollout label to a specific prompt version."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    version = body.get("version")
-    labels = body.get("labels")
-    if version is None or not labels:
-        raise HTTPException(status_code=400, detail="version and labels are required")
-    try:
-        return reg.move_label(name, int(version), labels, actor=actor.name)
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/prompts/{name}/rollback")
-async def brain_rollback_prompt_label(name: str, body: dict = Body(...),
-                                      actor: BrainActor = Depends(require_role("operator"))):
-    """Rollback a rollout label to its previous target."""
-    from .prompt_registry import PromptConflict, default_registry
-    reg = default_registry()
-    label = body.get("label")
-    if not label:
-        raise HTTPException(status_code=400, detail="label is required")
-    try:
-        res = reg.rollback(name, label, actor=actor.name)
-        if res is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Why: no rollback history for label '{label}' on prompt '{name}'. Fix: move_label first."
-            )
-        return res.as_dict()
-    except PromptConflict as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc

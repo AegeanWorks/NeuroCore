@@ -252,7 +252,7 @@ class SystemPromptExecutor:
             '\u4e00' <= char <= '\u9fff' or  # Chinese
             '\u3040' <= char <= '\u309f' or  # Japanese Hiragana
             '\u30a0' <= char <= '\u30ff' or  # Japanese Katakana
-            '\uac00' <= char <= '\uacff'     # Korean Hangul
+            '\uac00' <= char <= '\ud7af'     # Korean Hangul Syllables
         ))
         
         # ASCII characters (roughly 4 chars per token)

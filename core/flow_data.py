@@ -470,17 +470,6 @@ def get_tool_count(data: FlowData, default: int = 0) -> int:
     return default
 
 
-def set_tool_count(data: FlowData, count: int) -> FlowData:
-    """Set tool_count in flow data.
-    
-    Sets both _tool_count (FlowData) and tool_count (FlowContext) for compatibility.
-    """
-    result = data.copy() if data else {}
-    result["tool_count"] = count
-    result["_tool_count"] = count  # For backward compatibility
-    return result
-
-
 def get_remaining_tool_calls(data: FlowData, default: List[ToolCall] = None) -> List[ToolCall]:
     """Get remaining_tool_calls from flow data.
     
@@ -501,15 +490,8 @@ def get_remaining_tool_calls(data: FlowData, default: List[ToolCall] = None) -> 
     return default
 
 
-def set_remaining_tool_calls(data: FlowData, calls: List[ToolCall]) -> FlowData:
-    """Set remaining_tool_calls in flow data.
-    
-    Sets both _remaining_tool_calls (FlowData) and remaining_tool_calls (FlowContext) for compatibility.
-    """
-    result = data.copy() if data else {}
-    result["remaining_tool_calls"] = calls
-    result["_remaining_tool_calls"] = calls  # For backward compatibility
-    return result
+# NOTE (L-3): set_tool_count / set_remaining_tool_calls live below in their
+# deep-copying form; the earlier shallow duplicates were removed.
 
 
 def get_requires_continuation(data: FlowData, default: bool = False) -> bool:

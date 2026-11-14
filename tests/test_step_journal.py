@@ -18,8 +18,10 @@ def journal(tmp_path):
 
 
 def test_run_id_is_deterministic_and_key_scoped():
-    assert derive_run_id("flow-1", {"a": 1}) == derive_run_id("flow-1", {"a": 1})
-    assert derive_run_id("flow-1", {"a": 1}) != derive_run_id("flow-1", {"a": 2})
+    # M-FLOW-5: dedupe happens only on an explicit idempotency key. Without
+    # a key every submission gets a fresh random id so scheduled repeats
+    # never replay a stale stored result.
+    assert derive_run_id("flow-1", {"a": 1}) != derive_run_id("flow-1", {"a": 1})
     keyed_a = derive_run_id("flow-1", None, "client-key")
     keyed_b = derive_run_id("flow-1", {"x": 9}, "client-key")
     assert keyed_a == keyed_b
@@ -151,3 +153,73 @@ def test_output_round_trips_through_json(journal):
     assert json.dumps(output, sort_keys=True) == json.dumps(
         {"messages": [{"role": "user", "content": "hi"}]}, sort_keys=True
     )
+
+
+def test_stale_running_run_is_reclaimed(journal):
+    """M-FLOW-5: a crashed run stops blocking resubmissions after the lease."""
+    assert journal.claim_run("run-a", "flow", None, lease_seconds=600) == "new"
+    assert journal.claim_run("run-a", "flow", None, lease_seconds=600) == "running"
+    # A fresh submission sees it running; with an expired lease it reclaims.
+    import time as _time
+
+    with journal._connect() as con:
+        con.execute(
+            "UPDATE run_registry SET heartbeat_at=? WHERE run_id=?",
+            (_time.time() - 3600.0, "run-a"),
+        )
+    assert journal.claim_run("run-a", "flow", None, lease_seconds=600) == "new"
+    assert journal.run_status("run-a") == "running"
+
+
+def test_loop_iterations_are_keyed_separately(journal):
+    """M-FLOW-5: the same node input in a later iteration re-runs."""
+    digest = input_digest({"poll": True})
+    journal.begin("run-a", "poller", digest, iteration=0)
+    assert journal.commit("run-a", "poller", digest, {"tick": 1}, iteration=0) is True
+    status, output = journal.lookup("run-a", "poller", digest, iteration=1)
+    assert (status, output) == (None, None)
+    journal.begin("run-a", "poller", digest, iteration=1)
+    assert journal.commit("run-a", "poller", digest, {"tick": 2}, iteration=1) is True
+    assert journal.lookup("run-a", "poller", digest, iteration=0) == (
+        "committed", {"tick": 1},
+    )
+    assert journal.lookup("run-a", "poller", digest, iteration=1) == (
+        "committed", {"tick": 2},
+    )
+
+
+def test_legacy_database_migrates(journal, tmp_path):
+    """M-FLOW-5: pre-iteration databases upgrade without data loss."""
+    import sqlite3
+
+    legacy = str(tmp_path / "legacy.sqlite3")
+    con = sqlite3.connect(legacy)
+    con.execute(
+        "CREATE TABLE step_journal (run_id TEXT NOT NULL, node_id TEXT NOT NULL, "
+        "input_digest TEXT NOT NULL, status TEXT NOT NULL, output_json TEXT, "
+        "output_digest TEXT, effectful INTEGER NOT NULL DEFAULT 0, "
+        "started_at REAL NOT NULL, completed_at REAL, "
+        "PRIMARY KEY (run_id, node_id))"
+    )
+    con.execute(
+        "CREATE TABLE run_registry (run_id TEXT PRIMARY KEY, idempotency_key TEXT UNIQUE, "
+        "flow_id TEXT NOT NULL, status TEXT NOT NULL, result_json TEXT, error TEXT, "
+        "created_at REAL NOT NULL, completed_at REAL)"
+    )
+    con.execute(
+        "INSERT INTO step_journal (run_id, node_id, input_digest, status, output_json, "
+        "effectful, started_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("run-old", "n", "abc", "committed", '{"v": 1}', 0, 1.0, 2.0),
+    )
+    con.execute(
+        "INSERT INTO run_registry (run_id, flow_id, status, created_at) VALUES (?, ?, ?, ?)",
+        ("run-old", "flow", "completed", 1.0),
+    )
+    con.commit()
+    con.close()
+
+    from core.step_journal import StepJournal as _SJ
+
+    migrated = _SJ(path=legacy)
+    assert migrated.lookup("run-old", "n", "abc") == ("committed", {"v": 1})
+    assert migrated.run_status("run-old") == "completed"

@@ -188,6 +188,17 @@ def test_replay_queue_returns_only_pending_and_counts_states():
     assert counts[STATUS_ACCEPTED] == 1
 
 
+def test_child_invalid_timeout_is_delegation_error():
+    contract = _contract()
+    with pytest.raises(DelegationError):
+        contract.child("t2", "researcher", ("search",), timeout="abc")
+
+
+def test_new_packet_invalid_retry_limit_is_handoff_error():
+    with pytest.raises(HandoffError):
+        new_packet("p", "a", "b", "s", retry_limit="abc")
+
+
 def test_contract_roundtrip_serialization_from_dict():
     contract = DelegationContract(
         task_id="t-roundtrip",

@@ -19,6 +19,11 @@ def _output(content="hello world"):
     return {"choices": [{"message": {"content": content}}]}
 
 
+def test_from_legacy_rejects_non_numeric_weight():
+    with pytest.raises(InvalidCheckSpec, match="non-numeric weight"):
+        from_legacy({"id": "x", "weight": "abc"})
+
+
 def test_weighted_checks_produce_a_partial_score_and_fail_a_threshold():
     # Optional metric checks are what a threshold is for; a required failure still wins
     # (see the dedicated test below).

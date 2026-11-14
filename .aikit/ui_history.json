@@ -1,0 +1,38 @@
+[
+  {
+    "schema": 1,
+    "surface": "web",
+    "mode": "visual",
+    "visual_change": true,
+    "changed_paths": [],
+    "no_visual_reason": "",
+    "baseline_commit": "3c90bbc2a660525fac87761ecd58454980a9612b",
+    "contract_hash": "70514e4cdb522180b86c2817c0b931e780cf40f92a558c972ad310a0e15503c6",
+    "started_at": 1794654987.6229708,
+    "finished_at": 1794655009.1337066,
+    "strikes": 0,
+    "reviewer": "claude:pr8",
+    "allowed_removals": [],
+    "final_snapshot_digest": "",
+    "final_snapshot_entries": 0,
+    "surface_digest": "ac99d59720219609bfb7c8bd8aa10449c8caaee0903aa0c9cdb01f8b02fc2506"
+  },
+  {
+    "schema": 1,
+    "surface": "web",
+    "mode": "visual",
+    "visual_change": true,
+    "changed_paths": [],
+    "no_visual_reason": "",
+    "baseline_commit": "535b6bda9016cf89837bde0819dff15b561ebe23",
+    "contract_hash": "70514e4cdb522180b86c2817c0b931e780cf40f92a558c972ad310a0e15503c6",
+    "started_at": 1794668888.204634,
+    "finished_at": 1794668904.725398,
+    "strikes": 0,
+    "reviewer": "claude:pr8",
+    "allowed_removals": [],
+    "final_snapshot_digest": "",
+    "final_snapshot_entries": 0,
+    "surface_digest": "91702c4e96a24a3073215bab47d24d509b59ef77adfea433d608955902253513"
+  }
+]

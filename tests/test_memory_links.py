@@ -345,7 +345,9 @@ def test_an_existing_neighbour_is_merged_and_keeps_the_higher_score(store):
     assert ids.count(support) == 1
     assert ids.count(seed) == 1
     merged = next(item for item in results if item["id"] == support)
-    assert merged["score"] == 0.5, "the direct hit outranks a boosted neighbour"
+    # H-6: keyword fallback now scores by matched-term fraction
+    # (0.3 + 0.7 * matched/total) instead of a fixed 0.5.
+    assert merged["score"] == 1.0, "a full single-term match scores 1.0"
     assert merged["via_links"][0]["source_id"] == seed
 
 

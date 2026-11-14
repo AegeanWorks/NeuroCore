@@ -42,7 +42,9 @@ class KnowledgeQueryExecutor:
             if "messages" in input_data and input_data["messages"]:
                 # Use last user message
                 for msg in reversed(input_data["messages"]):
-                    if msg["role"] == "user":
+                    if not isinstance(msg, dict):
+                        continue
+                    if msg.get("role") == "user":
                         content = msg.get("content", "")
                         if isinstance(content, str):
                             query = content
@@ -66,7 +68,12 @@ class KnowledgeQueryExecutor:
         # Generate embedding for the query
         embedding = await self.llm.get_embedding(query)
 
-        limit = int(config.get("limit", 3))
+        try:
+            limit = int(config.get("limit", 3))
+        except (TypeError, ValueError):
+            limit = 3
+        if limit < 1:
+            limit = 1
         
         retrieval_error = ""
         if embedding:

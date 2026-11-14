@@ -262,9 +262,15 @@ class EmailService:
         smtp_from = config.get("smtp_from_address", "").strip()
 
         if smtp_host and smtp_user and smtp_pass and smtp_from:
+            try:
+                smtp_port = int(config.get("smtp_port", 587))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid smtp_port. Why: {exc}. Fix: pass smtp_port as an integer."
+                ) from exc
             self._handler.smtp = SMTPBridge(
                 host=smtp_host,
-                port=int(config.get("smtp_port", 587)),
+                port=smtp_port,
                 username=smtp_user,
                 password=smtp_pass,
                 from_address=smtp_from,
@@ -276,9 +282,15 @@ class EmailService:
             logger.warning("Email Bridge: SMTP credentials incomplete — replies disabled.")
             self._handler.smtp = None
 
+        try:
+            imap_port = int(config.get("imap_port", 993))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid imap_port. Why: {exc}. Fix: pass imap_port as an integer."
+            ) from exc
         self._imap = IMAPBridge(
             host=imap_host,
-            port=int(config.get("imap_port", 993)),
+            port=imap_port,
             username=imap_user,
             password=imap_pass,
             folder=config.get("imap_folder", "INBOX"),
@@ -288,7 +300,12 @@ class EmailService:
         )
 
         self._running = True
-        poll_interval = int(config.get("poll_interval", 60))
+        try:
+            poll_interval = int(config.get("poll_interval", 60))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid poll_interval. Why: {exc}. Fix: pass poll_interval as an integer."
+            ) from exc
         filter_sender = config.get("imap_filter_sender", "").strip()
 
         t = threading.Thread(

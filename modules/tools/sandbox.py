@@ -229,8 +229,8 @@ class SafeOpen:
         if not self._is_path_allowed(file):
             raise SecurityError(f"Access to file '{file}' is not permitted in sandboxed environment")
         
-        # In read-only mode, only allow read modes (starting with 'r')
-        if self.read_only and not mode.startswith('r'):
+        # In read-only mode, only allow pure read modes (r, rb); reject r+/w/a/x.
+        if self.read_only and (not mode.startswith('r') or '+' in mode):
             raise SecurityError(f"Write access to file '{file}' is not permitted in sandboxed environment")
         
         _open_fn = getattr(builtins, "open")

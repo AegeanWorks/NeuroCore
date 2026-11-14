@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -283,6 +284,14 @@ Generate {self.query_expansion_count - 1} alternatives, one per line, no numberi
         
         # Return top results
         return all_results[:limit]
+
+
+def _fts_query(text: str) -> str:
+    """Build a safe FTS5 MATCH query: word tokens, quoted, OR-joined (H-5)."""
+    terms = [t for t in re.findall(r"\w+", text or "") if len(t) > 1][:32]
+    if not terms:
+        return ""
+    return " OR ".join(f'"{t}"' for t in terms)
 
 
 class FaissDocumentStore(QueryExpansionMixin):
@@ -1334,28 +1343,29 @@ class FaissDocumentStore(QueryExpansionMixin):
     def search_keyword(self, query: str, limit: int = 5) -> List[Dict]:
         """
         Search for chunks using SQLite FTS5 (Keyword Search).
+
+        H-5: the query is built from word tokens (quoted, OR-joined) so
+        ``? , - ( )`` etc. cannot become FTS5 syntax errors, and every term
+        is no longer implicitly required.
         """
-        if not query.strip():
+        fts_query = _fts_query(query)
+        if not fts_query:
             return []
-        
-        # Basic sanitization for FTS5
-        # Remove characters that might interfere with standard query syntax if not intended
-        safe_query = query.replace('"', '').replace("'", "").replace("*", "").replace(".", " ")
-        
+
         results = []
         with self._connect() as con:
             try:
-                # chunks_fts is virtual table. rowid maps to chunks.id
-                # We use the 'rank' column for ordering (lower is better in FTS5)
+                # chunks_fts is virtual table. rowid maps to chunks.id.
+                # bm25() ranks better than the raw rank column for OR queries.
                 rows = con.execute("""
-                    SELECT c.id, c.text, d.filename, c.page_number, chunks_fts.rank
+                    SELECT c.id, c.text, d.filename, c.page_number, bm25(chunks_fts)
                     FROM chunks_fts
                     JOIN chunks c ON c.id = chunks_fts.rowid
                     JOIN documents d ON c.document_id = d.id
                     WHERE chunks_fts MATCH ?
-                    ORDER BY chunks_fts.rank
+                    ORDER BY bm25(chunks_fts)
                     LIMIT ?
-                """, (safe_query, limit)).fetchall()
+                """, (fts_query, limit)).fetchall()
                 
                 for r in rows:
                     results.append({
@@ -1374,11 +1384,12 @@ class FaissDocumentStore(QueryExpansionMixin):
         """
         Combine Vector Search and Keyword Search using Reciprocal Rank Fusion (RRF).
         """
-        # 1. Get Vector Results
-        vector_results = self.search(query_embedding, limit=limit)
-        
-        # 2. Get Keyword Results
-        keyword_results = self.search_keyword(query_text, limit=limit)
+        # 1-2. Over-fetch from both retrievers before fusing (H-5), so a
+        # weak keyword rank can still surface via RRF.
+        over_fetch = max(limit * 3, limit + 5)
+        vector_results = self.search(query_embedding, limit=over_fetch)
+
+        keyword_results = self.search_keyword(query_text, limit=over_fetch)
         
         # 3. RRF Fusion
         scores = {}

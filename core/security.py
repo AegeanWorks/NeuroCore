@@ -22,6 +22,9 @@ Environment variables:
 
 import hmac
 import os
+import secrets
+import threading
+import time
 from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -258,6 +261,18 @@ def _origin_allowed(origin: str, request) -> bool:
     return False
 
 
+def _forwarding_headers_present(request) -> bool:
+    """Whether a proxy may sit in front of us (client address untrustworthy)."""
+    headers = getattr(request, "headers", {}) or {}
+    lowered = {str(k).lower(): v for k, v in dict(headers).items()}
+    if lowered.get("forwarded"):
+        return True
+    for header in ("x-forwarded-for", "x-real-ip"):
+        if str(lowered.get(header) or "").strip():
+            return True
+    return False
+
+
 def _client_is_loopback(request) -> bool:
     """Whether the connecting peer is this machine (so the API token is not required)."""
     client = getattr(request, "client", None)
@@ -274,7 +289,110 @@ def _token_matches(request, expected: str) -> bool:
         authorization = request.headers.get("authorization", "")
         if authorization.lower().startswith("bearer "):
             provided = authorization[7:].strip()
-    return bool(provided) and hmac.compare_digest(provided, expected)
+    # L-10: compare bytes so non-ASCII input returns False (403), not 500.
+    try:
+        return bool(provided) and hmac.compare_digest(
+            str(provided).encode("utf-8"), str(expected).encode("utf-8")
+        )
+    except Exception:
+        return False
+
+
+# -- Browser sessions (M-SEC-8) -------------------------------------------------
+# Nothing in a browser can send the API token (no custom headers, no API client),
+# so a token-protected remote deployment was previously unusable from the UI,
+# pushing operators toward running unauthenticated. A successful POST /login
+# exchanges the token (once, over the same channel) for a random session id
+# kept in an HttpOnly, SameSite=Strict cookie. Session ids are 256-bit random
+# values held only server-side; the token itself is never stored or logged.
+
+SESSION_COOKIE = "neurocore_session"
+SESSION_TTL_SECONDS = 12 * 3600
+SESSION_MAX = 200
+
+_sessions: dict = {}
+_sessions_lock = threading.Lock()
+
+
+def _evict_sessions_locked(now: float) -> None:
+    expired = [sid for sid, exp in _sessions.items() if exp <= now]
+    for sid in expired:
+        _sessions.pop(sid, None)
+    while len(_sessions) > SESSION_MAX:
+        try:
+            oldest = next(iter(_sessions))
+        except StopIteration:
+            break
+        _sessions.pop(oldest, None)
+
+
+def create_browser_session() -> str:
+    """Mint a random session id valid for SESSION_TTL_SECONDS."""
+    now = time.time()
+    sid = secrets.token_urlsafe(32)
+    with _sessions_lock:
+        _evict_sessions_locked(now)
+        _sessions[sid] = now + SESSION_TTL_SECONDS
+    return sid
+
+
+def valid_browser_session(value) -> bool:
+    """Whether a presented session id is live (and not yet expired)."""
+    if not value or not isinstance(value, str):
+        return False
+    with _sessions_lock:
+        exp = _sessions.get(value)
+        if exp is None:
+            return False
+        if exp <= time.time():
+            _sessions.pop(value, None)
+            return False
+        return True
+
+
+def revoke_browser_session(value) -> None:
+    """Forget one session id (logout)."""
+    if not value:
+        return
+    with _sessions_lock:
+        _sessions.pop(value, None)
+
+
+def _request_authorized(request, expected: str) -> bool:
+    """Header/bearer token or a live login-session cookie (M-SEC-8)."""
+    if _token_matches(request, expected):
+        return True
+    try:
+        return valid_browser_session(request.cookies.get(SESSION_COOKIE))
+    except Exception:
+        return False
+
+
+# Login-attempt rate limiting: at most MAX attempts per WINDOW per client key.
+LOGIN_MAX_ATTEMPTS = 10
+LOGIN_WINDOW_SECONDS = 300.0
+
+_login_attempts: dict = {}
+_login_lock = threading.Lock()
+
+
+def login_allowed(client_key: str) -> bool:
+    """Sliding-window gate for /login attempts (M-SEC-8 brute-force brake)."""
+    now = time.time()
+    key = str(client_key or "unknown")
+    with _login_lock:
+        stamps = [t for t in _login_attempts.get(key, []) if now - t < LOGIN_WINDOW_SECONDS]
+        if len(stamps) >= LOGIN_MAX_ATTEMPTS:
+            _login_attempts[key] = stamps
+            return False
+        stamps.append(now)
+        _login_attempts[key] = stamps
+        return True
+
+
+# Paths that must stay reachable without a credential: the login gate itself.
+# Everything else keeps the existing token requirement.
+PUBLIC_PATHS = frozenset({"/login"})
 
 
 class ControlPlaneGuard(BaseHTTPMiddleware):
@@ -283,6 +401,13 @@ class ControlPlaneGuard(BaseHTTPMiddleware):
     The token is only demanded when ``NEUROCORE_API_TOKEN`` is set and the caller is not on this
     machine, so the local single-user workflow (and the test client) is unchanged while a remote
     bind requires an explicit credential.
+
+    M-SEC-2: behind a same-host reverse proxy that does not forward the
+    client address, remote traffic looks like loopback. When a token is
+    configured and proxy forwarding headers are present, the loopback
+    exemption is lifted and the token is required anyway. Run uvicorn with
+    ``--proxy-headers --forwarded-allow-ips`` set to the proxy so the peer
+    address is trustworthy instead.
     """
 
     async def dispatch(self, request, call_next):
@@ -291,15 +416,52 @@ class ControlPlaneGuard(BaseHTTPMiddleware):
             if origin and not _origin_allowed(origin, request):
                 return PlainTextResponse("Cross-origin request rejected", status_code=403)
         expected = api_token()
-        if not _client_is_loopback(request):
+        loopback = _client_is_loopback(request)
+        if loopback and expected and _forwarding_headers_present(request):
+            loopback = False
+        if not loopback:
             if expected:
-                if not _token_matches(request, expected):
+                # M-SEC-8: /login stays reachable so a browser can exchange
+                # the token for a session cookie; everything else needs the
+                # token (header/bearer) or a live session cookie.
+                if request.url.path not in PUBLIC_PATHS and not _request_authorized(
+                    request, expected
+                ):
                     return PlainTextResponse("Missing or invalid API token", status_code=403)
             elif not unauthenticated_remote_allowed():
                 return PlainTextResponse(
                     "Remote access requires NEUROCORE_API_TOKEN", status_code=403
                 )
         return await call_next(request)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Send baseline hardening headers (C-2/M-SEC-7 defense in depth).
+
+    Content-Security-Policy is deliberately tight for an app that renders
+    model output: no object/embed, images self+data only, scripts self +
+    the two pinned CDN hosts (until Phase 3 vendors them). Even with
+    DOMPurify sanitisation, CSP neuters any markup that slips through.
+    """
+
+    CSP = (
+        "default-src 'self'; "
+        # M-SEC-7: htmx/marked/DOMPurify/Sortable are vendored under
+        # /static/vendor; only the Tailwind Play CDN remains remote (it
+        # compiles in-browser and cannot be vendored without a build step).
+        "script-src 'self' https://cdn.tailwindcss.com 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+    )
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("Content-Security-Policy", self.CSP)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        return response
 
 
 def install_security_middleware(app) -> None:
@@ -310,3 +472,4 @@ def install_security_middleware(app) -> None:
     """
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts())
     app.add_middleware(ControlPlaneGuard)
+    app.add_middleware(SecurityHeadersMiddleware)

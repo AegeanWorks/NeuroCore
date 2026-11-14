@@ -50,7 +50,7 @@ class OutboundDrafts:
     def stage(self, tool: str, args: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock.held():
             data = self._load()
-            if sum(d["status"] == "pending" for d in data["drafts"].values()) >= MAX_PENDING:
+            if sum(d.get("status") == "pending" for d in data["drafts"].values()) >= MAX_PENDING:
                 raise ValueError(f"{MAX_PENDING} drafts already await review")
             draft = {"id": uuid.uuid4().hex[:12], "tool": tool, "args": args,
                      "status": "pending", "created_at": time.time()}
@@ -61,7 +61,7 @@ class OutboundDrafts:
     def pending(self) -> List[Dict[str, Any]]:
         with self._lock.held():
             drafts = self._load()["drafts"].values()
-            return sorted((d for d in drafts if d["status"] == "pending"), key=lambda d: d["created_at"])
+            return sorted((d for d in drafts if d.get("status") == "pending"), key=lambda d: d["created_at"])
 
     def transition(self, draft_id: str, expected: str, status: str,
                    result: Optional[str] = None) -> Dict[str, Any]:
@@ -71,8 +71,8 @@ class OutboundDrafts:
             draft = data["drafts"].get(draft_id)
             if draft is None:
                 raise KeyError(f"no draft {draft_id!r}")
-            if draft["status"] != expected:
-                raise ValueError(f"draft {draft_id} is {draft['status']}, not {expected}")
+            if draft.get("status") != expected:
+                raise ValueError(f"draft {draft_id} is {draft.get('status')}, not {expected}")
             draft.update(status=status, settled_at=time.time())
             if result is not None:
                 draft["result"] = result
@@ -97,11 +97,28 @@ def stage_if_outbound(func_name: str, args: Dict[str, Any]) -> Optional[str]:
             "approves it. Tell the user what you drafted and that it awaits their approval.")
 
 
+def _library_path(tool: str) -> str:
+    """Resolve ``library/<tool>.py`` case-insensitively (M-TOOL-3)."""
+    exact = os.path.join(LIBRARY_DIR, f"{tool}.py")
+    if os.path.isfile(exact):
+        return exact
+    lowered = f"{tool}.py".lower()
+    try:
+        for entry in os.listdir(LIBRARY_DIR):
+            if entry.lower() == lowered:
+                candidate = os.path.join(LIBRARY_DIR, entry)
+                if os.path.isfile(candidate):
+                    return candidate
+    except OSError as _exc:
+        logger.debug("Library directory listing skipped: %s", _exc)
+    return exact
+
+
 def run_library_tool(tool: str, args: Dict[str, Any]) -> Dict[str, Any]:
     """Run a library tool's code in the sandbox, as the dispatchers do."""
     from modules.tools.sandbox import ToolSandbox
 
-    with open(os.path.join(LIBRARY_DIR, f"{tool}.py"), encoding="utf-8") as handle:
+    with open(_library_path(tool), encoding="utf-8") as handle:
         code = handle.read()
     return ToolSandbox(timeout=30.0).execute(code, {"args": args})
 

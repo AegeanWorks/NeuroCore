@@ -149,6 +149,13 @@ def test_only_done_is_ok():
 
 # -- snapshot budget (IDEA-1209) -------------------------------------------------------------
 
+def test_non_numeric_budget_is_rejected_with_hint():
+    from modules.browser_automation.snapshot import SnapshotBudget
+
+    with pytest.raises(ValueError, match="must be an integer"):
+        SnapshotBudget(max_html_chars="abc").validate()
+
+
 def test_html_within_budget_is_returned_untouched():
     measured = measure_html("<p>hi</p>", SnapshotBudget())
     assert measured["ok"] is True

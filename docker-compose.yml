@@ -8,9 +8,12 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
-      # All mutable state (settings, flows, chats, calendar, databases, uploads) lives here.
+      # All mutable state (settings, flows, chats, calendar, databases, uploads,
+      # module config overlays) lives here.
       - ./data:/app/data
-      # Module manifests are writable state stored beside module code.
+      # Module code stays writable because tools and the skills library store
+      # their runtime files beside it; module manifests (module.json) are
+      # read-only defaults — runtime config overlays live in ./data.
       - ./modules:/app/modules
     environment:
       - PYTHONUNBUFFERED=1

@@ -73,6 +73,26 @@ class SkillService:
         """Delete a skill."""
         return self.backend.delete_skill(skill_id)
     
+    def import_skill_with_id(self, skill_id: str, name: str, description: str,
+                             content: str, category: str = "general",
+                             tags: List[str] = None) -> Dict[str, Any]:
+        """Import skill text under an explicit id (marketplace imports).
+
+        M-SEC-6: the id is validated by the backend and the content is
+        admission-scanned here, so marketplace imports cannot bypass the
+        skills-service checks by writing files directly.
+        """
+        scan = self._admit(content)
+        return self.backend.import_skill(
+            skill_id=skill_id,
+            name=name,
+            description=description,
+            content=content,
+            category=category,
+            tags=tags or [],
+            scan=scan,
+        )
+
     def import_from_file(self, file_content: str, file_name: str = "imported_skill.md") -> Dict[str, Any]:
         """Import a skill from file content."""
         # Try to parse metadata from the file

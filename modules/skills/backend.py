@@ -6,7 +6,7 @@ import os
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from .versions import SkillVersionStore
@@ -147,8 +147,8 @@ class SkillBackend:
             "description": description,
             "category": category,
             "tags": tags,
-            "created_at": datetime.utcnow().isoformat() + 'Z',
-            "updated_at": datetime.utcnow().isoformat() + 'Z'
+            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
         if scan is not None:
             metadata[skill_id]["scan"] = scan
@@ -199,7 +199,7 @@ class SkillBackend:
         if scan is not None:
             meta["scan"] = scan
 
-        meta["updated_at"] = datetime.utcnow().isoformat() + 'Z'
+        meta["updated_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         self._save_metadata(metadata)
         
         return self.get_skill(skill_id)
@@ -243,8 +243,8 @@ class SkillBackend:
             "description": description,
             "category": category,
             "tags": tags,
-            "created_at": datetime.utcnow().isoformat() + 'Z',
-            "updated_at": datetime.utcnow().isoformat() + 'Z',
+            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "updated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "imported": True
         }
         if scan is not None:

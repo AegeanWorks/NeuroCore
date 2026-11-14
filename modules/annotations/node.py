@@ -6,15 +6,17 @@ class CommentExecutor:
     If a user accidentally connects a comment node, returning None makes the misuse obvious
     rather than silently passing data through.
     """
-    async def receive(self, input_data: dict, config: dict = None) -> dict:
+    async def receive(self, input_data: dict | None, config: dict | None = None) -> None:
         # Return None to stop branch propagation - comments should not pass data
         return None
 
-    async def send(self, processed_data: dict) -> dict:
+    async def send(self, processed_data: dict | None) -> None:
         # Return None to indicate this node does not produce output
         return None
 
-async def get_executor_class(node_type_id: str):
-    if node_type_id == "comment_node":
+async def get_executor_class(node_type_id: str) -> type | None:
+    if not isinstance(node_type_id, str):
+        return None
+    if node_type_id.strip() == "comment_node":
         return CommentExecutor
     return None

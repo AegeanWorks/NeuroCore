@@ -390,3 +390,10 @@ async def test_system_prompt_resolves_from_prompt_registry(tmp_path):
         config={"prompt_name": "support.agent", "prompt_label": "production"}
     )
     assert "You are tier-1 customer support." in result["messages"][0]["content"]
+
+
+def test_estimate_tokens_counts_full_hangul_range():
+    executor = SystemPromptExecutor()
+    assert executor._estimate_tokens(chr(0xAC00)) == 1
+    assert executor._estimate_tokens(chr(0xD7AF)) == 1
+    assert executor._estimate_tokens(chr(0xAC00) + chr(0xD7AF)) == 2

@@ -100,15 +100,30 @@ async def test_malformed_json_arguments_returns_error():
 
 @pytest.mark.asyncio
 async def test_max_tools_per_turn_limits_execution():
-    """Only max_tools_per_turn tools should run; the rest stored in _remaining_tool_calls."""
+    """Only max_tools_per_turn tools run, but every call id gets a result (H-4).
+
+    Providers reject a follow-up when an assistant tool_call has no matching
+    tool result, so deferred calls receive an explicit placeholder while the
+    executable payload stays available for the continuation turn.
+    """
     executor = make_executor(tools={})
     tool_calls = [make_tool_call(f"Tool{i}", call_id=f"call_{i}") for i in range(5)]
     input_data = make_input(tool_calls)
     result = await executor.receive(input_data, config={"max_tools_per_turn": 2})
 
-    assert len(result["tool_results"]) == 2
-    # _remaining_tool_calls is stored on input_data (mutated in-place), not in result
+    # 2 executed + 3 deferred placeholders: every tool_call_id answered.
+    assert len(result["tool_results"]) == 5
+    answered = {r["tool_call_id"] for r in result["tool_results"]}
+    assert answered == {f"call_{i}" for i in range(5)}
+    deferred = [r for r in result["tool_results"] if r.get("deferred")]
+    assert len(deferred) == 3
+    # _remaining_tool_calls is stored on input_data (mutated in-place) and echoed
+    # in the result so the continuation turn cannot lose it.
     assert len(input_data["_remaining_tool_calls"]) == 3
+    assert len(result["_remaining_tool_calls"]) == 3
+    # History carries the trimmed assistant message (2 calls) + 5 results.
+    assistant_msgs = [m for m in result["messages"] if m.get("role") == "assistant"]
+    assert len(assistant_msgs[-1].get("tool_calls", [])) == 2
 
 
 @pytest.mark.asyncio

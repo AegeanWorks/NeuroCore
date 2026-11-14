@@ -29,6 +29,9 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+      - name: Lint (pyflakes gate, H-10)
+        run: python -m ruff check --select F821,F823 .
+
   docker:
     runs-on: ubuntu-latest
     steps:

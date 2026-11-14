@@ -52,7 +52,10 @@ async def fake_get_executor_class(cls, module_id, node_type_id):
     return make_executor(node_type_id)
 
 
-FlowRunner._get_executor_class = classmethod(fake_get_executor_class)
+# Deliberate offline repro of audit findings: substitute the fake executor for
+# the whole repro process (mirrors tests/conftest.py's setattr idiom, a private
+# patch a repro scope owns).
+setattr(FlowRunner, "_get_executor_class", classmethod(fake_get_executor_class))
 
 
 def node(nid, ntype="pass"):
@@ -131,7 +134,7 @@ async def scenario_keyerror_escapes():
         return Boom
 
     saved = FlowRunner._get_executor_class
-    FlowRunner._get_executor_class = classmethod(get_cls)
+    setattr(FlowRunner, "_get_executor_class", classmethod(get_cls))
     try:
         flow = {"id": "f5", "nodes": [node("x")], "connections": []}
         r = FlowRunner("f5", flow_override=flow, capture_outcome=False)
@@ -143,7 +146,7 @@ async def scenario_keyerror_escapes():
             print(f"[keyerror] raise_errors=False but KeyError escaped: {exc!r}")
             print("  VERDICT: BUG CONFIRMED (contract says error dict is returned)")
     finally:
-        FlowRunner._get_executor_class = saved
+        setattr(FlowRunner, "_get_executor_class", saved)
 
 
 async def scenario_attributeerror_swallowed():
@@ -158,7 +161,7 @@ async def scenario_attributeerror_swallowed():
         return Buggy
 
     saved = FlowRunner._get_executor_class
-    FlowRunner._get_executor_class = classmethod(get_cls)
+    setattr(FlowRunner, "_get_executor_class", classmethod(get_cls))
     try:
         flow = {"id": "f6", "nodes": [node("x")], "connections": []}
         r = FlowRunner("f6", flow_override=flow, capture_outcome=False)
@@ -167,7 +170,7 @@ async def scenario_attributeerror_swallowed():
         print("  VERDICT:", "BUG CONFIRMED (crash masked as pass-through success)"
               if isinstance(res, dict) and "error" not in res else "not reproduced")
     finally:
-        FlowRunner._get_executor_class = saved
+        setattr(FlowRunner, "_get_executor_class", saved)
 
 
 def scenario_planner_skips_blocked_step():

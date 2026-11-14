@@ -7,11 +7,26 @@
     <!-- Tailwind CSS (CDN for minimal setup, PurgeCSS will make it tiny in production) -->
     <script src="https://cdn.tailwindcss.com"></script> <!-- hygiene: allow cdn asset -->
     <!-- HTMX (Fast and less memory than React/Vue/Svelte) -->
-    <script src="https://unpkg.com/htmx.org@2.0.2"></script> <!-- hygiene: allow cdn asset -->
+    <script src="/static/vendor/htmx-2.0.2.min.js"></script> <!-- hygiene: allow cdn asset -->
     <!-- Sortable.js for drag-and-drop -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script> <!-- hygiene: allow cdn asset -->
-    <!-- Marked.js for Markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <script src="/static/vendor/Sortable-1.15.2.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <!-- Marked.js for Markdown rendering (pinned; vendor + SRI + CSP in Phase 3) -->
+    <script src="/static/vendor/marked-12.0.2.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <!-- DOMPurify for sanitising model-rendered Markdown (C-2) -->
+    <script src="/static/vendor/purify-3.1.6.min.js"></script> <!-- hygiene: allow cdn asset -->
+    <script>
+        // Single sanitised-Markdown helper (C-2): all model output goes through this.
+        function renderMarkdown(text) {
+            var src = (text === null || text === undefined) ? "" : String(text);
+            var html = "";
+            try {
+                html = (window.marked ? marked.parse(src) : src);
+            } catch (e) { html = ""; }
+            if (window.DOMPurify) return DOMPurify.sanitize(html);
+            console.warn("DOMPurify missing; refusing to inject unsanitised HTML");
+            return "";
+        }
+    </script>
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }

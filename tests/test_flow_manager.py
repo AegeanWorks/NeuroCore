@@ -381,3 +381,66 @@ def test_validate_flow_reports_a_dangling_connection_without_saving(tmp_path):
 
     assert errors
     assert manager.get_flow("bad") is None
+
+def test_validate_flow_flags_empty_router_branches(tmp_path):
+    """L-6: an unconfigured router must not pass validation silently."""
+    manager = FlowManager(storage_file=str(tmp_path / "flows.json"))
+
+    errors = manager.validate_flow("router", {
+        "name": "Router",
+        "nodes": [
+            {"id": "r1", "moduleId": "logic", "nodeTypeId": "conditional_router",
+             "config": {"check_field": "tool_calls", "true_branches": [], "false_branches": []}},
+            {"id": "n2", "moduleId": "chat", "nodeTypeId": "chat_output"},
+        ],
+        "connections": [{"from": "r1", "to": "n2"}],
+    })
+
+    assert any("true_branches" in e for e in errors)
+    assert any("false_branches" in e for e in errors)
+
+
+def test_validate_flow_flags_stale_branch_targets(tmp_path):
+    """L-6: branch ids left over from copy/paste are reported."""
+    manager = FlowManager(storage_file=str(tmp_path / "flows.json"))
+
+    errors = manager.validate_flow("router", {
+        "name": "Router",
+        "nodes": [
+            {"id": "r1", "moduleId": "logic", "nodeTypeId": "conditional_router",
+             "config": {"true_branches": ["ghost"], "false_branches": ["n2"]}},
+            {"id": "n2", "moduleId": "chat", "nodeTypeId": "chat_output"},
+        ],
+        "connections": [{"from": "r1", "to": "n2"}],
+    })
+
+    assert any("ghost" in e for e in errors)
+
+
+def test_make_active_flow_default_backups_are_distinct(flow_manager, monkeypatch):
+    import core.flow_manager as fm
+
+    flow_manager.save_flow("A", [], [], flow_id="flow-a")
+    monkeypatch.setattr(fm.settings, "get", lambda k, d=None: ["flow-a"] if k == "active_ai_flows" else d)
+    assert flow_manager.make_active_flow_default() is True
+    assert flow_manager.make_active_flow_default() is True
+    backups = [k for k in flow_manager.flows if k.startswith("default-flow-backup-")]
+    assert len(backups) >= 2
+    assert len(set(backups)) == len(backups)
+
+
+def test_corrupt_versions_file_is_quarantined_not_dropped(tmp_path):
+    """L-18: a corrupt versions file is preserved aside, not silently reset."""
+    from core.flow_manager import FlowManager as _FM
+
+    storage = str(tmp_path / "flows.json")
+    manager = _FM(storage_file=storage)
+    versions_file = manager.versions_file
+    with open(versions_file, "w", encoding="utf-8") as f:
+        f.write("{not valid json")
+
+    reopened = _FM(storage_file=storage)
+    assert reopened.versions == {}
+    quarantined = [p for p in tmp_path.iterdir() if ".corrupt-" in p.name]
+    assert len(quarantined) == 1
+    assert "not valid json" in quarantined[0].read_text(encoding="utf-8")

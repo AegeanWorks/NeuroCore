@@ -99,6 +99,29 @@ class TestMessagingOutputExecutor:
         setattr(MessagingOutputExecutor, "_bridge_cache", {})
         return MessagingOutputExecutor()
 
+    async def test_bad_telegram_chat_id_skips_send(self, executor):
+        from unittest.mock import AsyncMock, patch
+
+        mock_bridge = AsyncMock()
+        mock_bridge.send_message = AsyncMock(return_value=True)
+
+        config_data = {
+            "telegram_bot_token": "tok",
+            "telegram_chat_id": "abc",
+            "discord_bot_token": "",
+            "discord_channel_id": "",
+            "signal_api_url": "",
+            "signal_phone_number": "",
+        }
+
+        with patch("modules.messaging_bridge.node.ConfigLoader.get_config", return_value=config_data):
+            with patch("modules.messaging_bridge.telegram_bridge.TelegramBridge", return_value=mock_bridge) as tg:
+                data = {"content": "hello", "_messaging_platform": "telegram", "_messaging_reply_to": ""}
+                result = await executor.receive(data, config={"platform": "telegram"})
+                assert result == data
+                tg.assert_not_called()
+                mock_bridge.send_message.assert_not_called()
+
     async def test_no_content_passes_through(self, executor):
         data = {"messages": []}
         result = await executor.receive(data)
@@ -811,3 +834,66 @@ class TestSessionStore:
         store.delete("tg:42")
         assert store.get("tg:42") is None
         svc.SESSIONS_FILE = original
+
+# ---------------------------------------------------------------------------
+# L-14: WhatsApp webhook shared secret
+# ---------------------------------------------------------------------------
+
+class _StubManager:
+    def __init__(self, config):
+        self.modules = {"messaging_bridge": {"config": config}}
+
+
+class _StubApp:
+    def __init__(self, manager):
+        self.state = type("S", (), {"module_manager": manager})()
+
+
+class _StubRequest:
+    def __init__(self, payload, headers=None, manager=None):
+        self._payload = payload
+        self.headers = headers or {}
+        self.app = _StubApp(manager or _StubManager({}))
+
+    async def json(self):
+        return self._payload
+
+
+class TestWhatsappWebhookSecret:
+    async def test_rejects_wrong_secret_when_configured(self, monkeypatch):
+        import importlib
+        r = importlib.import_module("modules.messaging_bridge.router")
+
+        monkeypatch.setattr(r, "messaging_service",
+                            type("M", (), {"get_handler": lambda self, name: (_ for _ in ()).throw(AssertionError("must not run"))})())
+        req = _StubRequest({"a": 1}, {"x-webhook-secret": "wrong"},
+                           _StubManager({"whatsapp_webhook_secret": "s3cret"}))
+        resp = await r.whatsapp_webhook(req)
+        assert resp.status_code == 403
+
+    async def test_accepts_correct_secret(self, monkeypatch):
+        import importlib
+        r = importlib.import_module("modules.messaging_bridge.router")
+
+        seen = []
+        handler = type("H", (), {"handle_incoming_webhook": lambda self, p: seen.append(p)})()
+        monkeypatch.setattr(r, "messaging_service",
+                            type("M", (), {"get_handler": lambda self, name: handler})())
+        req = _StubRequest({"a": 1}, {"x-webhook-secret": "s3cret"},
+                           _StubManager({"whatsapp_webhook_secret": "s3cret"}))
+        resp = await r.whatsapp_webhook(req)
+        assert resp.status_code == 200
+        assert seen == [{"a": 1}]
+
+    async def test_open_without_secret_keeps_handler(self, monkeypatch):
+        import importlib
+        r = importlib.import_module("modules.messaging_bridge.router")
+
+        seen = []
+        handler = type("H", (), {"handle_incoming_webhook": lambda self, p: seen.append(p)})()
+        monkeypatch.setattr(r, "messaging_service",
+                            type("M", (), {"get_handler": lambda self, name: handler})())
+        monkeypatch.setattr(r, "_webhook_secret_warned", True, raising=False)
+        resp = await r.whatsapp_webhook(_StubRequest({"a": 2}, {}))
+        assert resp.status_code == 200
+        assert seen == [{"a": 2}]

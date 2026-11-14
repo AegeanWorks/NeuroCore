@@ -53,8 +53,14 @@ def test_an_alias_resolves_to_the_canonical_limits():
 
 
 def test_over_limit_context_is_refused_because_it_cannot_be_truncated():
+    # H-1: non-strict passes through (warn-and-continue for default
+    # installs with image content); strict mode refuses.
+    result = ModelRegistry(LIMITS).clamp("test-model", output_tokens=5, context_tokens=101)
+    assert result.context_tokens == 101
     with pytest.raises(ModelLimitExceeded):
-        ModelRegistry(LIMITS).clamp("test-model", output_tokens=5, context_tokens=101)
+        ModelRegistry(LIMITS, strict=True).clamp(
+            "test-model", output_tokens=5, context_tokens=101
+        )
 
 
 def test_zero_or_negative_ceilings_are_refused_at_load():

@@ -74,3 +74,26 @@ def test_global_debug_logger_exists():
     from core.debug import debug_logger as global_logger
     assert global_logger is not None
     assert isinstance(global_logger, DebugLogger)
+
+def test_log_skips_serialization_when_debug_off(debug_logger, monkeypatch):
+    """L-16: payload serialization must not run when debug logging is off."""
+    import json as _json
+    import core.debug as _dbg
+
+    calls = []
+    real_dumps = _json.dumps
+
+    def _boom(*args, **kwargs):
+        calls.append(1)
+        raise AssertionError("serialization must be lazy")
+
+    monkeypatch.setattr(_json, "dumps", _boom)
+    monkeypatch.setattr(_dbg.logger, "isEnabledFor", lambda level: False)
+    debug_logger.log("flow1", "n1", "Node 1", "event1", {"big": "x" * 100000})
+    assert calls == []
+    assert len(debug_logger.logs) == 1
+
+    monkeypatch.setattr(_json, "dumps", real_dumps)
+    monkeypatch.setattr(_dbg.logger, "isEnabledFor", lambda level: True)
+    debug_logger.log("flow1", "n2", "Node 2", "event2", {"img": "y" * 5000})
+    assert len(debug_logger.logs) == 2

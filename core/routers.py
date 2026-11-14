@@ -5,8 +5,9 @@ import sys
 import platform
 import asyncio
 import logging
+import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, Form, Depends, HTTPException, Response, BackgroundTasks, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
@@ -247,6 +248,58 @@ def _load_blocklist() -> list:
         return []
 
 
+_catalog_lock = threading.Lock()
+
+
+def _read_catalog_snapshot() -> list:
+    """Locked tolerant read of the marketplace catalog (M-DATA-6)."""
+    import os
+    path = data_path("marketplace", "catalog.json")
+    with _catalog_lock:
+        if not os.path.exists(path):
+            return []
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                catalog = json.load(f)
+        except Exception as _exc:
+            logger.warning("Marketplace catalog unreadable: %s", _exc)
+            return []
+        return catalog if isinstance(catalog, list) else []
+
+
+def _update_catalog(mutator):
+    """Locked read-modify-write of marketplace catalog.json (M-DATA-6).
+
+    ``mutator`` receives the catalog list and returns the list to persist
+    (or None to persist the mutated input). The write is atomic
+    (temp file + replace) and all mutations hold one lock, so concurrent
+    votes, downloads and imports cannot lose updates or corrupt the file.
+    Reads elsewhere stay lock-free and tolerant.
+    """
+    import os
+    path = data_path("marketplace", "catalog.json")
+    with _catalog_lock:
+        catalog = []
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    catalog = json.load(f)
+            except Exception as _exc:
+                logger.warning("Marketplace catalog unreadable, starting empty: %s", _exc)
+                catalog = []
+        if not isinstance(catalog, list):
+            catalog = []
+        result = mutator(catalog)
+        if result is not None:
+            catalog = result
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(catalog, f, indent=4)
+        os.replace(tmp, path)
+        return catalog
+
+
 def _save_blocklist(handles: list) -> None:
     import os
     path = data_path("blocklist.json")
@@ -362,9 +415,73 @@ def is_item_owner(item: dict) -> bool:
     return _is_legacy_owner(item)
 
 
+# M-SEC-4: a config key is secret when its name carries one of these markers.
+# Secret values are never rendered into pages; empty form input leaves them unchanged.
+SECRET_KEY_MARKERS = ("token", "password", "secret", "api_key", "api-key", "private_key")
+
+
+def _is_secret_key(name: str) -> bool:
+    lowered = str(name or "").lower()
+    return any(marker in lowered for marker in SECRET_KEY_MARKERS)
+
+
+def _redacted_module(module: dict) -> dict:
+    """Copy a module dict with secret config values blanked (M-SEC-4)."""
+    if not isinstance(module, dict):
+        return module
+    copy_module = dict(module)
+    config = module.get("config")
+    if isinstance(config, dict):
+        redacted = {}
+        for key, value in config.items():
+            redacted[key] = "" if (_is_secret_key(key) and value) else value
+        copy_module["config"] = redacted
+    # Flags so the template can say "configured" without rendering the value.
+    try:
+        copy_module["secrets_configured"] = sorted(
+            key for key, value in (config or {}).items()
+            if isinstance(config, dict) and _is_secret_key(key) and value
+        )
+    except Exception:
+        copy_module["secrets_configured"] = []
+    return copy_module
+
+
+def _redacted_settings(settings_man) -> dict:
+    """Copy settings with secret values blanked plus *_configured flags (M-SEC-4)."""
+    try:
+        raw = dict(settings_man.settings)
+    except Exception:
+        raw = {}
+    redacted = {}
+    for key, value in raw.items():
+        redacted[key] = "" if (_is_secret_key(key) and value) else value
+    for key in raw:
+        if _is_secret_key(key):
+            try:
+                redacted[f"{key}_configured"] = bool(raw.get(key))
+            except Exception as _exc:
+                logger.debug("Configured flag for %s skipped: %s", key, _exc)
+    return redacted
+
+
+def _module_details_context(module: dict, settings_man) -> dict:
+    """Shared context for the module details page (details + toggle) (M-SEC-4)."""
+    redacted = _redacted_module(module)
+    config_display = dict(redacted.get("config", {}) or {})
+    for key in HIDDEN_CONFIG_KEYS.get(module.get("id", ""), []):
+        config_display.pop(key, None)
+    return {
+        "module": redacted,
+        "formatted_config": json.dumps(config_display, indent=4),
+        "has_visible_config": len(config_display) > 0,
+        "settings": _redacted_settings(settings_man),
+    }
+
+
 # Centralized definition of config keys that should be hidden from the generic JSON editor
 HIDDEN_CONFIG_KEYS = {
-    'memory': ['save_default_confidence', 'save_confidence_threshold', 'recall_limit', 'recall_min_score', 'consolidation_threshold', 'auto_consolidation_hours', 'arbiter_model', 'arbiter_prompt', 'similarity_threshold', 'belief_ttl_days', 'recall_access_weight'],
+    'memory': ['save_default_confidence', 'save_delay', 'recall_link_boost', 'recall_max_total_chars', 'recall_max_item_chars', 'memory_scope_policy', 'memory_scope_required', 'save_confidence_threshold', 'recall_limit', 'recall_min_score', 'consolidation_threshold', 'auto_consolidation_hours', 'arbiter_model', 'arbiter_prompt', 'similarity_threshold', 'belief_ttl_days', 'recall_access_weight'],
     'llm_module': ['temperature', 'max_tokens'],
     'chat': ['auto_rename_turns', 'auto_compact_tokens', 'compact_keep_last'],
     'agent_loop': ['max_iterations', 'max_tokens', 'temperature', 'max_llm_retries', 'retry_delay', 'timeout', 'tool_error_strategy', 'include_plan_in_context', 'include_memory_context', 'include_knowledge_context', 'include_reasoning_context', 'compact_threshold', 'compact_keep_last'],
@@ -374,6 +491,11 @@ HIDDEN_CONFIG_KEYS = {
         'discord_bot_token', 'discord_channel_id',
         'signal_api_url', 'signal_phone_number',
         'whatsapp_api_url', 'whatsapp_api_key', 'whatsapp_instance', 'whatsapp_phone_number',
+        'whatsapp_webhook_secret',
+        'telegram_allowed_senders', 'telegram_allowed_chats',
+        'discord_allowed_senders', 'discord_allowed_chats',
+        'signal_allowed_senders', 'signal_allowed_chats',
+        'whatsapp_allowed_senders', 'whatsapp_allowed_chats',
     ],
     'email_bridge': [
         'imap_host', 'imap_port', 'imap_use_ssl', 'imap_username', 'imap_password',
@@ -382,6 +504,113 @@ HIDDEN_CONFIG_KEYS = {
         'smtp_from_address', 'reply_to_address',
     ],
 }
+
+# --- Browser login (M-SEC-8) ---
+# A token-protected remote deployment needs a browser path: POST /login
+# exchanges the API token for an HttpOnly, SameSite=Strict session cookie.
+# The guard exempts /login so the exchange itself is reachable; attempts are
+# rate-limited and the token is never logged or stored.
+
+_LOGIN_PAGE = """<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuroCore login</title>
+<style>body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+form{background:#1e293b;padding:2rem;border-radius:12px;min-width:300px}
+input{width:100%;padding:.5rem;margin:.5rem 0;box-sizing:border-box}
+button{width:100%;padding:.6rem;background:#3b82f6;color:#fff;border:0;border-radius:8px}
+.err{color:#f87171;min-height:1.2em}</style></head>
+<body><form method="post" action="/login">
+<h2>NeuroCore</h2><p class="err">__ERROR__</p>
+<label>API token<input type="password" name="token" autocomplete="current-password"></label>
+<button type="submit">Sign in</button></form></body></html>"""
+
+
+def _login_client_key(request: Request) -> str:
+    try:
+        client = getattr(request, "client", None)
+        host = getattr(client, "host", None) if client else None
+    except Exception:
+        host = None
+    return str(host or "unknown")
+
+
+def _issue_session_cookie(response: Response, request: Request, sid: str) -> None:
+    from core.security import SESSION_COOKIE, SESSION_TTL_SECONDS
+
+    try:
+        secure = str(getattr(request.url, "scheme", "http")).lower() == "https"
+    except Exception:
+        secure = False
+    response.set_cookie(
+        SESSION_COOKIE, sid,
+        max_age=SESSION_TTL_SECONDS, httponly=True, samesite="strict",
+        path="/", secure=secure,
+    )
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    from core.security import api_token
+
+    if not api_token():
+        return RedirectResponse("/", status_code=302)
+    return HTMLResponse(_LOGIN_PAGE.replace("__ERROR__", ""))
+
+
+@router.post("/login")
+async def login(request: Request, token: str = Form(default="")):
+    import hmac as _hmac
+
+    from core.security import (
+        SESSION_COOKIE, api_token, create_browser_session, login_allowed,
+    )
+
+    expected = api_token()
+    if not expected:
+        return RedirectResponse("/", status_code=302)
+    if not login_allowed(_login_client_key(request)):
+        raise HTTPException(status_code=429, detail="Too many login attempts; try again later.")
+    provided = token
+    content_type = (request.headers.get("content-type") or "").lower()
+    if not provided and "application/json" in content_type:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                provided = str(body.get("token") or "")
+        except Exception:
+            provided = ""
+    try:
+        ok = bool(provided) and _hmac.compare_digest(
+            provided.encode("utf-8"), expected.encode("utf-8")
+        )
+    except Exception:
+        ok = False
+    if not ok:
+        if "application/json" in content_type:
+            raise HTTPException(status_code=403, detail="Invalid API token.")
+        return HTMLResponse(_LOGIN_PAGE.replace("__ERROR__", "Invalid token."), status_code=403)
+    sid = create_browser_session()
+    if "application/json" in content_type:
+        response = JSONResponse({"ok": True})
+    else:
+        response = RedirectResponse("/", status_code=302)
+    _issue_session_cookie(response, request, sid)
+    return response
+
+
+@router.post("/logout")
+async def logout(request: Request):
+    from core.security import SESSION_COOKIE, revoke_browser_session
+
+    try:
+        revoke_browser_session(request.cookies.get(SESSION_COOKIE))
+    except Exception as _exc:
+        logger.debug("Logout session revoke best-effort failed: %s", _exc)
+    response = RedirectResponse("/login", status_code=302)
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
 
 # --- System & Navigation ---
 
@@ -605,21 +834,8 @@ async def get_module_details(request: Request, module_id: str, module_manager: M
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
     
-    config_display = module.get('config', {}).copy()
-    keys_to_hide = HIDDEN_CONFIG_KEYS.get(module_id, [])
-    for key in keys_to_hide:
-        config_display.pop(key, None)
-        
-    formatted_config = json.dumps(config_display, indent=4)
-    
-    # Check if there are any keys left to display
-    has_visible_config = len(config_display) > 0
-    
     return templates.TemplateResponse(request, "module_details.html", {
-        "module": module, 
-        "formatted_config": formatted_config,
-        "has_visible_config": has_visible_config,
-        "settings": settings_man.settings
+        **_module_details_context(module, settings_man),
     })
 
 @router.get("/modules/{module_id}/default-prompt")
@@ -651,14 +867,38 @@ async def save_module_config(request: Request, module_id: str, module_manager: M
         
         # Handle system_prompt module specially
         if module_id == "system_prompt":
-            new_config = {}
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
             if "system_prompt" in form_data:
                 new_config["system_prompt"] = form_data["system_prompt"]
-            if "enabled_tools" in form_data:
+            for _key in ("enabled_tools", "enabled_skills"):
+                if _key in form_data:
+                    raw = form_data[_key]
+                    if isinstance(raw, (list, tuple)):
+                        items = [str(v).strip() for v in raw if str(v).strip()]
+                    else:
+                        text = str(raw or "").strip()
+                        if not text:
+                            items = []
+                        else:
+                            try:
+                                parsed = json.loads(text)
+                                if isinstance(parsed, list):
+                                    items = [str(v).strip() for v in parsed if str(v).strip()]
+                                else:
+                                    items = [s.strip() for s in text.split(",") if s.strip()]
+                            except (json.JSONDecodeError, ValueError):
+                                items = [s.strip() for s in text.split(",") if s.strip()]
+                    # Deduplicate while preserving order.
+                    seen = set()
+                    new_config[_key] = [x for x in items if not (x in seen or seen.add(x))]
+            if "max_token_budget" in form_data:
                 try:
-                    new_config["enabled_tools"] = json.loads(form_data["enabled_tools"])
-                except json.JSONDecodeError:
-                    new_config["enabled_tools"] = []
+                    budget = int(form_data["max_token_budget"])
+                    new_config["max_token_budget"] = max(500, min(32000, budget))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
         # Handle reflection module with custom prompt
         elif module_id == "reflection":
             new_config = {}
@@ -782,6 +1022,8 @@ async def save_module_config(request: Request, module_id: str, module_manager: M
                             'imap_filter_sender', 'smtp_host', 'smtp_username', 'smtp_password',
                             'smtp_from_address', 'reply_to_address'):
                 if str_key in form_data:
+                    if _is_secret_key(str_key) and not str(form_data[str_key] or "").strip():
+                        continue
                     new_config[str_key] = form_data[str_key]
             for int_key in ('imap_port', 'smtp_port', 'poll_interval'):
                 if int_key in form_data:
@@ -794,12 +1036,147 @@ async def save_module_config(request: Request, module_id: str, module_manager: M
             if section in ('smtp', ''):
                 new_config['smtp_use_tls'] = form_data.get('smtp_use_tls') == 'true'
 
+        elif module_id == "brain":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "mode" in form_data and str(form_data["mode"]) in ("observe", "suggest", "auto"):
+                new_config["mode"] = str(form_data["mode"])
+            for _int_key, _lo, _hi in (
+                ("cycle_interval_seconds", 5, 3600),
+                ("max_cycles_per_hour", 1, 1000),
+                ("max_experiences", 10, 10000),
+                ("max_skills", 10, 5000),
+                ("min_occurrences", 1, 100),
+                ("max_candidates_per_day", 1, 200),
+                ("max_evaluations_per_day", 1, 200),
+                ("max_promotions_per_day", 1, 50),
+                ("max_candidates", 10, 2000),
+                ("max_config_changes_per_day", 1, 200),
+                ("trend_window", 2, 500),
+                ("trend_history", 10, 10000),
+                ("trend_max_per_day", 1, 50),
+                ("trend_cooldown_seconds", 0, 604800),
+                ("poll_interval_seconds", 5, 3600),
+                ("dedupe_window_seconds", 0, 86400),
+                ("max_reactions_per_hour", 1, 500),
+            ):
+                if _int_key in form_data:
+                    try:
+                        new_config[_int_key] = max(_lo, min(_hi, int(float(form_data[_int_key]))))
+                    except (ValueError, TypeError) as _exc:
+                        logger.debug("ignored exception: %s", _exc)
+            for _float_key, _lo, _hi in (
+                ("holdout_ratio", 0.0, 0.5),
+                ("trend_min_delta", 0.0, 10.0),
+                ("min_salience", 0.0, 1.0),
+            ):
+                if _float_key in form_data:
+                    try:
+                        new_config[_float_key] = max(_lo, min(_hi, float(form_data[_float_key])))
+                    except (ValueError, TypeError) as _exc:
+                        logger.debug("ignored exception: %s", _exc)
+            for _bool_key in ("auto_start", "reactivity_auto_start", "capture_flow_outcomes",
+                              "inject_flow_context", "require_goal_link"):
+                if _bool_key in form_data or form_data.get(f"save_{_bool_key}") == "1":
+                    new_config[_bool_key] = form_data.get(_bool_key) == "true"
+            if "configurable_modules" in form_data:
+                raw = form_data["configurable_modules"]
+                text = str(raw or "").strip()
+                if not text:
+                    items = []
+                else:
+                    try:
+                        parsed = json.loads(text)
+                        items = [str(v).strip() for v in parsed] if isinstance(parsed, list) else [s.strip() for s in text.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        items = [s.strip() for s in text.split(",") if s.strip()]
+                seen = set()
+                new_config["configurable_modules"] = [x for x in items if not (x in seen or seen.add(x))]
+            if "watch_paths" in form_data:
+                raw = str(form_data["watch_paths"] or "").strip()
+                if not raw:
+                    new_config["watch_paths"] = []
+                else:
+                    try:
+                        parsed = json.loads(raw)
+                        new_config["watch_paths"] = list(parsed) if isinstance(parsed, list) else [s.strip() for s in raw.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        new_config["watch_paths"] = [s.strip() for s in raw.split(",") if s.strip()]
+            if "allowed_tools" in form_data:
+                raw = str(form_data["allowed_tools"] or "").strip()
+                if not raw:
+                    new_config["allowed_tools"] = []
+                else:
+                    try:
+                        parsed = json.loads(raw)
+                        items = [str(v).strip() for v in parsed] if isinstance(parsed, list) else [s.strip() for s in raw.split(",") if s.strip()]
+                    except (json.JSONDecodeError, ValueError):
+                        items = [s.strip() for s in raw.split(",") if s.strip()]
+                    seen = set()
+                    new_config["allowed_tools"] = [x for x in items if not (x in seen or seen.add(x))]
+
+        elif module_id == "browser_automation":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "headless" in form_data or form_data.get("save_headless") == "1":
+                new_config["headless"] = form_data.get("headless") == "true"
+            if "timeout" in form_data:
+                try:
+                    new_config["timeout"] = max(1000, min(300000, int(form_data["timeout"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            viewport = dict(current_config.get("default_viewport", {}) or {})
+            if "viewport_width" in form_data:
+                try:
+                    viewport["width"] = max(320, min(7680, int(form_data["viewport_width"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            if "viewport_height" in form_data:
+                try:
+                    viewport["height"] = max(240, min(4320, int(form_data["viewport_height"])))
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            new_config["default_viewport"] = viewport
+
+        elif module_id == "autonomous_agent":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "agent_config_path" in form_data:
+                path = str(form_data["agent_config_path"] or "").strip()
+                if path:
+                    new_config["agent_config_path"] = path
+            if "auto_start" in form_data or form_data.get("save_auto_start") == "1":
+                new_config["auto_start"] = form_data.get("auto_start") == "true"
+
+        elif module_id == "tools":
+            current_module = module_manager.modules.get(module_id)
+            current_config = current_module.get('config', {}) if current_module else {}
+            new_config = dict(current_config)
+            if "manifest_version" in form_data:
+                try:
+                    new_config["manifest_version"] = int(form_data["manifest_version"])
+                except (ValueError, TypeError) as _exc:
+                    logger.debug("ignored exception: %s", _exc)
+            # Checkboxes post one value per checked primitive; a hidden
+            # marker tells us the form was submitted so unchecked = disabled.
+            if form_data.get("save_supported_primitives") == "1":
+                raw = form_data.getlist("supported_primitives") if hasattr(form_data, "getlist") else form_data.get("supported_primitives", [])
+                if isinstance(raw, str):
+                    raw = [raw]
+                allowed = {"sandbox", "library_source", "rlm_library_source",
+                           "outbound_staging", "human_approval", "network",
+                           "inline_source", "progress", "cancel"}
+                new_config["supported_primitives"] = sorted({str(v) for v in (raw or []) if str(v) in allowed})
+
         else:
 
             # Standard JSON config
             if "config_json" not in form_data:
                 return Response(status_code=400, headers={"HX-Trigger": json.dumps({"showMessage": {"level": "error", "message": "Missing config_json field"}})})
-            
+
             new_config = json.loads(form_data["config_json"])
         
         # Preserve hidden keys by merging from existing config
@@ -839,20 +1216,22 @@ async def reorder_modules(request: Request, order: str = Form(...), module_manag
 
 
 @router.post("/modules/{module_id}/{action}")
-async def toggle_module(request: Request, module_id: str, action: str, module_manager: ModuleManager = Depends(get_module_manager)):
+async def toggle_module(request: Request, module_id: str, action: str, module_manager: ModuleManager = Depends(get_module_manager), settings_man: SettingsManager = Depends(get_settings_manager)):
     if action == "enable":
         module = module_manager.enable_module(module_id)
     elif action == "disable":
         module = module_manager.disable_module(module_id)
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
-    
+
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
-    
-    formatted_config = json.dumps(module.get('config', {}), indent=4)
+
+    # M-SEC-4: toggling re-renders details through the same redaction as the
+    # details page, never the raw config with secrets.
+    context = _module_details_context(module, settings_man)
     return templates.TemplateResponse(
-        request, "module_details.html", {"module": module, "formatted_config": formatted_config}, headers={"HX-Trigger": json.dumps({"modulesChanged": None, "showMessage": {"level": "success", "message": f"Module {action}d"}})}
+        request, "module_details.html", context, headers={"HX-Trigger": json.dumps({"modulesChanged": None, "showMessage": {"level": "success", "message": f"Module {action}d"}})}
     )
 
 
@@ -956,38 +1335,50 @@ async def set_active_flow(request: Request, flow_id: str, action: str = Form("to
     
     settings_man.save_settings({"active_ai_flows": active_flows})
     
-    # Auto-start the flow if it has a Repeater node
+    # Auto-start the flow if it has a Repeater node (H-7, L-7: only when
+    # the flow was activated, never on deactivate; repeaters are triggers).
     flow = flow_manager.get_flow(flow_id)
-    if flow:
+    if flow and flow_id in active_flows:
         background_node_types = ["repeater_node"]
         nodes = flow.get("nodes", [])
-        connections = flow.get("connections", [])
-        
-        # Find repeater nodes that have incoming connections
-        start_nodes = []
-        for n in nodes:
-            if n.get("nodeTypeId") in background_node_types:
-                # Check if this node has any incoming connections
-                has_incoming = any(c.get("to") == n.get("id") for c in connections)
-                if has_incoming:
-                    start_nodes.append(n)
-        
+
+        # Find repeater nodes (H-7: sourceless repeaters are the triggers;
+        # mid-flow repeaters keep their previous auto-start behaviour).
+        start_nodes = [n for n in nodes if n.get("nodeTypeId") in background_node_types]
+
         if start_nodes:
             from core.flow_runner import FlowRunner
-            from fastapi import BackgroundTasks
-            
-            node = start_nodes[0]
-            logger.info(f"[System] Auto-starting flow '{flow.get('name')}' from {node['nodeTypeId']} '{node['id']}'.")
-            
-            async def run_flow():
+
+            registry = getattr(request.app.state, "repeater_loops", None)
+            if registry is None:
+                registry = {}
+                request.app.state.repeater_loops = registry
+
+            async def run_flow(start_node_id: str):
                 runner = FlowRunner(flow_id)
-                await runner.run({"_repeat_count": 1}, start_node_id=node['id'])
-            
-            if hasattr(request.app.state, 'background_tasks'):
-                task = asyncio.create_task(run_flow())
+                await runner.run({"_repeat_count": 1}, start_node_id=start_node_id)
+
+            for node in start_nodes:
+                key = (flow_id, node.get("id"))
+                existing = registry.get(key)
+                if existing is not None and not existing.done():
+                    continue
+                logger.info(f"[System] Auto-starting flow '{flow.get('name')}' from {node['nodeTypeId']} '{node['id']}'.")
+                node_id = node.get("id")
+                task = asyncio.create_task(run_flow(node_id))
+                registry[key] = task
+
+                def _cleanup(t, _key=key):
+                    try:
+                        if registry.get(_key) is t:
+                            del registry[_key]
+                    except Exception as _exc:
+                        logger.debug("Flow registry cleanup skipped: %s", _exc)
                 # Add callback to remove task from set when done to prevent memory leak
-                task.add_done_callback(request.app.state.background_tasks.discard)
-                request.app.state.background_tasks.add(task)
+                task.add_done_callback(_cleanup)
+                if hasattr(request.app.state, 'background_tasks'):
+                    request.app.state.background_tasks.add(task)
+                    task.add_done_callback(request.app.state.background_tasks.discard)
     
     return templates.TemplateResponse(request, "ai_flow_list.html", {
         "flows": flow_manager.list_flows(),
@@ -1095,7 +1486,7 @@ async def run_flow_node(flow_id: str, node_id: str, request: Request, background
             # Inject some default data so nodes that expect input don't fail immediately
             payload = {
                 "trigger": True,
-                "timestamp": datetime.utcnow().isoformat() + 'Z',
+                "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "manual": True
             }
             await runner.run(payload, start_node_id=node_id)
@@ -1262,14 +1653,6 @@ async def upload_marketplace_item(
         with open(img_save_path, "wb") as f:
              shutil.copyfileobj(image.file, f)
         
-    catalog_path = data_path("marketplace", "catalog.json")
-    catalog = []
-    if os.path.exists(catalog_path):
-         try:
-             with open(catalog_path, "r", encoding="utf-8") as f:
-                 catalog = json.load(f)
-         except Exception as _exc: logger.debug("ignored exception: %s", _exc)
-             
     entry = {
         "id": item_id,
         "name": name,
@@ -1286,11 +1669,14 @@ async def upload_marketplace_item(
     }
     # Compute claim after entry is built so item_id is available
     entry["claim"] = make_claim(entry["id"])
-    catalog.append(entry)
-    
-    with open(catalog_path, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=4)
-        
+
+    # M-DATA-6: locked + atomic so concurrent uploads cannot lose entries.
+    def _append(catalog):
+        catalog.append(entry)
+        return catalog
+
+    _update_catalog(_append)
+
     return RedirectResponse(url="/marketplace", status_code=303)
 
 @router.get("/marketplace/image/{item_id}")
@@ -1337,18 +1723,16 @@ async def download_marketplace_item(item_id: str):
     if not os.path.exists(file_path):
          raise HTTPException(status_code=404, detail="File missing on disk")
         
-    # Increment download count in catalog
-    try:
-        with open(catalog_path, "r", encoding="utf-8") as f:
-            catalog_mutable = json.load(f)
-        for ci in catalog_mutable:
+    # Increment download count in catalog (M-DATA-6: locked + atomic).
+    def _bump_downloads(catalog):
+        for ci in catalog:
             if ci["id"] == item_id:
                 ci["download_count"] = ci.get("download_count", 0) + 1
                 break
-        tmp = catalog_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(catalog_mutable, f, indent=4)
-        os.replace(tmp, catalog_path)
+        return catalog
+
+    try:
+        _update_catalog(_bump_downloads)
     except Exception as _exc:
         logger.debug("ignored exception: %s", _exc)
 
@@ -1594,26 +1978,47 @@ async def update_marketplace_item(
     if description is not None:
         item["description"] = description
 
-    # Bump version
-    new_version = item.get("version", 1) + 1
-    item["version"] = new_version
-    item["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # Metadata to apply under the catalog lock (file writes above stay out).
+    pending_meta = {
+        "filename": getattr(file, "filename", None) if file and file.filename else None,
+        "content_hash": None,
+        "image_filename": locals().get("img_filename"),
+        "description": description,
+        "notes": update_notes.strip()[:500] if update_notes and update_notes.strip() else None,
+    }
+    if file and file.filename and "content" in locals():
+        import hashlib as _hashlib
+        pending_meta["content_hash"] = _hashlib.md5(content).hexdigest()
+    outcome = {}
 
-    # Append to changelog
-    if update_notes and update_notes.strip():
-        entry = {
-            "version": new_version,
-            "notes": update_notes.strip()[:500],
-            "timestamp": item["updated_at"],
-        }
-        item.setdefault("changelog", []).insert(0, entry)
+    def _apply_update(catalog):
+        target = next((i for i in catalog if i["id"] == item_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        if pending_meta["filename"]:
+            target["filename"] = pending_meta["filename"]
+        if pending_meta["content_hash"]:
+            target["content_hash"] = pending_meta["content_hash"]
+        if pending_meta["image_filename"]:
+            target["image_filename"] = pending_meta["image_filename"]
+        if pending_meta["description"] is not None:
+            target["description"] = pending_meta["description"]
+        new_version = target.get("version", 1) + 1
+        target["version"] = new_version
+        target["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if pending_meta["notes"]:
+            target.setdefault("changelog", []).insert(0, {
+                "version": new_version,
+                "notes": pending_meta["notes"],
+                "timestamp": target["updated_at"],
+            })
+        outcome["version"] = new_version
+        return catalog
 
-    tmp = catalog_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=4)
-    os.replace(tmp, catalog_path)
+    # M-DATA-6: version bump + metadata apply under one lock.
+    _update_catalog(_apply_update)
 
-    return JSONResponse(content={"status": "success", "version": item["version"]})
+    return JSONResponse(content={"status": "success", "version": outcome["version"]})
 
 
 @router.post("/marketplace/delete/{item_id}")
@@ -1646,10 +2051,8 @@ async def delete_marketplace_item(item_id: str):
          fpath = os.path.join(upload_dir, item["image_filename"])
          if os.path.exists(fpath): os.remove(fpath)
             
-    # Update Catalog
-    catalog = [i for i in catalog if i["id"] != item_id]
-    with open(catalog_path, "w", encoding="utf-8") as f:
-         json.dump(catalog, f, indent=4)
+    # Update Catalog (M-DATA-6: locked + atomic).
+    _update_catalog(lambda catalog: [i for i in catalog if i["id"] != item_id])
 
     from fastapi import Response
     return Response(status_code=200)
@@ -1677,24 +2080,29 @@ async def report_marketplace_item(item_id: str, reason: str = Form(...)):
         raise HTTPException(status_code=403, detail="You cannot report your own item")
 
     reporter_id = make_report_id()
-    reports = item.setdefault("reports", [])
 
-    if any(r.get("reporter_id") == reporter_id for r in reports):
-        raise HTTPException(status_code=409, detail="You have already reported this item")
+    def _append_report(catalog):
+        target = next((i for i in catalog if i["id"] == item_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        existing = target.setdefault("reports", [])
+        if any(r.get("reporter_id") == reporter_id for r in existing):
+            raise HTTPException(status_code=409, detail="You have already reported this item")
+        existing.append({
+            "reporter_id": reporter_id,
+            "reporter_handle": get_public_handle(),
+            "reason": reason.strip()[:500],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        })
+        return catalog
 
-    reports.append({
-        "reporter_id": reporter_id,
-        "reporter_handle": get_public_handle(),
-        "reason": reason.strip()[:500],
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-    })
+    # M-DATA-6: re-validated inside the lock so a concurrent report cannot
+    # slip past the duplicate check.
+    _update_catalog(_append_report)
 
-    tmp = catalog_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=4)
-    os.replace(tmp, catalog_path)
-
-    report_count = len(reports)
+    report_count = len(next(
+        (i for i in _read_catalog_snapshot() if i["id"] == item_id), {}
+    ).get("reports", []))
     return JSONResponse(content={
         "status": "success",
         "report_count": report_count,
@@ -1821,47 +2229,55 @@ async def vote_marketplace_item(item_id: str, direction: str):
         raise HTTPException(status_code=404, detail="Item not found")
 
     voter_id = make_vote_id(item_id)
+    outcome = {}
 
-    # Initialise vote fields if missing
-    if "voters" not in item:
-        item["voters"] = {}
-    if "upvotes" not in item:
-        item["upvotes"] = 0
-    if "downvotes" not in item:
-        item["downvotes"] = 0
+    def _apply_vote(catalog):
+        target = next((i for i in catalog if i["id"] == item_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Item not found")
 
-    previous = item["voters"].get(voter_id)
+        # Initialise vote fields if missing
+        if "voters" not in target:
+            target["voters"] = {}
+        if "upvotes" not in target:
+            target["upvotes"] = 0
+        if "downvotes" not in target:
+            target["downvotes"] = 0
 
-    if previous == direction:
-        # Same direction → remove vote (toggle off)
-        del item["voters"][voter_id]
-        if direction == "up":
-            item["upvotes"] = max(0, item["upvotes"] - 1)
+        previous = target["voters"].get(voter_id)
+
+        if previous == direction:
+            # Same direction → remove vote (toggle off)
+            del target["voters"][voter_id]
+            if direction == "up":
+                target["upvotes"] = max(0, target["upvotes"] - 1)
+            else:
+                target["downvotes"] = max(0, target["downvotes"] - 1)
+            outcome.update(upvotes=target["upvotes"], downvotes=target["downvotes"], user_vote=None)
         else:
-            item["downvotes"] = max(0, item["downvotes"] - 1)
-        user_vote = None
-    else:
-        # Remove previous vote if any
-        if previous == "up":
-            item["upvotes"] = max(0, item["upvotes"] - 1)
-        elif previous == "down":
-            item["downvotes"] = max(0, item["downvotes"] - 1)
-        # Apply new vote
-        item["voters"][voter_id] = direction
-        if direction == "up":
-            item["upvotes"] += 1
-        else:
-            item["downvotes"] += 1
-        user_vote = direction
+            # Remove previous vote if any
+            if previous == "up":
+                target["upvotes"] = max(0, target["upvotes"] - 1)
+            elif previous == "down":
+                target["downvotes"] = max(0, target["downvotes"] - 1)
+            # Apply new vote
+            target["voters"][voter_id] = direction
+            if direction == "up":
+                target["upvotes"] += 1
+            else:
+                target["downvotes"] += 1
+            outcome.update(upvotes=target["upvotes"], downvotes=target["downvotes"], user_vote=direction)
+        return catalog
 
-    with open(catalog_path, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=4)
+    # M-DATA-6: the whole vote applies under one lock; concurrent votes
+    # can no longer overwrite each other.
+    _update_catalog(_apply_vote)
 
     return JSONResponse(content={
         "status": "success",
-        "upvotes": item["upvotes"],
-        "downvotes": item["downvotes"],
-        "user_vote": user_vote
+        "upvotes": outcome["upvotes"],
+        "downvotes": outcome["downvotes"],
+        "user_vote": outcome["user_vote"]
     })
 
 
@@ -1893,12 +2309,16 @@ async def add_marketplace_comment(item_id: str, text: str = Form(...)):
         "text": text,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
-    item.setdefault("comments", []).append(comment)
 
-    tmp = catalog_path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(catalog, f, indent=4)
-    os.replace(tmp, catalog_path)
+    def _append_comment(catalog):
+        target = next((i for i in catalog if i["id"] == item_id), None)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        target.setdefault("comments", []).append(comment)
+        return catalog
+
+    # M-DATA-6: locked + atomic so concurrent comments cannot lose each other.
+    _update_catalog(_append_comment)
 
     my_handle = get_public_handle()
     author_handle = comment["author_handle"]
@@ -1972,10 +2392,6 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
     result_message = ""
 
     if item_type == "skill":
-        skills_data_dir = os.path.join("modules", "skills", "data")
-        skills_meta_path = os.path.join(skills_data_dir, "skills_metadata.json")
-        os.makedirs(skills_data_dir, exist_ok=True)
-
         md_content = None
         if ext in (".md", ".txt"):
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
@@ -1990,29 +2406,22 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         if not md_content:
             return JSONResponse(status_code=400, content={"status": "error", "detail": "No .md file found in the skill package"})
 
+        # M-SEC-6: imports go through the skills service — the id is
+        # validated and the text is admission-scanned before storage.
+        from modules.skills.service import SkillService
+        from modules.skills.admission import SkillBlocked
         skill_id = re.sub(r'[^a-zA-Z0-9\s]', '', item["name"]).lower().strip().replace(' ', '_') or item["id"]
-        with open(os.path.join(skills_data_dir, f"{skill_id}.md"), "w", encoding="utf-8") as f:
-            f.write(md_content)
-
-        skills_meta: dict = {}
         try:
-            if os.path.exists(skills_meta_path):
-                with open(skills_meta_path, "r", encoding="utf-8") as f:
-                    skills_meta = json.load(f)
-        except Exception as _exc:
-            logger.debug("ignored exception: %s", _exc)
-        skills_meta[skill_id] = {
-            "name": item["name"],
-            "description": item.get("description", ""),
-            "category": "marketplace",
-            "tags": ["marketplace", "imported"],
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-        }
-        tmp = skills_meta_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(skills_meta, f, indent=4)
-        os.replace(tmp, skills_meta_path)
+            SkillService().import_skill_with_id(
+                skill_id, item["name"], item.get("description", ""),
+                md_content, "marketplace", ["marketplace", "imported"],
+            )
+        except SkillBlocked as exc:
+            return JSONResponse(status_code=400, content={
+                "status": "error", "detail": f"Skill blocked by admission scan: {exc}"})
+        except ValueError as exc:
+            return JSONResponse(status_code=400, content={
+                "status": "error", "detail": f"Invalid skill: {exc}"})
         result_message = f"Skill '{item['name']}' imported to your skills library."
 
     elif item_type == "flow":
@@ -2078,14 +2487,43 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         if ext != ".zip":
             return JSONResponse(status_code=400, content={"status": "error", "detail": "Module must be a .zip file"})
         module_name = re.sub(r'[^a-zA-Z0-9_]', '_', item["name"].lower()).strip('_') or item["id"]
+        # M-SEC-5: the name becomes a Python package; enforce the same id
+        # policy as the flow-run executor lookup.
+        if not re.match(r"^[a-z_][a-z0-9_]*$", module_name):
+            return JSONResponse(status_code=400, content={
+                "status": "error",
+                "detail": f"Invalid module name {module_name!r}: use lowercase letters, digits and underscores."})
         module_target = os.path.join("modules", module_name)
+        # M-SEC-5: never extract over an existing directory. A marketplace
+        # package replacing a built-in (tools, chat, ...) would swap core
+        # code file-by-file, and a failure mid-way leaves a half-written
+        # module. Refuse instead; the owner can delete first.
+        if os.path.exists(module_target):
+            return JSONResponse(status_code=409, content={
+                "status": "error",
+                "detail": f"Refusing to overwrite existing module '{module_name}'. Delete it first if you really mean to replace it."})
+        # Extract to a temp dir, then rename atomically so no half-written
+        # module is ever visible.
+        import uuid as _uuid2
+        tmp_target = f"{module_target}.import-tmp-{_uuid2.uuid4().hex[:8]}"
         # Untrusted package: a zip-slip, absolute-path or symlink member must never write
-        # outside modules/<module_name>/. See core/archive.py.
+        # outside the target. See core/archive.py.
         try:
-            extract_zip_safely(file_path, module_target, strip_root=True)
+            extract_zip_safely(file_path, tmp_target, strip_root=True)
         except ArchiveSecurityError as exc:
+            shutil.rmtree(tmp_target, ignore_errors=True)
             return JSONResponse(status_code=400, content={
                 "status": "error", "detail": f"Unsafe module package: {exc}"})
+        except Exception as exc:
+            shutil.rmtree(tmp_target, ignore_errors=True)
+            return JSONResponse(status_code=400, content={
+                "status": "error", "detail": f"Module extraction failed: {exc}"})
+        try:
+            os.replace(tmp_target, module_target)
+        except OSError as exc:
+            shutil.rmtree(tmp_target, ignore_errors=True)
+            return JSONResponse(status_code=400, content={
+                "status": "error", "detail": f"Module install failed: {exc}"})
         result_message = f"Module '{item['name']}' extracted to modules/{module_name}/. Reload modules in Settings to activate."
 
     elif item_type == "tool":
@@ -2146,8 +2584,10 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
             else:
                 return JSONResponse(status_code=400, content={"status": "error", "detail": "Tool must be a .json or .py file"})
 
-            with open(tools_json, "w", encoding="utf-8") as f:
+            tmp_tools = tools_json + ".tmp"
+            with open(tmp_tools, "w", encoding="utf-8") as f:
                 json.dump(existing, f, indent=4)
+            os.replace(tmp_tools, tools_json)
 
         result_message = f"Tool '{t_name}' registered and ready in Tools."
 
@@ -2162,17 +2602,16 @@ async def import_marketplace_item_to_neurocore(item_id: str, module_manager: Mod
         return JSONResponse(status_code=400, content={"status": "error", "detail": f"Unknown type: {item_type}"})
 
     # Record import: increment download_count + update download_history
-    try:
-        with open(catalog_path, "r", encoding="utf-8") as f:
-            cat_m = json.load(f)
-        for ci in cat_m:
+    # (M-DATA-6: locked + atomic like every other catalog mutation.)
+    def _bump_on_import(catalog):
+        for ci in catalog:
             if ci["id"] == item_id:
                 ci["download_count"] = ci.get("download_count", 0) + 1
                 break
-        tmp = catalog_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(cat_m, f, indent=4)
-        os.replace(tmp, catalog_path)
+        return catalog
+
+    try:
+        _update_catalog(_bump_on_import)
     except Exception as _exc:
         logger.debug("ignored exception: %s", _exc)
 
@@ -2293,41 +2732,29 @@ async def import_decoder_key(key: str = Form(...)):
 
 @router.post("/settings/skills/delete/{skill_id}")
 async def delete_skill(skill_id: str):
-    import os
-    skills_path = os.path.join("modules", "skills", "data", "skills_metadata.json")
-    if not os.path.exists(skills_path):
-         raise HTTPException(status_code=404, detail="Skills Metadata not found")
-        
-    try:
-         with open(skills_path, "r", encoding="utf-8") as f:
-             skills = json.load(f)
-    except Exception:
-         raise HTTPException(status_code=500, detail="Failed to read skills metadata")
-        
-    if skill_id not in skills:
-         raise HTTPException(status_code=404, detail="Skill not found")
-        
-    # Delete from JSON
-    del skills[skill_id]
-    with open(skills_path, "w", encoding="utf-8") as f:
-         json.dump(skills, f, indent=4)
-         
-    # Delete MD file
-    content_path = os.path.join("modules", "skills", "data", f"{skill_id}.md")
-    if os.path.exists(content_path):
-         os.remove(content_path)
-         
+    # M-SEC-6: every skill write goes through the skills service, which
+    # validates the id (no path traversal) and owns the metadata file.
+    from modules.skills.service import SkillService
+    if not SkillService().delete_skill(skill_id):
+        raise HTTPException(status_code=404, detail="Skill not found")
+
     return JSONResponse(content={"status": "success", "message": "Skill deleted"})
 
 @router.post("/settings/skills/save/{skill_id}")
 async def save_skill(skill_id: str, instructions: str = Form(...)):
-    import os
-    content_path = os.path.join("modules", "skills", "data", f"{skill_id}.md")
+    # M-SEC-6: admission-scanned by the skills service; the id is
+    # validated before it ever reaches a file path.
+    from modules.skills.service import SkillService
+    from modules.skills.admission import SkillBlocked
+    service = SkillService()
+    if service.get_skill(skill_id) is None:
+        raise HTTPException(status_code=404, detail="Skill not found")
     try:
-         with open(content_path, "w", encoding="utf-8") as f:
-             f.write(instructions)
-    except Exception:
-         raise HTTPException(status_code=500, detail="Failed to save skill content")
+        service.update_skill(skill_id, content=instructions)
+    except SkillBlocked as exc:
+        raise HTTPException(status_code=400, detail=f"Skill blocked by admission scan: {exc}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return JSONResponse(content={"status": "success", "message": "Skill content saved"})
 
 @router.post("/settings/skills/create")
@@ -2337,27 +2764,16 @@ async def create_skill(
     category: str = Form("general"),
     instructions: str = Form("")
 ):
-    import os, re
-    from datetime import datetime
-    skill_id = re.sub(r'[^a-zA-Z0-9\s]', '', name).lower().replace(' ', '_')
-    if not skill_id: raise HTTPException(status_code=400, detail="Invalid skill name")
-    skills_path = os.path.join("modules", "skills", "data", "skills_metadata.json")
+    # M-SEC-6: created through the skills service (admission scan + safe ids).
+    from modules.skills.service import SkillService
+    from modules.skills.admission import SkillBlocked
     try:
-         if os.path.exists(skills_path):
-              with open(skills_path, "r", encoding="utf-8") as f: skills = json.load(f)
-         else: skills = {}
-    except Exception: skills = {}
-    if skill_id in skills: raise HTTPException(status_code=400, detail="Skill already exists")
-    skills[skill_id] = {
-         "name": name, "description": description, "category": category,
-         "tags": [], "created_at": datetime.now().isoformat(), "updated_at": datetime.now().isoformat()
-    }
-    try:
-         with open(skills_path, "w", encoding="utf-8") as f: json.dump(skills, f, indent=4)
-         content_path = os.path.join("modules", "skills", "data", f"{skill_id}.md")
-         with open(content_path, "w", encoding="utf-8") as f: f.write(instructions)
-    except Exception: raise HTTPException(status_code=500, detail="Failed to create skill assets")
-    return JSONResponse(content={"status": "success", "message": "Skill created", "id": skill_id})
+        created = SkillService().create_skill(name, description, instructions, category)
+    except SkillBlocked as exc:
+        raise HTTPException(status_code=400, detail=f"Skill blocked by admission scan: {exc}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return JSONResponse(content={"status": "success", "message": "Skill created", "id": created["id"]})
 
 @router.post("/settings/skills/upload_to_marketplace/{skill_id}")
 async def upload_skill_to_marketplace(skill_id: str):
@@ -2552,10 +2968,15 @@ async def save_settings_route(request: Request, settings_man: SettingsManager = 
     updates = {}
     
     # Handle text fields (update only if present)
-    text_fields = ["llm_api_url", "llm_api_key", "embedding_api_url", "default_model", "embedding_model"]
+    # M-SEC-4: secrets are never rendered into the page, so an empty secret
+    # field means "leave unchanged", never "clear the stored secret".
+    text_fields = ["llm_api_url", "llm_api_key", "embedding_api_url", "embedding_api_key", "default_model", "embedding_model"]
     for field in text_fields:
         if field in form_data:
-            updates[field] = form_data[field]
+            value = form_data[field]
+            if _is_secret_key(field) and not str(value or "").strip():
+                continue
+            updates[field] = value
     
     # Handle numeric fields
     for field in ["temperature", "max_tokens"]:
@@ -2586,6 +3007,13 @@ async def save_settings_route(request: Request, settings_man: SettingsManager = 
         
     if "save_ui_show_footer" in form_data:
         updates["ui_show_footer"] = form_data.get("ui_show_footer") == "on"
+
+    # Optional out-of-scope surfaces (default off).
+    if "save_marketplace_enabled" in form_data:
+        updates["marketplace_enabled"] = form_data.get("marketplace_enabled") == "on"
+
+    if "save_research_enabled" in form_data:
+        updates["research_enabled"] = form_data.get("research_enabled") == "on"
 
     # Catch validation errors and return 400 with helpful message
     try:

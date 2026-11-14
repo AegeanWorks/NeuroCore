@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional
 from core.paths import data_path
 
 from .events import BrainEvent, EventBus
-from .persistence import LedgerLock, atomic_write_json, engine_transaction, engine_transaction_async
+from .persistence import LedgerLock, atomic_write_json, engine_transaction
 from .state import utc_now
 
 logger = logging.getLogger(__name__)
@@ -73,11 +73,24 @@ class ReactivityEngine:
         self.bus = bus
         self.store = store or ReactionStore()
         self.config = {**DEFAULT_CONFIG, **(config or {})}
-        self.interval = max(5.0, float(self.config.get("poll_interval_seconds", 60)))
-        self.min_salience = min(1.0, max(0.0, float(self.config.get("min_salience", 0.5))))
-        self.dedupe_window = max(1, int(self.config.get("dedupe_window_seconds", 900)))
-        self.max_reactions_per_hour = max(1, int(self.config.get("max_reactions_per_hour", 20)))
-        self.max_reactions = max(10, int(self.config.get("max_reactions", 200)))
+        try:
+            interval = float(self.config.get("poll_interval_seconds", 60))
+            min_salience = float(self.config.get("min_salience", 0.5))
+            dedupe_window = int(self.config.get("dedupe_window_seconds", 900))
+            max_reactions_per_hour = int(self.config.get("max_reactions_per_hour", 20))
+            max_reactions = int(self.config.get("max_reactions", 200))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "reactivity limits must be numbers. "
+                f"Why: {exc}. Fix: pass numeric poll_interval_seconds, "
+                "min_salience, dedupe_window_seconds, max_reactions_per_hour "
+                "and max_reactions."
+            ) from exc
+        self.interval = max(5.0, interval)
+        self.min_salience = min(1.0, max(0.0, min_salience))
+        self.dedupe_window = max(1, dedupe_window)
+        self.max_reactions_per_hour = max(1, max_reactions_per_hour)
+        self.max_reactions = max(10, max_reactions)
         self.watch_paths = list(self.config.get("watch_paths") or [])
         self.metric_thresholds = dict(self.config.get("metric_thresholds") or {})
         self.calendar_provider = calendar_provider or self._default_calendar
@@ -132,51 +145,59 @@ class ReactivityEngine:
             return
         await self.process_event(event)
 
-    @engine_transaction_async
     async def process_event(self, event: BrainEvent) -> Optional[Dict[str, Any]]:
-        if event.type.startswith("reaction.") or event.salience < self.min_salience:
-            return None
-        if self.can_react is not None and not self.can_react() and event.type not in {
-            "kernel.safe", "drift.high", "metric.threshold",
-        }:
-            return None
+        # Phase 1 — locked, fast: refresh, validate, record.
+        # The subscriber broadcast below runs unlocked so one slow
+        # subscriber cannot hold the ledger lock.
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            if event.type.startswith("reaction.") or event.salience < self.min_salience:
+                return None
+            if self.can_react is not None and not self.can_react() and event.type not in {
+                "kernel.safe", "drift.high", "metric.threshold",
+            }:
+                return None
 
-        key = self._dedupe_key(event)
-        now = datetime.now(timezone.utc)
-        self._prune(now)
-        if key in self.muted:
-            return None
-        if key in self.event_keys:
-            return None
-        if len(self.reaction_times) >= self.max_reactions_per_hour:
-            return None
+            key = self._dedupe_key(event)
+            now = datetime.now(timezone.utc)
+            self._prune(now)
+            if key in self.muted:
+                return None
+            if key in self.event_keys:
+                return None
+            if len(self.reaction_times) >= self.max_reactions_per_hour:
+                return None
 
-        rule = REACTION_RULES.get(event.type)
-        if rule is None and event.type == "manual":
-            rule = ("manual", "Review a manual event")
-        if rule is None:
-            return None
+            rule = REACTION_RULES.get(event.type)
+            if rule is None and event.type == "manual":
+                rule = ("manual", "Review a manual event")
+            if rule is None:
+                return None
 
-        kind, default_title = rule
-        title = str(event.payload.get("title") or event.payload.get("metric") or default_title)
-        reaction = {
-            "id": uuid.uuid4().hex,
-            "event_id": event.id,
-            "event_type": event.type,
-            "source": event.source,
-            "key": key,
-            "kind": kind,
-            "title": title,
-            "rationale": f"{event.type} from {event.source} with salience {event.salience:.2f}",
-            "salience": round(event.salience, 3),
-            "status": "pending",
-            "created_at": utc_now(),
-        }
-        self.reactions.append(reaction)
-        self.reactions = self.reactions[-self.max_reactions:]
-        self.event_keys[key] = reaction["created_at"]
-        self.reaction_times.append(reaction["created_at"])
-        self._save()
+            kind, default_title = rule
+            title = str(event.payload.get("title") or event.payload.get("metric") or default_title)
+            reaction = {
+                "id": uuid.uuid4().hex,
+                "event_id": event.id,
+                "event_type": event.type,
+                "source": event.source,
+                "key": key,
+                "kind": kind,
+                "title": title,
+                "rationale": f"{event.type} from {event.source} with salience {event.salience:.2f}",
+                "salience": round(event.salience, 3),
+                "status": "pending",
+                "created_at": utc_now(),
+            }
+            self.reactions.append(reaction)
+            self.reactions = self.reactions[-self.max_reactions:]
+            self.event_keys[key] = reaction["created_at"]
+            self.reaction_times.append(reaction["created_at"])
+            self._save()
+        # Phase 2 — unlocked: notify subscribers.
         await self.bus.publish(
             "reaction.proposed", "reactivity",
             payload={"reaction_id": reaction["id"], "kind": kind, "title": title},
@@ -210,8 +231,18 @@ class ReactivityEngine:
         self._save()
         return {"key": key, "unmuted": existed}
 
-    @engine_transaction_async
     async def poll_once(self) -> Dict[str, Any]:
+        # Providers and subscriber broadcasts run unlocked: gathering is pure
+        # reads and each _emit either publishes (no shared mutation) or goes
+        # through process_event, which takes the lock itself per event.
+        # Holding the ledger lock here would serialize whole polls behind
+        # one slow subscriber (see process_event above).
+        lock = self.store.lock
+        outer = not lock.reentrant
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            baselines = dict(self.file_state)
         produced = []
         for event in self._calendar_events():
             await self._emit(event)
@@ -219,10 +250,15 @@ class ReactivityEngine:
         for event in self._metric_events():
             await self._emit(event)
             produced.append(event)
-        for event in self._file_events():
+        file_events, observed = self._file_events(baselines)
+        for event in file_events:
             await self._emit(event)
             produced.append(event)
-        self._save()
+        with lock.held():
+            if outer:
+                self._reload_from_store()
+            self.file_state.update(observed)
+            self._save()
         return {"emitted": len(produced), "running": self._running}
 
     async def _emit(self, event: BrainEvent) -> None:
@@ -263,12 +299,20 @@ class ReactivityEngine:
         for metric, limits in self.metric_thresholds.items():
             if not isinstance(limits, dict) or metric not in gauges:
                 continue
-            value = float(gauges[metric])
-            minimum = limits.get("min")
-            maximum = limits.get("max")
+            try:
+                value = float(gauges[metric])
+                minimum = limits.get("min")
+                maximum = limits.get("max")
+                if minimum is not None:
+                    minimum = float(minimum)
+                if maximum is not None:
+                    maximum = float(maximum)
+            except (TypeError, ValueError) as exc:
+                logger.warning("Skipping malformed gauge %r: %s", metric, exc)
+                continue
             breach = (
-                (minimum is not None and value < float(minimum))
-                or (maximum is not None and value > float(maximum))
+                (minimum is not None and value < minimum)
+                or (maximum is not None and value > maximum)
             )
             if breach:
                 events.append(BrainEvent(
@@ -280,8 +324,15 @@ class ReactivityEngine:
                 ))
         return events
 
-    def _file_events(self) -> List[BrainEvent]:
-        events = []
+    def _file_events(self, baselines: Dict[str, list]) -> tuple:
+        """Scan watched paths against read-only baselines.
+
+        Returns (events, observed) where observed maps every seen path to
+        its current [mtime, size]. The caller merges observed into fresh
+        store state under the lock, so gathering itself stays lock-free.
+        """
+        events: List[BrainEvent] = []
+        observed: Dict[str, list] = {}
         for raw_path in self.watch_paths:
             path = Path(raw_path)
             if not path.exists():
@@ -295,9 +346,9 @@ class ReactivityEngine:
                 except OSError:
                     continue
                 key = str(item)
-                previous = self.file_state.get(key)
+                previous = baselines.get(key)
                 current = [stat.st_mtime, stat.st_size]
-                self.file_state[key] = current
+                observed[key] = current
                 if previous is None:
                     continue
                 if previous[0] != current[0] or previous[1] != current[1]:
@@ -308,7 +359,7 @@ class ReactivityEngine:
                         salience=0.6,
                         dedupe_key=f"file:{key}:{current[0]}:{current[1]}",
                     ))
-        return events
+        return events, observed
 
     async def _poll_loop(self) -> None:
         try:

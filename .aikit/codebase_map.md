@@ -1,16 +1,22 @@
 # Codebase Map & Symbol Catalog 🗺️
 
 > **AUTO-GENERATED & VERIFIED BY `scripts/update_knowledge_base.py`**
-> This document provides an automated, up-to-date registry of all modules, classes, and exported functions across this repository.
+> This document catalogues Python modules, classes, and exported functions. See Map Coverage for any stack it does not index.
 
 ---
 
 ## 📊 Codebase Metrics
-- **Total Python Modules**: `360`
-- **Total Classes**: `484`
-- **Total Top-Level Functions**: `2569`
-- **Total Class Methods**: `2375`
-- **Total Source Lines**: `94003`
+- **Total Python Modules**: `391`
+- **Total Classes**: `506`
+- **Total Top-Level Functions**: `2842`
+- **Total Class Methods**: `2477`
+- **Total Source Lines**: `102252`
+
+## 🧭 Map Coverage
+- **Indexed**: python (`391` module(s))
+- **Not indexed by this map**: javascript (`4` file(s))
+
+> Only Python symbols are catalogued. A language above is reported as not indexed, never as verified by this map.
 
 ---
 
@@ -19,7 +25,7 @@
 ### [`core/archive.py`](core/archive.py)
 > *Safe ZIP extraction for attacker-controlled marketplace packages.*
 
-**Size**: `118` lines (`5251` bytes)
+**Size**: `118` lines (`5262` bytes)
 
 **Classes:**
 - `class ArchiveSecurityError` - *Raised when a ZIP member would escape the destination directory.*
@@ -29,6 +35,28 @@
 - `def _safe_member_path(dest_dir, member)` - *The absolute write path for `member`, or raise when it escapes `dest_dir`.*
 - `def _common_root(infos)` - *The single shared top-level directory of the archive as ``dir/``, or ``''``.*
 - `def extract_zip_safely(archive_path, dest_dir, strip_root, max_member_bytes, max_total_bytes)` - *Extract `archive_path` into `dest_dir`, refusing escaping or symlink members.*
+
+---
+
+### [`core/auth_registry.py`](core/auth_registry.py)
+> *Minimal OAuth client + OIDC connector registry (no network, no secrets).*
+
+**Size**: `152` lines (`5401` bytes)
+
+**Classes:**
+- `class OAuthClient`
+  - Method `.validate_redirect(uri)` - *True only for an explicitly registered redirect URI.*
+- `class OAuthClientRegistry`
+  - Method `.register(client)`
+  - Method `.get(client_id)`
+- `class Connector`
+  - Method `.map_claims(claims)` - *Map upstream OIDC claims to local identity fields.*
+- `class ConnectorRegistry`
+  - Method `.register(connector)`
+  - Method `.get(connector_id)`
+
+**Functions:**
+- `def _is_https(url)`
 
 ---
 
@@ -78,7 +106,7 @@
 ---
 
 ### [`core/debug.py`](core/debug.py)
-**Size**: `94` lines (`3179` bytes)
+**Size**: `103` lines (`3653` bytes)
 
 **Classes:**
 - `class DebugLogger` - *Debug logger for flow execution.*
@@ -96,7 +124,7 @@
 ### [`core/delegation.py`](core/delegation.py)
 > *Role/task delegation contract with capability bounds (IDEA-1242).*
 
-**Size**: `167` lines (`7502` bytes)
+**Size**: `179` lines (`7958` bytes)
 
 **Classes:**
 - `class DelegationError` - *An invalid contract; the message carries Why and Fix.*
@@ -116,7 +144,7 @@
 ---
 
 ### [`core/dependencies.py`](core/dependencies.py)
-**Size**: `90` lines (`3727` bytes)
+**Size**: `103` lines (`4633` bytes)
 
 **Functions:**
 - `def get_settings_manager()` - *Dependency to get the global settings manager instance.*
@@ -252,7 +280,7 @@
 ### [`core/flow_data.py`](core/flow_data.py)
 > *FlowData TypedDict - Type-safe flow payload between nodes.*
 
-**Size**: `1213` lines (`40035` bytes)
+**Size**: `1195` lines (`39404` bytes)
 
 **Classes:**
 - `class FlowData` - *TypedDict representing the canonical flow payload passed between nodes.*
@@ -290,9 +318,7 @@
 - `def get_reasoning_history(data, default)` - *Get reasoning_history from flow data.*
 - `def get_reasoning_structured(data, default)` - *Get reasoning_structured from flow data.*
 - `def get_tool_count(data, default)` - *Get tool_count from flow data.*
-- `def set_tool_count(data, count)` - *Set tool_count in flow data.*
 - `def get_remaining_tool_calls(data, default)` - *Get remaining_tool_calls from flow data.*
-- `def set_remaining_tool_calls(data, calls)` - *Set remaining_tool_calls in flow data.*
 - `def get_requires_continuation(data, default)` - *Get requires_continuation from flow data.*
 - `def get_choices(data, default)` - *Get choices from flow data.*
 - `def get_tools(data, default)` - *Get tools from flow data.*
@@ -376,7 +402,7 @@
 ---
 
 ### [`core/flow_manager.py`](core/flow_manager.py)
-**Size**: `637` lines (`31020` bytes)
+**Size**: `680` lines (`33328` bytes)
 
 **Classes:**
 - `class FlowManager`
@@ -395,7 +421,7 @@
   - Method `._save_flows_to_disk_no_lock_required(flows)` - *Internal method to save flows to disk WITHOUT acquiring lock.*
   - Method `._save_flows_to_disk(flows)` - *Save flows to disk. Acquires lock before writing.*
   - Method `._save_flows()`
-  - Method `._load_versions()` - *Load the per-flow version store from disk. Returns {} on missing/corrupt file.*
+  - Method `._load_versions()` - *Load the per-flow version store from disk. Returns {} on missing file.*
   - Method `._save_versions_to_disk()` - *Persist the versions dict to disk (must be called while holding self.lock).*
   - Method `._save_version(flow_id, persist)` - *Snapshot the current state of *flow_id*.*
   - Method `.get_versions(flow_id)` - *Return lightweight version metadata for *flow_id*, newest first.*
@@ -414,10 +440,11 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1229` lines (`59171` bytes)
+**Size**: `1553` lines (`75678` bytes)
 
 **Classes:**
 - `class FlowRunner`
+  - Method `._loop_lock_map()`
   - Method `.clear_cache()`
   - Method `._get_cache_lock()` - *Return an asyncio.Lock scoped to the currently running event loop.*
   - Method `async def ._get_executor_class(module_id, node_type_id)` - *Thread-safe method to get or create an executor class from the cache.*
@@ -433,6 +460,9 @@
   - Method `.validate(module_manager)` - *Validates the flow for potential issues before execution.*
   - Method `async def .run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Run a flow and emit one outcome record (unless capture is disabled).*
   - Method `async def ._run(initial_input, start_node_id, timeout, raise_errors, episode_id, stream_queue)` - *Executes the flow in order, passing data between nodes.*
+
+**Functions:**
+- `def _check_module_policy(module_id)` - *Enforce the module allowlist / enabled policy on the run path (H-8).*
 
 ---
 
@@ -460,7 +490,7 @@
 ### [`core/handoff.py`](core/handoff.py)
 > *Handoff packets with delivery, acceptance and bounded retry (IDEA-1243).*
 
-**Size**: `170` lines (`6561` bytes)
+**Size**: `176` lines (`6781` bytes)
 
 **Classes:**
 - `class HandoffError` - *An invalid packet; the message carries Why and Fix.*
@@ -482,16 +512,17 @@
 ---
 
 ### [`core/llm.py`](core/llm.py)
-**Size**: `409` lines (`17493` bytes)
+**Size**: `479` lines (`20889` bytes)
 
 **Classes:**
 - `class LLMBridge`
-  - Method `.__init__(base_url, api_key, embedding_base_url, embedding_model, client, timeout, cassette_mode, cassette_path, cassette_match, template_digest)`
+  - Method `.__init__(base_url, api_key, embedding_base_url, embedding_model, client, timeout, cassette_mode, cassette_path, cassette_match, template_digest, embedding_api_key)`
   - Method `._get_cassette()` - *Load or create the cassette lazily so live mode never touches the filesystem.*
   - Property `.cassette`
   - Method `._replay_response(payload, url)`
   - Method `._record_response(payload, url, response)`
   - Method `._get_url(path, use_embedding_url)` - *Constructs a full URL for the given path.*
+  - Method `._same_host(first, second)` - *True when two base URLs share scheme, host and port (M-LLM-3).*
   - Method `async def .chat_completion(messages, model, temperature, max_tokens, tools, tool_choice, response_format, raise_errors)` - *Sends a chat completion request to the LLM API.*
   - Method `async def .chat_completion_stream(messages, model, temperature, max_tokens, tools, tool_choice, response_format)` - *Sends a streaming chat completion request to the LLM API.*
   - Method `async def .get_models()` - *Fetches available models from the LLM API.*
@@ -542,7 +573,7 @@
 ### [`core/model_registry.py`](core/model_registry.py)
 > *Per-model request limits with explicit, recorded clamping (IDEA-588).*
 
-**Size**: `165` lines (`6652` bytes)
+**Size**: `174` lines (`7108` bytes)
 
 **Classes:**
 - `class UnknownModelError` - *A model id is not in the registry while strict limits are enabled.*
@@ -563,13 +594,15 @@
 ---
 
 ### [`core/module_manager.py`](core/module_manager.py)
-**Size**: `302` lines (`14254` bytes)
+**Size**: `387` lines (`17902` bytes)
 
 **Classes:**
 - `class ModuleManager`
   - Method `.__init__(app, modules_dir)`
+  - Method `._merge_overlay(name, shipped)` - *Merge the data-dir overlay over shipped defaults (M-SEC-3).*
   - Method `._discover_modules()` - *Finds all potential modules in the modules directory.*
   - Method `.load_enabled_modules()` - *Loads routers for all modules marked as enabled.*
+  - Method `._stop_module_instance(module_id)` - *Run a module's shutdown hook, if it defines one (M-DATA-5).*
   - Method `._load_module_router(module_id)` - *Imports a module and adds its router to the app.*
   - Method `._unload_module_router(module_id)` - *Finds and removes a module's router from the app.*
   - Method `.get_all_modules()` - *Returns a list of all discovered modules and their metadata, sorted by order key.*
@@ -581,14 +614,16 @@
   - Method `.update_module_config(module_id, new_config)` - *Updates the configuration for a specific module.*
 
 **Functions:**
-- `def _write_manifest(meta_path, meta)` - *Replace a module.json atomically so readers never see a truncated manifest.*
+- `def _overlay_path(module_id)`
+- `def _read_overlay(module_id)`
+- `def _write_overlay(module_id, meta)` - *Persist runtime meta to the data-dir overlay, never the source tree.*
 
 ---
 
 ### [`core/node_retry.py`](core/node_retry.py)
 > *Opt-in per-node retry policy with bounded exponential backoff (ADR-060).*
 
-**Size**: `145` lines (`5815` bytes)
+**Size**: `147` lines (`5990` bytes)
 
 **Classes:**
 - `class RetryPolicy` - *How many times a node may be retried and how long to wait between attempts.*
@@ -632,7 +667,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1048` lines (`38448` bytes)
+**Size**: `1152` lines (`43168` bytes)
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -656,6 +691,8 @@
   - Method `._load_counters()` - *Load persisted counters from disk on startup.*
   - Method `._save_counters()` - *Save counters to disk on updates.*
   - Method `.increment(metric, value, tags)` - *Increment a counter metric.*
+  - Method `.flush()` - *Persist counters now if anything changed since the last save.*
+  - Method `._save_counters_locked()` - *Write counters to disk; caller must hold the lock.*
   - Method `.timing(metric, duration_ms, tags)` - *Record a timing metric in milliseconds.*
   - Method `.gauge(metric, value, tags)` - *Set a gauge value.*
   - Method `._make_key(metric, tags)` - *Create metric key with tags.*
@@ -694,6 +731,7 @@
 - `def timed(metric, tags)` - *Context manager for timing operations.*
 - `def timed_decorator(metric, tags)` - *Decorator for timing functions.*
 - `def instrument_flow_runner()` - *Instrument the flow runner for automatic tracing.*
+- `def _record_llm_usage(model_name, tokens)` - *Record flat + per-model token counters from a usage dict.*
 - `def instrument_llm_calls()` - *Instrument LLM calls for automatic tracing and metrics.*
 - `def instrument_tools()` - *Instrument tool execution for automatic tracing and metrics.*
 - `def get_dashboard_data()` - *Get data for observability dashboard.*
@@ -760,7 +798,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `420` lines (`16499` bytes)
+**Size**: `425` lines (`16689` bytes)
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -792,7 +830,7 @@
 ### [`core/research_manager.py`](core/research_manager.py)
 > *Research Manager*
 
-**Size**: `915` lines (`38709` bytes)
+**Size**: `944` lines (`40201` bytes)
 
 **Classes:**
 - `class ResearchManager` - *Manages persistent storage of research entities using SQLite.*
@@ -847,7 +885,7 @@
 ### [`core/retention.py`](core/retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `211` lines (`7881` bytes)
+**Size**: `229` lines (`8535` bytes)
 
 **Classes:**
 - `class RetentionPolicy` - *Operator-facing knobs; every duration is in days.*
@@ -867,7 +905,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3368` lines (`147403` bytes)
+**Size**: `3796` lines (`168890` bytes)
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -882,6 +920,8 @@
 - `def make_vote_id(item_id)` - *Derive a stable anonymous vote identity for an item.*
 - `def make_report_id()` - *Stable anonymous reporter identity — same machine always produces the same ID.*
 - `def _load_blocklist()`
+- `def _read_catalog_snapshot()` - *Locked tolerant read of the marketplace catalog (M-DATA-6).*
+- `def _update_catalog(mutator)` - *Locked read-modify-write of marketplace catalog.json (M-DATA-6).*
 - `def _save_blocklist(handles)`
 - `def _load_profile()` - *Return local marketplace profile dict (username, description).*
 - `def _save_profile_field(key, value)` - *Atomically update a single field in the local marketplace profile.*
@@ -892,6 +932,15 @@
 - `def _add_notif(notif_type, item_id, item_name, from_handle, from_username, text)` - *Append a notification to the local notifications list (capped at 200).*
 - `def _is_legacy_owner(item)` - *Backward-compat check for items uploaded before the decoder system.*
 - `def is_item_owner(item)` - *Full ownership check: claim-based (new) with legacy fallback (old).*
+- `def _is_secret_key(name)`
+- `def _redacted_module(module)` - *Copy a module dict with secret config values blanked (M-SEC-4).*
+- `def _redacted_settings(settings_man)` - *Copy settings with secret values blanked plus *_configured flags (M-SEC-4).*
+- `def _module_details_context(module, settings_man)` - *Shared context for the module details page (details + toggle) (M-SEC-4).*
+- `def _login_client_key(request)`
+- `def _issue_session_cookie(response, request, sid)`
+- `async def login_page(request)`
+- `async def login(request, token)`
+- `async def logout(request)`
 - `async def read_root(request, module_manager, settings_man)`
 - `async def get_dashboard(request)`
 - `async def get_dashboard_stats(request)`
@@ -903,7 +952,7 @@
 - `async def get_default_prompt(module_id, module_manager)` - *Returns the default prompt for reflection or planner modules as plain text.*
 - `async def save_module_config(request, module_id, module_manager)`
 - `async def reorder_modules(request, order, module_manager)`
-- `async def toggle_module(request, module_id, action, module_manager)`
+- `async def toggle_module(request, module_id, action, module_manager, settings_man)`
 - `async def ai_flow_page(request, module_manager, settings_man)`
 - `async def get_flow_data(flow_id)`
 - `async def validate_flow(flow_id, request)` - *Validates a flow for potential issues before execution.*
@@ -1008,6 +1057,42 @@
 
 ---
 
+### [`core/run_ledger.py`](core/run_ledger.py)
+> *Run ledger primitives: asset graph, event log, state machine, result store.*
+
+**Size**: `453` lines (`16010` bytes)
+
+**Classes:**
+- `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
+- `class RunState`
+- `class RunEvent`
+  - Method `.to_dict()`
+  - Method `.from_dict(data)`
+- `class Asset`
+  - Method `.to_dict()`
+  - Method `.from_dict(data)`
+- `class StoredResult`
+- `class ResultStore` - *Bounded file-backed result persistence with expiry.*
+  - Method `.__init__(directory, max_bytes)`
+  - Method `._load_index()` - *Rebuild the in-memory index from index.json when present.*
+  - Method `._persist_index()` - *Write index.json atomically (temp + fsync + replace).*
+  - Method `._resolve_target(result_id)` - *Return the store-local path for result_id; refuse escapements.*
+  - Method `.save(result_id, data, ttl_seconds)`
+  - Method `.is_expired(result_id, now)`
+  - Method `.prune(now)` - *Drop expired records from the index; persist when anything changed.*
+  - Method `.load(result_id)`
+  - Method `.as_dict(record)`
+  - Method `.check_version(data)`
+
+**Functions:**
+- `def transition(state, new_state)` - *Return new_state when allowed, else raise InvalidTransition.*
+- `def append_event(path, event)` - *Append one event as JSONL with a single fsync (one fsync per file).*
+- `def read_events(path)` - *Read a JSONL event log; refuse unknown versions without modifying.*
+- `def is_stale(asset, upstream_materialized_at)` - *True when an upstream materialization is newer than this asset.*
+- `def materialize(asset, run_id, upstream)` - *Record a materialization; refuse when an upstream asset is stale.*
+
+---
+
 ### [`core/schemas/__init__.py`](core/schemas/__init__.py)
 > *Scientific Schemas for NeuroCore*
 
@@ -1058,10 +1143,12 @@
 ### [`core/security.py`](core/security.py)
 > *Control-plane security policy for NeuroCore.*
 
-**Size**: `312` lines (`12967` bytes)
+**Size**: `475` lines (`18930` bytes)
 
 **Classes:**
 - `class ControlPlaneGuard` - *CSRF origin check plus an opt-in API token for non-loopback clients.*
+  - Method `async def .dispatch(request, call_next)`
+- `class SecurityHeadersMiddleware` - *Send baseline hardening headers (C-2/M-SEC-7 defense in depth).*
   - Method `async def .dispatch(request, call_next)`
 
 **Functions:**
@@ -1084,8 +1171,15 @@
 - `def _is_loopback_host(host)` - *Whether `host` names this machine (loopback or the test client).*
 - `def _origin_tuple(scheme, hostname, port)` - *A normalized (scheme, host, effective-port) origin triple.*
 - `def _origin_allowed(origin, request)` - *Whether a browser `Origin` header may make a state-changing request to `request`.*
+- `def _forwarding_headers_present(request)` - *Whether a proxy may sit in front of us (client address untrustworthy).*
 - `def _client_is_loopback(request)` - *Whether the connecting peer is this machine (so the API token is not required).*
 - `def _token_matches(request, expected)` - *Constant-time check of the X-API-Token header or an Authorization: Bearer token.*
+- `def _evict_sessions_locked(now)`
+- `def create_browser_session()` - *Mint a random session id valid for SESSION_TTL_SECONDS.*
+- `def valid_browser_session(value)` - *Whether a presented session id is live (and not yet expired).*
+- `def revoke_browser_session(value)` - *Forget one session id (logout).*
+- `def _request_authorized(request, expected)` - *Header/bearer token or a live login-session cookie (M-SEC-8).*
+- `def login_allowed(client_key)` - *Sliding-window gate for /login attempts (M-SEC-8 brute-force brake).*
 - `def install_security_middleware(app)` - *Attach the trusted-host guard, the CSRF check and the optional API token guard.*
 
 ---
@@ -1093,13 +1187,14 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1206` lines (`44217` bytes)
+**Size**: `1281` lines (`47473` bytes)
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
   - Method `.__init__(trace_file)`
   - Method `._ensure_directory()` - *Ensure trace file directory exists.*
   - Method `.append(event)` - *Append a JSON event to the trace file.*
+  - Method `._rotate_if_oversized()` - *Compact the trace file to its most recent half when over budget.*
   - Method `.read_all()` - *Read all trace events from file.*
   - Method `.read_since(timestamp)` - *Read trace events since given timestamp.*
   - Method `._parse_timestamp(ts)` - *Parse ISO timestamp to unix timestamp.*
@@ -1151,7 +1246,7 @@
   - Method `.clear_episode()` - *Clear the current episode state (for starting fresh).*
   - Method `.is_episode_active()` - *Check if there's an active episode that can be resumed.*
   - Method `.get_episode_summary()` - *Get a summary of the current episode.*
-  - Method `._get_episode_path(episode_id)` - *Get the file path for a specific episode.*
+  - Method `._get_episode_path(episode_id)` - *Get the file path for a specific episode (validated, M-SEC-9).*
   - Method `.list_episodes()` - *List all available episodes.*
   - Method `.load_episode_by_id(episode_id)` - *Load a specific episode by ID.*
   - Method `.save_episode_by_id(episode_id, phase, **kwargs)` - *Save a specific episode by ID (creates if doesn't exist).*
@@ -1160,12 +1255,13 @@
   - Method `.delete_episode(episode_id)` - *Delete a specific episode.*
 
 **Functions:**
+- `def validate_episode_id(episode_id)` - *Return the id when safe to use as a file name, else raise ValueError.*
 - `def get_session_manager()` - *Get or create the global SessionManager instance.*
 
 ---
 
 ### [`core/settings.py`](core/settings.py)
-**Size**: `267` lines (`12006` bytes)
+**Size**: `301` lines (`13813` bytes)
 
 **Classes:**
 - `class SettingsManager`
@@ -1209,7 +1305,7 @@
 ### [`core/step_journal.py`](core/step_journal.py)
 > *Run-scoped node journal with deterministic step ids (IDEA-1152).*
 
-**Size**: `294` lines (`12133` bytes)
+**Size**: `394` lines (`17049` bytes)
 
 **Classes:**
 - `class IncompleteStep` - *A node started and never committed; replaying it could repeat a side effect.*
@@ -1217,13 +1313,15 @@
 - `class StepJournal` - *A small SQLite journal; one instance per process is enough.*
   - Method `.__init__(path)`
   - Method `._connect()`
-  - Method `.begin(run_id, node_id, digest, effectful, resolve_incomplete)` - *Mark a node started, refusing to overwrite an unfinished effectful attempt.*
-  - Method `.commit(run_id, node_id, digest, output, effectful)` - *Store a node outcome; an oversized output is left unjournaled and returns False.*
-  - Method `.lookup(run_id, node_id, digest)` - *Return ``("committed", output)`` only for a matching digest, else a bare status.*
+  - Method `._migrate(con)` - *Upgrade pre-iteration/lease databases in place (M-FLOW-5).*
+  - Method `._touch(con, run_id)` - *Refresh the running lease heartbeat (M-FLOW-5).*
+  - Method `.begin(run_id, node_id, digest, effectful, resolve_incomplete, iteration)` - *Mark a node started, refusing to overwrite an unfinished effectful attempt.*
+  - Method `.commit(run_id, node_id, digest, output, effectful, iteration)` - *Store a node outcome; an oversized output is left unjournaled and returns False.*
+  - Method `.lookup(run_id, node_id, digest, iteration)` - *Return ``("committed", output)`` only for a matching digest, else a bare status.*
   - Method `.committed_outputs(run_id)` - *Every reusable output for a run, keyed by node id.*
   - Method `.last_committed(run_id)`
   - Method `.purge_run(run_id)`
-  - Method `.claim_run(run_id, flow_id, idempotency_key)` - *Register a run. Returns ``new``, ``running`` or ``completed``.*
+  - Method `.claim_run(run_id, flow_id, idempotency_key, lease_seconds)` - *Register a run. Returns ``new``, ``running`` or ``completed``/``failed``.*
   - Method `.completed_result(run_id)`
   - Method `.finish_run(run_id, result, error)`
   - Method `.run_status(run_id)`
@@ -1232,14 +1330,14 @@
 - `def _canonical(value)`
 - `def _digest(payload)`
 - `def input_digest(node_input)` - *Digest of a node's input with transport/identity noise removed.*
-- `def derive_run_id(flow_id, input_payload, idempotency_key)` - *The same flow and key always yields the same run id.*
+- `def derive_run_id(flow_id, input_payload, idempotency_key)` - *Run id for a submission.*
 
 ---
 
 ### [`core/structured_output.py`](core/structured_output.py)
 > *Structured Output Enforcement Module*
 
-**Size**: `342` lines (`13463` bytes)
+**Size**: `348` lines (`13619` bytes)
 
 **Classes:**
 - `class StructuredOutputError` - *Exception raised when structured output cannot be obtained*
@@ -1257,7 +1355,7 @@
 ### [`core/untrusted.py`](core/untrusted.py)
 > *Fence untrusted text as data before it reaches a model (IDEA-030).*
 
-**Size**: `41` lines (`2063` bytes)
+**Size**: `48` lines (`2303` bytes)
 
 **Functions:**
 - `def wrap_untrusted(text, source)` - *``text`` inside a fence with a fresh id; tag-shaped text in it is neutralized.*
@@ -1265,14 +1363,156 @@
 
 ---
 
+### [`core/useless_gate.py`](core/useless_gate.py)
+> *Harness-enforced stop rule on consecutive USELESS tool evidence (IDEA-1335).*
+
+**Size**: `86` lines (`2751` bytes)
+
+**Classes:**
+- `class UselessGate`
+  - Method `.__post_init__()`
+  - Method `.record(useless)` - *Record one tool-iteration judgment; return the audit receipt.*
+  - Method `.allowed(requested)` - *Enforce finish-only when restricted, else pass through.*
+  - Method `.reset()`
+
+**Functions:**
+- `def is_useless_result(result)` - *True only for an explicit USELESS judgment (no heuristics).*
+
+---
+
+### [`docs/audit_repro/repro_allowlist.py`](docs/audit_repro/repro_allowlist.py)
+> *Audit finding H-8: module_allowlist does not stop a flow from executing a module's node code.*
+
+**Size**: `44` lines (`1734` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_dispatcher.py`](docs/audit_repro/repro_dispatcher.py)
+> *Audit finding H-4: the tool dispatcher drops calls beyond max_tools_per_turn.*
+
+**Size**: `38` lines (`1716` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_fence.py`](docs/audit_repro/repro_fence.py)
+> *Audit finding M-SEC-1: a tool result that starts with a fence-shaped header is not fenced.*
+
+**Size**: `23` lines (`936` bytes)
+
+---
+
+### [`docs/audit_repro/repro_flow_runner.py`](docs/audit_repro/repro_flow_runner.py)
+> *Audit findings H-2, H-3, H-9, M-FLOW-1..4: FlowRunner scheduling/result bugs and the planner skip.*
+
+**Size**: `205` lines (`9147` bytes)
+
+**Functions:**
+- `def make_executor(node_type_id)`
+- `async def fake_get_executor_class(cls, module_id, node_type_id)`
+- `def node(nid, ntype)`
+- `async def scenario_bfs_double_run()` - *chat_input -> A -> B -> D and chat_input -> D (D has parents at depth 1 and 3).*
+- `async def scenario_stale_final_output()` - *in -> llm -> router -> {tool -> llm (loop), out}; 'out' returns None at the end (e.g. a sink that stops).*
+- `async def scenario_usage_double_count()` - *in -> llm -> p1 -> p2 (pass-through nodes forward `usage`).*
+- `async def scenario_bridge_topological()` - *Bridges A->C, B->C (A,B feed C), no input source -> topological mode.*
+- `async def scenario_keyerror_escapes()` - *A node raising KeyError with raise_errors=False.*
+- `async def scenario_attributeerror_swallowed()`
+- `def scenario_planner_skips_blocked_step()`
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_fts.py`](docs/audit_repro/repro_fts.py)
+> *Audit finding H-5: knowledge-base keyword search fails for ordinary questions.*
+
+**Size**: `31` lines (`1459` bytes)
+
+**Functions:**
+- `def kb_sanitize(query)`
+
+---
+
+### [`docs/audit_repro/repro_llm_retry.py`](docs/audit_repro/repro_llm_retry.py)
+> *Audit findings M-LLM-1 / M-LLM-2: the LLM node retries deterministic failures and ignores*
+
+**Size**: `43` lines (`1671` bytes)
+
+**Functions:**
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_mem_keyword.py`](docs/audit_repro/repro_mem_keyword.py)
+> *Audit finding H-6: memory recall finds nothing for natural-language questions on default installs.*
+
+**Size**: `28` lines (`1256` bytes)
+
+---
+
+### [`docs/audit_repro/repro_on_event.py`](docs/audit_repro/repro_on_event.py)
+> *Audit finding M-LIFE-1: module-level @router.on_event handlers never run.*
+
+**Size**: `42` lines (`1242` bytes)
+
+**Functions:**
+- `async def on_startup()`
+- `async def on_shutdown()`
+- `async def lifespan(app)`
+
+---
+
+### [`docs/audit_repro/repro_repeater.py`](docs/audit_repro/repro_repeater.py)
+> *Audit finding H-7: the default flow's reminder loop is never started.*
+
+**Size**: `25` lines (`1230` bytes)
+
+---
+
+### [`docs/audit_repro/repro_retry.py`](docs/audit_repro/repro_retry.py)
+> *Audit finding L-1: run_with_retry raises UnboundLocalError on a malformed retry_after.*
+
+**Size**: `41` lines (`1174` bytes)
+
+**Classes:**
+- `class TransientError`
+
+**Functions:**
+- `async def operation()`
+- `async def main()`
+
+---
+
+### [`docs/audit_repro/repro_vision_clamp.py`](docs/audit_repro/repro_vision_clamp.py)
+> *Audit finding H-1: default model limits refuse a chat request carrying one ordinary image.*
+
+**Size**: `33` lines (`1572` bytes)
+
+---
+
+### [`docs/audit_repro/run_all.py`](docs/audit_repro/run_all.py)
+> *Run every audit reproduction script in an isolated state directory and print its verdicts.*
+
+**Size**: `36` lines (`1404` bytes)
+
+**Functions:**
+- `def main()`
+
+---
+
 ### [`main.py`](main.py)
-**Size**: `193` lines (`8029` bytes)
+**Size**: `285` lines (`12090` bytes)
 
 **Functions:**
 - `async def verify_debug_key(x_debug_key)` - *Verify debug API key for protected debug endpoints.*
 - `def _fire_repeater_nodes(app, flow_id, flow, is_auto_start)` - *Fire all repeater nodes in a flow.*
 - `def background_task_callback(task, flow_id, node_id, app)`
 - `async def lifespan(app)` - *Handles startup and shutdown events for the application.*
+- `async def feature_flag_gate(request, call_next)`
 - `async def debug_fire_flow()`
 
 ---
@@ -1280,7 +1520,7 @@
 ### [`modules/agent_loop/loop_guard.py`](modules/agent_loop/loop_guard.py)
 > *Deterministic repetition and deadlock detection for an agent loop.*
 
-**Size**: `97` lines (`3861` bytes)
+**Size**: `103` lines (`4039` bytes)
 
 **Classes:**
 - `class LoopGuard` - *Watch a bounded call history and return a warning or an abort decision.*
@@ -1295,7 +1535,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `6010` lines (`279098` bytes)
+**Size**: `6190` lines (`285955` bytes)
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1422,7 +1662,7 @@
 ---
 
 ### [`modules/annotations/node.py`](modules/annotations/node.py)
-**Size**: `20` lines (`849` bytes)
+**Size**: `22` lines (`955` bytes)
 
 **Classes:**
 - `class CommentExecutor` - *Executor for the Comment Node.*
@@ -1803,7 +2043,7 @@
 ### [`modules/brain/assertions.py`](modules/brain/assertions.py)
 > *Typed, weighted evaluation checks (IDEA-1206).*
 
-**Size**: `308` lines (`12092` bytes)
+**Size**: `315` lines (`12339` bytes)
 
 **Classes:**
 - `class CheckCode`
@@ -1829,7 +2069,7 @@
 ### [`modules/brain/auth.py`](modules/brain/auth.py)
 > *Brain actor identity, token registry and role gates.*
 
-**Size**: `279` lines (`10120` bytes)
+**Size**: `287` lines (`10487` bytes)
 
 **Classes:**
 - `class BrainActor`
@@ -1878,7 +2118,7 @@
 ### [`modules/brain/configuration.py`](modules/brain/configuration.py)
 > *Policy-gated self-configuration for settings, modules and brain options.*
 
-**Size**: `428` lines (`18533` bytes)
+**Size**: `436` lines (`18889` bytes)
 
 **Classes:**
 - `class ConfigurationPolicyError` - *Raised when a requested change violates the configuration policy.*
@@ -1988,7 +2228,7 @@
 ### [`modules/brain/events.py`](modules/brain/events.py)
 > *Bounded, async event bus for brain perceptions.*
 
-**Size**: `88` lines (`3238` bytes)
+**Size**: `94` lines (`3377` bytes)
 
 **Classes:**
 - `class BrainEvent`
@@ -2067,7 +2307,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `488` lines (`20907` bytes)
+**Size**: `522` lines (`23040` bytes)
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -2100,7 +2340,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `482` lines (`20128` bytes)
+**Size**: `493` lines (`20633` bytes)
 
 **Classes:**
 - `class KernelMode`
@@ -2149,7 +2389,7 @@
 ### [`modules/brain/learning.py`](modules/brain/learning.py)
 > *Outcome-driven learning: experiences, consolidation and held-out recall.*
 
-**Size**: `676` lines (`26627` bytes)
+**Size**: `689` lines (`27208` bytes)
 
 **Classes:**
 - `class Outcome`
@@ -2260,7 +2500,7 @@
 ### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
 > *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
 
-**Size**: `392` lines (`15482` bytes)
+**Size**: `443` lines (`17971` bytes)
 
 **Classes:**
 - `class ReactionStore`
@@ -2281,7 +2521,7 @@
   - Method `async def ._emit(event)`
   - Method `._calendar_events()`
   - Method `._metric_events()`
-  - Method `._file_events()`
+  - Method `._file_events(baselines)` - *Scan watched paths against read-only baselines.*
   - Method `async def ._poll_loop()`
   - Method `._dedupe_key(event)`
   - Method `._prune(now)`
@@ -2296,7 +2536,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `944` lines (`36676` bytes)
+**Size**: `703` lines (`26532` bytes)
 
 **Functions:**
 - `async def brain_startup()`
@@ -2356,20 +2596,8 @@
 - `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
 - `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
 - `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
-- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
-- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
-- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
-- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 - `async def brain_config_apply(body, module_manager, actor)`
-- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
-- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
-- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
-- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 - `async def brain_config_rollback(body, module_manager, actor)`
-- `async def brain_get_prompt(name, label)` - *Retrieve version history or a specific label for a prompt.*
-- `async def brain_publish_prompt(name, body, _actor)` - *Publish an immutable version of a prompt; identical content is idempotent.*
-- `async def brain_move_prompt_label(name, body, actor)` - *Move a rollout label to a specific prompt version.*
-- `async def brain_rollback_prompt_label(name, body, actor)` - *Rollback a rollout label to its previous target.*
 
 ---
 
@@ -2419,7 +2647,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `871` lines (`38512` bytes)
+**Size**: `890` lines (`39480` bytes)
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -2487,7 +2715,7 @@
 ### [`modules/brain/state.py`](modules/brain/state.py)
 > *Persistent brain state and mode definitions.*
 
-**Size**: `90` lines (`3029` bytes)
+**Size**: `94` lines (`3171` bytes)
 
 **Classes:**
 - `class BrainState` - *Observable state of the brain control plane.*
@@ -2522,12 +2750,13 @@
 ### [`modules/brain/trends.py`](modules/brain/trends.py)
 > *Bounded metric-trend detection for reviewable self-repair proposals (ADR-058).*
 
-**Size**: `229` lines (`9097` bytes)
+**Size**: `258` lines (`10634` bytes)
 
 **Classes:**
 - `class TrendStore` - *Atomic JSON ledger for samples and emitted findings.*
   - Method `.__init__(path)`
   - Method `.load()`
+  - Method `._quarantine()`
   - Method `.save(data)`
 - `class TrendMonitor` - *Record bounded samples and emit at most one deterministic repair finding per day.*
   - Method `.__init__(store, clock, window, history, min_delta, cooldown_seconds, max_per_day)`
@@ -2588,7 +2817,7 @@
 ---
 
 ### [`modules/browser_automation/service.py`](modules/browser_automation/service.py)
-**Size**: `311` lines (`14105` bytes)
+**Size**: `315` lines (`14285` bytes)
 
 **Classes:**
 - `class BrowserService`
@@ -2618,7 +2847,7 @@
 ### [`modules/browser_automation/snapshot.py`](modules/browser_automation/snapshot.py)
 > *Bounded snapshot receipts with typed refusal (IDEA-1209).*
 
-**Size**: `135` lines (`4554` bytes)
+**Size**: `142` lines (`4840` bytes)
 
 **Classes:**
 - `class SnapshotBudget`
@@ -2642,7 +2871,7 @@
 ---
 
 ### [`modules/calendar/events.py`](modules/calendar/events.py)
-**Size**: `163` lines (`6195` bytes)
+**Size**: `219` lines (`8743` bytes)
 
 **Classes:**
 - `class EventManager`
@@ -2659,16 +2888,17 @@
   - Method `.get_event_by_id(event_id)`
   - Method `.update_event(event_id, title, start_time)` - *Update an existing event's title and/or start_time. Returns the updated event or None.*
   - Method `.mark_notified(event_id)` - *Mark an event as notified.*
+  - Method `.claim_due(grace_minutes)` - *Atomically claim due, unnotified events and mark them notified.*
   - Method `.delete_event(event_id)`
 
 ---
 
 ### [`modules/calendar/node.py`](modules/calendar/node.py)
-**Size**: `75` lines (`2906` bytes)
+**Size**: `49` lines (`1730` bytes)
 
 **Classes:**
 - `class CalendarWatcherExecutor`
-  - Method `async def .receive(input_data, config)` - *Checks for calendar events scheduled for the current time.*
+  - Method `async def .receive(input_data, config)` - *Claim due calendar events and stop the branch when there are none.*
   - Method `async def .send(processed_data)`
 
 **Functions:**
@@ -2695,7 +2925,7 @@
 ---
 
 ### [`modules/chat/node.py`](modules/chat/node.py)
-**Size**: `76` lines (`3232` bytes)
+**Size**: `76` lines (`3242` bytes)
 
 **Classes:**
 - `class ChatInputExecutor` - *Node to start a flow with chat data.*
@@ -2711,9 +2941,13 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `787` lines (`35343` bytes)
+**Size**: `904` lines (`40858` bytes)
 
 **Functions:**
+- `def _stream_key(session_id, msg_id)`
+- `def _latest_stream_for(session_id)` - *Newest queue for a session (back-compat when no msg_id is given).*
+- `def _session_has_stream(session_id)`
+- `def _register_stream(key, queue, cap)` - *Register a per-message stream queue with bounded retention.*
 - `def _module_meta(request, module_id)` - *One module manifest without importing the module (the rail works while it is off).*
 - `def _brain_prompt(message)` - *The text after a leading /brain, or None when the message is ordinary chat.*
 - `def _without_current_turn(history, message)` - *The session history before the user message the caller just appended.*
@@ -2732,12 +2966,12 @@
 - `async def run_brain_command(request, session_id, body, actor)` - *Run one brain suggestion and mark it done in the stored chat message.*
 - `async def save_chat_settings(request, auto_rename_turns, auto_compact_tokens, compact_keep_last)`
 - `async def send_message(request, message, session_id, image, goal_id, llm)`
-- `async def stream_chat(session_id)`
+- `async def stream_chat(session_id, msg_id)`
 
 ---
 
 ### [`modules/chat/sessions.py`](modules/chat/sessions.py)
-**Size**: `360` lines (`14019` bytes)
+**Size**: `366` lines (`14206` bytes)
 
 **Classes:**
 - `class SessionManager`
@@ -2826,7 +3060,7 @@
 ### [`modules/email_bridge/service.py`](modules/email_bridge/service.py)
 > *EmailService — singleton that manages IMAP polling and SMTP replies.*
 
-**Size**: `329` lines (`11673` bytes)
+**Size**: `346` lines (`12371` bytes)
 
 **Classes:**
 - `class _SessionStore` - *Thread-safe sender→session_id map persisted to sessions.json.*
@@ -2877,7 +3111,7 @@
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1413` lines (`57822` bytes)
+**Size**: `1424` lines (`58199` bytes)
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -2924,6 +3158,9 @@
   - Method `.search_keyword(query, limit)` - *Search for chunks using SQLite FTS5 (Keyword Search).*
   - Method `.search_hybrid(query_text, query_embedding, limit, rrf_k)` - *Combine Vector Search and Keyword Search using Reciprocal Rank Fusion (RRF).*
 
+**Functions:**
+- `def _fts_query(text)` - *Build a safe FTS5 MATCH query: word tokens, quoted, OR-joined (H-5).*
+
 ---
 
 ### [`modules/knowledge_base/embedding_space.py`](modules/knowledge_base/embedding_space.py)
@@ -2948,7 +3185,7 @@
 ---
 
 ### [`modules/knowledge_base/node.py`](modules/knowledge_base/node.py)
-**Size**: `105` lines (`3952` bytes)
+**Size**: `112` lines (`4162` bytes)
 
 **Classes:**
 - `class KnowledgeQueryExecutor`
@@ -3028,12 +3265,13 @@
 ---
 
 ### [`modules/llm_module/node.py`](modules/llm_module/node.py)
-**Size**: `265` lines (`12136` bytes)
+**Size**: `317` lines (`14097` bytes)
 
 **Classes:**
 - `class LLMExecutor`
   - Method `.__init__()`
   - Method `async def .receive(input_data, config)` - *Executes LLM completion.*
+  - Method `._classify_bridge_error(response)` - *Classify a bridge error dict as (retryable, retry_after, reason) (M-LLM-1).*
   - Method `async def ._execute_with_retry_and_timeout(messages, timeout, max_retries, retry_delay, **kwargs)` - *Execute LLM call with optional timeout and retry logic.*
   - Method `async def ._receive_with_stream(messages, params, queue)` - *Execute LLM call using streaming endpoint and pushing tokens to the queue.*
   - Method `async def .send(processed_data)`
@@ -3058,7 +3296,7 @@
 ---
 
 ### [`modules/logic/node.py`](modules/logic/node.py)
-**Size**: `397` lines (`17475` bytes)
+**Size**: `411` lines (`18153` bytes)
 
 **Classes:**
 - `class ContextLengthRouterExecutor` - *Routes to RLM or standard LLM based on estimated token count.*
@@ -3109,7 +3347,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1669` lines (`78255` bytes)
+**Size**: `1824` lines (`85753` bytes)
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -3119,8 +3357,12 @@
   - Method `._init_db()`
   - Method `._execute_init(con)`
   - Method `._parse_embedding(blob)`
+  - Method `._index_meta_path()`
+  - Method `._indexed_row_checksum()` - *Checksum of the sorted ids that should be in the vector index.*
+  - Method `._write_index_meta(count)` - *Record model, dimension and id checksum beside the FAISS file (M-DATA-4).*
   - Method `._save_faiss_index(force)`
   - Method `._load_faiss_index()`
+  - Method `._index_meta_valid()` - *True when the saved meta matches the current model, dimension and ids.*
   - Method `._sync_faiss_index()` - *Ensures FAISS index count matches DB count on startup.*
   - Method `._build_faiss_index()`
   - Method `.compute_identity(text)`
@@ -3171,6 +3413,8 @@
 
 **Functions:**
 - `def screen_memory_text(what, *texts)` - *Scan text bound for memory or goals on the guardrails' ``memory`` surface (IDEA-334): a stored*
+- `def _escape_like(term)` - *Escape LIKE wildcards so a literal % _ \ is matched (H-6).*
+- `def _memory_keywords(query)` - *Tokenize a natural question into content terms (H-6).*
 
 ---
 
@@ -3215,6 +3459,44 @@
 
 ---
 
+### [`modules/memory/file_table.py`](modules/memory/file_table.py)
+> *In-memory file table toy mirroring the qwenFS DeltaNet mechanism (Stage 3).*
+
+**Size**: `500` lines (`22330` bytes)
+
+**Classes:**
+- `class FilePager` - *Paged view over one file's version rows (qwenFS ``disk.py`` Pager).*
+  - Method `.__init__(table, scope_key, path, page_size, scope_values, scope_policy)`
+  - Property `.path` - *Exact path this pager is mounted on.*
+  - Property `.page_size` - *Rows per page.*
+  - Property `.pages` - *Number of pages over the current version list.*
+  - Method `.page(index)` - *Return one slice of version rows; out-of-range indexes return [].*
+  - Method `.copy_rows(dest, dest_path, count, scope, require_scope, scope_policy)` - *Copy the newest ``count`` version rows into ``dest`` (qwenFS copy_rows).*
+- `class FileTable` - *Pure in-memory exact-match file store (qwenFS DeltaNet tables toy).*
+  - Method `.__init__()`
+  - Method `._partition(scope, require, scope_policy)` - *Normalise scope and precompute the ``scope_clauses`` filter.*
+  - Method `._clean_path(path)`
+  - Method `._resolve(name, scope_values, clauses, params)` - *Exact lookup with shared-policy legacy fallback across partitions.*
+  - Method `._resolve_key(name, scope_values, clauses, params)` - *Like _resolve but also returns the stored (scope_key, path) key.*
+  - Method `.write(path, text, scope, require_scope, scope_policy)` - *Store ``text`` as the next version of ``path``; returns 1-based version.*
+  - Method `.read(path, scope, require_scope, scope_policy)` - *Exact-match read of the current version; ``None`` when missing/hidden.*
+  - Method `.version(path, scope, require_scope, scope_policy)` - *Current 1-based version number; 0 when the file is missing/hidden.*
+  - Method `.count(path, scope, require_scope, scope_policy)` - *Total writes ever made to ``path`` (count table); 0 when missing.*
+  - Method `.list(scope, require_scope, scope_policy)` - *Sorted exact paths visible under the scope filter (path table).*
+  - Method `.link(src, dst, scope, require_scope, scope_policy)` - *Link ``src`` -> ``dst``; ``True`` when created, ``False`` on duplicate.*
+  - Method `.unlink(src, dst, scope, require_scope, scope_policy)` - *Remove ``src`` -> ``dst``; ``True`` when an edge was removed.*
+  - Method `.list_links(src, scope, require_scope, scope_policy)` - *Sorted destinations linked from ``src`` (forward link index).*
+  - Method `.list_backlinks(dst, scope, require_scope, scope_policy)` - *Sorted sources linking to ``dst`` (reverse link index).*
+  - Method `.mount(path, page_size, scope, require_scope, scope_policy)` - *Mount ``path`` for paged version reads (qwenFS ``disk.py`` mount).*
+  - Method `.page(path, index, page_size, scope, require_scope, scope_policy)` - *One page of version rows for ``path`` without holding a pager.*
+  - Method `.render(paths, scope, require_scope, scope_policy, budget)` - *Render visible files through ``budget.fit``/``budget.render``.*
+
+**Functions:**
+- `def _scope_key(scope_values)` - *Partition key in SCOPE_KEYS order; ``""`` marks a legacy unscoped id.*
+- `def _visible(row_scope, clauses, params)` - *True when a stored owner scope satisfies every ``scope_clauses`` predicate.*
+
+---
+
 ### [`modules/memory/filter_plan.py`](modules/memory/filter_plan.py)
 > *Filter-cardinality planner for memory recall (IDEA-1154).*
 
@@ -3255,7 +3537,7 @@
 ---
 
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `433` lines (`19125` bytes)
+**Size**: `436` lines (`19214` bytes)
 
 **Classes:**
 - `class ConfigLoader`
@@ -3281,11 +3563,11 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `402` lines (`18996` bytes)
+**Size**: `477` lines (`22808` bytes)
 
 **Functions:**
 - `async def get_stats(request)`
-- `async def save_memory_settings(request, recall_limit, recall_min_score, save_confidence_threshold, consolidation_threshold, auto_consolidation_hours, arbiter_model, arbiter_prompt, similarity_threshold, belief_ttl_days, recall_access_weight)`
+- `async def save_memory_settings(request, recall_limit, recall_min_score, save_confidence_threshold, save_default_confidence, save_delay, consolidation_threshold, auto_consolidation_hours, arbiter_model, arbiter_prompt, similarity_threshold, belief_ttl_days, recall_access_weight, recall_link_boost, recall_max_total_chars, recall_max_item_chars, memory_scope_policy)`
 - `async def consolidation_status(request)`
 - `async def consolidate_memories(request)`
 - `async def wipe_memories(request, confirm)`
@@ -3399,7 +3681,7 @@
 ---
 
 ### [`modules/messaging_bridge/node.py`](modules/messaging_bridge/node.py)
-**Size**: `173` lines (`6985` bytes)
+**Size**: `177` lines (`7110` bytes)
 
 **Classes:**
 - `class ConfigLoader`
@@ -3419,7 +3701,7 @@
 ---
 
 ### [`modules/messaging_bridge/router.py`](modules/messaging_bridge/router.py)
-**Size**: `136` lines (`3982` bytes)
+**Size**: `226` lines (`7749` bytes)
 
 **Functions:**
 - `def _success(message)`
@@ -3427,7 +3709,9 @@
 - `async def save_telegram_settings(request, bot_token, chat_id)`
 - `async def save_discord_settings(request, bot_token, channel_id)`
 - `async def save_signal_settings(request, api_url, phone_number)`
-- `async def save_whatsapp_settings(request, api_url, api_key, instance, phone_number)`
+- `async def save_whatsapp_settings(request, api_url, api_key, instance, phone_number, webhook_secret)`
+- `def _parse_id_list(raw)` - *Parse a comma/space-separated allowlist into a clean list of ids.*
+- `async def save_access_settings(request)` - *Save sender/chat allowlists for every platform in one form.*
 - `async def whatsapp_webhook(request)` - *Receives inbound message events pushed by Evolution API.*
 
 ---
@@ -3502,7 +3786,7 @@
 ---
 
 ### [`modules/messaging_bridge/telegram_bridge.py`](modules/messaging_bridge/telegram_bridge.py)
-**Size**: `186` lines (`7588` bytes)
+**Size**: `186` lines (`7624` bytes)
 
 **Classes:**
 - `class TelegramBridge` - *Handles communication with Telegram API using async httpx.*
@@ -3548,7 +3832,7 @@
 ### [`modules/meta/node.py`](modules/meta/node.py)
 > *Subflow executor: a ganglion is a reference to another stored flow.*
 
-**Size**: `47` lines (`1677` bytes)
+**Size**: `60` lines (`2237` bytes)
 
 **Classes:**
 - `class SubflowExecutor` - *Run the flow named by ``config['flow_id']`` and pass its output through.*
@@ -3561,11 +3845,13 @@
 ---
 
 ### [`modules/planner/node.py`](modules/planner/node.py)
-**Size**: `716` lines (`29854` bytes)
+**Size**: `754` lines (`31357` bytes)
 
 **Classes:**
 - `class PlannerExecutor`
   - Method `.__init__()`
+  - Method `._normalize_deps(raw)` - *Normalize depends_on to (int_list, unknown_raw_list) (H-9).*
+  - Method `._unknown_dependencies(plan)` - *Collect depends_on references that name no plan step (H-9).*
   - Method `._generate_plan_context(plan, current_step, completed_steps)` - *Generate plan_context string showing progress (used in auto_track mode).*
   - Method `._build_dependency_graph(plan)` - *Build adjacency list and in-degree count for topological sort.*
   - Method `._detect_circular_dependencies(plan)` - *Detect circular dependencies using Kahn's algorithm.*
@@ -3622,13 +3908,14 @@
 ---
 
 ### [`modules/reasoning_book/service.py`](modules/reasoning_book/service.py)
-**Size**: `120` lines (`4533` bytes)
+**Size**: `164` lines (`6853` bytes)
 
 **Classes:**
 - `class ReasoningBookService`
   - Method `.__init__(data_file)`
   - Method `._load()`
-  - Method `._save()`
+  - Method `._write_snapshot(data_file, snapshot)` - *Atomic temp-file + replace write of an explicit snapshot.*
+  - Method `._save(snapshot)`
   - Method `async def .log_thought(content, source, step_id, parent_thought_id, tags, session_id)` - *Log a thought with optional structured metadata.*
   - Method `.get_thoughts()` - *Return a copy of thoughts to avoid internal state corruption.*
   - Method `async def .clear()` - *Clear all thoughts. Thread-safe with lock.*
@@ -3658,7 +3945,7 @@
 ---
 
 ### [`modules/reflection/node.py`](modules/reflection/node.py)
-**Size**: `342` lines (`15439` bytes)
+**Size**: `353` lines (`15804` bytes)
 
 **Classes:**
 - `class ReflectionExecutor`
@@ -3672,6 +3959,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _log_thought_retained(service, *args, **kwargs)`
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -3738,7 +4026,7 @@
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `302` lines (`11105` bytes)
+**Size**: `302` lines (`11245` bytes)
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -3791,7 +4079,7 @@
 ### [`modules/skills/service.py`](modules/skills/service.py)
 > *Service layer for Skills module - business logic for skill management.*
 
-**Size**: `391` lines (`17250` bytes)
+**Size**: `411` lines (`18050` bytes)
 
 **Classes:**
 - `class SkillService` - *Business logic for skill management.*
@@ -3802,6 +4090,7 @@
   - Method `.create_skill(name, description, content, category, tags)` - *Create a new skill.*
   - Method `.update_skill(skill_id, **kwargs)` - *Update an existing skill; new content is scanned before it replaces the old text.*
   - Method `.delete_skill(skill_id)` - *Delete a skill.*
+  - Method `.import_skill_with_id(skill_id, name, description, content, category, tags)` - *Import skill text under an explicit id (marketplace imports).*
   - Method `.import_from_file(file_content, file_name)` - *Import a skill from file content.*
   - Method `.import_from_url(url)` - *Import a skill from a URL with SSRF protection.*
   - Method `.export_skill(skill_id)` - *Export a skill for download.*
@@ -3848,7 +4137,7 @@
 ---
 
 ### [`modules/system_prompt/node.py`](modules/system_prompt/node.py)
-**Size**: `320` lines (`15452` bytes)
+**Size**: `320` lines (`15462` bytes)
 
 **Classes:**
 - `class SystemPromptExecutor`
@@ -3883,7 +4172,7 @@
 ### [`modules/tools/approvals.py`](modules/tools/approvals.py)
 > *Pending approvals for HIGH-tier tool calls (IDEA-060).*
 
-**Size**: `100` lines (`4078` bytes)
+**Size**: `100` lines (`4094` bytes)
 
 **Classes:**
 - `class ToolApprovals` - *The approval ledger: pending calls, claimed at most once, then settled.*
@@ -3902,7 +4191,7 @@
 ### [`modules/tools/calls.py`](modules/tools/calls.py)
 > *Per-call lifecycle for tool execution (IDEA-1173).*
 
-**Size**: `225` lines (`7807` bytes)
+**Size**: `229` lines (`7917` bytes)
 
 **Classes:**
 - `class ToolCallCancelled` - *The caller requested cancellation and the child was stopped.*
@@ -3966,7 +4255,7 @@
 
 ---
 
-### [`modules/tools/library/calculator.py`](modules/tools/library/calculator.py)
+### [`modules/tools/library/Calculator.py`](modules/tools/library/Calculator.py)
 **Size**: `132` lines (`4153` bytes)
 
 **Functions:**
@@ -4055,7 +4344,7 @@
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `204` lines (`9192` bytes)
+**Size**: `256` lines (`12008` bytes)
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -4073,7 +4362,7 @@
 ### [`modules/tools/outbound.py`](modules/tools/outbound.py)
 > *Outbound tools draft; only the user's approval sends (IDEA-032).*
 
-**Size**: `120` lines (`5461` bytes)
+**Size**: `137` lines (`6058` bytes)
 
 **Classes:**
 - `class OutboundDrafts` - *The draft ledger: pending drafts, claimed at most once, then settled.*
@@ -4086,6 +4375,7 @@
 **Functions:**
 - `def default_store()`
 - `def stage_if_outbound(func_name, args)` - *The tool result for an outbound call, now a draft; None for any other tool.*
+- `def _library_path(tool)` - *Resolve ``library/<tool>.py`` case-insensitively (M-TOOL-3).*
 - `def run_library_tool(tool, args)` - *Run a library tool's code in the sandbox, as the dispatchers do.*
 - `def send_draft(draft_id, confirm, runner)` - *Send one pending draft after the confirmation phrase; a draft is claimed before it is sent.*
 
@@ -4127,12 +4417,18 @@
 ---
 
 ### [`modules/tools/router.py`](modules/tools/router.py)
-**Size**: `567` lines (`22506` bytes)
+**Size**: `722` lines (`28735` bytes)
 
 **Functions:**
 - `def _sanitize_tool_name(name)` - *Sanitize tool name to prevent path traversal attacks.*
+- `def _validate_tool_name(name)` - *Reject names no provider will accept as a function name.*
+- `def _library_path(name)` - *Resolve ``library/<name>.py`` case-insensitively (M-TOOL-3).*
+- `def _quarantine_corrupt_tools()` - *Move a corrupt tools.json aside so it can never be overwritten silently.*
+- `def _load_tools_locked()` - *Load inside an already-held lock; quarantine and raise on corruption.*
 - `def load_tools()` - *Load tools from JSON file with file locking for thread safety.*
+- `def _atomic_write_json(path, payload)` - *Write JSON via temp file + atomic replace (M-DATA-1).*
 - `def save_tools(tools)` - *Save tools to JSON file with file locking for thread safety.*
+- `def update_tools(mutator)` - *Read-modify-write under ONE lock so concurrent edits cannot lose updates.*
 - `async def load_tools_async()` - *Async wrapper for load_tools to avoid blocking event loop.*
 - `async def save_tools_async(tools)` - *Async wrapper for save_tools to avoid blocking event loop.*
 - `async def tools_page(request)` - *Loads the main dashboard with the Tool Library active.*
@@ -4165,7 +4461,7 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `1087` lines (`47071` bytes)
+**Size**: `1087` lines (`47099` bytes)
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
@@ -4296,7 +4592,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `1909` lines (`77653` bytes)
+**Size**: `2014` lines (`82053` bytes)
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -4304,6 +4600,14 @@
   - Method `async def .test_empty_messages_returns_input_unchanged()` - *When messages list is empty the input should be returned as-is.*
   - Method `async def .test_basic_no_tool_calls()` - *Single LLM call with no tool calls should complete in 1 iteration.*
   - Method `async def .test_tool_call_executed_and_result_appended()` - *Tool calls should be executed and results appended to messages.*
+  - Method `async def .test_bad_max_iterations_is_rejected_with_hint()` - *A non-numeric max_iterations must fail fast with Why/Fix, not crash deep.*
+  - Method `async def .test_rlm_bad_config_is_rejected_with_hint()` - *RLM executor validates its config block the same way.*
+  - Method `async def .test_hybrid_bad_config_is_rejected_with_hint()` - *Hybrid executor validates its config block the same way.*
+  - Method `async def .test_sub_call_bad_max_tokens_returns_error_result()` - *A non-numeric SubCall max_tokens returns an error result, not a crash.*
+  - Method `async def .test_replan_rejects_bad_llm_config()` - *A non-numeric replan temperature must fail fast with Why/Fix.*
+  - Method `async def .test_replan_rejects_bad_max_steps()` - *A non-numeric replan max_steps must fail fast with Why/Fix.*
+  - Method `async def .test_goal_pursuit_bad_sub_call_limit_is_rejected_with_hint()` - *A non-numeric max_sub_calls must fail fast with Why/Fix.*
+  - Method `async def .test_goal_pursuit_bad_config_is_rejected_with_hint()` - *GoalPursuit executor validates its config block the same way.*
   - Method `async def .test_max_iterations_respected()` - *Loop must stop at max_iterations even if LLM keeps returning tool calls.*
   - Method `async def .test_send_returns_data_unchanged()` - *send() must be a passthrough.*
   - Method `async def .test_unknown_tool_produces_error_in_trace()` - *Calling a tool not in the library should produce an error in the trace.*
@@ -4367,6 +4671,7 @@
 - `class TestHybridAgentExecutor` - *Tests for HybridAgentExecutor — adaptive output routing and combined tool library.*
   - Method `._make_executor()`
   - Method `._repl_state()`
+  - Method `async def .test_create_plan_rejects_bad_max_steps()` - *A non-numeric max_steps must fail fast with Why/Fix, before any LLM call.*
   - Method `.test_excluded_tools_set()` - *Only SetFinal is excluded; Peek/Search/Chunk/SubCall are now hybrid-compatible.*
   - Method `.test_build_variable_system_note_contains_threshold()`
   - Method `async def .test_small_output_stays_inline()`
@@ -4416,9 +4721,10 @@
 ### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
 > *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
 
-**Size**: `109` lines (`4054` bytes)
+**Size**: `115` lines (`4230` bytes)
 
 **Functions:**
+- `def test_bad_guard_limits_fall_back_to_defaults()`
 - `def test_transport_identifiers_do_not_make_a_call_unique()`
 - `def test_domain_identifiers_remain_part_of_the_signature()`
 - `def test_hex_domain_identifiers_remain_part_of_the_signature()`
@@ -4460,29 +4766,50 @@
 ---
 
 ### [`tests/test_annotations_node.py`](tests/test_annotations_node.py)
-**Size**: `23` lines (`683` bytes)
+**Size**: `44` lines (`1457` bytes)
 
 **Functions:**
 - `async def test_get_executor_class()`
 - `async def test_comment_executor_stops_propagation()`
+- `async def test_receive_returns_none_for_none_input()`
+- `async def test_send_returns_none_for_dict_input()`
+- `async def test_get_executor_class_strips_whitespace()`
+- `async def test_get_executor_class_rejects_non_string()`
 
 ---
 
 ### [`tests/test_archive_safety.py`](tests/test_archive_safety.py)
 > *Regression tests for M2: ZIP extraction must never escape its destination (zip-slip).*
 
-**Size**: `106` lines (`4042` bytes)
+**Size**: `130` lines (`4820` bytes)
 
 **Functions:**
 - `def _write_zip(path, members)`
 - `def _write_symlink_zip(path)`
 - `def test_rejects_zip_slip(tmp_path)`
 - `def test_rejects_absolute_member(tmp_path)`
+- `def test_partial_file_removed_on_write_error(tmp_path, monkeypatch)`
 - `def test_rejects_symlink_member(tmp_path)`
 - `def test_extracts_flat_archive(tmp_path)`
 - `def test_strips_single_root_directory(tmp_path)`
 - `async def test_import_route_refuses_zip_slip(tmp_path, monkeypatch)`
 - `async def test_import_route_extracts_safe_module(tmp_path, monkeypatch)`
+
+---
+
+### [`tests/test_auth_registry.py`](tests/test_auth_registry.py)
+> *Failing-first tests for core/auth_registry.py (IDEA-1299, IDEA-1301).*
+
+**Size**: `83` lines (`2335` bytes)
+
+**Functions:**
+- `def test_oauth_register_and_validate_redirect()`
+- `def test_oauth_refuses_empty_redirects()`
+- `def test_oauth_refuses_uri_bound()`
+- `def test_connector_maps_claims()`
+- `def test_connector_refuses_missing_issuer()`
+- `def test_connector_refuses_plain_http_issuer()`
+- `def test_connector_disabled_refuses_mapping()`
 
 ---
 
@@ -4560,7 +4887,7 @@
 ### [`tests/test_brain_auth.py`](tests/test_brain_auth.py)
 > *Brain actor authentication and remote access gate.*
 
-**Size**: `241` lines (`7674` bytes)
+**Size**: `255` lines (`8216` bytes)
 
 **Functions:**
 - `def make_request(host, headers)`
@@ -4578,6 +4905,8 @@
 - `def test_authentication_hashes_once_however_many_actors_exist(tmp_path, monkeypatch)`
 - `def test_token_key_id_reveals_nothing_about_the_secret(tmp_path)`
 - `def test_legacy_and_caller_supplied_tokens_still_authenticate(tmp_path)`
+- `def test_bad_iterations_is_rejected_with_hint(tmp_path)`
+- `def test_rotate_does_not_reenable_disabled_actor(tmp_path)`
 - `def test_last_used_is_written_at_most_once_a_minute(tmp_path, monkeypatch)`
 
 ---
@@ -4634,7 +4963,7 @@
 ### [`tests/test_brain_configuration.py`](tests/test_brain_configuration.py)
 > *Policy-gated self-configuration: preview, apply, rollback and quotas.*
 
-**Size**: `252` lines (`8517` bytes)
+**Size**: `257` lines (`8699` bytes)
 
 **Classes:**
 - `class FakeSettings`
@@ -4648,6 +4977,7 @@
   - Method `.disable_module(module_id)`
 
 **Functions:**
+- `def test_engine_rejects_non_numeric_change_limits(tmp_path)`
 - `def make_engine(tmp_path, **kwargs)`
 - `def test_setting_preview_apply_and_rollback(tmp_path)`
 - `def test_setting_policy_and_bounds(tmp_path)`
@@ -4704,10 +5034,11 @@
 ### [`tests/test_brain_evaluation_assertions.py`](tests/test_brain_evaluation_assertions.py)
 > *Typed weighted evaluation checks (IDEA-1206).*
 
-**Size**: `162` lines (`5852` bytes)
+**Size**: `167` lines (`6025` bytes)
 
 **Functions:**
 - `def _output(content)`
+- `def test_from_legacy_rejects_non_numeric_weight()`
 - `def test_weighted_checks_produce_a_partial_score_and_fail_a_threshold()`
 - `def test_zero_weight_metric_does_not_change_pass_or_fail()`
 - `def test_required_failure_fails_even_under_a_low_threshold()`
@@ -4794,18 +5125,23 @@
 ### [`tests/test_brain_improvement.py`](tests/test_brain_improvement.py)
 > *Eval-gated flow improvement: preview, quotas, promotion and rollback.*
 
-**Size**: `349` lines (`12927` bytes)
+**Size**: `407` lines (`14987` bytes)
 
 **Classes:**
 - `class FakeEvalRunner`
   - Method `.__init__(pass_rate, failed_tasks)`
   - Method `async def .run(flow_id, **kwargs)`
+- `class SlowEvalRunner`
+  - Method `.__init__(*args, **kwargs)`
+  - Method `async def .run(flow_id, **kwargs)`
 
 **Functions:**
+- `def test_improvement_rejects_non_numeric_limits(tmp_path)`
 - `def make_flow_manager(tmp_path)`
 - `def make_engine(tmp_path, manager, pass_rate, failed_tasks, **kwargs)`
 - `def rename_ops(name)`
 - `def test_preview_applies_operations_without_saving(tmp_path)`
+- `async def test_concurrent_evaluations_share_the_run_window(tmp_path)` - *The slow evaluation run must not hold the ledger lock: two*
 - `async def test_candidate_is_promoted_only_after_evaluation_and_can_rollback(tmp_path)`
 - `async def test_failed_candidate_never_leaves_the_flow_modified(tmp_path)`
 - `async def test_candidate_with_a_foreign_baseline_is_not_promotable(tmp_path)`
@@ -4857,7 +5193,7 @@
 ### [`tests/test_brain_learning.py`](tests/test_brain_learning.py)
 > *Learning loop: outcomes, consolidation into global memory and held-out recall.*
 
-**Size**: `422` lines (`13945` bytes)
+**Size**: `436` lines (`14362` bytes)
 
 **Classes:**
 - `class FakeMemoryBridge` - *In-memory stand-in for the global MemoryStore used by the learning loop.*
@@ -4868,6 +5204,7 @@
   - Method `.browse(limit, search_text, mem_type, source, **kwargs)`
 
 **Functions:**
+- `def test_learning_loop_rejects_non_numeric_limits(tmp_path)`
 - `def make_loop(tmp_path, min_occurrences)`
 - `def record(loop, action, input_data, output, success, tags)`
 - `def test_record_outcome_mirrors_experience_and_persists(tmp_path)`
@@ -4939,9 +5276,19 @@
 ### [`tests/test_brain_reactivity.py`](tests/test_brain_reactivity.py)
 > *Reactivity: proposals, dedupe, mute, sources, kernel gating and API.*
 
-**Size**: `165` lines (`5463` bytes)
+**Size**: `272` lines (`9396` bytes)
+
+**Classes:**
+- `class SlowBus` - *Wraps EventBus.publish with a fixed delay while recording windows.*
+  - Method `.__init__(bus)`
+  - Method `async def .publish(*args, **kwargs)`
 
 **Functions:**
+- `def test_bad_reactivity_limits_are_rejected_with_hint(tmp_path)`
+- `async def test_concurrent_polls_share_the_broadcast_window(tmp_path)` - *Two overlapping poll_once runs must both complete, with*
+- `async def test_concurrent_events_share_the_broadcast_window(tmp_path)` - *Two overlapping process_event calls must both complete, with*
+- `def test_malformed_gauge_value_does_not_crash_poll(tmp_path)`
+- `def test_malformed_threshold_is_skipped_not_fatal(tmp_path)`
 - `def make_engine(tmp_path, **config)`
 - `async def test_event_becomes_a_deduplicated_pending_reaction(tmp_path)`
 - `async def test_mute_and_dismiss(tmp_path)`
@@ -4952,10 +5299,25 @@
 
 ---
 
+### [`tests/test_brain_router_validation.py`](tests/test_brain_router_validation.py)
+> *Brain router numeric validation: malformed numbers are 400s, not 500s.*
+
+**Size**: `45` lines (`1473` bytes)
+
+**Functions:**
+- `async def _operator()`
+- `def _operator_client()`
+- `def test_events_rejects_bad_salience_with_400(operator_client)`
+- `def test_recall_rejects_bad_top_k()`
+- `def test_suggest_rejects_bad_top_k()`
+- `def test_move_label_rejects_bad_version(operator_client)`
+
+---
+
 ### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
 > *Unified self-modification budget: caps, rollover, release and service wiring.*
 
-**Size**: `140` lines (`5288` bytes)
+**Size**: `170` lines (`6308` bytes)
 
 **Functions:**
 - `def make_budget(tmp_path, **caps)`
@@ -4966,6 +5328,7 @@
 - `def test_counts_persist_and_roll_over_on_a_new_utc_day(tmp_path, monkeypatch)`
 - `def test_a_corrupt_ledger_starts_from_zero_and_is_replaced(tmp_path)`
 - `def test_the_service_bounds_learning_writes(tmp_path, monkeypatch)`
+- `def test_run_evaluation_respects_learning_write_cap(tmp_path, monkeypatch)`
 - `def test_the_budget_route_reports_counts()`
 - `def test_two_instances_share_one_persisted_ceiling(tmp_path)`
 - `def test_budget_exhaustion_returns_429_instead_of_a_name_error(tmp_path, monkeypatch)`
@@ -4976,7 +5339,7 @@
 ### [`tests/test_brain_substrate.py`](tests/test_brain_substrate.py)
 > *Brain substrate: event bus, real self-model, service modes and API wiring.*
 
-**Size**: `191` lines (`6386` bytes)
+**Size**: `239` lines (`7940` bytes)
 
 **Classes:**
 - `class NullMemoryBridge`
@@ -4987,6 +5350,10 @@
   - Method `async def .snapshot(mode)`
 
 **Functions:**
+- `def test_kernel_rejects_non_numeric_thresholds(tmp_path)`
+- `def test_from_dict_coerces_bad_cycle_count()`
+- `def test_service_rejects_non_numeric_cycle_limits(tmp_path, monkeypatch)`
+- `async def test_recent_zero_and_negative_return_empty()`
 - `def temp_learning(tmp_path)`
 - `async def test_event_bus_publishes_deduplicates_and_records()`
 - `async def test_event_bus_times_out_a_slow_handler()`
@@ -5001,9 +5368,11 @@
 ### [`tests/test_brain_trends.py`](tests/test_brain_trends.py)
 > *Bounded metric-trend detection and its reviewable proposals.*
 
-**Size**: `135` lines (`4086` bytes)
+**Size**: `205` lines (`6229` bytes)
 
 **Functions:**
+- `def test_corrupt_trend_ledger_is_quarantined_not_silently_kept(tmp_path)`
+- `def test_non_dict_trend_ledger_is_quarantined(tmp_path)`
 - `def snapshot(pass_rate, errors)`
 - `def monitor(tmp_path, now, **overrides)`
 - `def test_a_fall_in_pass_rate_emits_one_finding_and_dedupes_for_the_day(tmp_path)`
@@ -5011,6 +5380,8 @@
 - `def test_history_is_bounded_and_an_empty_ledger_is_quiet(tmp_path)`
 - `def test_the_service_turns_a_finding_into_a_reviewable_proposal()`
 - `def test_trend_route_reports_the_window()`
+- `def test_bad_monitor_limits_are_rejected_with_hint(tmp_path)`
+- `def test_concurrent_records_do_not_lose_samples(tmp_path, monkeypatch)`
 - `def test_trend_record_survives_malformed_snapshot_fields(tmp_path)`
 
 ---
@@ -5045,7 +5416,7 @@
 ### [`tests/test_browser_automation_index.py`](tests/test_browser_automation_index.py)
 > *Indexed element actions and bounded snapshots (IDEA-1208/1209).*
 
-**Size**: `350` lines (`11460` bytes)
+**Size**: `357` lines (`11703` bytes)
 
 **Classes:**
 - `class _FakeLocator`
@@ -5076,6 +5447,7 @@
 - `def test_checkbox_expectation_reads_checked()`
 - `def _reader(states)` - *A state reader that yields each sample once, then repeats the last.*
 - `def test_only_done_is_ok()`
+- `def test_non_numeric_budget_is_rejected_with_hint()`
 - `def test_html_within_budget_is_returned_untouched()`
 - `def test_oversized_html_is_refused_not_silently_cut()`
 - `def test_explicit_truncation_reports_what_was_omitted()`
@@ -5114,7 +5486,7 @@
 ---
 
 ### [`tests/test_calendar_events.py`](tests/test_calendar_events.py)
-**Size**: `176` lines (`5697` bytes)
+**Size**: `195` lines (`6517` bytes)
 
 **Functions:**
 - `def temp_event_file()`
@@ -5134,25 +5506,28 @@
 - `def test_update_event_both_fields(event_manager)` - *update_event() should update both title and start_time simultaneously.*
 - `def test_update_event_nonexistent_returns_none(event_manager)` - *update_event() with a non-existent id should return None.*
 - `def test_update_event_persisted(event_manager)` - *update_event() changes should be persisted to storage.*
+- `def test_save_events_fsyncs_before_replace(temp_event_file, monkeypatch)`
+- `def test_get_by_date_exact_only(event_manager)` - *Partial-day prefixes and empty strings must not match (swarm B5).*
 
 ---
 
 ### [`tests/test_calendar_node.py`](tests/test_calendar_node.py)
-> *Tests for modules/calendar/node.py — CalendarWatcherExecutor*
+> *Tests for modules/calendar/node.py — CalendarWatcherExecutor.*
 
-**Size**: `160` lines (`5580` bytes)
+**Size**: `196` lines (`6885` bytes)
 
 **Functions:**
 - `def now_str()` - *Return current time as 'YYYY-MM-DD HH:MM' string.*
 - `def make_event(title, start_time)`
-- `async def test_no_events_file_returns_none()` - *When calendar_events.json does not exist, receive() should return None.*
-- `async def test_empty_events_list_returns_none()` - *When events file is empty list, receive() should return None.*
-- `async def test_event_at_current_minute_triggers()` - *An event whose start_time matches the current minute should trigger.*
-- `async def test_event_at_different_minute_returns_none()` - *An event scheduled for a different time should not trigger.*
-- `async def test_malformed_event_skipped()` - *Events with unparseable start_time should be skipped without crashing.*
-- `async def test_legacy_date_time_format_supported()` - *Events using legacy 'date' + 'time' keys should also be parsed.*
-- `async def test_multiple_events_same_minute_all_trigger()` - *Multiple events at the same minute should all be included in the result.*
-- `async def test_corrupt_json_returns_none()` - *Corrupt JSON in events file should return None without crashing.*
+- `async def test_no_events_file_returns_none()` - *When no events are due, receive() should return None.*
+- `async def test_empty_events_list_returns_none()` - *When the claim returns nothing, receive() should return None.*
+- `async def test_event_at_current_minute_triggers()` - *A claimed event should trigger.*
+- `async def test_event_at_different_minute_returns_none()` - *No claimed events means no trigger.*
+- `async def test_malformed_event_skipped()` - *Only claimed (parsable, due) events trigger; malformed never claimed.*
+- `async def test_legacy_date_time_format_supported()` - *Events using legacy 'date' + 'time' keys are claimed.*
+- `async def test_multiple_events_same_minute_all_trigger()` - *Multiple claimed events should all be included in the result.*
+- `async def test_corrupt_json_returns_none()` - *A claim failure should return None without crashing.*
+- `async def test_grace_window_claims_recently_missed_event_once()` - *M-CAL-1: an event 10 minutes ago fires once, then never again.*
 - `async def test_get_executor_class_dispatcher()` - *get_executor_class('calendar_watcher') should return CalendarWatcherExecutor.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
 
@@ -5217,13 +5592,15 @@
 ---
 
 ### [`tests/test_chat_features.py`](tests/test_chat_features.py)
-**Size**: `120` lines (`5332` bytes)
+**Size**: `158` lines (`7080` bytes)
 
 **Functions:**
 - `def client()`
 - `def mock_chat_sessions(monkeypatch)`
 - `def patch_settings_url(monkeypatch)`
 - `async def test_multimodal_image_upload(client, mock_chat_sessions)`
+- `async def test_svg_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: scriptable image types never reach the session store.*
+- `async def test_oversize_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: uploads over 5 MB are refused before base64 inline.*
 - `async def test_auto_rename_trigger(client, mock_chat_sessions)`
 
 ---
@@ -5247,7 +5624,7 @@
 ---
 
 ### [`tests/test_chat_nodes.py`](tests/test_chat_nodes.py)
-**Size**: `109` lines (`3664` bytes)
+**Size**: `117` lines (`3947` bytes)
 
 **Functions:**
 - `async def test_chat_input_send_validation()` - *Test that Chat Input requires 'messages' in the data.*
@@ -5259,6 +5636,7 @@
 - `async def test_chat_output_none_input()` - *ChatOutputExecutor should handle None input gracefully.*
 - `async def test_get_executor_class_chat_input()` - *get_executor_class('chat_input') should return ChatInputExecutor.*
 - `async def test_get_executor_class_chat_output()` - *get_executor_class('chat_output') should return ChatOutputExecutor.*
+- `async def test_chat_output_malformed_tool_calls_falls_through()` - *A tool_calls entry without 'function' must not crash formatting.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
 
 ---
@@ -5291,7 +5669,7 @@
 ---
 
 ### [`tests/test_chat_sessions.py`](tests/test_chat_sessions.py)
-**Size**: `129` lines (`3812` bytes)
+**Size**: `139` lines (`4095` bytes)
 
 **Functions:**
 - `def temp_session_file()`
@@ -5308,6 +5686,7 @@
 - `def test_list_sessions(session_manager)`
 - `def test_add_message(session_manager)`
 - `def test_add_message_to_nonexistent_session(session_manager)`
+- `def test_bad_session_limits_fall_back_to_defaults(temp_session_file)`
 
 ---
 
@@ -5416,7 +5795,7 @@
 ---
 
 ### [`tests/test_core_improvements.py`](tests/test_core_improvements.py)
-**Size**: `99` lines (`3953` bytes)
+**Size**: `103` lines (`4190` bytes)
 
 **Functions:**
 - `def client()`
@@ -5426,7 +5805,7 @@
 ---
 
 ### [`tests/test_core_llm.py`](tests/test_core_llm.py)
-**Size**: `157` lines (`5251` bytes)
+**Size**: `162` lines (`5392` bytes)
 
 **Functions:**
 - `async def test_chat_completion_success(httpx_mock)`
@@ -5437,6 +5816,7 @@
 - `async def test_get_embedding_error(httpx_mock)`
 - `async def test_a_429_keeps_the_provider_retry_after(httpx_mock)`
 - `async def test_chat_completion_clamps_max_tokens_and_reports_the_clamp(monkeypatch)`
+- `def test_bad_timeout_falls_back_to_default()`
 - `async def test_llm_bridge_uses_injected_client()` - *Test that LLMBridge uses the provided AsyncClient if available.*
 
 ---
@@ -5534,7 +5914,7 @@
 ---
 
 ### [`tests/test_debug.py`](tests/test_debug.py)
-**Size**: `76` lines (`2101` bytes)
+**Size**: `99` lines (`2977` bytes)
 
 **Functions:**
 - `def debug_logger()`
@@ -5545,6 +5925,7 @@
 - `def test_max_logs_limit(debug_logger)`
 - `def test_clear_logs(debug_logger)`
 - `def test_global_debug_logger_exists()`
+- `def test_log_skips_serialization_when_debug_off(debug_logger, monkeypatch)` - *L-16: payload serialization must not run when debug logging is off.*
 
 ---
 
@@ -5563,7 +5944,7 @@
 ### [`tests/test_delegation_handoff.py`](tests/test_delegation_handoff.py)
 > *Delegation contracts and handoff packets (IDEA-1242/1243).*
 
-**Size**: `220` lines (`6899` bytes)
+**Size**: `231` lines (`7252` bytes)
 
 **Functions:**
 - `def _contract(**overrides)`
@@ -5585,6 +5966,8 @@
 - `def test_context_summary_is_bounded_at_construction()`
 - `def test_too_many_context_items_are_refused()`
 - `def test_replay_queue_returns_only_pending_and_counts_states()`
+- `def test_child_invalid_timeout_is_delegation_error()`
+- `def test_new_packet_invalid_retry_limit_is_handoff_error()`
 - `def test_contract_roundtrip_serialization_from_dict()`
 - `def test_handoff_packet_roundtrip_serialization_from_dict()`
 
@@ -5618,7 +6001,7 @@
 ### [`tests/test_email_bridge.py`](tests/test_email_bridge.py)
 > *Tests for the email_bridge module.*
 
-**Size**: `446` lines (`18177` bytes)
+**Size**: `487` lines (`19626` bytes)
 
 **Classes:**
 - `class TestIMAPBridgeHelpers`
@@ -5660,6 +6043,11 @@
   - Method `.setup_method()`
   - Method `.test_save_settings_module_not_found()`
   - Method `.test_save_settings_success()`
+- `class TestEmailBridgeServicePorts` - *Bad port/interval config must fail fast with Why/Fix, before threads.*
+  - Method `._service()`
+  - Method `._full_config(**overrides)`
+  - Method `.test_bad_smtp_port_is_rejected()`
+  - Method `.test_bad_imap_port_is_rejected()`
 
 **Functions:**
 - `async def test_get_executor_class_email_input()`
@@ -5771,7 +6159,7 @@
 ### [`tests/test_episode_retention.py`](tests/test_episode_retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `176` lines (`5764` bytes)
+**Size**: `187` lines (`6195` bytes)
 
 **Functions:**
 - `def _write_episode(directory, episode_id, phase, age_days, **extra)`
@@ -5784,6 +6172,8 @@
 - `def test_future_timestamp_is_treated_as_a_clock_problem(episode_dir)`
 - `def test_dry_run_reports_without_moving_anything(episode_dir)`
 - `def test_scan_is_bounded_by_page_size(episode_dir)`
+- `def test_policy_validation_rejects_non_numeric_values()`
+- `def test_corrupt_generation_falls_back_instead_of_aborting(episode_dir)`
 - `def test_policy_validation_refuses_a_zero_window()`
 - `def test_terminal_episode_gets_both_expiry_stamps()`
 - `def test_running_episode_is_not_stamped()`
@@ -5830,6 +6220,22 @@
 - `async def test_timeout_zero_still_means_no_asyncio_deadline(monkeypatch)`
 - `async def test_the_shared_llm_helper_charges_the_run_budget(monkeypatch)`
 - `def test_missing_provider_usage_charges_an_estimate()`
+
+---
+
+### [`tests/test_feature_flags.py`](tests/test_feature_flags.py)
+> *Marketplace and Research ship disabled; opt-in via Settings.*
+
+**Size**: `71` lines (`2412` bytes)
+
+**Functions:**
+- `def client()`
+- `def flags_off()` - *Force both flags off for the test, restoring previous values after.*
+- `def test_flags_default_off()`
+- `def test_disabled_routes_404(client, flags_off)`
+- `def test_enabled_routes_open(client, flags_off)`
+- `def test_navbar_hides_disabled_links(client, flags_off)`
+- `def test_settings_save_toggles_flags(client, flags_off)`
 
 ---
 
@@ -6051,7 +6457,7 @@
 ---
 
 ### [`tests/test_flow_manager.py`](tests/test_flow_manager.py)
-**Size**: `383` lines (`16099` bytes)
+**Size**: `446` lines (`18722` bytes)
 
 **Classes:**
 - `class TestFlowVersioning`
@@ -6088,6 +6494,10 @@
 - `def test_add_flow_validates_and_preserves_imported_fields(tmp_path)`
 - `def test_add_flow_rejects_a_second_identical_id(tmp_path)`
 - `def test_validate_flow_reports_a_dangling_connection_without_saving(tmp_path)`
+- `def test_validate_flow_flags_empty_router_branches(tmp_path)` - *L-6: an unconfigured router must not pass validation silently.*
+- `def test_validate_flow_flags_stale_branch_targets(tmp_path)` - *L-6: branch ids left over from copy/paste are reported.*
+- `def test_make_active_flow_default_backups_are_distinct(flow_manager, monkeypatch)`
+- `def test_corrupt_versions_file_is_quarantined_not_dropped(tmp_path)` - *L-18: a corrupt versions file is preserved aside, not silently reset.*
 
 ---
 
@@ -6114,7 +6524,7 @@
 ---
 
 ### [`tests/test_flow_runner.py`](tests/test_flow_runner.py)
-**Size**: `220` lines (`9120` bytes)
+**Size**: `253` lines (`10114` bytes)
 
 **Functions:**
 - `def mock_flow()` - *A fixture for a valid, simple, linear flow.*
@@ -6127,6 +6537,20 @@
 - `def _node(node_id)`
 - `def test_cycle_is_entered_at_the_node_fed_from_outside_it()`
 - `def test_default_tool_loop_runs_the_llm_before_the_router(tmp_path)`
+- `async def test_cache_lock_scoped_per_loop_and_pruned()` - *L-21: each loop gets its own lock; dead loops do not accumulate.*
+
+---
+
+### [`tests/test_flow_scheduling.py`](tests/test_flow_scheduling.py)
+> *Regression tests for H-2, H-3 and M-FLOW-2 flow-engine scheduling fixes.*
+
+**Size**: `193` lines (`7826` bytes)
+
+**Functions:**
+- `def _dispatcher_for(executors)` - *Route importlib.import_module to per-module fake node dispatchers.*
+- `async def test_diamond_join_runs_once_with_full_inputs()` - *H-2: with in→D and in→A→B→D, D must run once with both parents' outputs.*
+- `async def test_bridge_members_run_once()` - *M-FLOW-2: with bridges A→C and B→C, no bridged node may run twice.*
+- `async def test_loop_returns_latest_output_not_stale_intermediate()` - *H-3: in → llm → router → {tool → llm, out}; out returns nothing.*
 
 ---
 
@@ -6213,11 +6637,14 @@
 ### [`tests/test_goal_pursuit.py`](tests/test_goal_pursuit.py)
 > *Tests for GoalPursuitExecutor — integrated planning, step evaluation, replanning.*
 
-**Size**: `3818` lines (`151890` bytes)
+**Size**: `3866` lines (`153752` bytes)
 
 **Functions:**
 - `def make_executor()` - *Create a GoalPursuitExecutor with patched LLMBridge and sandbox.*
 - `def llm_response(content)` - *Build a minimal valid LLM response dict.*
+- `async def test_compress_lessons_bad_threshold_falls_back()` - *A non-numeric compress threshold must not crash lesson prep.*
+- `async def test_compress_lessons_bad_chunk_size_falls_back()` - *A non-numeric chunk size must not crash lesson chunking.*
+- `async def test_compress_step_results_bad_thresholds_fall_back()` - *Non-numeric synthesis thresholds must not crash compression.*
 - `def plan_json(*actions)` - *Serialize a list of step dicts to JSON.*
 - `def eval_json(success, reason, extracted)`
 - `def _isolate_goal_lessons(monkeypatch)` - *Keep the shared memory store out of planning.*
@@ -6240,6 +6667,7 @@
 - `async def test_receive_no_messages_returns_error()`
 - `async def test_receive_no_user_message_returns_error()`
 - `async def test_receive_single_step_success()`
+- `async def test_receive_bad_reflection_timeout_falls_back()`
 - `async def test_receive_multi_step_with_synthesis()`
 - `async def test_receive_step_fails_replans_and_succeeds()`
 - `async def test_receive_replan_depth_exceeded_stops()`
@@ -6401,6 +6829,18 @@
 
 ---
 
+### [`tests/test_import_smoke.py`](tests/test_import_smoke.py)
+> *Import smoke test: every module's node and router must import (C-1 guard).*
+
+**Size**: `37` lines (`1370` bytes)
+
+**Functions:**
+- `def _module_ids()`
+- `def test_all_module_nodes_import()`
+- `def test_all_module_routers_import()`
+
+---
+
 ### [`tests/test_index_and_correlation.py`](tests/test_index_and_correlation.py)
 > *Correlation edge cases and FTS/FAISS self-healing.*
 
@@ -6531,7 +6971,7 @@
 ### [`tests/test_knowledge_base_node.py`](tests/test_knowledge_base_node.py)
 > *Tests for modules/knowledge_base/node.py — KnowledgeQueryExecutor*
 
-**Size**: `164` lines (`6356` bytes)
+**Size**: `192` lines (`7439` bytes)
 
 **Functions:**
 - `def make_executor()` - *Create a KnowledgeQueryExecutor with fresh import to avoid stale class refs.*
@@ -6544,6 +6984,8 @@
 - `async def test_content_field_used_as_query()` - *When input has 'content' but no 'messages', it should be used as the query.*
 - `async def test_get_executor_class_dispatcher()` - *get_executor_class('query_knowledge') should return KnowledgeQueryExecutor.*
 - `async def test_get_executor_class_unknown()` - *get_executor_class with unknown id should return None.*
+- `async def test_malformed_message_without_role_skipped()` - *A message without 'role' must not crash query extraction.*
+- `async def test_bad_limit_falls_back_to_default()` - *A non-numeric limit must not crash retrieval.*
 
 ---
 
@@ -6594,7 +7036,7 @@
 ---
 
 ### [`tests/test_logic_nodes.py`](tests/test_logic_nodes.py)
-**Size**: `490` lines (`18582` bytes)
+**Size**: `501` lines (`19033` bytes)
 
 **Functions:**
 - `async def test_delay_executor_valid()` - *Test that DelayExecutor waits for the specified time.*
@@ -6631,6 +7073,24 @@
 - `async def test_script_executor_allows_safe_code()` - *ScriptExecutor should allow safe code to execute.*
 - `async def test_script_executor_allows_json_module()` - *ScriptExecutor should allow json module usage.*
 - `async def test_script_executor_allows_re_module()` - *ScriptExecutor should allow re module usage.*
+- `async def test_delay_nan_uses_default()` - *DelayExecutor must not crash on NaN/inf (swarm logic).*
+
+---
+
+### [`tests/test_login.py`](tests/test_login.py)
+> *M-SEC-8: token-to-session-cookie login for browser UI.*
+
+**Size**: `96` lines (`3176` bytes)
+
+**Functions:**
+- `def client(monkeypatch)`
+- `def test_login_page_renders(client)`
+- `def test_login_rejects_wrong_token(client)`
+- `def test_login_issues_httponly_samesite_cookie(client)`
+- `def test_login_rate_limits_brute_force(client)`
+- `def test_logout_clears_session(client)`
+- `def test_session_cookie_authorizes_remote_guard(client, monkeypatch)` - *A live session cookie passes the control-plane guard as 'remote'.*
+- `def test_login_path_exempt_from_remote_guard(client, monkeypatch)` - *Simulated-remote clients can reach /login but not / without a credential.*
 
 ---
 
@@ -6777,6 +7237,51 @@
 
 ---
 
+### [`tests/test_memory_durability_rung.py`](tests/test_memory_durability_rung.py)
+> *Rung 2: durable scoped memory that persists, reloads and compounds (ADR-104).*
+
+**Size**: `335` lines (`14328` bytes)
+
+**Functions:**
+- `def _vec(x, y, z)`
+- `def _make_store(tmp_path, name)`
+- `def _bridge_for(store)`
+- `def _make_loop(tmp_path, store, name)`
+- `def test_rung_suite_digest_stable()`
+- `def test_persist_reload(tmp_path)`
+- `def test_scope_isolation(tmp_path)`
+- `def test_budget_receipt(tmp_path)`
+- `def test_link_promotion(tmp_path)`
+- `def test_consolidate_skill(tmp_path)`
+- `def test_consolidate_avoid_holdout(tmp_path)`
+- `def test_guardrail_memory_surface(tmp_path)`
+- `def test_edit_undo_conditional(tmp_path)`
+
+---
+
+### [`tests/test_memory_file_table.py`](tests/test_memory_file_table.py)
+> *qwenFS parity matrix for the FileTable toy (Stage 3).*
+
+**Size**: `216` lines (`7809` bytes)
+
+**Functions:**
+- `def _scripted()` - *One fixed session script used across the matrix tests.*
+- `def _run(table, script, scope)`
+- `def test_writes_and_exact_reads()`
+- `def test_overwrite_bumps_version_and_count()`
+- `def test_missing_and_blank_paths()`
+- `def test_list_is_sorted_and_exact()`
+- `def test_link_duplicate_unlink_and_backlinks()`
+- `def test_dense_graph_counts()`
+- `def test_mount_page_and_copy_rows()`
+- `def test_scope_isolation_and_shared_legacy()`
+- `def test_require_scope_refuses()`
+- `def test_blocked_write_returns_minus_one(monkeypatch)`
+- `def test_render_uses_budget_not_raw_dump()`
+- `def test_thirty_two_file_cap_admitted()`
+
+---
+
 ### [`tests/test_memory_filter_plan.py`](tests/test_memory_filter_plan.py)
 > *Filter-cardinality planner for memory recall (IDEA-1154).*
 
@@ -6825,7 +7330,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `364` lines (`14049` bytes)
+**Size**: `366` lines (`14163` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -6860,12 +7365,13 @@
 ---
 
 ### [`tests/test_memory_nodes.py`](tests/test_memory_nodes.py)
-**Size**: `440` lines (`17061` bytes)
+**Size**: `454` lines (`17608` bytes)
 
 **Functions:**
 - `def mock_store()`
 - `def mock_llm_bridge()`
 - `async def test_memory_recall_success(mock_store, mock_llm_bridge)` - *Test that relevant memories are injected into the message history.*
+- `async def test_memory_recall_bad_access_weight_falls_back(mock_store, mock_llm_bridge)`
 - `async def test_memory_recall_no_results(mock_store, mock_llm_bridge)` - *Test that nothing changes if no memories are found.*
 - `async def test_memory_save_assistant_content(mock_store, mock_llm_bridge)` - *Test saving content from Chat Output (Assistant).*
 - `async def test_memory_save_openai_response(mock_store, mock_llm_bridge)` - *Test saving content from raw OpenAI-style response (LLM Core).*
@@ -6991,7 +7497,7 @@
 ### [`tests/test_messaging_bridge.py`](tests/test_messaging_bridge.py)
 > *Tests for modules/messaging_bridge — node executors, service routing, and bridges.*
 
-**Size**: `813` lines (`32457` bytes)
+**Size**: `899` lines (`36139` bytes)
 
 **Classes:**
 - `class TestMessagingInputExecutor`
@@ -7008,6 +7514,7 @@
   - Method `async def .test_platform_filter_absent_allows_all(executor)`
 - `class TestMessagingOutputExecutor`
   - Method `.executor()`
+  - Method `async def .test_bad_telegram_chat_id_skips_send(executor)`
   - Method `async def .test_no_content_passes_through(executor)`
   - Method `async def .test_send_passthrough(executor)`
   - Method `async def .test_auto_platform_telegram(executor)`
@@ -7080,6 +7587,17 @@
   - Method `.test_all_platforms_have_id_and_label()`
 - `class TestSessionStore`
   - Method `.test_set_get_delete(tmp_path)`
+- `class _StubManager`
+  - Method `.__init__(config)`
+- `class _StubApp`
+  - Method `.__init__(manager)`
+- `class _StubRequest`
+  - Method `.__init__(payload, headers, manager)`
+  - Method `async def .json()`
+- `class TestWhatsappWebhookSecret`
+  - Method `async def .test_rejects_wrong_secret_when_configured(monkeypatch)`
+  - Method `async def .test_accepts_correct_secret(monkeypatch)`
+  - Method `async def .test_open_without_secret_keeps_handler(monkeypatch)`
 
 **Functions:**
 - `def _make_tg_msg(text, chat_id, msg_type)`
@@ -7114,7 +7632,7 @@
 ### [`tests/test_meta_module.py`](tests/test_meta_module.py)
 > *Tests for the meta-flow subflow executor.*
 
-**Size**: `96` lines (`2881` bytes)
+**Size**: `123` lines (`3978` bytes)
 
 **Classes:**
 - `class FakeRunner`
@@ -7127,6 +7645,9 @@
 - `async def test_subflow_requires_a_flow_id()`
 - `async def test_subflow_detects_a_cycle()`
 - `async def test_subflow_enforces_the_depth_limit()`
+- `async def test_subflow_propagates_stop_signal(monkeypatch)`
+- `async def test_subflow_rejects_non_numeric_max_depth()`
+- `async def test_subflow_max_depth_zero_means_no_nesting()`
 - `async def test_get_executor_class_dispatch()`
 - `async def test_send_is_a_passthrough()`
 - `def test_module_manifest_declares_the_subflow_node()`
@@ -7136,7 +7657,7 @@
 ### [`tests/test_model_registry.py`](tests/test_model_registry.py)
 > *Per-model request limits and explicit clamps (IDEA-588).*
 
-**Size**: `79` lines (`2796` bytes)
+**Size**: `85` lines (`3088` bytes)
 
 **Functions:**
 - `def test_a_request_within_limits_is_unchanged_and_reports_no_clamp()`
@@ -7165,7 +7686,7 @@
 ---
 
 ### [`tests/test_module_manager.py`](tests/test_module_manager.py)
-**Size**: `127` lines (`5518` bytes)
+**Size**: `188` lines (`8363` bytes)
 
 **Functions:**
 - `def temp_modules_dir(tmp_path, monkeypatch)` - *Creates a temporary module directory structure for testing.*
@@ -7174,8 +7695,30 @@
 - `def test_load_enabled_modules_at_startup(temp_modules_dir, mock_app)` - *Tests that only enabled modules are loaded on initialization.*
 - `def test_hot_enable_module(temp_modules_dir, mock_app)` - *Tests that enabling a module dynamically adds its router.*
 - `def test_hot_disable_module(temp_modules_dir, mock_app)` - *Tests that disabling a module dynamically removes its router.*
-- `def test_update_module_config(temp_modules_dir, mock_app)` - *Tests that updating module configuration writes to the file.*
+- `def test_update_module_config(temp_modules_dir, mock_app, tmp_path)` - *Updating config writes the data-dir overlay, never the shipped manifest.*
 - `def test_failed_manifest_write_keeps_the_previous_manifest(temp_modules_dir, mock_app)`
+- `def test_disable_runs_shutdown_hook(temp_modules_dir, mock_app)` - *M-DATA-5: disabling stops the live instance (pollers do not linger).*
+- `def test_reenable_stops_old_instance_first(temp_modules_dir, mock_app)` - *M-DATA-5: re-enable stops the old singleton before re-importing.*
+
+---
+
+### [`tests/test_module_settings_forms.py`](tests/test_module_settings_forms.py)
+> *Typed module-settings forms: backend parsing, clamping and preservation.*
+
+**Size**: `180` lines (`7201` bytes)
+
+**Functions:**
+- `def client()`
+- `def _mock_module(monkey_id, config)`
+- `def test_system_prompt_comma_lists_and_budget(client)`
+- `def test_brain_save_clamps_and_mode(client)`
+- `def test_brain_rejects_bad_mode(client)`
+- `def test_browser_automation_viewport(client)`
+- `def test_autonomous_agent_save(client)`
+- `def test_messaging_access_parsing(client)`
+- `def test_tools_primitives_filtered(client)`
+- `def test_memory_save_clamps_out_of_range(client)`
+- `def test_messaging_access_doc_is_deny_by_default()`
 
 ---
 
@@ -7227,7 +7770,7 @@
 ### [`tests/test_observability.py`](tests/test_observability.py)
 > *Tests for core.observability - Distributed Tracing, Metrics, and Structured Logging*
 
-**Size**: `499` lines (`16972` bytes)
+**Size**: `521` lines (`17891` bytes)
 
 **Classes:**
 - `class TestTraceContext` - *Test TraceContext functionality.*
@@ -7251,6 +7794,7 @@
 - `class TestMetrics` - *Test Metrics collection.*
   - Method `.setup_method()` - *Reset metrics before each test.*
   - Method `.test_increment_counter()` - *Test incrementing a counter.*
+  - Method `.test_counter_persistence_is_batched(tmp_path, monkeypatch)` - *M-PERF-2: increments must not rewrite the file; flush() does.*
   - Method `.test_increment_with_tags()` - *Test incrementing with tags.*
   - Method `.test_timing()` - *Test timing recording.*
   - Method `.test_timing_percentiles()` - *Test timing percentiles.*
@@ -7282,6 +7826,7 @@
   - Method `.test_per_model_breakdown()`
   - Method `.test_multiple_models_tracked_independently()`
   - Method `.test_calls_failed_counted()`
+  - Method `.test_malformed_counter_key_skipped()`
 - `class TestEnableTraceFileExport` - *Tests for enable_trace_file_export and is_trace_file_export_enabled.*
   - Method `.test_enable_sets_global_flag()`
   - Method `.test_disable_clears_global_flag()`
@@ -7294,12 +7839,13 @@
 ### [`tests/test_outbound_drafts.py`](tests/test_outbound_drafts.py)
 > *Outbound tools draft instead of sending; only the user's approval sends (IDEA-032).*
 
-**Size**: `97` lines (`4466` bytes)
+**Size**: `104` lines (`4753` bytes)
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
 - `def test_an_outbound_call_is_drafted_and_the_model_is_told_nothing_was_sent(store)`
 - `def test_a_draft_sends_once_and_only_with_the_confirmation_phrase(store)`
+- `def test_malformed_draft_entry_does_not_break_stage(store, tmp_path)`
 - `def test_an_unreadable_draft_store_fails_closed(tmp_path, monkeypatch)`
 - `async def test_the_tool_dispatcher_drafts_send_email_instead_of_running_it(store)`
 - `def test_the_draft_routes_list_send_once_and_discard(store, monkeypatch)`
@@ -7325,12 +7871,13 @@
 ### [`tests/test_pinned_http.py`](tests/test_pinned_http.py)
 > *Pinned requests: connect to the vetted address, keep the hostname for Host and TLS (IDEA-063).*
 
-**Size**: `22` lines (`1055` bytes)
+**Size**: `30` lines (`1367` bytes)
 
 **Functions:**
 - `def test_https_goes_to_the_address_and_keeps_the_hostname_for_host_and_sni()`
 - `def test_an_explicit_port_stays_on_the_url_and_the_host_header()`
 - `def test_an_ipv6_address_is_bracketed_and_its_zone_dropped()`
+- `def test_embedding_key_not_sent_on_unparseable_host()`
 
 ---
 
@@ -7366,7 +7913,7 @@
 ### [`tests/test_planner_node.py`](tests/test_planner_node.py)
 > *Tests for modules/planner/node.py — PlannerExecutor*
 
-**Size**: `566` lines (`20481` bytes)
+**Size**: `578` lines (`20841` bytes)
 
 **Functions:**
 - `def make_executor()` - *Create a PlannerExecutor with LLMBridge patched out.*
@@ -7401,6 +7948,34 @@
 - `async def test_planner_uses_config_model_override()` - *PlannerExecutor must pass config['model'] to the LLM, not always default_model.*
 - `def test_get_executable_steps_hoist_step_num_to_idx()` - *_get_executable_steps must produce correct results regardless of plan size.*
 - `def test_get_executable_steps_parallel_when_no_deps()` - *Steps with no dependencies are all executable simultaneously.*
+- `async def test_planner_rejects_non_numeric_max_steps()`
+
+---
+
+### [`tests/test_planning_recovery_rung.py`](tests/test_planning_recovery_rung.py)
+> *Rung 1: recoverable 3-step tool planning under a cost ceiling (ADR-103).*
+
+**Size**: `337` lines (`12379` bytes)
+
+**Functions:**
+- `def _tool_call(name, args, call_id)`
+- `def _llm_tool_response(content, calls)`
+- `def _llm_final(content)`
+- `def _make_executor(llm_responses, sandbox_results)` - *Executor with mocked LLM sequence and mocked sandbox sequence.*
+- `def _stop_patchers(patchers)`
+- `def _plan_3()`
+- `async def _run_once(plan, llm_responses, sandbox_results, config)`
+- `def _assert_comprehension(result, task_id, min_tools)`
+- `def test_rung_suite_digest_stable()`
+- `async def test_clean_lookup_compute()`
+- `async def test_clean_search_join()`
+- `async def test_clean_three_step()`
+- `async def test_injected_transient_error_recovers()`
+- `async def test_injected_unknown_tool_recovers()`
+- `async def test_injected_timeout_class_recovers()`
+- `async def test_runaway_identical_calls_abort_via_guard()` - *A runaway prompt (same call forever) must abort via LoopGuard, bounded.*
+- `def test_execution_budget_exhaustion_is_reported()`
+- `def test_loop_guard_warn_then_abort()`
 
 ---
 
@@ -7635,7 +8210,7 @@
 ### [`tests/test_research.py`](tests/test_research.py)
 > *Tests for ResearchManager CRUD operations.*
 
-**Size**: `247` lines (`9568` bytes)
+**Size**: `268` lines (`10491` bytes)
 
 **Classes:**
 - `class TestHypotheses`
@@ -7668,6 +8243,11 @@
 - `class TestStats`
   - Method `.test_stats_empty(rm)`
   - Method `.test_stats_populated(rm)`
+  - Method `.test_create_hypothesis_missing_title_is_value_error(rm)`
+  - Method `.test_create_article_missing_title_is_value_error(rm)`
+  - Method `.test_create_study_design_missing_field_is_value_error(rm)`
+  - Method `.test_create_finding_missing_field_is_value_error(rm)`
+  - Method `.test_update_hypothesis_invalid_confidence_is_value_error(rm)`
 
 **Functions:**
 - `def rm(tmp_path)` - *Fresh ResearchManager backed by a temp SQLite file.*
@@ -7677,7 +8257,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `312` lines (`11942` bytes)
+**Size**: `323` lines (`12352` bytes)
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -7698,7 +8278,39 @@
 - `def test_persist_stores_articles_with_provenance(monkeypatch, tmp_path)`
 - `def test_the_routes_list_sources_and_map_errors(monkeypatch)`
 - `def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_path)`
+- `def test_search_rejects_non_integer_limit()`
 - `def test_the_cache_is_bounded_and_evicts_the_oldest(monkeypatch, tmp_path)`
+
+---
+
+### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
+> *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
+
+**Size**: `219` lines (`7379` bytes)
+
+**Functions:**
+- `def test_state_allows_running_then_completed()`
+- `def test_state_refuses_pending_to_completed()`
+- `def test_state_terminal_is_closed()`
+- `def test_event_log_roundtrip_jsonl(tmp_path)`
+- `def test_event_refuses_unknown_version(tmp_path)`
+- `def test_asset_materialize_updates_timestamp()`
+- `def test_asset_refuses_never_materialized_upstream()`
+- `def test_is_stale_when_upstream_newer()`
+- `def test_result_store_save_load_and_expiry(tmp_path)`
+- `def test_result_store_expired_returns_none(tmp_path)`
+- `def test_result_store_refuses_oversize(tmp_path)`
+- `def test_result_missing_returns_none(tmp_path)`
+- `def test_result_store_rejects_id_with_path_components(tmp_path)`
+- `def test_dependent_materializes_for_first_time()`
+- `def test_dependent_still_refuses_materialized_when_upstream_newer()`
+- `def test_result_store_reopens_with_persisted_index(tmp_path)`
+- `def test_result_store_rejects_unknown_index_version(tmp_path)`
+- `def test_load_ignores_tampered_index_path(tmp_path)`
+- `def test_prune_removes_only_expired_and_persists(tmp_path)`
+- `def test_load_lazily_drops_expired_record(tmp_path)`
+- `def test_load_lazily_drops_record_with_lost_file(tmp_path)`
+- `def test_result_store_rejects_tampered_record_id_on_open(tmp_path)`
 
 ---
 
@@ -7879,7 +8491,7 @@
 ### [`tests/test_session_manager.py`](tests/test_session_manager.py)
 > *Tests for Session Manager*
 
-**Size**: `582` lines (`19248` bytes)
+**Size**: `606` lines (`20157` bytes)
 
 **Classes:**
 - `class TestSessionManager` - *Test cases for SessionManager.*
@@ -7903,6 +8515,7 @@
   - Method `.test_append()` - *Test appending events.*
   - Method `.test_read_since()` - *Only events strictly after the cutoff are returned.*
   - Method `.test_clear()` - *Test clearing trace.*
+  - Method `.test_rotation_caps_file_size(monkeypatch)` - *L-20: an over-budget trace compacts to its most recent half.*
 - `class TestGetSessionManager` - *Test the get_session_manager factory function.*
   - Method `.setup_and_teardown()` - *Setup and teardown for each test.*
   - Method `.test_singleton()` - *Test that get_session_manager returns singleton.*
@@ -7914,16 +8527,21 @@
   - Method `.test_valid_lines_returned_when_mixed_with_invalid(tmp_path)` - *read_all() must skip corrupt lines and return only valid events.*
   - Method `.test_malformed_line_triggers_warning(tmp_path, caplog)` - *read_all() must log a warning for each malformed line.*
 
+**Functions:**
+- `def test_session_file_json_list_recovers(tmp_path)`
+
 ---
 
 ### [`tests/test_settings.py`](tests/test_settings.py)
-**Size**: `37` lines (`1222` bytes)
+**Size**: `56` lines (`2179` bytes)
 
 **Functions:**
 - `def settings_manager()`
 - `def test_default_settings_creation(settings_manager)`
 - `def test_save_and_load_settings(settings_manager)`
 - `def test_get_with_default(settings_manager)`
+- `def test_nested_model_limits_merge_preserves_defaults(tmp_path)`
+- `def test_save_settings_fsyncs_before_replace(tmp_path, monkeypatch)`
 
 ---
 
@@ -8143,7 +8761,7 @@
 ### [`tests/test_step_journal.py`](tests/test_step_journal.py)
 > *Run-scoped step journal (IDEA-1152).*
 
-**Size**: `153` lines (`5512` bytes)
+**Size**: `225` lines (`8651` bytes)
 
 **Functions:**
 - `def journal(tmp_path)`
@@ -8160,13 +8778,16 @@
 - `def test_failed_run_is_visible(journal)`
 - `def test_purge_run_removes_rows(journal)`
 - `def test_output_round_trips_through_json(journal)`
+- `def test_stale_running_run_is_reclaimed(journal)` - *M-FLOW-5: a crashed run stops blocking resubmissions after the lease.*
+- `def test_loop_iterations_are_keyed_separately(journal)` - *M-FLOW-5: the same node input in a later iteration re-runs.*
+- `def test_legacy_database_migrates(journal, tmp_path)` - *M-FLOW-5: pre-iteration databases upgrade without data loss.*
 
 ---
 
 ### [`tests/test_structured_output.py`](tests/test_structured_output.py)
 > *Tests for Structured Output Enforcement*
 
-**Size**: `343` lines (`10804` bytes)
+**Size**: `365` lines (`11529` bytes)
 
 **Classes:**
 - `class Person`
@@ -8179,6 +8800,7 @@
   - Method `.test_schema_contains_required_fields()` - *Test that schema contains required field definitions.*
 - `class TestStructuredCompletion` - *Tests for structured_completion function.*
   - Method `async def .test_successful_parsing()` - *Test successful JSON parsing on valid response.*
+  - Method `async def .test_bad_max_retries_falls_back_to_default()` - *A non-numeric max_retries must not crash before the first attempt.*
   - Method `async def .test_validation_error_triggers_retry()` - *Test that validation error triggers retry with corrected message.*
   - Method `async def .test_max_retries_exceeded_raises_error()` - *Test that exceeding max retries raises StructuredOutputError.*
   - Method `async def .test_empty_response_triggers_retry()` - *Test that empty response triggers retry.*
@@ -8193,7 +8815,7 @@
 ---
 
 ### [`tests/test_system_prompt_node.py`](tests/test_system_prompt_node.py)
-**Size**: `392` lines (`14570` bytes)
+**Size**: `399` lines (`14842` bytes)
 
 **Functions:**
 - `async def test_system_prompt_injection()`
@@ -8218,16 +8840,18 @@
 - `async def test_token_estimation()` - *Test the character-based token estimation fallback (tiktoken not available).*
 - `async def test_low_priority_context_dropped_when_budget_exceeded()` - *Test that token budget limits total context size.*
 - `async def test_system_prompt_resolves_from_prompt_registry(tmp_path)`
+- `def test_estimate_tokens_counts_full_hangul_range()`
 
 ---
 
 ### [`tests/test_tool_approvals_api.py`](tests/test_tool_approvals_api.py)
 > *Approval endpoints for HIGH-tier tool calls (IDEA-060).*
 
-**Size**: `40` lines (`1703` bytes)
+**Size**: `51` lines (`2146` bytes)
 
 **Functions:**
 - `def test_a_held_call_needs_the_phrase_and_runs_once(tmp_path, monkeypatch)`
+- `def test_malformed_approval_entry_does_not_break_stage(tmp_path, monkeypatch)`
 - `def test_an_unknown_approval_is_404(tmp_path, monkeypatch)`
 
 ---
@@ -8235,9 +8859,10 @@
 ### [`tests/test_tool_cancellation.py`](tests/test_tool_cancellation.py)
 > *Per-call cancellation and status receipts (IDEA-1173).*
 
-**Size**: `161` lines (`5478` bytes)
+**Size**: `167` lines (`5717` bytes)
 
 **Functions:**
+- `def test_progress_bad_fraction_falls_back_to_none()`
 - `def test_registry_registers_and_gets_a_call()`
 - `def test_request_cancel_sets_the_event_once()`
 - `def test_request_cancel_unknown_id()`
@@ -8279,6 +8904,20 @@
 
 ---
 
+### [`tests/test_tool_name_validation.py`](tests/test_tool_name_validation.py)
+> *L-5: tool names must be provider-safe function names.*
+
+**Size**: `34` lines (`941` bytes)
+
+**Functions:**
+- `def test_valid_names_pass()`
+- `def test_spaces_rejected()`
+- `def test_empty_and_too_long_rejected()`
+- `def test_path_traversal_rejected()`
+- `def test_sanitizer_still_blocks_traversal()`
+
+---
+
 ### [`tests/test_tool_policy.py`](tests/test_tool_policy.py)
 > *Default-deny first-match tool policy (IDEA-058).*
 
@@ -8313,10 +8952,28 @@
 
 ---
 
+### [`tests/test_tool_reliability_rung.py`](tests/test_tool_reliability_rung.py)
+> *Rung 3: reliable headless tool use under ceilings + kill-switch (ADR-110).*
+
+**Size**: `401` lines (`16386` bytes)
+
+**Functions:**
+- `def _calc_code()`
+- `def test_rung_suite_digest_stable()`
+- `def test_clean_exec_calc()` - *LOW gate -> admissible code -> stub exec -> ok receipt, spend provenance.*
+- `async def test_unknown_tool_hold_and_truncation(monkeypatch, tmp_path)` - *Unregistered/HIGH calls never execute; 7 calls truncate to 5 + 2 deferred.*
+- `def test_tier_hold_approve(tmp_path)` - *HIGH approval: wrong phrase keeps pending, exact phrase runs once.*
+- `def test_policy_deny(tmp_path, monkeypatch)` - *Enforced policy deny names rule/version/risk and spends nothing.*
+- `def test_cancel_mid_run()` - *Cancel sets the event; the receipt carries status but no result.*
+- `def test_budget_exhaustion_is_reported()` - *Two spends fit; the third aborts with kind tool_calls.*
+- `async def test_journal_replay_safe()` - *Done replays; pending/orphaned never re-runs unless rerun+idempotent.*
+
+---
+
 ### [`tests/test_tool_sandbox.py`](tests/test_tool_sandbox.py)
 > *Tests for the Tool Sandbox security system.*
 
-**Size**: `613` lines (`21923` bytes)
+**Size**: `631` lines (`22611` bytes)
 
 **Classes:**
 - `class TestRestrictedImport` - *Tests for the restricted import hook.*
@@ -8366,6 +9023,9 @@
   - Method `async def .test_dispatcher_uses_sandbox()` - *Test that the tool dispatcher uses the sandbox.*
   - Method `async def .test_dispatcher_catches_security_errors()` - *Test that security errors are properly caught and reported.*
 
+**Functions:**
+- `def test_blocks_rplus_in_read_only(tmp_path)` - *SafeOpen read-only must reject r+/w modes (swarm sandbox).*
+
 ---
 
 ### [`tests/test_tool_tiers.py`](tests/test_tool_tiers.py)
@@ -8411,7 +9071,7 @@
 ---
 
 ### [`tests/test_tools_library.py`](tests/test_tools_library.py)
-**Size**: `569` lines (`20644` bytes)
+**Size**: `577` lines (`21041` bytes)
 
 **Classes:**
 - `class TestCalculator` - *Tests for Calculator tool.*
@@ -8494,7 +9154,7 @@
 ### [`tests/test_tools_node.py`](tests/test_tools_node.py)
 > *Tests for modules/tools/node.py — ToolDispatcherExecutor*
 
-**Size**: `196` lines (`7794` bytes)
+**Size**: `211` lines (`8639` bytes)
 
 **Functions:**
 - `def make_input(tool_calls, messages)` - *Build a minimal input_data dict with tool_calls in OpenAI format.*
@@ -8505,7 +9165,7 @@
 - `async def test_tool_execution_happy_path()` - *A known tool with valid code should execute and return its result.*
 - `async def test_unknown_tool_returns_error()` - *An unknown tool name should produce an error result, not raise.*
 - `async def test_malformed_json_arguments_returns_error()` - *Malformed JSON in tool arguments should produce an error result, not raise.*
-- `async def test_max_tools_per_turn_limits_execution()` - *Only max_tools_per_turn tools should run; the rest stored in _remaining_tool_calls.*
+- `async def test_max_tools_per_turn_limits_execution()` - *Only max_tools_per_turn tools run, but every call id gets a result (H-4).*
 - `async def test_requires_continuation_true_when_tools_remain()` - *requires_continuation must be True when tool calls were truncated.*
 - `async def test_requires_continuation_false_when_all_tools_run()` - *requires_continuation must be False when all tool calls fit in one turn.*
 - `async def test_allowed_tools_filtering()` - *Tools not in allowed_tools list should be blocked.*
@@ -8550,7 +9210,7 @@
 ### [`tests/test_untrusted_fences.py`](tests/test_untrusted_fences.py)
 > *Untrusted text is fenced as data with a per-block random id (IDEA-030).*
 
-**Size**: `64` lines (`3334` bytes)
+**Size**: `69` lines (`3608` bytes)
 
 **Functions:**
 - `def test_a_block_is_fenced_with_a_fresh_id_and_a_data_note()`
@@ -8562,14 +9222,48 @@
 
 ---
 
+### [`tests/test_useless_gate.py`](tests/test_useless_gate.py)
+> *Failing-first tests for core/useless_gate.py (IDEA-1335).*
+
+**Size**: `56` lines (`1501` bytes)
+
+**Functions:**
+- `def test_explicit_useless_flag_counts()`
+- `def test_no_heuristics_on_content()`
+- `def test_gate_restricts_only_at_k()`
+- `def test_gate_resets_on_useful()`
+- `def test_gate_default_k_is_five()`
+- `def test_gate_rejects_zero_k()`
+- `def test_gate_passthrough_when_open()`
+
+---
+
 ### [`tests/test_xss_escaping.py`](tests/test_xss_escaping.py)
 > *Regression tests for M5: stored content must be escaped, not rendered as HTML.*
 
-**Size**: `48` lines (`1819` bytes)
+**Size**: `67` lines (`2780` bytes)
 
 **Functions:**
 - `def test_jinja_environment_autoescapes()`
 - `async def test_memory_stats_type_is_html_escaped(monkeypatch)`
+- `def test_marketplace_file_tree_uses_dataset_not_interpolation()`
+- `def test_marketplace_listing_uses_dataset_not_interpolation()`
 - `def test_marketplace_templates_escape_stored_content()`
+
+---
+
+### [`tests/test_xss_hardening.py`](tests/test_xss_hardening.py)
+> *C-2 regression: model output must never hit innerHTML unsanitised.*
+
+**Size**: `61` lines (`2217` bytes)
+
+**Functions:**
+- `def _read(name)`
+- `def test_no_raw_marked_innerhtml()`
+- `def test_sanitize_helper_present()`
+- `def test_csp_middleware_installed()`
+- `def test_api_key_not_rendered_raw()`
+- `def test_scripts_vendored_no_cdn_js()` - *M-SEC-7: JS libs load from /static/vendor, not a CDN (Tailwind excepted).*
+- `def test_csp_allows_no_cdn_script_hosts()`
 
 ---

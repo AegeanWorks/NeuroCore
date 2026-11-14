@@ -3,7 +3,7 @@ import logging
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Dict, List
 
 import httpx
@@ -94,7 +94,7 @@ class TelegramBridge:
                         "chat_id": msg.get("chat", {}).get("id"),
                         "from": msg.get("from", {}).get("first_name", "Unknown"),
                         "from_id": str(msg.get("from", {}).get("id") or ""),
-                        "timestamp": datetime.utcnow().isoformat() + "Z",
+                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "date": msg.get("date", int(time.time())),
                         "type": "unknown",
                     }

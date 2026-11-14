@@ -19,6 +19,14 @@ def execute_tool(tool_name, args):
     """Helper function to execute a tool with given arguments."""
     tool_path = os.path.join(TOOLS_LIBRARY_DIR, f"{tool_name}.py")
     if not os.path.exists(tool_path):
+        # M-TOOL-3: resolve case-insensitively like the dispatcher, so the
+        # suite passes on case-sensitive filesystems too.
+        lowered = f"{tool_name}.py".lower()
+        for entry in os.listdir(TOOLS_LIBRARY_DIR):
+            if entry.lower() == lowered:
+                tool_path = os.path.join(TOOLS_LIBRARY_DIR, entry)
+                break
+    if not os.path.exists(tool_path):
         raise FileNotFoundError(f"Tool {tool_name} not found at {tool_path}")
     
     with open(tool_path, "r", encoding="utf-8") as f:

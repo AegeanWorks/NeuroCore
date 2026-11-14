@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 import modules.brain.service as brain_service_module
@@ -12,6 +13,19 @@ from modules.brain.service import BrainService
 from modules.brain.state import BrainStateStore
 
 from tests.test_brain_substrate import FakeSelfModel
+
+
+def test_learning_loop_rejects_non_numeric_limits(tmp_path):
+    from unittest.mock import MagicMock
+
+    from modules.brain.learning import LearningLoop, LearningStore
+
+    with pytest.raises(ValueError, match="must be numbers"):
+        LearningLoop(
+            memory=MagicMock(),
+            store=LearningStore(path=str(tmp_path / "learning.json")),
+            max_experiences="abc",
+        )
 
 
 class FakeMemoryBridge:

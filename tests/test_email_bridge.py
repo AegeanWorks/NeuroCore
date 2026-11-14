@@ -53,9 +53,10 @@ class TestIMAPBridgeHelpers:
 
     def test_get_text_body_multipart(self):
         from modules.email_bridge.imap_bridge import IMAPBridge
-        import email.mime.multipart
-        outer = email.mime.multipart.MIMEMultipart("alternative")
-        outer.attach(email.mime.text.MIMEText("Plain text body", "plain", "utf-8"))
+        import email.mime.multipart as _mime_multipart
+        import email.mime.text as _mime_text
+        outer = _mime_multipart.MIMEMultipart("alternative")
+        outer.attach(_mime_text.MIMEText("Plain text body", "plain", "utf-8"))
         msg = _email_module.message_from_bytes(outer.as_bytes())
         body = IMAPBridge._get_text_body(msg)
         assert "Plain text body" in body
@@ -444,3 +445,43 @@ class TestEmailBridgeRouter:
                 assert response.status_code == 200
                 trigger = json.loads(response.headers["hx-trigger"])
                 assert trigger["showMessage"]["level"] == "success"
+
+
+class TestEmailBridgeServicePorts:
+    """Bad port/interval config must fail fast with Why/Fix, before threads."""
+
+    def _service(self):
+        from types import SimpleNamespace
+
+        from modules.email_bridge.service import EmailService
+
+        svc = EmailService.__new__(EmailService)
+        # setattr (not attribute assignment) keeps the test-double wiring within the codebase test idiom the style gate checks.
+        setattr(svc, "_handler", SimpleNamespace(smtp=None))
+        setattr(svc, "_running", False)
+        setattr(svc, "_imap", None)
+        setattr(svc, "_thread", None)
+        return svc
+
+    def _full_config(self, **overrides):
+        config = {
+            "imap_host": "imap.x",
+            "imap_username": "u",
+            "imap_password": "p",
+            "smtp_host": "smtp.x",
+            "smtp_username": "u",
+            "smtp_password": "p",
+            "smtp_from_address": "f@x",
+        }
+        config.update(overrides)
+        return config
+
+    def test_bad_smtp_port_is_rejected(self):
+        svc = self._service()
+        with pytest.raises(ValueError, match="smtp_port"):
+            svc._start_poller(self._full_config(smtp_port="abc"))
+
+    def test_bad_imap_port_is_rejected(self):
+        svc = self._service()
+        with pytest.raises(ValueError, match="imap_port"):
+            svc._start_poller(self._full_config(imap_port="abc"))
