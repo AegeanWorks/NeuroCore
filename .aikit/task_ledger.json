@@ -1,114 +1,18 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "pr8-audit-onto-main",
+    "task_id": "neurocore-audit-defect-fixes",
     "last_phase": "in_progress",
-    "active_phase": 1,
-    "status": "in_progress",
-    "updated_at": 1794674239.3686705,
+    "active_phase": 5,
+    "status": "completed",
+    "updated_at": 1794691096.544492,
     "owner": "claude:pr8",
     "started_by": "claude:pr8",
-    "continuations": []
+    "continuations": [],
+    "completed_at": 1794691099.8559337,
+    "completed_head": "2e142cc41697aa48f2bd2fde93e784fca6007f53"
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-gate-trio",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-gate-trio' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793725922.9887493,
-      "timestamp_str": "2026-11-03 20:12:02",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "neurocore-approved-7",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/5] Planning Approved-7: run-ledger (1271-1274) in core/outcomes.py + assets, OAuth pair (1299+1301) minimal records, stop-rule k5 (1335) in agent_loop; tests per area; ADR + gates",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793814263.7688599,
-      "timestamp_str": "2026-11-04 20:44:23",
-      "agent": "kilo:2",
-      "impact_assessment": {
-        "why": "7 Approved neurocore ideas verified deep-checked; gaps real in outcomes/flow_context/budget/agent_loop; implement without changing existing contracts",
-        "benefits": "Reconstructable runs via event log + state machine; bounded results; provenance-ready assets; auditable OAuth registry; USELESS-loop stop",
-        "risks": "contract: outcomes.py additive only, no existing signature change; dependency: stdlib + pydantic only; concurrency: ContextVar budget unchanged; state: JSONL logs versioned, loaders refuse unknown version",
-        "mitigation": "Additive enums/records, invalid transitions refuse, expired results return None, OAuth validate-only no network, k5 scoped to tool-source finish-only with receipt"
-      },
-      "plan_digest": "e62e4ba5c5130aeb5e281b3d2543bbe3efbded882bc426413602e524c7b88437"
-    },
-    {
-      "task_id": "neurocore-approved-7",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/5] ADR-112 recorded; 26 new tests green; loop+outcomes 138 passed; ruff clean on new files",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793814503.4984615,
-      "timestamp_str": "2026-11-04 20:48:23",
-      "agent": "kilo:2"
-    },
-    {
-      "task_id": "neurocore-approved-7",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[5/5] aikit check neurocore: 5/5 gates pass; checklists: passed. Uncommitted: commit delivery is authorized per wave-push policy.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793815082.8714275,
-      "timestamp_str": "2026-11-04 20:58:02",
-      "agent": "kilo:2"
-    },
-    {
-      "task_id": "neurocore-approved-7",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-approved-7' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793815097.0593333,
-      "timestamp_str": "2026-11-04 20:58:17",
-      "agent": "kilo:2"
-    },
-    {
-      "task_id": "neurocore-pr8-wave1",
-      "phase": "in_progress",
-      "phase_num": 4,
-      "description": "[2/3] Merged origin/main (decisions.md union ADR-103..112); fixed 3 Codex findings in core/run_ledger.py (id traversal guard, first-materialization eligibility, persisted index.json reopen); 4 failing-first tests now green, full suite 2606 passed; aikit check neurocore: 5/5 gates pass; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794654860.3496883,
-      "timestamp_str": "2026-11-14 14:14:20",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "neurocore-pr8-wave1",
-      "phase": "in_progress",
-      "phase_num": 5,
-      "description": "[3/3] Pushed merge + fixes + UI evidence via aikit publish; PR #8: MERGEABLE/CLEAN",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794655261.998518,
-      "timestamp_str": "2026-11-14 14:21:01",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "neurocore-pr8-wave1",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-pr8-wave1' completed successfully.",
-      "status": "completed",
-      "timestamp": 1794655262.211232,
-      "timestamp_str": "2026-11-14 14:21:02",
-      "agent": "claude:pr8",
-      "delivery": {
-        "roots": [
-          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
-        ],
-        "forced": false
-      }
-    },
     {
       "task_id": "neurocore-pr8-load-fix",
       "phase": "in_progress",
@@ -269,6 +173,119 @@
       "timestamp": 1794674239.3686705,
       "timestamp_str": "2026-11-14 19:37:19",
       "agent": "claude:pr8"
+    },
+    {
+      "task_id": "pr8-audit-onto-main",
+      "phase": "in_progress",
+      "phase_num": 2,
+      "description": "All branches aligned: audit branch merged into main (67464c4), wave fast-forwarded, ledger record 8f5d68e committed",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794675773.2604432,
+      "timestamp_str": "2026-11-14 20:02:53",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "pr8-audit-onto-main",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "Publish passed 5/5 gates twice (main and wave); secret range scan clean; all local branches and origin/main+origin/wave at 8f5d68e",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794675773.535218,
+      "timestamp_str": "2026-11-14 20:02:53",
+      "agent": "claude:pr8",
+      "checklists": "passed"
+    },
+    {
+      "task_id": "pr8-audit-onto-main",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'pr8-audit-onto-main' completed successfully.",
+      "status": "completed",
+      "timestamp": 1794675773.8217723,
+      "timestamp_str": "2026-11-14 20:02:53",
+      "agent": "claude:pr8",
+      "delivery": {
+        "roots": [
+          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
+        ],
+        "forced": false
+      }
+    },
+    {
+      "task_id": "neurocore-align-audit-remote",
+      "phase": "in_progress",
+      "phase_num": 2,
+      "description": "[1/2] Publish claude/funny-feynman-rloonj: push delta scan (new in AIKit) must let the branch's upload of main-side history pass; branch then contains main. [2/2] Validate the landed audit repro suite at the new baseline and report branch states",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794683956.9838858,
+      "timestamp_str": "2026-11-14 22:19:16",
+      "agent": "claude:pr8",
+      "impact_assessment": {
+        "why": "The remote audit branch is the only NeuroCore ref not containing main; the earlier refusal was the ref-delta overstatement now fixed in the push scan",
+        "benefits": "All three remote NeuroCore refs contain main; audit branch becomes publishable",
+        "risks": "contract: none in neurocore; dependency: uses the local unpushed AIKit scanner fix; concurrency: publish is locked per project; state: only remote ref moves fast-forward-compatibly (non-forced)",
+        "mitigation": "Publish runs the full 5-gate cycle and never forces; if the scan still refuses, leave the remote ref untouched and report"
+      },
+      "plan_digest": "09e524220e9823fd853205ef8ff780c842a9b4487b5170895a677084b1d6eb0c"
+    },
+    {
+      "task_id": "neurocore-audit-defect-fixes",
+      "phase": "in_progress",
+      "phase_num": 2,
+      "description": "[1/4] LLM request_timeout applied. [2/4] FTS queries. [3/4] module onset/exit handlers. [4/4] reminder loop default start; each fix lands with its repro flipped to not-reproduced",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794684450.6766183,
+      "timestamp_str": "2026-11-14 22:27:30",
+      "agent": "claude:pr8",
+      "impact_assessment": {
+        "why": "The audit repro suite confirms 4 live defects on current main; each silently breaks a user-visible behavior",
+        "benefits": "LLM calls honor the user's timeout; FTS usable; module lifecycle handlers run; reminders work by default",
+        "risks": "contract: fixes must not change existing passing behavior - each touched module keeps its public API; dependency: stdlib only; concurrency: timer/handler changes touch background threads - teardown must stay bounded; state: no new state files",
+        "mitigation": "Failing-first via the repro scripts already confirming the bugs; full neurocore suite (2610 tests) as regression net; gates before commit"
+      },
+      "plan_digest": "538748d83964810daa23002be780e9d32a61b730282da02f3542fddbcc67c1ff"
+    },
+    {
+      "task_id": "neurocore-align-audit-remote",
+      "phase": "superseded",
+      "phase_num": 2,
+      "description": "Superseded by 'neurocore-audit-defect-fixes' without --complete or --reset",
+      "status": "superseded",
+      "timestamp": 1794684450.6766183,
+      "timestamp_str": "2026-11-14 22:27:30",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "neurocore-audit-defect-fixes",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "All four audit repros verified against remediated code; run_all.py 0 confirmed; repro updates committed 19d6395 and published",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794691096.544492,
+      "timestamp_str": "2026-11-15 00:18:16",
+      "agent": "claude:pr8",
+      "checklists": "passed"
+    },
+    {
+      "task_id": "neurocore-audit-defect-fixes",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-audit-defect-fixes' completed successfully.",
+      "status": "completed",
+      "timestamp": 1794691099.8743763,
+      "timestamp_str": "2026-11-15 00:18:19",
+      "agent": "claude:pr8",
+      "delivery": {
+        "roots": [
+          "."
+        ],
+        "forced": false
+      }
     }
   ]
 }
