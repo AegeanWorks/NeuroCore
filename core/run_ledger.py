@@ -373,17 +373,44 @@ class ResultStore:
             return False
         return (now if now is not None else time.time()) >= record.expires_at
 
+    def prune(self, now: Optional[float] = None) -> int:
+        """Drop expired records from the index; persist when anything changed.
+
+        Why: expired records would pile up in index.json forever.
+        Fix: expired records are removed and the healed index is written
+        back; records without expires_at are never pruned.
+
+        """
+        cutoff = now if now is not None else time.time()
+        expired = [
+            rid
+            for rid, record in self._index.items()
+            if record.expires_at is not None and cutoff >= record.expires_at
+        ]
+        for rid in expired:
+            self._index.pop(rid, None)
+        if expired:
+            self._persist_index()
+        return len(expired)
+
     def load(self, result_id: str) -> Optional[bytes]:
         record = self._index.get(result_id)
         if record is None:
             return None
         if self.is_expired(result_id):
+            self._index.pop(result_id, None)
+            self._persist_index()
             return None
         # The stored record.path is informational only: deriving the target
         # from the id keeps a tampered index from reading outside the store.
         target = self._resolve_target(record.result_id)
-        with open(target, "rb") as handle:
-            return handle.read()
+        try:
+            with open(target, "rb") as handle:
+                return handle.read()
+        except FileNotFoundError:
+            self._index.pop(result_id, None)
+            self._persist_index()
+            return None
 
     def as_dict(self, record: StoredResult) -> Dict[str, Any]:
         return {

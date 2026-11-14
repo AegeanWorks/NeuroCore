@@ -161,3 +161,45 @@ def test_load_ignores_tampered_index_path(tmp_path):
             assert handle.read() == b"EXFIL"
     finally:
         os.remove(secret)
+
+
+def test_prune_removes_only_expired_and_persists(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("old", b"x", ttl_seconds=-1)
+    store.save("live", b"keep", ttl_seconds=1000)
+    store.save("free", b"keep-forever")
+    assert store.prune() == 1
+    assert store.load("live") == b"keep"
+    assert store.load("free") == b"keep-forever"
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("old") is None
+    assert reopened.load("live") == b"keep"
+    reopened2 = ResultStore(str(tmp_path))
+    assert reopened2.prune() == 0
+
+
+def test_load_lazily_drops_expired_record(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("dying", b"x", ttl_seconds=1000)
+    index_path = str(tmp_path / "index.json")
+    with open(index_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    payload["records"][0]["expires_at"] = 1.0
+    with open(index_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("dying") is None
+    final = ResultStore(str(tmp_path))
+    assert final.load("dying") is None
+    assert final.is_expired("dying") is False
+    assert final._index == {}
+
+
+def test_load_lazily_drops_record_with_lost_file(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("lost", b"x")
+    os.remove(os.path.join(str(tmp_path), "lost.bin"))
+    assert store.load("lost") is None
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("lost") is None
+    assert reopened._index == {}
