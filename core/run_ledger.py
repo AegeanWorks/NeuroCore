@@ -269,6 +269,9 @@ class ResultStore:
                 expires_at=entry.get("expires_at"),
                 version=FORMAT_VERSION,
             )
+            # Refuse the whole index when any record id would not resolve to
+            # a store-local .bin; the persisted path is informational only.
+            record.path = self._resolve_target(record.result_id)
             self._index[record.result_id] = record
 
     def _persist_index(self) -> None:

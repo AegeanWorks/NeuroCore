@@ -1,54 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-pr8-store-prune",
+    "task_id": "neurocore-main-index-validation",
     "last_phase": "in_progress",
     "active_phase": 4,
     "status": "in_progress",
-    "updated_at": 1794658481.1432757,
+    "updated_at": 1794667956.0956142,
     "owner": "claude:pr8",
     "started_by": "claude:pr8",
     "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1243-handoff-packet",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/4] core/handoff.py: HandoffPacket states, new_packet with bounded context, deliver/accept/reject, replay_queue and summarise. [2/4] acceptance runs a check; a rejection re-queues within retry_limit or becomes exhausted. [3/4] Failing-first tests for state separation, retry, exhaustion, a raising check, bounds and replay. [4/4] ADR-102, IDEAS, README, map, aikit check neurocore.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793457372.1346495,
-      "timestamp_str": "2026-10-31 17:36:12",
-      "agent": "kilo:1",
-      "impact_assessment": {
-        "why": "IDEA-1243 was approved: a handoff was a plain dict with no delivery record, acceptance check or retry, so a rejected one vanished silently.",
-        "benefits": "Delivery and acceptance are distinct, a failed handoff is retried or visibly exhausted, and context is bounded before it reaches a prompt.",
-        "risks": "contract: new module; dependency: stdlib dataclasses only; concurrency: in-memory; state: packets serialise with as_dict.",
-        "mitigation": "Caps are enforced at construction, a raising check rejects rather than crashes, and an empty schema-free accept is an explicit opt-out."
-      }
-    },
-    {
-      "task_id": "idea-1243-handoff-packet",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/4] aikit check neurocore: 4/4 gates; ADR-102, IDEAS, README and the map updated; 10 handoff tests pass. checklists: passed. Uncommitted: commit delivery is not authorized.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793457471.9888258,
-      "timestamp_str": "2026-10-31 17:37:51",
-      "agent": "kilo:1"
-    },
-    {
-      "task_id": "idea-1243-handoff-packet",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'idea-1243-handoff-packet' completed successfully.",
-      "status": "completed",
-      "timestamp": 1793457472.1695507,
-      "timestamp_str": "2026-10-31 17:37:52",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "neurocore-delivery",
       "phase": "in_progress",
@@ -272,6 +234,51 @@
       "status": "in_progress",
       "timestamp": 1794658481.1432757,
       "timestamp_str": "2026-11-14 15:14:41",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "neurocore-pr8-store-prune",
+      "phase": "completed",
+      "phase_num": 5,
+      "description": "Task 'neurocore-pr8-store-prune' completed successfully.",
+      "status": "completed",
+      "timestamp": 1794658791.7723489,
+      "timestamp_str": "2026-11-14 15:19:51",
+      "agent": "claude:pr8",
+      "delivery": {
+        "roots": [
+          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
+        ],
+        "forced": false
+      }
+    },
+    {
+      "task_id": "neurocore-main-index-validation",
+      "phase": "in_progress",
+      "phase_num": 2,
+      "description": "[1/2] Plan: post-merge verification of main (65ef1b1..90b1dec) - merge clean (6 files, no deletions), suite 2610 passed, gates clean. One tightening remains: _load_index accepts arbitrary result ids and stored paths from index.json without revalidation; fix by validating each record id with _resolve_target at load so a tampered index is refused as a whole (consistent with the version-refusal contract)",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794666968.1952786,
+      "timestamp_str": "2026-11-14 17:36:08",
+      "agent": "claude:pr8",
+      "impact_assessment": {
+        "why": "A tampered index record currently persists forever inside _index and is only refused at serve time",
+        "benefits": "index.json becomes fully self-validating on open; stored path derived from the validated id, eliminating the persisted-path drift",
+        "risks": "contract: an index containing any unvalidated id now refuses the whole store open (was: silent acceptance, refusal only when loading that id); dependency: none; concurrency: unchanged; state: format unchanged",
+        "mitigation": "failing-first test, slice re-read of _load_index, 35/35 target suites + full gates before publish"
+      },
+      "plan_digest": "89ac53dc865a544ed95b42e108bcc77f44fe85ac6eb5d19c4049ac019624b38b"
+    },
+    {
+      "task_id": "neurocore-main-index-validation",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "[2/2] _load_index validates every record id via _resolve_target and derives the store-canonical path; tampered-id-refused test failing-first; run-ledger/auth/useless 36/36; full suite 2610 passed pre-fix; aikit check neurocore: 5/5 gates pass; checklists: passed",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794667956.0956142,
+      "timestamp_str": "2026-11-14 17:52:36",
       "agent": "claude:pr8"
     }
   ]

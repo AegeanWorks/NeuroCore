@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `379`
 - **Total Classes**: `505`
-- **Total Top-Level Functions**: `2820`
+- **Total Top-Level Functions**: `2821`
 - **Total Class Methods**: `2477`
-- **Total Source Lines**: `101646`
+- **Total Source Lines**: `101663`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`379` module(s))
@@ -1060,7 +1060,7 @@
 ### [`core/run_ledger.py`](core/run_ledger.py)
 > *Run ledger primitives: asset graph, event log, state machine, result store.*
 
-**Size**: `450` lines (`15792` bytes)
+**Size**: `453` lines (`16010` bytes)
 
 **Classes:**
 - `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
@@ -8162,7 +8162,7 @@
 ### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
 > *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
 
-**Size**: `205` lines (`6842` bytes)
+**Size**: `219` lines (`7379` bytes)
 
 **Functions:**
 - `def test_state_allows_running_then_completed()`
@@ -8186,6 +8186,7 @@
 - `def test_prune_removes_only_expired_and_persists(tmp_path)`
 - `def test_load_lazily_drops_expired_record(tmp_path)`
 - `def test_load_lazily_drops_record_with_lost_file(tmp_path)`
+- `def test_result_store_rejects_tampered_record_id_on_open(tmp_path)`
 
 ---
 

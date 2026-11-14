@@ -203,3 +203,17 @@ def test_load_lazily_drops_record_with_lost_file(tmp_path):
     reopened = ResultStore(str(tmp_path))
     assert reopened.load("lost") is None
     assert reopened._index == {}
+
+
+def test_result_store_rejects_tampered_record_id_on_open(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"persist")
+    store.save("r2", b"persist")
+    index_path = str(tmp_path / "index.json")
+    with open(index_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    payload["records"][0]["result_id"] = "../outside"
+    with open(index_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+    with pytest.raises(ValueError):
+        ResultStore(str(tmp_path))
