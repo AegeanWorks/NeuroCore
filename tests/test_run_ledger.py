@@ -1,5 +1,8 @@
 """Failing-first tests for core/run_ledger.py (IDEA-1271..1274)."""
 
+import json
+import os
+
 import pytest
 
 from core.run_ledger import (
@@ -91,3 +94,112 @@ def test_result_store_refuses_oversize(tmp_path):
 def test_result_missing_returns_none(tmp_path):
     store = ResultStore(str(tmp_path))
     assert store.load("nope") is None
+
+
+def test_result_store_rejects_id_with_path_components(tmp_path):
+    store = ResultStore(str(tmp_path))
+    with pytest.raises(ValueError):
+        store.save("../outside", b"x")
+    with pytest.raises(ValueError):
+        store.save("sub/dir/id", b"x")
+    assert not (tmp_path.parent / "outside.bin").exists()
+    assert os.listdir(str(tmp_path)) == []
+
+
+def test_dependent_materializes_for_first_time():
+    parent = Asset("parent", "parent")
+    materialize(parent, "run-1")
+    child = Asset("child", "child")
+    materialize(child, "run-1", upstream=[parent])
+    assert child.last_materialized_at is not None
+
+
+def test_dependent_still_refuses_materialized_when_upstream_newer():
+    parent = Asset("parent", "parent", last_materialized_at=10.0)
+    child = Asset("child", "child", last_materialized_at=5.0)
+    with pytest.raises(ValueError):
+        materialize(child, "run-1", upstream=[parent])
+
+
+def test_result_store_reopens_with_persisted_index(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"persist", ttl_seconds=1000)
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("r1") == b"persist"
+    assert reopened.is_expired("r1") is False
+
+
+def test_result_store_rejects_unknown_index_version(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"persist")
+    index_path = str(tmp_path / "index.json")
+    with open(index_path, "r", encoding="utf-8") as handle:
+        payload = handle.read()
+    payload = payload.replace('"version": 1', '"version": 99')
+    with open(index_path, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+    with pytest.raises(ValueError):
+        ResultStore(str(tmp_path))
+
+
+def test_load_ignores_tampered_index_path(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"store-local")
+    secret = str(tmp_path.parent / "outside-result.bin")
+    with open(secret, "wb") as handle:
+        handle.write(b"EXFIL")
+    try:
+        index_path = str(tmp_path / "index.json")
+        with open(index_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        payload["records"][0]["path"] = secret
+        with open(index_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        reopened = ResultStore(str(tmp_path))
+        assert reopened.load("r1") == b"store-local"
+        with open(secret, "rb") as handle:
+            assert handle.read() == b"EXFIL"
+    finally:
+        os.remove(secret)
+
+
+def test_prune_removes_only_expired_and_persists(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("old", b"x", ttl_seconds=-1)
+    store.save("live", b"keep", ttl_seconds=1000)
+    store.save("free", b"keep-forever")
+    assert store.prune() == 1
+    assert store.load("live") == b"keep"
+    assert store.load("free") == b"keep-forever"
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("old") is None
+    assert reopened.load("live") == b"keep"
+    reopened2 = ResultStore(str(tmp_path))
+    assert reopened2.prune() == 0
+
+
+def test_load_lazily_drops_expired_record(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("dying", b"x", ttl_seconds=1000)
+    index_path = str(tmp_path / "index.json")
+    with open(index_path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    payload["records"][0]["expires_at"] = 1.0
+    with open(index_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("dying") is None
+    final = ResultStore(str(tmp_path))
+    assert final.load("dying") is None
+    assert final.is_expired("dying") is False
+    assert final._index == {}
+
+
+def test_load_lazily_drops_record_with_lost_file(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("lost", b"x")
+    os.remove(os.path.join(str(tmp_path), "lost.bin"))
+    assert store.load("lost") is None
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("lost") is None
+    assert reopened._index == {}
