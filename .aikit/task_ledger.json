@@ -1,45 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "pr8-audit-merge-rebuild",
+    "task_id": "pr8-audit-onto-main",
     "last_phase": "in_progress",
     "active_phase": 1,
     "status": "in_progress",
-    "updated_at": 1794673234.018637,
+    "updated_at": 1794674239.3686705,
     "owner": "claude:pr8",
     "started_by": "claude:pr8",
     "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "neurocore-gate-trio",
-      "phase": "planning",
-      "phase_num": 2,
-      "description": "[1/4] Fix 3 pre-existing gates: sandbox timeout flake (2 tests 5s->30s), hygiene silent-except x20 + external-url x2 in vendored JS (log-or-allow), guidelines private-attribute x5 (public marker rename + monkeypatch). [2/4] hygiene fixes. [3/4] guidelines fixes. [4/4] full gates (README + aikit check neurocore), ADR-109, commit no-push.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793725475.2109687,
-      "timestamp_str": "2026-11-03 20:04:35",
-      "agent": "kilo:1",
-      "impact_assessment": {
-        "why": "Prior audit left 3 failing gates: order-dependent sandbox timeouts, silent excepts, cross-object private assigns",
-        "benefits": "All aikit check neurocore gates pass; no behavior change; flaky timeouts gain spawn headroom",
-        "risks": "contract: test timeout values only, public attr rename (internal idempotency marker), log-only except fills; dependency: stdlib only; concurrency: none; state: none",
-        "mitigation": "Failing-first repro before each fix; full gate re-run; explicit staging; no push"
-      },
-      "plan_digest": "3514e9f567056072eff0fc9fb3bf9db8156978e2cfa6d55e5bf934bfbd289cfa"
-    },
-    {
-      "task_id": "neurocore-gate-trio",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/4] aikit check neurocore: 5/5 gates (test 250.6s, lint, hygiene, guidelines, secrets); 68 sandbox+bridge tests pass; map refreshed; ADR-109 appended. checklists: passed. Uncommitted: commit delivery is not authorized beyond this repo.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793725910.142038,
-      "timestamp_str": "2026-11-03 20:11:50",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "neurocore-gate-trio",
       "phase": "completed",
@@ -276,6 +247,27 @@
       "status": "superseded",
       "timestamp": 1794673234.018637,
       "timestamp_str": "2026-11-14 19:20:34",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "pr8-audit-onto-main",
+      "phase": "in_progress",
+      "phase_num": 1,
+      "description": "Audit branch merged into main (67464c4); publish main - push range origin/main..main scans clean",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794674239.3686705,
+      "timestamp_str": "2026-11-14 19:37:19",
+      "agent": "claude:pr8"
+    },
+    {
+      "task_id": "pr8-audit-merge-rebuild",
+      "phase": "superseded",
+      "phase_num": 1,
+      "description": "Superseded by 'pr8-audit-onto-main' without --complete or --reset",
+      "status": "superseded",
+      "timestamp": 1794674239.3686705,
+      "timestamp_str": "2026-11-14 19:37:19",
       "agent": "claude:pr8"
     }
   ]
