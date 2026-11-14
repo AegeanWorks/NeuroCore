@@ -1,28 +1,16 @@
 {
   "version": 1,
   "active_task": {
-    "task_id": "neurocore-approved-7",
-    "last_phase": "phase 4 verification",
-    "active_phase": 5,
-    "status": "completed",
-    "updated_at": 1793815082.8714275,
-    "owner": "kilo:2",
-    "started_by": "kilo:2",
-    "continuations": [],
-    "completed_at": 1793815097.0593321
+    "task_id": "neurocore-pr8-wave1",
+    "last_phase": "in_progress",
+    "active_phase": 4,
+    "status": "in_progress",
+    "updated_at": 1794654860.3496883,
+    "owner": "claude:pr8",
+    "started_by": "claude:pr8",
+    "continuations": []
   },
   "checkpoints": [
-    {
-      "task_id": "idea-1237-trace-context",
-      "phase": "phase 4 verification",
-      "phase_num": 4,
-      "description": "[4/4] aikit check neurocore: 4/4 gates (test, hygiene, guidelines, secrets); ADR-099, IDEAS, README and the map updated; 9 new trace tests and 78 observability-adjacent tests pass; the import cycle was removed with a registered trace provider. checklists: passed. Uncommitted: commit delivery is not authorized.",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1793456610.6244013,
-      "timestamp_str": "2026-10-31 17:23:30",
-      "agent": "kilo:1"
-    },
     {
       "task_id": "idea-1237-trace-context",
       "phase": "completed",
@@ -259,6 +247,17 @@
       "timestamp": 1793815097.0593333,
       "timestamp_str": "2026-11-04 20:58:17",
       "agent": "kilo:2"
+    },
+    {
+      "task_id": "neurocore-pr8-wave1",
+      "phase": "in_progress",
+      "phase_num": 4,
+      "description": "[2/3] Merged origin/main (decisions.md union ADR-103..112); fixed 3 Codex findings in core/run_ledger.py (id traversal guard, first-materialization eligibility, persisted index.json reopen); 4 failing-first tests now green, full suite 2606 passed; aikit check neurocore: 5/5 gates pass; checklists: passed",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1794654860.3496883,
+      "timestamp_str": "2026-11-14 14:14:20",
+      "agent": "claude:pr8"
     }
   ]
 }

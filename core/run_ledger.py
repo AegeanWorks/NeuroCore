@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -23,6 +24,8 @@ from typing import Any, Dict, List, Optional
 FORMAT_VERSION = 1
 MAX_RESULT_BYTES = 1_000_000
 MAX_REDIRECT_HINT = 10  # documented bound for registries using assets
+INDEX_FILENAME = "index.json"
+SAFE_RESULT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +196,8 @@ def materialize(
 
     Why: recomputing over a stale upstream would certify bad data.
     Fix: materialize upstreams first, or pass upstream=None when the
-    asset has no dependencies.
+    asset has no dependencies. An asset that was never materialized is
+    always eligible for its first build; only refreshes are stale-checked.
     """
     _ = run_id
     for parent in upstream or []:
@@ -204,7 +208,9 @@ def materialize(
                 "Why: downstream data would be unchecked. "
                 "Fix: materialize the upstream asset first."
             )
-        if is_stale(asset, parent.last_materialized_at):
+        if asset.last_materialized_at is not None and is_stale(
+            asset, parent.last_materialized_at
+        ):
             raise ValueError(
                 f"refusing materialization of {asset.asset_id!r}: "
                 f"upstream {parent.asset_id!r} is newer. "
@@ -231,10 +237,96 @@ class ResultStore:
         self.directory = directory
         self.max_bytes = max_bytes
         self._index: Dict[str, StoredResult] = {}
+        self._load_index()
+
+    def _load_index(self) -> None:
+        """Rebuild the in-memory index from index.json when present.
+
+        Why: reconstructed instances would otherwise forget persisted
+        results and expire them as unsaved.
+        Fix: keep reading result files with the persisted record's
+        timestamps; a corrupt or higher-version index refuses without
+        modifying the file.
+        """
+        path = os.path.join(self.directory, INDEX_FILENAME)
+        if not os.path.exists(path):
+            return
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        version = data.get("version", FORMAT_VERSION)
+        if version != FORMAT_VERSION:
+            raise ValueError(
+                f"unsupported result index version {version!r}. "
+                "Why: the reader only understands version 1. "
+                "Fix: upgrade neurocore or migrate the index."
+            )
+        for entry in data.get("records") or []:
+            self.check_version(entry)
+            record = StoredResult(
+                result_id=str(entry["result_id"]),
+                path=str(entry["path"]),
+                created_at=float(entry["created_at"]),
+                expires_at=entry.get("expires_at"),
+                version=FORMAT_VERSION,
+            )
+            self._index[record.result_id] = record
+
+    def _persist_index(self) -> None:
+        """Write index.json atomically (temp + fsync + replace)."""
+        os.makedirs(self.directory, exist_ok=True)
+        payload = {
+            "version": FORMAT_VERSION,
+            "records": [
+                self.as_dict(record)
+                for record in sorted(
+                    self._index.values(), key=lambda r: r.result_id
+                )
+            ],
+        }
+        path = os.path.join(self.directory, INDEX_FILENAME)
+        tmp = path + ".tmp_write"
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, sort_keys=True)
+            handle.flush()
+            try:
+                os.fsync(handle.fileno())
+            except OSError as exc:
+                logger.debug("result index fsync skipped: %s", exc)
+        os.replace(tmp, path)
+        try:
+            dir_fd = os.open(self.directory, os.O_RDONLY)
+        except OSError as exc:
+            logger.debug("result dir open skipped: %s", exc)
+            return
+        try:
+            os.fsync(dir_fd)
+        except OSError as exc:
+            logger.debug("result dir fsync skipped: %s", exc)
+        finally:
+            os.close(dir_fd)
+
+    def _resolve_target(self, result_id: str) -> str:
+        """Return the store-local path for result_id; refuse escapements.
+
+        Why: an id with path components could point save()/load() at
+        files outside the store directory.
+        Fix: allow only the SAFE_RESULT_ID_RE alphabet, anchored so no
+        separator or traversal survives.
+        """
+        if not SAFE_RESULT_ID_RE.fullmatch(result_id):
+            raise ValueError(
+                f"result id {result_id!r} contains characters outside "
+                f"{SAFE_RESULT_ID_RE.pattern!r}. "
+                "Why: path components in the id could escape the store "
+                "directory. "
+                "Fix: use a flat letters/digits/dots/dashes/underscores id."
+            )
+        return os.path.join(self.directory, f"{result_id}.bin")
 
     def save(
         self, result_id: str, data: bytes, ttl_seconds: Optional[float] = None
     ) -> StoredResult:
+        target = self._resolve_target(result_id)
         if len(data) > self.max_bytes:
             raise ValueError(
                 f"result {result_id!r} is {len(data)} bytes over "
@@ -243,7 +335,6 @@ class ResultStore:
                 "Fix: store a summary and keep the full bytes elsewhere."
             )
         os.makedirs(self.directory, exist_ok=True)
-        target = os.path.join(self.directory, f"{result_id}.bin")
         tmp = target + ".tmp_write"
         with open(tmp, "wb") as handle:
             handle.write(data)
@@ -273,6 +364,7 @@ class ResultStore:
             expires_at=(now + ttl_seconds) if ttl_seconds else None,
         )
         self._index[result_id] = record
+        self._persist_index()
         return record
 
     def is_expired(self, result_id: str, now: Optional[float] = None) -> bool:
@@ -312,6 +404,7 @@ class ResultStore:
 
 __all__ = [
     "FORMAT_VERSION",
+    "INDEX_FILENAME",
     "MAX_RESULT_BYTES",
     "Asset",
     "InvalidTransitionError",

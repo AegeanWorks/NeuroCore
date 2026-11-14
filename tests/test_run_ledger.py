@@ -1,5 +1,7 @@
 """Failing-first tests for core/run_ledger.py (IDEA-1271..1274)."""
 
+import os
+
 import pytest
 
 from core.run_ledger import (
@@ -91,3 +93,49 @@ def test_result_store_refuses_oversize(tmp_path):
 def test_result_missing_returns_none(tmp_path):
     store = ResultStore(str(tmp_path))
     assert store.load("nope") is None
+
+
+def test_result_store_rejects_id_with_path_components(tmp_path):
+    store = ResultStore(str(tmp_path))
+    with pytest.raises(ValueError):
+        store.save("../outside", b"x")
+    with pytest.raises(ValueError):
+        store.save("sub/dir/id", b"x")
+    assert not (tmp_path.parent / "outside.bin").exists()
+    assert os.listdir(str(tmp_path)) == []
+
+
+def test_dependent_materializes_for_first_time():
+    parent = Asset("parent", "parent")
+    materialize(parent, "run-1")
+    child = Asset("child", "child")
+    materialize(child, "run-1", upstream=[parent])
+    assert child.last_materialized_at is not None
+
+
+def test_dependent_still_refuses_materialized_when_upstream_newer():
+    parent = Asset("parent", "parent", last_materialized_at=10.0)
+    child = Asset("child", "child", last_materialized_at=5.0)
+    with pytest.raises(ValueError):
+        materialize(child, "run-1", upstream=[parent])
+
+
+def test_result_store_reopens_with_persisted_index(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"persist", ttl_seconds=1000)
+    reopened = ResultStore(str(tmp_path))
+    assert reopened.load("r1") == b"persist"
+    assert reopened.is_expired("r1") is False
+
+
+def test_result_store_rejects_unknown_index_version(tmp_path):
+    store = ResultStore(str(tmp_path))
+    store.save("r1", b"persist")
+    index_path = str(tmp_path / "index.json")
+    with open(index_path, "r", encoding="utf-8") as handle:
+        payload = handle.read()
+    payload = payload.replace('"version": 1', '"version": 99')
+    with open(index_path, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+    with pytest.raises(ValueError):
+        ResultStore(str(tmp_path))
