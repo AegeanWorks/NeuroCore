@@ -51,6 +51,8 @@ class EventManager:
         dir_path = os.path.dirname(self.storage_file) or "."
         with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
             json.dump(events, tmp, indent=4)
+            tmp.flush()
+            os.fsync(tmp.fileno())
             tmp_path = tmp.name
         os.replace(tmp_path, self.storage_file)  # Atomic on POSIX, works on Windows
 
@@ -68,6 +70,8 @@ class EventManager:
             dir_path = os.path.dirname(self.storage_file) or "."
             with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
                 json.dump(events, tmp, indent=4)
+                tmp.flush()
+                os.fsync(tmp.fileno())
                 tmp_path = tmp.name
             os.replace(tmp_path, self.storage_file)  # Atomic on POSIX, works on Windows
 
@@ -89,8 +93,10 @@ class EventManager:
         return created_event  # Return the newly created event directly
 
     def get_events_by_date(self, date_str):
+        if not isinstance(date_str, str) or not date_str:
+            return []
         events = self._load_events()
-        return [e for e in events if e.get("start_time", "").startswith(date_str)]
+        return [e for e in events if str(e.get("start_time", "")).replace("T", " ")[:10] == date_str]
 
     def get_upcoming(self, limit=10):
         events = self._load_events()

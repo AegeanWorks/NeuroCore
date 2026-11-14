@@ -417,6 +417,18 @@ def test_validate_flow_flags_stale_branch_targets(tmp_path):
     assert any("ghost" in e for e in errors)
 
 
+def test_make_active_flow_default_backups_are_distinct(flow_manager, monkeypatch):
+    import core.flow_manager as fm
+
+    flow_manager.save_flow("A", [], [], flow_id="flow-a")
+    monkeypatch.setattr(fm.settings, "get", lambda k, d=None: ["flow-a"] if k == "active_ai_flows" else d)
+    assert flow_manager.make_active_flow_default() is True
+    assert flow_manager.make_active_flow_default() is True
+    backups = [k for k in flow_manager.flows if k.startswith("default-flow-backup-")]
+    assert len(backups) >= 2
+    assert len(set(backups)) == len(backups)
+
+
 def test_corrupt_versions_file_is_quarantined_not_dropped(tmp_path):
     """L-18: a corrupt versions file is preserved aside, not silently reset."""
     from core.flow_manager import FlowManager as _FM

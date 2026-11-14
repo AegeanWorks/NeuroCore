@@ -32,6 +32,17 @@ def test_a_held_call_needs_the_phrase_and_runs_once(tmp_path, monkeypatch):
         assert store.pending() == []
 
 
+def test_malformed_approval_entry_does_not_break_stage(tmp_path, monkeypatch):
+    import json
+
+    ledger = tmp_path / "approvals.json"
+    ledger.write_text(json.dumps({"approvals": {"x": {"id": "x"}}}), encoding="utf-8")
+    store = approvals.ToolApprovals(str(ledger))
+    staged = store.stage("DeleteGoal", {"goal_id": "1"}, "test")
+    assert staged["status"] == "pending"
+    assert all(item["id"] != "x" for item in store.pending())
+
+
 def test_an_unknown_approval_is_404(tmp_path, monkeypatch):
     store = approvals.ToolApprovals(str(tmp_path / "approvals.json"))
     monkeypatch.setattr(approvals, "default_store", lambda: store)

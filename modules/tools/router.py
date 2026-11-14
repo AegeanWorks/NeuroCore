@@ -98,8 +98,8 @@ def _library_path(name: str) -> str:
         for entry in os.listdir(LIBRARY_DIR):
             if entry.lower() == lowered and os.path.isfile(os.path.join(LIBRARY_DIR, entry)):
                 return os.path.join(LIBRARY_DIR, entry)
-    except OSError:
-        pass
+    except OSError as _exc:
+        logger.debug("Tool library listing skipped: %s", _exc)
     return exact
 
 def _quarantine_corrupt_tools() -> str:
@@ -155,14 +155,14 @@ def _atomic_write_json(path: str, payload: dict) -> None:
             tmp.flush()
             try:
                 os.fsync(tmp.fileno())
-            except OSError:
-                pass
+            except OSError as _exc:
+                logger.debug("fsync not supported on this volume: %s", _exc)
         os.replace(tmp_path, path)
     except BaseException:
         try:
             os.remove(tmp_path)
-        except OSError:
-            pass
+        except OSError as _exc:
+            logger.debug("Tool temp cleanup skipped: %s", _exc)
         raise
 
 

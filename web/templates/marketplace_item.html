@@ -143,8 +143,9 @@
                         <span class="truncate">{{ entry.name.rstrip('/').split('/')[-1] }}</span>
                     </div>
                     {% else %}
-                    <button onclick="loadFile('{{ item.id }}', '{{ entry.path }}')"
+                    <button onclick="loadFile(this.dataset.item, this.dataset.path)"
                             id="tree-{{ loop.index }}"
+                            data-item="{{ item.id }}"
                             data-path="{{ entry.path }}"
                             class="file-tree-item w-full text-left flex items-center space-x-1.5 py-1 text-xs text-slate-300 hover:text-white transition-colors {% if entry.path == initial_file %}active{% endif %}"
                             style="padding-left: {{ 12 + entry.depth * 12 }}px; padding-right: 12px">

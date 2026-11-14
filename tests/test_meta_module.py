@@ -78,6 +78,33 @@ async def test_subflow_enforces_the_depth_limit():
 
 
 @pytest.mark.asyncio
+async def test_subflow_propagates_stop_signal(monkeypatch):
+    class NoneRunner(FakeRunner):
+        async def run(self, data, **kwargs):
+            return None
+
+    monkeypatch.setattr(meta_node, "FlowRunner", NoneRunner)
+    result = await meta_node.SubflowExecutor().receive({"m": "hi"}, {"flow_id": "f"})
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_subflow_rejects_non_numeric_max_depth():
+    with pytest.raises(ValueError, match="max_depth"):
+        await meta_node.SubflowExecutor().receive({}, {"flow_id": "x", "max_depth": "abc"})
+    with pytest.raises(ValueError, match="max_depth"):
+        await meta_node.SubflowExecutor().receive({}, {"flow_id": "x", "max_depth": 2.5})
+    with pytest.raises(ValueError, match="max_depth"):
+        await meta_node.SubflowExecutor().receive({}, {"flow_id": "x", "max_depth": True})
+
+
+@pytest.mark.asyncio
+async def test_subflow_max_depth_zero_means_no_nesting():
+    with pytest.raises(ValueError, match="depth"):
+        await meta_node.SubflowExecutor().receive({}, {"flow_id": "x", "max_depth": 0})
+
+
+@pytest.mark.asyncio
 async def test_get_executor_class_dispatch():
     assert await meta_node.get_executor_class("subflow") is meta_node.SubflowExecutor
     assert await meta_node.get_executor_class("unknown") is None

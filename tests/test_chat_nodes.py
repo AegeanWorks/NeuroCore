@@ -103,6 +103,14 @@ async def test_get_executor_class_chat_output():
 
 
 @pytest.mark.asyncio
+async def test_chat_output_malformed_tool_calls_falls_through():
+    """A tool_calls entry without 'function' must not crash formatting."""
+    result = await ChatOutputExecutor().receive(
+        {"choices": [{"message": {"tool_calls": [{}]}}]}
+    )
+    assert "error" in result
+
+
 async def test_get_executor_class_unknown():
     """get_executor_class with unknown id should return None."""
     cls = await get_executor_class("unknown")

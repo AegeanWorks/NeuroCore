@@ -124,11 +124,18 @@ async def brain_events(limit: int = 50):
 async def brain_publish_event(body: dict = Body(default_factory=dict),
                               actor: BrainActor = Depends(require_role("operator"))):
     service = get_brain_service()
+    try:
+        salience = float(body.get("salience", 0.5))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: salience must be a number ({exc}). Fix: pass salience as a number.",
+        ) from exc
     event = await service.publish_event(
         event_type=str(body.get("type") or "manual"),
         source=str(actor.name),
         payload=body.get("payload") if isinstance(body.get("payload"), dict) else {},
-        salience=float(body.get("salience", 0.5)),
+        salience=salience,
         dedupe_key=body.get("dedupe_key"),
     )
     if event is None:
@@ -289,9 +296,14 @@ async def brain_learn_consolidate(_actor: BrainActor = Depends(require_role("ope
 
 @router.post("/learn/recall")
 async def brain_learn_recall(body: dict = Body(default_factory=dict)):
-    return await get_brain_service().evaluate_learning_recall(
-        top_k=max(1, min(int(body.get("top_k", 3)), 20))
-    )
+    try:
+        top_k = max(1, min(int(body.get("top_k", 3)), 20))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: top_k must be an integer ({exc}). Fix: pass top_k as an integer.",
+        ) from exc
+    return await get_brain_service().evaluate_learning_recall(top_k=top_k)
 
 
 @router.post("/learn/suggest")
@@ -299,9 +311,14 @@ async def brain_learn_suggest(body: dict = Body(...)):
     query = body.get("query")
     if not isinstance(query, str) or not query.strip():
         raise HTTPException(status_code=400, detail="query is required")
-    return get_brain_service().suggest_learning(
-        query, top_k=max(1, min(int(body.get("top_k", 3)), 20))
-    )
+    try:
+        top_k = max(1, min(int(body.get("top_k", 3)), 20))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: top_k must be an integer ({exc}). Fix: pass top_k as an integer.",
+        ) from exc
+    return get_brain_service().suggest_learning(query, top_k=top_k)
 
 
 @router.post("/goals/review")
@@ -607,7 +624,14 @@ async def brain_move_prompt_label(name: str, body: dict = Body(...),
     if version is None or not labels:
         raise HTTPException(status_code=400, detail="version and labels are required")
     try:
-        return reg.move_label(name, int(version), labels, actor=actor.name)
+        version_number = int(version)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Why: version must be an integer ({exc}). Fix: pass version as an integer.",
+        ) from exc
+    try:
+        return reg.move_label(name, version_number, labels, actor=actor.name)
     except PromptConflict as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

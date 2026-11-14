@@ -64,8 +64,8 @@ def _check_module_policy(module_id: str) -> None:
                 effective_enabled = bool(overlay.get("enabled"))
     except RuntimeError:
         raise
-    except Exception:
-        pass
+    except Exception as _exc:
+        logger.debug("Module overlay for %r ignored: %s", module_id, _exc)
     if effective_enabled is False:
         raise RuntimeError(
             f"Module {module_id!r} is disabled; refusing to run its nodes"

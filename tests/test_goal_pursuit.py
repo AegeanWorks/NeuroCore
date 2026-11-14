@@ -34,6 +34,34 @@ def llm_response(content: str) -> dict:
     return {"choices": [{"message": {"content": content, "tool_calls": []}}]}
 
 
+@pytest.mark.asyncio
+async def test_compress_lessons_bad_threshold_falls_back():
+    """A non-numeric compress threshold must not crash lesson prep."""
+    ex = make_executor()
+    assert await ex._compress_lessons(["a"], {"lessons_compress_threshold": "abc"}) == "a"
+
+
+@pytest.mark.asyncio
+async def test_compress_lessons_bad_chunk_size_falls_back():
+    """A non-numeric chunk size must not crash lesson chunking."""
+    ex = make_executor()
+    long_lessons = ["x" * 2000, "y" * 2000]
+    setattr(ex, "_llm_with_retry", AsyncMock(return_value=llm_response("S")))
+    result = await ex._compress_lessons(long_lessons, {"lessons_chunk_size": "abc"})
+    assert isinstance(result, str) and result
+
+
+@pytest.mark.asyncio
+async def test_compress_step_results_bad_thresholds_fall_back():
+    """Non-numeric synthesis thresholds must not crash compression."""
+    ex = make_executor()
+    repl_state = {"variables": {"step_1_result": "x"}}
+    assert await ex._compress_step_results(
+        repl_state,
+        {"synthesis_compress_threshold": "abc", "synthesis_per_var_threshold": "abc"},
+    ) == 0
+
+
 def plan_json(*actions) -> str:
     """Serialize a list of step dicts to JSON."""
     return json.dumps([
@@ -316,6 +344,26 @@ async def test_receive_single_step_success():
     assert result["completed_steps"][0]["action"] == "Research AI"
     assert result["replan_count"] == 0
     assert result["remaining_steps"] == []
+
+
+async def test_receive_bad_reflection_timeout_falls_back():
+    ex = make_executor()
+
+    plan_resp = llm_response(plan_json("Research AI"))
+    step_resp = llm_response("AI is growing rapidly in 2025.")
+    eval_resp = llm_response(eval_json(True, "Information found", "AI is growing rapidly in 2025."))
+
+    ex.llm.chat_completion = AsyncMock(side_effect=[plan_resp, step_resp, eval_resp])
+
+    with patch.object(ex, "_load_tool_library", return_value={}), \
+         patch.object(ex, "_load_tools", return_value={}):
+        result = await ex.receive(
+            {"messages": MESSAGES},
+            config={"enable_synthesis": False, "reflection_save_timeout": "abc"},
+        )
+
+    assert result["content"]
+    assert len(result["completed_steps"]) == 1
 
 
 # ---------------------------------------------------------------------------

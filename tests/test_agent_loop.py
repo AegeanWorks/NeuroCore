@@ -121,6 +121,100 @@ class TestAgentLoopBasic:
         assert result["agent_loop_trace"][1]["tool_calls"] == []
 
     @pytest.mark.asyncio
+    async def test_bad_max_iterations_is_rejected_with_hint(self):
+        """A non-numeric max_iterations must fail fast with Why/Fix, not crash deep."""
+        executor = make_executor()
+        with pytest.raises(ValueError, match="max_iterations"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_iterations": "abc"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_rlm_bad_config_is_rejected_with_hint(self):
+        """RLM executor validates its config block the same way."""
+        from modules.agent_loop.node import RLMAgentLoopExecutor
+
+        executor = RLMAgentLoopExecutor()
+        with pytest.raises(ValueError, match="max_tokens"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_tokens": "abc"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_hybrid_bad_config_is_rejected_with_hint(self):
+        """Hybrid executor validates its config block the same way."""
+        from modules.agent_loop.node import HybridAgentExecutor
+
+        executor = HybridAgentExecutor()
+        with pytest.raises(ValueError, match="timeout"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"timeout": "abc"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_sub_call_bad_max_tokens_returns_error_result(self):
+        """A non-numeric SubCall max_tokens returns an error result, not a crash."""
+        executor = make_executor()
+        result = await executor._execute_sub_call(
+            {"prompt": "2+2", "max_tokens": "abc"}, {}
+        )
+        assert result["success"] is False
+        assert "max_tokens" in result["content"]
+
+    @pytest.mark.asyncio
+    async def test_replan_rejects_bad_llm_config(self):
+        """A non-numeric replan temperature must fail fast with Why/Fix."""
+        from unittest.mock import AsyncMock
+
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor()
+        setattr(ex, "_llm_with_retry", AsyncMock())
+        with pytest.raises(ValueError, match="replan LLM config"):
+            await ex._replan(
+                "req", [], [], {}, "boom", {"planning_temperature": "abc"}
+            )
+        ex._llm_with_retry.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_replan_rejects_bad_max_steps(self):
+        """A non-numeric replan max_steps must fail fast with Why/Fix."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_steps"):
+            await ex._replan(
+                "req", [], [], {}, "boom", {"max_steps": "abc"}
+            )
+
+    @pytest.mark.asyncio
+    async def test_goal_pursuit_bad_sub_call_limit_is_rejected_with_hint(self):
+        """A non-numeric max_sub_calls must fail fast with Why/Fix."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        executor = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_sub_calls"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_sub_calls": "abc"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_goal_pursuit_bad_config_is_rejected_with_hint(self):
+        """GoalPursuit executor validates its config block the same way."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        executor = GoalPursuitExecutor()
+        with pytest.raises(ValueError, match="max_tokens"):
+            await executor.receive(
+                {"messages": [{"role": "user", "content": "hi"}]},
+                config={"max_tokens": "abc"},
+            )
+
+    @pytest.mark.asyncio
     async def test_max_iterations_respected(self):
         """Loop must stop at max_iterations even if LLM keeps returning tool calls."""
         tool_call = make_tool_call("Calculator", '{"expression": "1+1"}')
@@ -1161,6 +1255,17 @@ class TestHybridAgentExecutor:
 
     def _repl_state(self):
         return {"variables": {}, "_var_counts": {}}
+
+    @pytest.mark.asyncio
+    async def test_create_plan_rejects_bad_max_steps(self):
+        """A non-numeric max_steps must fail fast with Why/Fix, before any LLM call."""
+        from modules.agent_loop.node import GoalPursuitExecutor
+
+        ex = GoalPursuitExecutor.__new__(GoalPursuitExecutor)
+        setattr(ex, "_llm_with_retry", AsyncMock())
+        with pytest.raises(ValueError, match="max_steps"):
+            await ex._create_plan("do things", {"max_steps": "abc"})
+        ex._llm_with_retry.assert_not_awaited()
 
     # --- excluded tools set ---
 

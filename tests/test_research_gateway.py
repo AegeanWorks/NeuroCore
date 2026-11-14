@@ -245,11 +245,17 @@ def test_the_routes_list_sources_and_map_errors(monkeypatch):
 
     monkeypatch.setattr(gateway, "search", fake_search)
 
-    with TestClient(app) as client:
-        listing = client.get("/research/sources")
-        ok = client.post("/research/fetch", json={"source": "arxiv", "query": "x", "limit": 2})
-        bad = client.post("/research/fetch", json={"source": "reddit", "query": "x"})
-        down = client.post("/research/fetch", json={"source": "down", "query": "x"})
+    from core.settings import settings as _settings
+    original = _settings.settings.get("research_enabled", False)
+    _settings.settings["research_enabled"] = True
+    try:
+        with TestClient(app) as client:
+            listing = client.get("/research/sources")
+            ok = client.post("/research/fetch", json={"source": "arxiv", "query": "x", "limit": 2})
+            bad = client.post("/research/fetch", json={"source": "reddit", "query": "x"})
+            down = client.post("/research/fetch", json={"source": "down", "query": "x"})
+    finally:
+        _settings.settings["research_enabled"] = original
 
     assert listing.status_code == 200
     assert {item["id"] for item in listing.json()["sources"]} == {"wikipedia", "arxiv", "pubmed"}
@@ -291,6 +297,11 @@ def test_persist_is_honoured_on_a_cache_hit_without_duplicates(monkeypatch, tmp_
     assert first["article_ids"] == ["a1"]
     assert second["article_ids"] == ["a1"]
     assert len(manager.articles) == 1, "a cache hit does not duplicate the article"
+
+
+def test_search_rejects_non_integer_limit():
+    with pytest.raises(SourcePolicyError):
+        asyncio.run(search("wikipedia", "x", "abc"))
 
 
 def test_the_cache_is_bounded_and_evicts_the_oldest(monkeypatch, tmp_path):

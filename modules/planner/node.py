@@ -398,7 +398,12 @@ class PlannerExecutor:
             if reasoning_context:
                 planner_prompt += f"\n\nPrevious reasoning context:\n{reasoning_context}\n\nConsider this context when creating your plan."
         
-        max_steps = int(config.get("max_steps", 10))
+        try:
+            max_steps = int(config.get("max_steps", 10))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid max_steps. Why: {exc}. Fix: pass a step count as an integer."
+            ) from exc
         planner_prompt = planner_prompt.replace("{request}", user_request)
         planner_prompt = planner_prompt.replace("{max_steps}", str(max_steps))
         

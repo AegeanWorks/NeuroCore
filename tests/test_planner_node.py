@@ -561,6 +561,18 @@ def test_get_executable_steps_parallel_when_no_deps():
     assert result == [0, 1, 2]
 
 
+@pytest.mark.asyncio
+async def test_planner_rejects_non_numeric_max_steps():
+    from modules.planner.node import PlannerExecutor
+
+    executor = PlannerExecutor()
+    with pytest.raises(ValueError, match="max_steps"):
+        await executor.receive(
+            {"messages": [{"role": "user", "content": "hi"}]},
+            {"max_steps": "abc"},
+        )
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

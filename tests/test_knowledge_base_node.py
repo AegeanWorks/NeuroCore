@@ -158,7 +158,35 @@ async def test_get_executor_class_unknown():
     # Import fresh to avoid stale class references
     if "modules.knowledge_base.node" in sys.modules:
         del sys.modules["modules.knowledge_base.node"]
-    
+
     from modules.knowledge_base.node import get_executor_class
     cls = await get_executor_class("unknown")
     assert cls is None
+
+
+@pytest.mark.asyncio
+async def test_malformed_message_without_role_skipped():
+    """A message without 'role' must not crash query extraction."""
+    from unittest.mock import patch
+
+    executor = make_executor()
+    with patch("modules.knowledge_base.node.document_store") as store:
+        store.get_total_documents.return_value = 0
+        result = await executor.receive({"messages": [{"content": "hi"}]}, config={})
+        assert result == {"messages": [{"content": "hi"}]}
+
+
+@pytest.mark.asyncio
+async def test_bad_limit_falls_back_to_default():
+    """A non-numeric limit must not crash retrieval."""
+    from unittest.mock import patch
+
+    executor = make_executor()
+    with patch("modules.knowledge_base.node.document_store") as store:
+        store.get_total_documents.return_value = 1
+        store.search_keyword.return_value = []
+        executor.llm.get_embedding.return_value = None
+        result = await executor.receive(
+            {"messages": [{"role": "user", "content": "hi"}]}, config={"limit": "abc"}
+        )
+        assert "knowledge_context" in result

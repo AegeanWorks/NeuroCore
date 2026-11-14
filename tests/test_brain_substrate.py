@@ -12,7 +12,55 @@ from modules.brain.events import EventBus
 from modules.brain.learning import LearningLoop, LearningStore
 from modules.brain.self_model import BrainSelfModel
 from modules.brain.service import BrainService
-from modules.brain.state import BrainStateStore
+from modules.brain.kernel import BrainKernel, KernelStore
+from modules.brain.state import BrainState, BrainStateStore
+
+
+def test_kernel_rejects_non_numeric_thresholds(tmp_path):
+    with pytest.raises(ValueError, match="must be numbers"):
+        BrainKernel(
+            store=KernelStore(path=str(tmp_path / "kernel.json")),
+            degrade_threshold="abc",
+        )
+
+
+def test_from_dict_coerces_bad_cycle_count():
+    state = BrainState.from_dict({"mode": "observe", "cycle_count": "bad"})
+    assert state.cycle_count == 0
+    state.cycle_count += 1
+    assert state.cycle_count == 1
+
+
+def test_service_rejects_non_numeric_cycle_limits(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from modules.brain.service import BrainService
+
+    monkeypatch.setenv("NEUROCORE_STATE_DIR", str(tmp_path / "state"))
+    with pytest.raises(ValueError, match="must be numbers"):
+        BrainService(
+            config={"cycle_interval_seconds": "abc"},
+            self_model=MagicMock(),
+            event_bus=MagicMock(),
+            state_store=MagicMock(),
+            evaluation_runner=MagicMock(),
+            eval_store=MagicMock(),
+            learning=MagicMock(),
+            improvement=MagicMock(),
+            configuration=MagicMock(),
+            kernel=MagicMock(),
+            drift=MagicMock(),
+            trends=MagicMock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_recent_zero_and_negative_return_empty():
+    bus = EventBus()
+    await bus.publish("x", "s")
+    assert bus.recent(0) == []
+    assert bus.recent(-1) == []
+    assert len(bus.recent(1)) == 1
 
 
 class NullMemoryBridge:

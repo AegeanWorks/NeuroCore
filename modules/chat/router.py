@@ -680,8 +680,8 @@ async def send_message(
                         len(str(_fr.get("content", ""))),
                         len(_fr.get("messages", []) or []),
                     )
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    logger.debug("ignored exception: %s", _exc)
                 
                 ai_response = flow_result.get("content", "")
                 if not ai_response:

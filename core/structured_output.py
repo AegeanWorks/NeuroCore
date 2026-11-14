@@ -102,6 +102,12 @@ async def structured_completion(
         )
         bridge_created = True
     
+    try:
+        max_retries = int(max_retries)
+    except (TypeError, ValueError):
+        max_retries = 3
+    if max_retries < 1:
+        max_retries = 1
     schema_name = schema.__name__
     schema_json = schema.model_json_schema() if hasattr(schema, 'model_json_schema') else schema.schema()
     

@@ -245,3 +245,24 @@ class TestStats:
         rm.create_finding({"title": "F", "summary": "S", "conclusion": "C"})
         stats = rm.get_stats()
         assert stats == {"hypotheses": 1, "articles": 1, "study_designs": 1, "findings": 1}
+
+    def test_create_hypothesis_missing_title_is_value_error(self, rm):
+        with pytest.raises(ValueError, match="title"):
+            rm.create_hypothesis({})
+
+    def test_create_article_missing_title_is_value_error(self, rm):
+        with pytest.raises(ValueError, match="title"):
+            rm.create_article({})
+
+    def test_create_study_design_missing_field_is_value_error(self, rm):
+        with pytest.raises(ValueError):
+            rm.create_study_design({"title": "T"})
+
+    def test_create_finding_missing_field_is_value_error(self, rm):
+        with pytest.raises(ValueError):
+            rm.create_finding({"title": "T"})
+
+    def test_update_hypothesis_invalid_confidence_is_value_error(self, rm):
+        h = rm.create_hypothesis({"title": "T", "statement": "S"})
+        with pytest.raises(ValueError, match="confidence_level"):
+            rm.update_hypothesis(h["id"], {"confidence_level": "abc"})

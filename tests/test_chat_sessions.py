@@ -127,3 +127,13 @@ def test_add_message_to_nonexistent_session(session_manager):
     result = session_manager.add_message("nonexistent-id", "user", "Hello")
     
     assert result is False
+
+
+def test_bad_session_limits_fall_back_to_defaults(temp_session_file):
+    manager = SessionManager(
+        storage_file=temp_session_file,
+        max_sessions="abc",
+        max_messages="abc",
+    )
+    assert manager.max_sessions == 200
+    assert manager.max_messages == 2000

@@ -160,7 +160,8 @@ class ModuleManager:
         for hook_name in ("shutdown_module", "shutdown", "stop"):
             try:
                 hook = getattr(old, hook_name, None)
-            except Exception:
+            except Exception as _exc:
+                logger.debug("Shutdown hook lookup %s failed: %s", hook_name, _exc)
                 continue
             if callable(hook):
                 try:

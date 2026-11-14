@@ -1,7 +1,7 @@
-import re
 import asyncio
-import json
 import logging
+import math
+from functools import partial as _partial
 from core.debug import debug_logger
 from core.settings import settings
 from modules.tools.sandbox import ToolSandbox, SecurityError, ResourceLimitError, TimeoutError as SandboxTimeoutError
@@ -100,7 +100,11 @@ class DelayExecutor:
             # TypeError: Non-numeric type in config
             logger.warning(f"Invalid delay seconds value, using default: {e}")
             seconds = 1.0
-        
+
+        if not math.isfinite(seconds):
+            logger.warning(f"Invalid delay seconds value (NaN/inf), using default 1.0")
+            seconds = 1.0
+
         if seconds < 0:
             seconds = 0
         
@@ -157,10 +161,7 @@ class ScriptExecutor:
         try:
             # M-ASYNC-1: never run the synchronous sandbox call on the event
             # loop; the tool dispatcher already uses this executor pattern.
-            import asyncio as _asyncio
-            from functools import partial as _partial
-
-            loop = _asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 None, _partial(sandbox.execute, code, {'data': data_val, 'result': result_val}),
             )

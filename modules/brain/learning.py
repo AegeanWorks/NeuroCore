@@ -182,12 +182,25 @@ class LearningLoop:
                  mirror_experiences: bool = True):
         self.memory = memory or GlobalMemoryBridge()
         self.store = store or LearningStore()
-        self.max_experiences = max(10, int(max_experiences))
-        self.min_occurrences = max(1, int(min_occurrences))
-        self.holdout_ratio = min(0.5, max(0.0, float(holdout_ratio)))
-        self.max_skills = max(10, int(max_skills))
-        self.min_failures = max(1, int(min_failures))
-        self.max_avoidances = max(10, int(max_avoidances))
+        try:
+            max_experiences = int(max_experiences)
+            min_occurrences = int(min_occurrences)
+            holdout_ratio = float(holdout_ratio)
+            max_skills = int(max_skills)
+            min_failures = int(min_failures)
+            max_avoidances = int(max_avoidances)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "learning limits must be numbers. "
+                f"Why: {exc}. Fix: pass numeric max_experiences, min_occurrences, "
+                "holdout_ratio, max_skills, min_failures and max_avoidances."
+            ) from exc
+        self.max_experiences = max(10, max_experiences)
+        self.min_occurrences = max(1, min_occurrences)
+        self.holdout_ratio = min(0.5, max(0.0, holdout_ratio))
+        self.max_skills = max(10, max_skills)
+        self.min_failures = max(1, min_failures)
+        self.max_avoidances = max(10, max_avoidances)
         self.mirror_experiences = bool(mirror_experiences)
 
         data = self.store.load()

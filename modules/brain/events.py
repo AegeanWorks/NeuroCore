@@ -80,7 +80,13 @@ class EventBus:
         return event
 
     def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
-        items = list(self._history)[-max(0, int(limit)):]
+        try:
+            count = int(limit)
+        except (TypeError, ValueError):
+            count = 50
+        if count <= 0:
+            return []
+        items = list(self._history)[-count:]
         return [event.to_dict() for event in reversed(items)]
 
     def clear(self) -> None:

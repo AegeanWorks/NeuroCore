@@ -654,7 +654,7 @@ class FlowManager:
             
             # Backup current default flow before overwriting
             if default_id in self.flows:
-                backup_id = f"default-flow-backup-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
+                backup_id = f"default-flow-backup-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')}"
                 self.flows[backup_id] = copy.deepcopy(self.flows[default_id])
                 logger.info(f"Backed up default flow to {backup_id}")
                 

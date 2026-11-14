@@ -24,6 +24,9 @@ DEFAULT_SETTINGS = {
     "debug_mode": False,
     "ui_wide_mode": False,
     "ui_show_footer": True,
+    # Out-of-scope surfaces ship disabled; re-enable from Settings > General.
+    "marketplace_enabled": False,
+    "research_enabled": False,
     "request_timeout": 60.0,
     "max_node_loops": 100,
     "module_allowlist": [],  # Issue 9: Module allowlist for hot-loading security
@@ -81,7 +84,14 @@ class SettingsManager:
                     loaded_settings = json.load(f)
                     merged_settings = copy.deepcopy(DEFAULT_SETTINGS)
                     if isinstance(loaded_settings, dict):
-                        merged_settings.update(copy.deepcopy(loaded_settings))
+                        for key, value in copy.deepcopy(loaded_settings).items():
+                            if (
+                                isinstance(value, dict)
+                                and isinstance(merged_settings.get(key), dict)
+                            ):
+                                merged_settings[key].update(value)
+                            else:
+                                merged_settings[key] = value
                     return merged_settings
             except (json.JSONDecodeError, IOError) as exc:
                 # M-DATA-2: quarantine the corrupt file instead of silently
@@ -109,6 +119,8 @@ class SettingsManager:
             dir_path = os.path.dirname(self.file_path) or "."
             with tempfile.NamedTemporaryFile("w", dir=dir_path, delete=False, suffix=".tmp") as tmp:
                 json.dump(self.settings, tmp, indent=4)
+                tmp.flush()
+                os.fsync(tmp.fileno())
                 tmp_path = tmp.name
             os.replace(tmp_path, self.file_path)  # Atomic on POSIX, works on Windows too
     
@@ -162,8 +174,9 @@ class SettingsManager:
             validated["max_node_loops"] = int(loops)
         
         # Issue 2.2: Strict boolean parsing - bool("false") returns True in Python!
-        # debug_mode, ui_wide_mode, ui_show_footer: booleans
-        for bool_field in ["debug_mode", "ui_wide_mode", "ui_show_footer"]:
+        # debug_mode, ui_wide_mode, ui_show_footer, marketplace/research flags: booleans
+        for bool_field in ["debug_mode", "ui_wide_mode", "ui_show_footer",
+                           "marketplace_enabled", "research_enabled"]:
             if bool_field in new_settings:
                 validated[bool_field] = self._parse_bool(new_settings[bool_field], bool_field)
         

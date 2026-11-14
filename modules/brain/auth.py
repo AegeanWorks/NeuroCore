@@ -47,7 +47,13 @@ class BrainActorRegistry:
 
     def __init__(self, path: Optional[str] = None, iterations: int = 120000):
         self.path = path or data_path("brain_actors.json")
-        self.iterations = max(10000, int(iterations))
+        try:
+            iterations = int(iterations)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"invalid iterations. Why: {exc}. Fix: pass iterations as an integer."
+            ) from exc
+        self.iterations = max(10000, iterations)
         self.lock = LedgerLock(self.path)
 
     def load(self) -> Dict[str, Any]:
@@ -162,6 +168,8 @@ class BrainActorRegistry:
         record = data["actors"].get(name)
         if record is None:
             raise ValueError(f"actor '{name}' does not exist")
+        if not record.get("enabled", True):
+            raise ValueError(f"actor '{name}' is disabled; re-enable before rotating")
         key_id, secret = self._new_token(None)
         salt = secrets.token_hex(16)
         record.update({

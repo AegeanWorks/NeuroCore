@@ -148,7 +148,7 @@ def test_disable_runs_shutdown_hook(temp_modules_dir, mock_app):
     finally:
         try:
             del sys.modules["modules.enabled_module"].shutdown_module
-        except AttributeError:
+        except AttributeError:  # hygiene: allow test cleanup; hook may already be removed
             pass
     assert stopped == ["stopped"]
 
@@ -173,7 +173,7 @@ def test_reenable_stops_old_instance_first(temp_modules_dir, mock_app):
         if mod is not None and getattr(mod, "shutdown_module", None) is not None:
             try:
                 delattr(mod, "shutdown_module")
-            except AttributeError:
+            except AttributeError:  # hygiene: allow test cleanup; hook may already be removed
                 pass
     client = TestClient(mock_app)
     assert client.get("/enabled_module/").status_code == 200

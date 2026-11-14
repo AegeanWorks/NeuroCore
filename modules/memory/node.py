@@ -104,7 +104,10 @@ class MemoryRecallExecutor:
             min_score = 0.0
 
         source_filter = config.get("source_filter") or None
-        access_weight = float(config.get("recall_access_weight", 0.0))
+        try:
+            access_weight = float(config.get("recall_access_weight", 0.0))
+        except (TypeError, ValueError):
+            access_weight = 0.0
         try:
             link_boost = float(config.get("link_boost", self.config.get("recall_link_boost", 0.5)))
         except (TypeError, ValueError):

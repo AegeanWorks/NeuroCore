@@ -62,8 +62,8 @@ class ReasoningBookService:
                     tmp.flush()
                     try:
                         os.fsync(tmp.fileno())
-                    except OSError:
-                        pass
+                    except OSError as _exc:
+                        logger.debug("fsync not supported on this volume: %s", _exc)
                 os.replace(tmp_path, data_file)
             except (OSError, TypeError) as e:
                 # OSError: File write permissions or I/O issues
@@ -71,8 +71,8 @@ class ReasoningBookService:
                 logger.error(f"Failed to save reasoning book to {data_file}: {e}")
                 try:
                     os.remove(tmp_path)
-                except OSError:
-                    pass
+                except OSError as _exc:
+                    logger.debug("Reasoning-book temp cleanup skipped: %s", _exc)
 
     def _save(self, snapshot=None):
         # M-DATA-3: snapshot defaults to current state for backwards compat,

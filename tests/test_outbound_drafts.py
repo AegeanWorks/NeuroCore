@@ -46,6 +46,13 @@ def test_a_draft_sends_once_and_only_with_the_confirmation_phrase(store):
     assert runner.call_count == 1 and store.pending() == []
 
 
+def test_malformed_draft_entry_does_not_break_stage(store, tmp_path):
+    ledger = tmp_path / "outbound_drafts.json"
+    ledger.write_text(json.dumps({"drafts": {"x": {"id": "x"}}}), encoding="utf-8")
+    draft = store.stage("SendEmail", EMAIL)
+    assert draft["status"] == "pending"
+
+
 def test_an_unreadable_draft_store_fails_closed(tmp_path, monkeypatch):
     path = tmp_path / "outbound_drafts.json"
     path.write_text("{not json", encoding="utf-8")

@@ -197,6 +197,14 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_hypothesis(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict) or not str(data.get("title", "")).strip():
+            raise ValueError(
+                "hypothesis needs a title. Why: title is required. Fix: pass title."
+            )
+        if not str(data.get("statement", "")).strip():
+            raise ValueError(
+                "hypothesis needs a statement. Why: statement is required. Fix: pass statement."
+            )
         with self._lock:
             now = _now()
             row = {
@@ -265,6 +273,13 @@ class ResearchManager:
                 conn.close()
 
     def update_hypothesis(self, hypothesis_id: str, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if "confidence_level" in (data or {}):
+            try:
+                float(data["confidence_level"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid confidence_level. Why: {exc}. Fix: pass a number."
+                ) from exc
         with self._lock:
             existing = self.get_hypothesis(hypothesis_id)
             if not existing:
@@ -315,6 +330,10 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_article(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict) or not str(data.get("title", "")).strip():
+            raise ValueError(
+                "article needs a title. Why: title is required. Fix: pass title."
+            )
         with self._lock:
             now = _now()
             row = {
@@ -399,6 +418,11 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_study_design(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        for field in ("title", "study_type", "population"):
+            if not isinstance(data, dict) or not str(data.get(field, "")).strip():
+                raise ValueError(
+                    f"study design needs {field}. Why: {field} is required. Fix: pass {field}."
+                )
         with self._lock:
             now = _now()
             row = {
@@ -512,6 +536,11 @@ class ResearchManager:
     # ------------------------------------------------------------------
 
     def create_finding(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        for field in ("title", "summary", "conclusion"):
+            if not isinstance(data, dict) or not str(data.get(field, "")).strip():
+                raise ValueError(
+                    f"finding needs {field}. Why: {field} is required. Fix: pass {field}."
+                )
         with self._lock:
             now = _now()
             row = {

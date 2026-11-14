@@ -64,11 +64,15 @@
                     {% endif %}
                 {% endfor %}
 
-                <!-- Marketplace -->
+                <!-- Marketplace (opt-in: Settings > General) -->
+                {% if settings is undefined or settings.marketplace_enabled %}
                 <li><a href="/marketplace" class="hover:text-blue-400 transition-colors">Marketplace</a></li>
+                {% endif %}
 
-                <!-- Research -->
+                <!-- Research (opt-in: Settings > General) -->
+                {% if settings is undefined or settings.research_enabled %}
                 <li><a href="/research" class="hover:text-blue-400 transition-colors">Research</a></li>
+                {% endif %}
 
                 <!-- Debug -->
                 {% if settings.debug_mode %}

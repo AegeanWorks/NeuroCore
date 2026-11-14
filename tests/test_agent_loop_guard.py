@@ -8,6 +8,12 @@ from modules.agent_loop.loop_guard import LoopGuard, call_signature, normalize_a
 from tests.test_agent_loop import make_executor, make_llm_response, make_tool_call
 
 
+def test_bad_guard_limits_fall_back_to_defaults():
+    guard = LoopGuard(history="abc", repeat_limit="abc")
+    assert guard.history == 12
+    assert guard.repeat_limit == 3
+
+
 def test_transport_identifiers_do_not_make_a_call_unique():
     first = normalize_arguments({"request_id": "abc123", "query": "status", "timestamp": 1})
     second = normalize_arguments({"request_id": "def456", "query": "status", "timestamp": 2})
