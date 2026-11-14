@@ -1,11 +1,12 @@
 """Audit finding M-LIFE-1: module-level @router.on_event handlers never run.
 
-main.py creates FastAPI(lifespan=...) and ModuleManager includes module routers during that
-lifespan. FastAPI does not run startup/shutdown event handlers when a lifespan is used, so
-modules/brain/router.py (auto-start/resume) and modules/browser_automation/router.py
-(browser_service.stop) handlers are dead. This script mirrors that setup with a toy router.
+The original defect: main.py created FastAPI(lifespan=...) while ModuleManager included module
+routers during that lifespan. FastAPI does not run startup/shutdown event handlers when a
+lifespan is used, so modules/brain/router.py (auto-start/resume) and
+modules/browser_automation/router.py (browser_service.stop) handlers were dead.
 
-Run:  python docs/audit_repro/repro_on_event.py
+The remediation (main.py:139-151, 189-208) calls the hooks explicitly inside the lifespan.
+This script mirrors that remediation with a toy router and expects both hooks to fire.
 """
 import warnings
 from contextlib import asynccontextmanager
@@ -31,12 +32,16 @@ async def on_shutdown():
 @asynccontextmanager
 async def lifespan(app):
     app.include_router(router, prefix="/brain")  # what ModuleManager.load_enabled_modules does
+    # M-LIFE-1 remediation, as in main.py: under a lifespan FastAPI never fires the
+    # router's on_event hooks, so the lifespan calls them explicitly.
+    await on_startup()
     yield
+    await on_shutdown()
 
 
 app = FastAPI(lifespan=lifespan)
 with TestClient(app):
     pass
 print("router events fired:", fired)
-print("VERDICT:", "BUG CONFIRMED (module startup/shutdown handlers never run)" if not fired
-      else "not reproduced")
+print("VERDICT:", "BUG CONFIRMED (module startup/shutdown handlers never run)"
+      if fired != ["startup", "shutdown"] else "not reproduced")

@@ -34,10 +34,21 @@ async def main():
         label = f"{err['error']}/{err.get('status', '-')}"
         print(f"{label}: provider called {calls}x (expected 1)")
         print("VERDICT:", f"BUG CONFIRMED ({label} retried)" if calls > 1 else "not reproduced")
-    timeout = LLMExecutor().bridge.timeout
-    print(f"LLM node bridge timeout: {timeout}s")
+    # M-LLM-2 (remediated in 94bcda3): the node passes settings.request_timeout to the bridge.
+    # The honest predicate is that the bridge honors the *configured* value, whatever it is -
+    # a fresh state dir loads the 60.0 default, so a constant here would fire on healthy code.
+    from core.settings import settings
+    executor = LLMExecutor()
+    applied = executor.bridge.timeout
+    configured = float(settings.get("request_timeout", 0))
+    print(f"LLM node bridge timeout: {applied}s (settings request_timeout: {configured}s)")
     print("VERDICT:", "BUG CONFIRMED (request_timeout setting not applied to the LLM node)"
-          if timeout == 60.0 else "not reproduced")
+          if applied != configured else "not reproduced")
+    settings.save_settings({**settings.settings, "request_timeout": 90.0})
+    applied_custom = LLMExecutor().bridge.timeout
+    print(f"LLM node bridge timeout after request_timeout=90: {applied_custom}s")
+    print("VERDICT:", "BUG CONFIRMED (custom request_timeout ignored by the LLM node)"
+          if applied_custom != 90.0 else "not reproduced")
 
 
 asyncio.run(main())
