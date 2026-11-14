@@ -7,10 +7,10 @@
 
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
-- **Total Classes**: `506`
+- **Total Classes**: `507`
 - **Total Top-Level Functions**: `2842`
-- **Total Class Methods**: `2477`
-- **Total Source Lines**: `102252`
+- **Total Class Methods**: `2479`
+- **Total Source Lines**: `102347`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1430,17 +1430,14 @@
 ### [`docs/audit_repro/repro_fts.py`](docs/audit_repro/repro_fts.py)
 > *Audit finding H-5: knowledge-base keyword search fails for ordinary questions.*
 
-**Size**: `31` lines (`1459` bytes)
-
-**Functions:**
-- `def kb_sanitize(query)`
+**Size**: `35` lines (`1656` bytes)
 
 ---
 
 ### [`docs/audit_repro/repro_llm_retry.py`](docs/audit_repro/repro_llm_retry.py)
 > *Audit findings M-LLM-1 / M-LLM-2: the LLM node retries deterministic failures and ignores*
 
-**Size**: `43` lines (`1671` bytes)
+**Size**: `54` lines (`2478` bytes)
 
 **Functions:**
 - `async def main()`
@@ -1457,7 +1454,7 @@
 ### [`docs/audit_repro/repro_on_event.py`](docs/audit_repro/repro_on_event.py)
 > *Audit finding M-LIFE-1: module-level @router.on_event handlers never run.*
 
-**Size**: `42` lines (`1242` bytes)
+**Size**: `47` lines (`1570` bytes)
 
 **Functions:**
 - `async def on_startup()`
@@ -1467,9 +1464,17 @@
 ---
 
 ### [`docs/audit_repro/repro_repeater.py`](docs/audit_repro/repro_repeater.py)
-> *Audit finding H-7: the default flow's reminder loop is never started.*
+> *Audit repro: H-7 repeater auto-start (main.py:_fire_repeater_nodes) + dedupe follow-up.*
 
-**Size**: `25` lines (`1230` bytes)
+**Size**: `100` lines (`4452` bytes)
+
+**Classes:**
+- `class StubRunner` - *Stands in for FlowRunner: records the start node, then blocks until released.*
+  - Method `.__init__(flow_id)`
+  - Method `async def .run(payload, start_node_id)`
+
+**Functions:**
+- `async def main_async()`
 
 ---
 
