@@ -14,167 +14,6 @@
   },
   "checkpoints": [
     {
-      "task_id": "neurocore-pr8-load-fix",
-      "phase": "in_progress",
-      "phase_num": 2,
-      "description": "[1/2] Plan: PR #8 delta re-verified clean except one residual bug - ResultStore.load() follows record.path from index.json (tampered index = arbitrary read outside the store, repro in scratch); fix by deriving the target from the validated id via _resolve_target",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794656858.2167947,
-      "timestamp_str": "2026-11-14 14:47:38",
-      "agent": "claude:pr8",
-      "impact_assessment": {
-        "why": "The delivered P1 fix left the read side open to the same escape class the finding targeted",
-        "benefits": "ResultStore becomes end-to-end traversal-safe on both write and read paths",
-        "risks": "contract: load() no longer honors a customized record.path (none existed outside repro); dependency: none; concurrency: unchanged; state: index.json format unchanged (no migration)",
-        "mitigation": "failing-first repro test, slice re-read, full suite + 5/5 gates before publish"
-      },
-      "plan_digest": "293581c0dcfd3d475106bd0e588c59ed6f2de106bd80c962249f8ccc7c1fa927"
-    },
-    {
-      "task_id": "neurocore-pr8-load-fix",
-      "phase": "in_progress",
-      "phase_num": 4,
-      "description": "[2/2] load() now resolves the target from the validated id; tampered-index repro test green; run_ledger/auth/useless 32/32; aikit check neurocore: 5/5 gates pass; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794657675.823031,
-      "timestamp_str": "2026-11-14 15:01:15",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "neurocore-pr8-load-fix",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-pr8-load-fix' completed successfully.",
-      "status": "completed",
-      "timestamp": 1794657954.2235253,
-      "timestamp_str": "2026-11-14 15:05:54",
-      "agent": "claude:pr8",
-      "delivery": {
-        "roots": [
-          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
-        ],
-        "forced": false
-      }
-    },
-    {
-      "task_id": "neurocore-pr8-store-prune",
-      "phase": "in_progress",
-      "phase_num": 2,
-      "description": "[1/2] Plan: close the two store-hygiene gaps flagged in the PR #8 verification - ResultStore.prune(now) removes expired records from the in-memory index and persists; load() lazily drops an expired record and a record whose .bin rebuild target is gone, persisting the healed index (open stays read-only)",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794658072.784644,
-      "timestamp_str": "2026-11-14 15:07:52",
-      "agent": "claude:pr8",
-      "impact_assessment": {
-        "why": "index.json grows without bound in long-lived stores and deleted .bin files left phantom records forever",
-        "benefits": "bounded index file, self-healing store, explicit prune API for future consumers",
-        "risks": "contract: load() of an expired/lost result now also deletes its record (still returns None as before); dependency: none (stdlib); concurrency: last-writer-wins unchanged; state: index.json format unchanged, no migration",
-        "mitigation": "failing-first tests, slice re-read of load()/persist paths, 32/32 target suites then 5/5 gates before publish"
-      },
-      "plan_digest": "b8bfb916d27f1a71d4884d7fb4b5f84a9f469954e2beef264ba78816572aed6d"
-    },
-    {
-      "task_id": "neurocore-pr8-store-prune",
-      "phase": "in_progress",
-      "phase_num": 4,
-      "description": "[2/2] prune() + lazy self-heal in load() implemented failing-first; run-ledger/auth/useless 35/35; aikit check neurocore: 5/5 gates pass; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794658481.1432757,
-      "timestamp_str": "2026-11-14 15:14:41",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "neurocore-pr8-store-prune",
-      "phase": "completed",
-      "phase_num": 5,
-      "description": "Task 'neurocore-pr8-store-prune' completed successfully.",
-      "status": "completed",
-      "timestamp": 1794658791.7723489,
-      "timestamp_str": "2026-11-14 15:19:51",
-      "agent": "claude:pr8",
-      "delivery": {
-        "roots": [
-          "C:\\Users\\Yunus-Emre\\Desktop\\portable_agent_kit\\projects\\neurocore"
-        ],
-        "forced": false
-      }
-    },
-    {
-      "task_id": "neurocore-main-index-validation",
-      "phase": "in_progress",
-      "phase_num": 2,
-      "description": "[1/2] Plan: post-merge verification of main (65ef1b1..90b1dec) - merge clean (6 files, no deletions), suite 2610 passed, gates clean. One tightening remains: _load_index accepts arbitrary result ids and stored paths from index.json without revalidation; fix by validating each record id with _resolve_target at load so a tampered index is refused as a whole (consistent with the version-refusal contract)",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794666968.1952786,
-      "timestamp_str": "2026-11-14 17:36:08",
-      "agent": "claude:pr8",
-      "impact_assessment": {
-        "why": "A tampered index record currently persists forever inside _index and is only refused at serve time",
-        "benefits": "index.json becomes fully self-validating on open; stored path derived from the validated id, eliminating the persisted-path drift",
-        "risks": "contract: an index containing any unvalidated id now refuses the whole store open (was: silent acceptance, refusal only when loading that id); dependency: none; concurrency: unchanged; state: format unchanged",
-        "mitigation": "failing-first test, slice re-read of _load_index, 35/35 target suites + full gates before publish"
-      },
-      "plan_digest": "89ac53dc865a544ed95b42e108bcc77f44fe85ac6eb5d19c4049ac019624b38b"
-    },
-    {
-      "task_id": "neurocore-main-index-validation",
-      "phase": "in_progress",
-      "phase_num": 4,
-      "description": "[2/2] _load_index validates every record id via _resolve_target and derives the store-canonical path; tampered-id-refused test failing-first; run-ledger/auth/useless 36/36; full suite 2610 passed pre-fix; aikit check neurocore: 5/5 gates pass; checklists: passed",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794667956.0956142,
-      "timestamp_str": "2026-11-14 17:52:36",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "pr8-audit-merge-rebuild",
-      "phase": "in_progress",
-      "phase_num": 1,
-      "description": "Rebuild audit branch as single merge commit with secrets pragmas and delivery fixes baked in; clear push-time range scan",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794673234.018637,
-      "timestamp_str": "2026-11-14 19:20:34",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "neurocore-main-index-validation",
-      "phase": "superseded",
-      "phase_num": 4,
-      "description": "Superseded by 'pr8-audit-merge-rebuild' without --complete or --reset",
-      "status": "superseded",
-      "timestamp": 1794673234.018637,
-      "timestamp_str": "2026-11-14 19:20:34",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "pr8-audit-onto-main",
-      "phase": "in_progress",
-      "phase_num": 1,
-      "description": "Audit branch merged into main (67464c4); publish main - push range origin/main..main scans clean",
-      "files_affected": [],
-      "status": "in_progress",
-      "timestamp": 1794674239.3686705,
-      "timestamp_str": "2026-11-14 19:37:19",
-      "agent": "claude:pr8"
-    },
-    {
-      "task_id": "pr8-audit-merge-rebuild",
-      "phase": "superseded",
-      "phase_num": 1,
-      "description": "Superseded by 'pr8-audit-onto-main' without --complete or --reset",
-      "status": "superseded",
-      "timestamp": 1794674239.3686705,
-      "timestamp_str": "2026-11-14 19:37:19",
-      "agent": "claude:pr8"
-    },
-    {
       "task_id": "pr8-audit-onto-main",
       "phase": "in_progress",
       "phase_num": 2,
@@ -286,6 +125,164 @@
         ],
         "forced": false
       }
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge run",
+      "phase_num": 3,
+      "description": "run started (start=35, step=30, stop=155)",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795038091.2707212,
+      "timestamp_str": "2026-11-19 00:41:31",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 1",
+      "phase_num": 3,
+      "description": "Reforge stage 1: window 35, 35 commit(s), 48 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, empty \u2014 nothing to commit",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795038120.6804266,
+      "timestamp_str": "2026-11-19 00:42:00",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 1",
+      "phase_num": 3,
+      "description": "Reforge stage 1: stage 1 host review reviewed; run active; coverage 304/304",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039218.18995,
+      "timestamp_str": "2026-11-19 01:00:18",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 2",
+      "phase_num": 3,
+      "description": "Reforge stage 2: window 65, 30 commit(s), 20 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, empty \u2014 nothing to commit",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039260.7209105,
+      "timestamp_str": "2026-11-19 01:01:00",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 2",
+      "phase_num": 3,
+      "description": "Reforge stage 2: stage 2 host review reviewed; run active; coverage 60/60",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039525.3658257,
+      "timestamp_str": "2026-11-19 01:05:25",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 3",
+      "phase_num": 3,
+      "description": "Reforge stage 3: window 95, 30 commit(s), 16 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, empty \u2014 nothing to commit",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039568.8081205,
+      "timestamp_str": "2026-11-19 01:06:08",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 3",
+      "phase_num": 3,
+      "description": "Reforge stage 3: stage 3 host review reviewed; run active; coverage 63/63",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039845.4524195,
+      "timestamp_str": "2026-11-19 01:10:45",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 4",
+      "phase_num": 3,
+      "description": "Reforge stage 4: window 125, 30 commit(s), 31 file(s) reviewed (unreviewed), 0 finding(s), 0 repaired, empty \u2014 nothing to commit",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795039897.104225,
+      "timestamp_str": "2026-11-19 01:11:37",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 4",
+      "phase_num": 3,
+      "description": "Reforge stage 4: stage 4 host review reviewed; run active; coverage 72/72",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795040216.925545,
+      "timestamp_str": "2026-11-19 01:16:56",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 5",
+      "phase_num": 3,
+      "description": "Reforge stage 5: window 155, 30 commit(s), 231 file(s) reviewed (unreviewed), 20 finding(s), 0 repaired, empty \u2014 nothing to commit, 1 binary not analysed (reliability=19, security=1)",
+      "files_affected": [
+        "core/flow_runner.py",
+        "modules/memory/backend.py",
+        "modules/reasoning_book/service.py",
+        "tests/test_skill_admission.py",
+        "core/routers.py",
+        "core/session_manager.py",
+        "main.py",
+        "modules/chat/router.py",
+        "modules/tools/node.py",
+        "modules/tools/outbound.py",
+        "modules/tools/router.py",
+        "tests/test_module_manager.py",
+        "assets/screenshots/2026-11-03-home.png"
+      ],
+      "status": "in_progress",
+      "timestamp": 1795040352.6954463,
+      "timestamp_str": "2026-11-19 01:19:12",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 5",
+      "phase_num": 3,
+      "description": "Reforge stage 5: stage 5 host review partial; run active; coverage 1036/1039",
+      "files_affected": [],
+      "status": "in_progress",
+      "timestamp": 1795041383.4795234,
+      "timestamp_str": "2026-11-19 01:36:23",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
+    },
+    {
+      "task_id": "reforge:run-3",
+      "phase": "reforge stage 5",
+      "phase_num": 3,
+      "description": "Reforge stage 5: stage 5 host review reviewed; run completed; coverage 1039/1039",
+      "files_affected": [],
+      "status": "completed",
+      "timestamp": 1795041922.1130564,
+      "timestamp_str": "2026-11-19 01:45:22",
+      "agent": "opencode",
+      "operator_task": "neurocore-audit-defect-fixes"
     }
   ]
 }
