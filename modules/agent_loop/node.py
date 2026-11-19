@@ -61,6 +61,16 @@ def _state_int(value, default: int) -> int:
         )
         return default
 
+
+def _state_bool(value, default: bool = False) -> bool:
+    """Parse a config flag strictly; bool("false") would otherwise be truthy."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 TOOLS_FILE = "modules/tools/tools.json"
 LIBRARY_DIR = os.path.join(os.path.dirname(__file__), "..", "tools", "library")
 RLM_LIBRARY_DIR = os.path.join(os.path.dirname(__file__), "..", "tools", "rlm_library")
@@ -1044,7 +1054,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
             ) from exc
 
         # --- Episode Persistence Support ---
-        enable_episode = config.get("enable_episode_persistence", False)
+        enable_episode = _state_bool(config.get("enable_episode_persistence", False))
         episode_id = config.get("episode_id")
         checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
@@ -1930,7 +1940,7 @@ Call set_final() when complete."""
         model = config.get("model") or settings.get("default_model")
         timeout = _cfg_float("timeout", 120)
         max_replan_depth = _cfg_int("max_replan_depth", 3)
-        enable_episode = config.get("enable_episode_persistence", False)
+        enable_episode = _state_bool(config.get("enable_episode_persistence", False))
         episode_id = config.get("episode_id")
         checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
@@ -2752,7 +2762,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
             ) from exc
 
         # --- Episode Persistence Support ---
-        enable_episode = config.get("enable_episode_persistence", False)
+        enable_episode = _state_bool(config.get("enable_episode_persistence", False))
         episode_id = config.get("episode_id")
         checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
@@ -4783,7 +4793,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         model = config.get("model") or settings.get("default_model")
 
         # --- Episode persistence ---
-        enable_episode = config.get("enable_episode_persistence", False)
+        enable_episode = _state_bool(config.get("enable_episode_persistence", False))
         episode_id = config.get("episode_id")
         checkpoint_interval = max(1, _state_int(config.get("checkpoint_interval", 1), 1))
         episode = None

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2905`
+- **Total Top-Level Functions**: `2907`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103645`
+- **Total Source Lines**: `103669`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1547,7 +1547,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `6203` lines
+**Size**: `6213` lines
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1629,6 +1629,7 @@
 - `def _charge_llm_usage(response, messages)` - *Charge the run budget with provider usage, or a bounded estimate when it is absent.*
 - `def _redact_tool_output(tool_result)` - *Redact credential-shaped text before a tool result enters the context.*
 - `def _state_int(value, default)` - *Coerce a persisted state counter, falling back with a warning on a malformed value.*
+- `def _state_bool(value, default)` - *Parse a config flag strictly; bool("false") would otherwise be truthy.*
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -4623,7 +4624,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `2021` lines
+**Size**: `2035` lines
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -4739,6 +4740,7 @@
 - `def make_llm_response(content, tool_calls)` - *Build a minimal valid LLM response dict.*
 - `def make_tool_call(name, args, call_id)` - *Build a minimal tool_call dict as returned by the LLM.*
 - `def make_executor(tools, library)` - *Create an AgentLoopExecutor with _load_tools and _load_tool_library patched*
+- `async def test_receive_does_not_enable_episode_for_false_string(monkeypatch)` - *bool("false") is truthy; a configured persistence=false must stay disabled.*
 - `async def test_receive_tolerates_bad_checkpoint_interval()` - *A malformed checkpoint_interval must fall back instead of raising on comparison.*
 - `async def test_every_agent_loop_executor_holds_a_high_risk_tool(tmp_path, monkeypatch)`
 - `async def test_a_mutated_system_message_is_restored_before_the_next_model_call()`

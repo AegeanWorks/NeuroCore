@@ -64,6 +64,20 @@ def make_executor(tools: dict = None, library: dict = None) -> AgentLoopExecutor
 # Basic functionality
 # ---------------------------------------------------------------------------
 
+async def test_receive_does_not_enable_episode_for_false_string(monkeypatch):
+    """bool("false") is truthy; a configured persistence=false must stay disabled."""
+    import importlib
+
+    node_module = importlib.import_module("modules.agent_loop.node")
+    fake_sm = MagicMock()
+    monkeypatch.setattr(node_module, "get_session_manager", lambda: fake_sm)
+
+    executor = make_executor()
+    await executor.receive({}, config={"enable_episode_persistence": "false"})
+
+    fake_sm.load_episode_state.assert_not_called()
+
+
 async def test_receive_tolerates_bad_checkpoint_interval():
     """A malformed checkpoint_interval must fall back instead of raising on comparison."""
     executor = make_executor()
