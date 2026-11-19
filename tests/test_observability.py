@@ -430,6 +430,16 @@ class TestGetTokenStats:
         assert stats["total"]["calls_failed"] == 0
         assert stats["by_model"] == {}
 
+    def test_non_finite_counter_does_not_break_token_stats(self):
+        """A NaN/inf metric value must not crash the token stats view (core triage queue)."""
+        metrics.increment("llm.prompt_tokens", float("nan"))
+        metrics.increment("llm.completion_tokens", float("inf"))
+
+        stats = get_token_stats()
+
+        assert stats["total"]["prompt_tokens"] == 0
+        assert stats["total"]["completion_tokens"] == 0
+
     def test_flat_counters_appear_in_total(self):
         metrics.increment("llm.prompt_tokens", 100)
         metrics.increment("llm.completion_tokens", 50)

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2880`
-- **Total Class Methods**: `2486`
-- **Total Source Lines**: `103221`
+- **Total Top-Level Functions**: `2881`
+- **Total Class Methods**: `2487`
+- **Total Source Lines**: `103240`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -668,7 +668,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1152` lines
+**Size**: `1161` lines
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -720,6 +720,7 @@
   - Method `.format(record)`
 
 **Functions:**
+- `def _count(value, default)` - *Coerce a metric counter to an int, skipping non-finite/malformed values.*
 - `def get_trace_context()` - *Get current trace context.*
 - `def get_trace_id()` - *Get current trace ID.*
 - `def get_or_create_trace_context()` - *Get current trace context or create a new one.*
@@ -7815,7 +7816,7 @@
 ### [`tests/test_observability.py`](tests/test_observability.py)
 > *Tests for core.observability - Distributed Tracing, Metrics, and Structured Logging*
 
-**Size**: `521` lines
+**Size**: `531` lines
 
 **Classes:**
 - `class TestTraceContext` - *Test TraceContext functionality.*
@@ -7867,6 +7868,7 @@
 - `class TestGetTokenStats` - *Tests for get_token_stats().*
   - Method `.setup_method()`
   - Method `.test_empty_returns_zero_totals()`
+  - Method `.test_non_finite_counter_does_not_break_token_stats()` - *A NaN/inf metric value must not crash the token stats view (core triage queue).*
   - Method `.test_flat_counters_appear_in_total()`
   - Method `.test_per_model_breakdown()`
   - Method `.test_multiple_models_tracked_independently()`

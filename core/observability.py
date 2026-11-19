@@ -37,6 +37,15 @@ from core.node_stall import configure_node_stall
 
 logger = logging.getLogger(__name__)
 
+
+def _count(value, default: int = 0) -> int:
+    """Coerce a metric counter to an int, skipping non-finite/malformed values."""
+    try:
+        result = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return result if result >= 0 else default
+
 # Thread-local trace context
 _trace_ctx: contextvars.ContextVar[Optional['TraceContext']] = contextvars.ContextVar('trace_ctx', default=None)
 
@@ -953,11 +962,11 @@ def get_token_stats() -> Dict[str, Any]:
     counters = metrics.get_all_metrics().get("counters", {})
 
     total = {
-        "prompt_tokens":     int(counters.get("llm.prompt_tokens", 0)),
-        "completion_tokens": int(counters.get("llm.completion_tokens", 0)),
-        "total_tokens":      int(counters.get("llm.tokens_used", 0)),
-        "calls_success":     int(counters.get("llm.calls_success", 0)),
-        "calls_failed":      int(counters.get("llm.calls_failed", 0)),
+        "prompt_tokens":     _count(counters.get("llm.prompt_tokens", 0)),
+        "completion_tokens": _count(counters.get("llm.completion_tokens", 0)),
+        "total_tokens":      _count(counters.get("llm.tokens_used", 0)),
+        "calls_success":     _count(counters.get("llm.calls_success", 0)),
+        "calls_failed":      _count(counters.get("llm.calls_failed", 0)),
     }
 
     by_model: Dict[str, Dict[str, int]] = {}
@@ -977,7 +986,7 @@ def get_token_stats() -> Dict[str, Any]:
                 "prompt_tokens": 0, "completion_tokens": 0,
                 "total_tokens": 0, "calls": 0,
             }
-        v = int(value)
+        v = _count(value)
         if metric_name == "llm.prompt_tokens":
             by_model[model]["prompt_tokens"] = v
         elif metric_name == "llm.completion_tokens":
