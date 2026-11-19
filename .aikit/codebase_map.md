@@ -9,8 +9,8 @@
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
 - **Total Top-Level Functions**: `2845`
-- **Total Class Methods**: `2479`
-- **Total Source Lines**: `102386`
+- **Total Class Methods**: `2480`
+- **Total Source Lines**: `102411`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1187,7 +1187,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1281` lines
+**Size**: `1288` lines
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -1195,7 +1195,7 @@
   - Method `._ensure_directory()` - *Ensure trace file directory exists.*
   - Method `.append(event)` - *Append a JSON event to the trace file.*
   - Method `._rotate_if_oversized()` - *Compact the trace file to its most recent half when over budget.*
-  - Method `.read_all()` - *Read all trace events from file.*
+  - Method `.read_all()` - *Read the most recent trace events, retaining at most TRACE_MAX_EVENTS in memory.*
   - Method `.read_since(timestamp)` - *Read trace events since given timestamp.*
   - Method `._parse_timestamp(ts)` - *Parse ISO timestamp to unix timestamp.*
   - Method `.clear()` - *Clear trace file (for testing).*
@@ -8499,7 +8499,7 @@
 ### [`tests/test_session_manager.py`](tests/test_session_manager.py)
 > *Tests for Session Manager*
 
-**Size**: `606` lines
+**Size**: `624` lines
 
 **Classes:**
 - `class TestSessionManager` - *Test cases for SessionManager.*
@@ -8524,6 +8524,7 @@
   - Method `.test_read_since()` - *Only events strictly after the cutoff are returned.*
   - Method `.test_clear()` - *Test clearing trace.*
   - Method `.test_rotation_caps_file_size(monkeypatch)` - *L-20: an over-budget trace compacts to its most recent half.*
+  - Method `.test_read_all_bounds_retained_events(tmp_path)` - *Deferred item: read_all must not materialise an unbounded trace in memory.*
 - `class TestGetSessionManager` - *Test the get_session_manager factory function.*
   - Method `.setup_and_teardown()` - *Setup and teardown for each test.*
   - Method `.test_singleton()` - *Test that get_session_manager returns singleton.*

@@ -35,6 +35,7 @@ import tempfile
 import threading
 import time
 import uuid
+from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +53,10 @@ TRACE_FILE = data_path("execution_trace.jsonl")
 #: summary paid a full-file read on an ever-growing file. Past this size an
 #: append compacts the file to its most recent half (atomic replace).
 TRACE_MAX_BYTES = 5 * 1024 * 1024
+#: Deferred item: read_all() used to parse every line into a dict, so a large trace became a large
+#: in-memory list on every summary/read. Retain only the most recent events; summaries already take
+#: a tail slice and rotation keeps the newest half of the file, so the newest window is the useful one.
+TRACE_MAX_EVENTS = 10000
 _TRACE_CHECK_EVERY = 64
 EPISODE_DIR = data_path("episodes")
 AGENT_ID = "neurocore"
@@ -158,14 +163,16 @@ class TraceWriter:
             logger.debug("Trace rotation skipped: %s", exc)
     
     def read_all(self) -> List[Dict[str, Any]]:
-        """Read all trace events from file."""
+        """Read the most recent trace events, retaining at most TRACE_MAX_EVENTS in memory."""
         with self._lock:
             if not os.path.exists(self.trace_file):
                 return []
-            
+
             events = []
             with open(self.trace_file, 'r', encoding="utf-8") as f:
-                for line in f:
+                # A bounded deque walks the file line by line but keeps only the newest window,
+                # so a large trace cannot blow up memory regardless of the file's size.
+                for line in deque(f, maxlen=TRACE_MAX_EVENTS):
                     line = line.strip()
                     if line:
                         try:

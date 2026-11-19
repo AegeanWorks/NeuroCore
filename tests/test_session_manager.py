@@ -426,6 +426,24 @@ class TestTraceWriter:
         assert events[0]["event"] == "e32"
         assert events[-1]["event"] == "e63"
 
+    def test_read_all_bounds_retained_events(self, tmp_path):
+        """Deferred item: read_all must not materialise an unbounded trace in memory."""
+        import json
+
+        from core.session_manager import TraceWriter
+
+        cap = 10000  # the TRACE_MAX_EVENTS contract
+        trace = tmp_path / "big_trace.jsonl"
+        with trace.open("w", encoding="utf-8") as handle:
+            for index in range(cap + 25):
+                handle.write(json.dumps({"event": f"e{index}"}) + "\n")
+
+        events = TraceWriter(str(trace)).read_all()
+
+        assert len(events) == cap
+        assert events[0]["event"] == "e25"
+        assert events[-1]["event"] == f"e{cap + 24}"
+
 
 class TestGetSessionManager:
     """Test the get_session_manager factory function."""
