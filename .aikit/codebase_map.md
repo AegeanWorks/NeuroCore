@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2849`
+- **Total Top-Level Functions**: `2850`
 - **Total Class Methods**: `2482`
-- **Total Source Lines**: `102581`
+- **Total Source Lines**: `102607`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2505,7 +2505,7 @@
 ### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
 > *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
 
-**Size**: `443` lines
+**Size**: `448` lines
 
 **Classes:**
 - `class ReactionStore`
@@ -5281,7 +5281,7 @@
 ### [`tests/test_brain_reactivity.py`](tests/test_brain_reactivity.py)
 > *Reactivity: proposals, dedupe, mute, sources, kernel gating and API.*
 
-**Size**: `272` lines
+**Size**: `293` lines
 
 **Classes:**
 - `class SlowBus` - *Wraps EventBus.publish with a fixed delay while recording windows.*
@@ -5295,6 +5295,7 @@
 - `def test_malformed_gauge_value_does_not_crash_poll(tmp_path)`
 - `def test_malformed_threshold_is_skipped_not_fatal(tmp_path)`
 - `def make_engine(tmp_path, **config)`
+- `async def test_cap_hits_are_counted_separately_from_duplicates(tmp_path)` - *E5: a quota-cap drop must be visible in summary(), unlike duplicates/mutes/unknown types.*
 - `async def test_event_becomes_a_deduplicated_pending_reaction(tmp_path)`
 - `async def test_mute_and_dismiss(tmp_path)`
 - `async def test_calendar_metric_and_file_sources(tmp_path)`

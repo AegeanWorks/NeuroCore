@@ -103,6 +103,9 @@ class ReactivityEngine:
         self.muted: Dict[str, str] = data.get("muted", {})
         self.reaction_times: List[str] = data.get("reaction_times", [])
         self.file_state: Dict[str, List[float]] = data.get("file_state", {})
+        # E5: process_event used to return the same None for duplicates, mutes, unknown types and
+        # quota caps. Count cap hits separately so operators can tell "rate limited" from "ignored".
+        self.capped_drops = 0
         self._task: Optional[asyncio.Task] = None
         self._running = False
         self._subscribed = False
@@ -169,6 +172,7 @@ class ReactivityEngine:
             if key in self.event_keys:
                 return None
             if len(self.reaction_times) >= self.max_reactions_per_hour:
+                self.capped_drops += 1
                 return None
 
             rule = REACTION_RULES.get(event.type)
@@ -404,6 +408,7 @@ class ReactivityEngine:
             "reactions": len(self.reactions),
             "pending": sum(1 for item in self.reactions if item.get("status") == "pending"),
             "muted": len(self.muted),
+            "capped_drops": self.capped_drops,
             "quota": {
                 "used": len(self.reaction_times),
                 "limit": self.max_reactions_per_hour,

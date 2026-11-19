@@ -137,6 +137,27 @@ def make_engine(tmp_path, **config):
     return engine, bus
 
 
+@pytest.mark.asyncio
+async def test_cap_hits_are_counted_separately_from_duplicates(tmp_path):
+    """E5: a quota-cap drop must be visible in summary(), unlike duplicates/mutes/unknown types."""
+    engine, _ = make_engine(tmp_path, max_reactions_per_hour=1)
+
+    def evt(index):
+        return BrainEvent(
+            type="calendar.upcoming", source="calendar",
+            payload={"id": f"evt-{index}", "title": "Standup"},
+            salience=0.9, dedupe_key=f"calendar:evt-{index}",
+        )
+
+    first = await engine.process_event(evt(1))
+    duplicate = await engine.process_event(evt(1))
+    capped = await engine.process_event(evt(2))
+
+    assert first is not None
+    assert duplicate is None and capped is None
+    assert engine.summary()["capped_drops"] == 1
+
+
 async def test_event_becomes_a_deduplicated_pending_reaction(tmp_path):
     engine, _ = make_engine(tmp_path)
     event = BrainEvent(
