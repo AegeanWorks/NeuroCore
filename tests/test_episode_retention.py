@@ -185,3 +185,36 @@ def test_reused_episode_id_bumps_the_generation(tmp_path):
     episode = manager.create_episode(episode_id="reuse")
 
     assert episode.generation == 2
+
+
+def test_validation_coerces_numeric_strings_into_the_returned_policy():
+    # validate() coerced into locals but returned the original frozen dataclass, so a policy built
+    # from string settings still carried strings into the timedelta arithmetic downstream.
+    policy = RetentionPolicy(
+        completion_days="30", journal_days="7", max_episodes="500", stale_after_days="7"
+    ).validate()
+
+    assert policy.completion_days == 30.0
+    assert policy.journal_days == 7.0
+    assert policy.max_episodes == 500
+    assert policy.stale_after_days == 7.0
+    assert isinstance(policy.completion_days, float)
+    assert isinstance(policy.max_episodes, int)
+
+
+def test_compute_retention_accepts_numeric_string_policy():
+    # stamp_retention calls compute_retention directly, without going through validate().
+    window = compute_retention(NOW, RetentionPolicy(completion_days="3", journal_days="1"))
+
+    assert window["completion_at"] == NOW + timedelta(days=3)
+    assert window["journal_at"] == NOW + timedelta(days=1)
+
+
+def test_stamp_retention_accepts_numeric_string_policy():
+    episode = EpisodeState()
+    episode.tool_journal = [{"call_id": "c"}]
+    episode.phase = EpisodeState.PHASE_COMPLETED
+    episode.stamp_retention(RetentionPolicy(completion_days="30", journal_days="7"))
+
+    assert episode.expires_at is not None
+    assert episode.journal_expires_at is not None

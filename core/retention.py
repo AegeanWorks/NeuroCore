@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import shutil
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional
 
@@ -52,7 +52,10 @@ class RetentionPolicy:
                 "retention durations must be positive (completion_days > 0, journal_days >= 0). "
                 "Why: a zero window would purge a fresh result. Fix: use days, e.g. 30 and 7."
             )
-        return self
+        # Write the coerced numbers back: callers that build a policy from string settings rely on
+        # validate() returning a usable policy, and timedelta() rejects string day counts.
+        return replace(self, completion_days=completion, journal_days=journal,
+                       max_episodes=max_episodes, stale_after_days=stale_after)
 
 
 def _parse(value: Any) -> Optional[datetime]:
@@ -70,6 +73,9 @@ def _parse(value: Any) -> Optional[datetime]:
 def compute_retention(completed_at: datetime, policy: RetentionPolicy,
                       has_journal: bool = True) -> Dict[str, Optional[datetime]]:
     """Return both expiry stamps; the journal expiry is capped by the completion expiry."""
+    # stamp_retention calls this directly, so normalise here rather than trusting every caller to
+    # have already validated (prune_episodes does; the episode-stamping path did not).
+    policy = policy.validate()
     completion_at = completed_at + timedelta(days=policy.completion_days)
     if not has_journal:
         return {"completion_at": completion_at, "journal_at": None}
