@@ -1054,6 +1054,11 @@ class ToolSandbox:
                     raise ResourceLimitError(error_msg)
                 elif error_type == 'TimeoutError':
                     raise TimeoutError(error_msg)
+                elif error_type == 'SandboxStartupError':
+                    # Deferred item: the child serialises any other exception by class name, so
+                    # without this branch a failed worker start surfaces as a bare Exception and
+                    # callers cannot tell an unusable sandbox from a bad tool.
+                    raise SandboxStartupError(error_msg)
                 else:
                     raise Exception(f"{error_type}: {error_msg}")
             

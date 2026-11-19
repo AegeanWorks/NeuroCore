@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2845`
+- **Total Top-Level Functions**: `2846`
 - **Total Class Methods**: `2480`
-- **Total Source Lines**: `102411`
+- **Total Source Lines**: `102446`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -4466,7 +4466,7 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `1087` lines
+**Size**: `1092` lines
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
@@ -8476,7 +8476,7 @@
 ### [`tests/test_security_regressions.py`](tests/test_security_regressions.py)
 > *Security regressions: HTML escaping, sandbox escapes, isolation and network policy.*
 
-**Size**: `204` lines
+**Size**: `234` lines
 
 **Functions:**
 - `def test_shared_escape_helper_escapes_html_entities()`
@@ -8484,6 +8484,7 @@
 - `def test_reflective_sandbox_bypasses_are_rejected(code)`
 - `def fake_dns(monkeypatch)` - *Resolve hostnames from a table instead of the network.*
 - `def test_sandbox_worker_start_failure_never_runs_in_process(monkeypatch)`
+- `def test_worker_sandbox_startup_error_keeps_its_type(monkeypatch)` - *Deferred item: a worker-reported startup failure must not degrade to a bare Exception.*
 - `def test_empty_allowlist_disables_network(httpx_mock)`
 - `def test_mixed_public_and_private_dns_answer_is_rejected(fake_dns)`
 - `def test_redirect_to_an_unlisted_host_is_rejected(fake_dns, httpx_mock)`

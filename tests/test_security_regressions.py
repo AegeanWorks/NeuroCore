@@ -85,6 +85,36 @@ def test_sandbox_worker_start_failure_never_runs_in_process(monkeypatch):
         ToolSandbox().execute("result = 1", {})
 
 
+def test_worker_sandbox_startup_error_keeps_its_type(monkeypatch):
+    """Deferred item: a worker-reported startup failure must not degrade to a bare Exception."""
+    import json
+
+    class StartupErrorProcess:
+        def __init__(self, *args, **kwargs):
+            self.args = kwargs.get("args", ())
+            self.exitcode = 0
+
+        def start(self):
+            result_file = self.args[2]
+            with open(result_file, "w", encoding="utf-8") as handle:
+                json.dump({"success": False, "error_type": "SandboxStartupError",
+                           "error_msg": "worker unavailable"}, handle)
+
+        def is_alive(self):
+            return False
+
+        def join(self, timeout=None):
+            return None
+
+        def terminate(self):
+            return None
+
+    monkeypatch.setattr(sandbox_module, "Process", StartupErrorProcess)
+
+    with pytest.raises(SandboxStartupError, match="worker unavailable"):
+        ToolSandbox().execute("result = 1", {})
+
+
 def test_empty_allowlist_disables_network(httpx_mock):
     client = SafeHttpxClient(allowed_domains=set())
 
