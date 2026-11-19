@@ -66,6 +66,14 @@ def test_event_refuses_unknown_version(tmp_path):
         read_events(path)
 
 
+def test_asset_from_dict_coerces_bad_materialized_at():
+    """A corrupt saved timestamp must read as 'never materialized', not crash staleness checks."""
+    asset = Asset.from_dict({
+        "version": 1, "asset_id": "a1", "name": "n", "last_materialized_at": "abc",
+    })
+    assert is_stale(asset, 1.0) is True
+
+
 def test_asset_materialize_updates_timestamp():
     asset = Asset("a1", "orders")
     assert asset.last_materialized_at is None

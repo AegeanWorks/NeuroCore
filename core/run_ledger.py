@@ -196,10 +196,20 @@ class Asset:
                 "Why: the reader only understands version 1. "
                 "Fix: upgrade neurocore or migrate the record."
             )
+        materialized = data.get("last_materialized_at")
+        if materialized is not None:
+            try:
+                materialized = float(materialized)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid asset last_materialized_at %r; treating as never materialized.",
+                    materialized,
+                )
+                materialized = None
         return cls(
             asset_id=str(data["asset_id"]),
             name=str(data["name"]),
-            last_materialized_at=data.get("last_materialized_at"),
+            last_materialized_at=materialized,
             partition=data.get("partition"),
             metadata=dict(data.get("metadata") or {}),
             version=FORMAT_VERSION,

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2900`
+- **Total Top-Level Functions**: `2901`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103597`
+- **Total Source Lines**: `103615`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1065,7 +1065,7 @@
 ### [`core/run_ledger.py`](core/run_ledger.py)
 > *Run ledger primitives: asset graph, event log, state machine, result store.*
 
-**Size**: `481` lines
+**Size**: `491` lines
 
 **Classes:**
 - `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
@@ -8355,7 +8355,7 @@
 ### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
 > *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
 
-**Size**: `234` lines
+**Size**: `242` lines
 
 **Functions:**
 - `def test_state_allows_running_then_completed()`
@@ -8364,6 +8364,7 @@
 - `def test_event_log_roundtrip_jsonl(tmp_path)`
 - `def test_event_log_skips_a_line_with_bad_numeric_fields(tmp_path)` - *One corrupt event must not hide the rest of the run log.*
 - `def test_event_refuses_unknown_version(tmp_path)`
+- `def test_asset_from_dict_coerces_bad_materialized_at()` - *A corrupt saved timestamp must read as 'never materialized', not crash staleness checks.*
 - `def test_asset_materialize_updates_timestamp()`
 - `def test_asset_refuses_never_materialized_upstream()`
 - `def test_is_stale_when_upstream_newer()`
