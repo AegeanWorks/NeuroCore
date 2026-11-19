@@ -178,6 +178,34 @@ async def test_memory_save_config_passing(mock_store):
         assert kwargs["confidence"] == 0.95
 
 @pytest.mark.asyncio
+async def test_memory_save_malformed_numeric_config_falls_back(mock_store):
+    """Bad save_default_confidence/save_delay must not abort a save (memory triage queue)."""
+    executor = MemorySaveExecutor()
+    executor.config = {"save_default_confidence": "abc", "save_delay": "abc"}
+    with patch.object(executor, '_save_background', new_callable=AsyncMock) as mock_save_bg:
+        await executor.receive({"content": "Important fact"})
+        mock_save_bg.assert_called_once()
+        _, kwargs = mock_save_bg.call_args
+        assert kwargs["confidence"] == 1.0
+        assert kwargs["save_delay"] == 3.0
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_malformed_budget_config_falls_back(mock_store, mock_llm_bridge):
+    """Bad recall budget sizes must not abort recall (memory triage queue)."""
+    executor = MemoryRecallExecutor()
+    f = Future()
+    f.set_result([{"id": 1, "text": "User likes apples", "score": 0.9}])
+    mock_store.executor.submit.return_value = f
+
+    result = await executor.receive(
+        {"messages": [{"role": "user", "content": "Hi"}]},
+        config={"recall_max_total_chars": "abc", "recall_max_item_chars": "abc"},
+    )
+    assert "User likes apples" in result["_memory_context"]
+
+
+@pytest.mark.asyncio
 async def test_save_background_logic(mock_store):
     """Test the _save_background method logic."""
     executor = MemorySaveExecutor()

@@ -13,6 +13,20 @@ from .scope import MemoryScopeRequired, scope_from_input
 
 logger = logging.getLogger(__name__)
 
+
+def _number(value, default, cast):
+    """Coerce a numeric setting, falling back with a warning on malformed config."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[MemoryNode] Invalid numeric config %r (%s); using %s. Why: a bad setting must not "
+            "abort a memory operation. Fix: configure the value as a number.",
+            value, exc, default,
+        )
+        return default
+
+
 # Module-level registry of pending background save tasks.
 # Tracked so the shutdown() hook can await them before the process exits,
 # preventing memory loss when the server restarts while a save is in flight.
@@ -163,12 +177,12 @@ class MemoryRecallExecutor:
         from .budget import MemoryRecallBudget, fit, render
 
         budget = MemoryRecallBudget(
-            max_total_chars=int(config.get(
+            max_total_chars=_number(config.get(
                 "recall_max_total_chars",
-                self.config.get("recall_max_total_chars", 4000))),
-            max_item_chars=int(config.get(
+                self.config.get("recall_max_total_chars", 4000)), 4000, int),
+            max_item_chars=_number(config.get(
                 "recall_max_item_chars",
-                self.config.get("recall_max_item_chars", 800))),
+                self.config.get("recall_max_item_chars", 800)), 800, int),
         )
         selected, receipt = fit(results, budget)
         if not selected:
@@ -334,7 +348,7 @@ class MemorySaveExecutor:
             text_to_save = " ".join([part.get("text", "") for part in text_to_save if part.get("type") == "text"])
 
         # Determine default confidence
-        default_conf = float(self.config.get("save_default_confidence", 1.0))
+        default_conf = _number(self.config.get("save_default_confidence", 1.0), 1.0, float)
 
         try:
             confidence = float(config.get("confidence") if config.get("confidence") is not None else default_conf)
@@ -354,7 +368,8 @@ class MemorySaveExecutor:
 
         if text_to_save and len(text_to_save.strip()) > 2:
             # Make the initial save delay configurable (default: 3s)
-            save_delay = float(config.get("save_delay", self.config.get("save_delay", 3.0)))
+            save_delay = _number(
+                config.get("save_delay", self.config.get("save_delay", 3.0)), 3.0, float)
 
             # Fire and forget: Don't block the flow for embedding generation.
             # Register in module-level set so shutdown() can await completion.
