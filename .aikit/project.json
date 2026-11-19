@@ -57,5 +57,11 @@
     "aegean-license",
     "commercial-license"
   ],
-  "ui_required": true
+  "ui_required": true,
+  "archived": true,
+  "archived_at": "2026-11-19",
+  "archive_reason": "No further development planned; final state verified, tested and pushed.",
+  "archive_repo": "AegeanWorks/NeuroCore",
+  "archive_description": "[ARCHIVED] A complete, self-hosted AI agent framework. Visual flow editor \u00b7 Persistent memory \u00b7 RAG \u00b7 Tools \u00b7 Multi-platform messaging \u00b7 Community marketplace.",
+  "archive_origin": "projects/neurocore"
 }

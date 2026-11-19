@@ -18,6 +18,8 @@
   Visual flow editor · Persistent memory · RAG · Tools · Multi-platform messaging · Community marketplace.
 </h3>
 
+> **Archived**: No further development planned; final state verified, tested and pushed. (archived 2026-11-19). This project is read-only; its GitHub repository is archived.
+
 ---
 
 ## ⚡ 30-Second Cold-Start Quick Reference
