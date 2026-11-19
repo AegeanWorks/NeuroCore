@@ -289,7 +289,15 @@ class BrainKernel:
         now = self._clock()
         self._prune(now)
         record = self.state.component_errors.get(name) or {"count": 0, "last_at": now}
-        record["count"] = int(record.get("count", 0)) + 1
+        try:
+            count = int(record.get("count", 0))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid component error count %r; treating as 0. Why: a corrupt persisted "
+                "counter must not abort error recording.", record.get("count"),
+            )
+            count = 0
+        record["count"] = count + 1
         record["last_at"] = now
         self.state.component_errors[name] = record
         self.state.reason = reason or f"error in {name}"

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2884`
+- **Total Top-Level Functions**: `2885`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103312`
+- **Total Source Lines**: `103331`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2358,7 +2358,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `493` lines
+**Size**: `501` lines
 
 **Classes:**
 - `class KernelMode`
@@ -5191,7 +5191,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `380` lines
+**Size**: `391` lines
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -5205,6 +5205,7 @@
 - `def test_one_failing_subsystem_alone_can_degrade(tmp_path)`
 - `def test_risk_escalates_immediately_but_releases_slowly(tmp_path)`
 - `def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path)`
+- `def test_component_error_tolerates_corrupt_count(tmp_path)` - *A corrupt persisted count must not abort recording a component error.*
 - `def test_component_errors_require_a_name(tmp_path)`
 - `def test_blocked_action_window_is_bounded(tmp_path)`
 - `def test_drift_compares_against_baseline(tmp_path)`

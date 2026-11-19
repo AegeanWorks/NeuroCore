@@ -164,6 +164,17 @@ def test_error_windows_expire_so_a_transient_outage_does_not_stick(tmp_path):
     assert kernel.to_dict()["blocked_actions"] == 1
 
 
+def test_component_error_tolerates_corrupt_count(tmp_path):
+    """A corrupt persisted count must not abort recording a component error."""
+    kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")),
+                         clock=lambda: 5000.0, dwell_seconds=0.0)
+    kernel.state.component_errors["flows"] = {"count": "abc", "last_at": 5000.0}
+
+    kernel.record_component_error("flows", "flow failed")
+
+    assert kernel.state.component_errors["flows"]["count"] == 1
+
+
 def test_component_errors_require_a_name(tmp_path):
     kernel = BrainKernel(store=KernelStore(str(tmp_path / "kernel.json")))
     with pytest.raises(ValueError, match="component name"):
