@@ -48,6 +48,19 @@ def _redact_tool_output(tool_result):
 
 logger = logging.getLogger(__name__)
 
+
+def _state_int(value, default: int) -> int:
+    """Coerce a persisted state counter, falling back with a warning on a malformed value."""
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[AgentLoop] Invalid persisted counter %r (%s); using %s. Why: stale state must not "
+            "abort a tool call. Fix: store counters as integers.",
+            value, exc, default,
+        )
+        return default
+
 TOOLS_FILE = "modules/tools/tools.json"
 LIBRARY_DIR = os.path.join(os.path.dirname(__file__), "..", "tools", "library")
 RLM_LIBRARY_DIR = os.path.join(os.path.dirname(__file__), "..", "tools", "rlm_library")
@@ -3329,8 +3342,8 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
                     "success": False,
                 }
 
-            current_depth = int(repl_state.get("_subgoal_depth", 0))
-            max_depth = int(repl_state.get("_max_subgoal_depth", 2))
+            current_depth = _state_int(repl_state.get("_subgoal_depth", 0), 0)
+            max_depth = _state_int(repl_state.get("_max_subgoal_depth", 2), 2)
             sub_config = dict(repl_state.get("_subgoal_config", {}))
 
             logger.info(

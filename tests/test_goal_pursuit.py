@@ -1445,6 +1445,39 @@ async def test_execute_tool_decompose_goal_invokes_sub_receive():
     assert result["content"]  # should contain the sub-goal's output
 
 
+async def test_decompose_goal_tolerates_malformed_depth_state():
+    """Malformed subgoal depth in persisted state must not abort the tool (agent_loop triage)."""
+    ex = make_executor()
+    ex.llm.chat_completion = AsyncMock(
+        side_effect=[
+            llm_response(plan_json("Sub step")),
+            llm_response("Sub-goal result."),
+            llm_response(eval_json(True, "ok", "Sub-goal result.")),
+        ]
+    )
+    repl_state = {
+        "variables": {},
+        "_subgoal_depth": "abc",
+        "_max_subgoal_depth": "abc",
+        "_subgoal_config": {"enable_synthesis": False, "enable_subgoals": True},
+    }
+    tool_call = {
+        "id": "tc1",
+        "function": {
+            "name": "DecomposeGoal",
+            "arguments": json.dumps({"subgoal": "Research AI papers published this year",
+                                     "context": "Parent goal: summarize AI landscape"}),
+        },
+    }
+
+    with patch.object(ex, "_load_tool_library", return_value={}), \
+         patch.object(ex, "_load_tools", return_value={}):
+        result = await ex._execute_tool(tool_call, {}, repl_state, 3000)
+
+    assert result["name"] == "DecomposeGoal"
+    assert result["success"] is True
+
+
 async def test_execute_tool_decompose_goal_missing_subgoal_returns_error():
     """DecomposeGoal with no subgoal parameter returns an error result."""
     ex = make_executor()

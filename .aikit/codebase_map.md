@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2864`
+- **Total Top-Level Functions**: `2866`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `102892`
+- **Total Source Lines**: `102938`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1540,7 +1540,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `6190` lines
+**Size**: `6203` lines
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1621,6 +1621,7 @@
 **Functions:**
 - `def _charge_llm_usage(response, messages)` - *Charge the run budget with provider usage, or a bounded estimate when it is absent.*
 - `def _redact_tool_output(tool_result)` - *Redact credential-shaped text before a tool result enters the context.*
+- `def _state_int(value, default)` - *Coerce a persisted state counter, falling back with a warning on a malformed value.*
 - `async def get_executor_class(node_type_id)`
 
 ---
@@ -6659,7 +6660,7 @@
 ### [`tests/test_goal_pursuit.py`](tests/test_goal_pursuit.py)
 > *Tests for GoalPursuitExecutor — integrated planning, step evaluation, replanning.*
 
-**Size**: `3866` lines
+**Size**: `3899` lines
 
 **Functions:**
 - `def make_executor()` - *Create a GoalPursuitExecutor with patched LLMBridge and sandbox.*
@@ -6732,6 +6733,7 @@
 - `async def test_decompose_goal_tool_not_injected_at_max_depth()` - *DecomposeGoal is absent when subgoal_depth >= max_subgoal_depth.*
 - `async def test_decompose_goal_tool_not_injected_when_disabled()` - *DecomposeGoal is absent when enable_subgoals=False.*
 - `async def test_execute_tool_decompose_goal_invokes_sub_receive()` - *_execute_tool with DecomposeGoal calls receive() recursively and returns result.*
+- `async def test_decompose_goal_tolerates_malformed_depth_state()` - *Malformed subgoal depth in persisted state must not abort the tool (agent_loop triage).*
 - `async def test_execute_tool_decompose_goal_missing_subgoal_returns_error()` - *DecomposeGoal with no subgoal parameter returns an error result.*
 - `async def test_subgoal_depth_incremented_in_recursive_call()` - *When DecomposeGoal spawns a sub-call, _subgoal_depth in the sub-config is depth+1.*
 - `async def test_subgoal_result_content_returned_as_tool_result()` - *DecomposeGoal returns the sub-goal's content string as the tool result.*
