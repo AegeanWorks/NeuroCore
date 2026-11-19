@@ -246,6 +246,33 @@ class TestTelegramBridge:
         result = await bridge.send_message("")
         assert result is False
 
+    async def test_download_tolerates_malformed_content_length(self, bridge, tmp_path):
+        """A bad Content-Length header must not abort the download (messaging triage queue)."""
+        class FakeStream:
+            async def __aenter__(self):
+                resp = MagicMock()
+                resp.headers = {"Content-Length": "abc"}
+                resp.raise_for_status = MagicMock()
+
+                async def _chunks(chunk_size=8192):
+                    yield b"hello"
+
+                resp.aiter_bytes = _chunks
+                return resp
+
+            async def __aexit__(self, *args):
+                return False
+
+        client = MagicMock()
+        client.stream = MagicMock(return_value=FakeStream())
+        target = tmp_path / "out.bin"
+
+        with patch.object(bridge, "_get_client", new_callable=AsyncMock, return_value=client):
+            result = await bridge.download_file("photos/file_1.jpg", str(target))
+
+        assert result is True
+        assert target.read_bytes() == b"hello"
+
 
 # ---------------------------------------------------------------------------
 # DiscordBridge

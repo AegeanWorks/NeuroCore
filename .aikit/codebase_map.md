@@ -9,8 +9,8 @@
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
 - **Total Top-Level Functions**: `2875`
-- **Total Class Methods**: `2485`
-- **Total Source Lines**: `103082`
+- **Total Class Methods**: `2486`
+- **Total Source Lines**: `103118`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3804,7 +3804,7 @@
 ---
 
 ### [`modules/messaging_bridge/telegram_bridge.py`](modules/messaging_bridge/telegram_bridge.py)
-**Size**: `186` lines
+**Size**: `195` lines
 
 **Classes:**
 - `class TelegramBridge` - *Handles communication with Telegram API using async httpx.*
@@ -7536,7 +7536,7 @@
 ### [`tests/test_messaging_bridge.py`](tests/test_messaging_bridge.py)
 > *Tests for modules/messaging_bridge — node executors, service routing, and bridges.*
 
-**Size**: `899` lines
+**Size**: `926` lines
 
 **Classes:**
 - `class TestMessagingInputExecutor`
@@ -7564,6 +7564,7 @@
   - Method `.bridge()`
   - Method `async def .test_send_message_chunks(bridge)`
   - Method `async def .test_send_empty_returns_false(bridge)`
+  - Method `async def .test_download_tolerates_malformed_content_length(bridge, tmp_path)` - *A bad Content-Length header must not abort the download (messaging triage queue).*
 - `class TestDiscordBridge`
   - Method `.bridge()`
   - Method `async def .test_send_message_chunks(bridge)`

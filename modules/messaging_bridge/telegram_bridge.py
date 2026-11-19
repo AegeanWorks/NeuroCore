@@ -134,7 +134,16 @@ class TelegramBridge:
         try:
             async with client.stream("GET", url, timeout=120) as response:
                 response.raise_for_status()
-                content_length = int(response.headers.get("Content-Length", 0))
+                try:
+                    content_length = int(response.headers.get("Content-Length", 0))
+                except (TypeError, ValueError) as exc:
+                    # The size guard is advisory: an unparseable header must not fail the
+                    # download, since the streamed-byte limit below still caps the file.
+                    logger.warning(
+                        "[Telegram] Invalid Content-Length %r (%s); relying on streamed byte "
+                        "limit instead.", response.headers.get("Content-Length"), exc,
+                    )
+                    content_length = 0
                 if content_length > max_size_mb * 1024 * 1024:
                     self.log(f"Telegram file too large ({content_length} bytes)")
                     return False
