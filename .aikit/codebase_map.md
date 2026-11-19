@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2860`
+- **Total Top-Level Functions**: `2862`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `102831`
+- **Total Source Lines**: `102865`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2182,7 +2182,7 @@
 ### [`modules/brain/drift.py`](modules/brain/drift.py)
 > *Drift detection against a measured healthy baseline.*
 
-**Size**: `138` lines
+**Size**: `152` lines
 
 **Classes:**
 - `class DriftMonitor` - *Compare live self-model metrics with a baseline and score divergence.*
@@ -2196,6 +2196,7 @@
 
 **Functions:**
 - `def _now()`
+- `def _number(value, default, cast)` - *Coerce a metric, falling back with a warning on a malformed saved or live value.*
 
 ---
 
@@ -5173,7 +5174,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `360` lines
+**Size**: `380` lines
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -5190,6 +5191,7 @@
 - `def test_component_errors_require_a_name(tmp_path)`
 - `def test_blocked_action_window_is_bounded(tmp_path)`
 - `def test_drift_compares_against_baseline(tmp_path)`
+- `def test_drift_ignores_malformed_baseline_metrics(tmp_path)` - *A corrupted baseline must not abort drift observation (brain triage queue).*
 - `async def test_safe_mode_blocks_memory_improvement_and_configuration(tmp_path)`
 - `def test_kernel_routes(tmp_path, monkeypatch)`
 - `def test_kernel_tolerates_malformed_persisted_fields(tmp_path)`

@@ -17,6 +17,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _number(value, default, cast=float):
+    """Coerce a metric, falling back with a warning on a malformed saved or live value."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[Drift] Invalid numeric metric %r (%s); using %s. Why: a bad metric must not "
+            "abort drift detection. Fix: store metrics as numbers.",
+            value, exc, default,
+        )
+        return default
+
+
 class DriftMonitor:
     """Compare live self-model metrics with a baseline and score divergence."""
 
@@ -53,10 +66,11 @@ class DriftMonitor:
                 provider_errors / max(1, len(provider_status))
             ),
             # None before the first evaluation; no evaluation is no regression, so it reads 1.0.
-            "evaluation_pass_rate": float(
-                1.0 if evaluation.get("last_pass_rate") is None else evaluation["last_pass_rate"]),
-            "memory_total": float(memory.get("total", memory.get("count", 0)) or 0),
-            "knowledge_documents": float(knowledge.get("documents", 0) or 0),
+            "evaluation_pass_rate": _number(
+                1.0 if evaluation.get("last_pass_rate") is None else evaluation["last_pass_rate"],
+                1.0),
+            "memory_total": _number(memory.get("total", memory.get("count", 0)) or 0, 0.0),
+            "knowledge_documents": _number(knowledge.get("documents", 0) or 0, 0.0),
         }
 
     def set_baseline(self, snapshot: Dict[str, Any], recorded_by: str = "") -> Dict[str, Any]:
@@ -89,7 +103,7 @@ class DriftMonitor:
         score = 0.0
         reasons = []
 
-        base_pass = float(base.get("evaluation_pass_rate", 1.0))
+        base_pass = _number(base.get("evaluation_pass_rate", 1.0), 1.0)
         pass_drop = max(0.0, base_pass - current["evaluation_pass_rate"])
         if pass_drop > 0.2:
             score += 0.4
@@ -100,13 +114,13 @@ class DriftMonitor:
 
         error_increase = max(
             0.0,
-            current["provider_error_rate"] - float(base.get("provider_error_rate", 0.0)),
+            current["provider_error_rate"] - _number(base.get("provider_error_rate", 0.0), 0.0),
         )
         if error_increase > 0.2:
             score += 0.3
             reasons.append(f"provider error rate increased by {error_increase:.2f}")
 
-        base_memory = float(base.get("memory_total", 0.0))
+        base_memory = _number(base.get("memory_total", 0.0), 0.0)
         if base_memory > 0:
             growth = (current["memory_total"] - base_memory) / base_memory
             if growth > 0.5:
@@ -116,7 +130,7 @@ class DriftMonitor:
                 score += 0.1
                 reasons.append(f"memory volume grew by {growth:.0%}")
 
-        base_docs = float(base.get("knowledge_documents", 0.0))
+        base_docs = _number(base.get("knowledge_documents", 0.0), 0.0)
         if base_docs > 0:
             growth = (current["knowledge_documents"] - base_docs) / base_docs
             if growth > 0.5:

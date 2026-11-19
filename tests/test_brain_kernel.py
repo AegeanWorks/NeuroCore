@@ -194,6 +194,26 @@ def test_drift_compares_against_baseline(tmp_path):
     assert any("memory volume" in reason for reason in report["reasons"])
 
 
+def test_drift_ignores_malformed_baseline_metrics(tmp_path):
+    """A corrupted baseline must not abort drift observation (brain triage queue)."""
+    monitor = DriftMonitor(path=str(tmp_path / "drift.json"))
+    monitor.baseline = {
+        "recorded_by": "tester",
+        "recorded_at": "2026-01-01T00:00:00Z",
+        "metrics": {
+            "provider_error_rate": "abc",
+            "evaluation_pass_rate": "abc",
+            "memory_total": "abc",
+            "knowledge_documents": "abc",
+        },
+    }
+
+    report = monitor.observe(snapshot(pass_rate=0.5, memory=16, documents=4))
+
+    assert "score" in report
+    assert isinstance(report["score"], float)
+
+
 class DegradedSelfModel:
     async def snapshot(self, mode="observe"):
         return {
