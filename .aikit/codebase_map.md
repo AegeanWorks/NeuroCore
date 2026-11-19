@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2870`
+- **Total Top-Level Functions**: `2872`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `103009`
+- **Total Source Lines**: `103042`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -144,9 +144,10 @@
 ---
 
 ### [`core/dependencies.py`](core/dependencies.py)
-**Size**: `103` lines
+**Size**: `119` lines
 
 **Functions:**
+- `def _number(value, default)` - *Coerce a setting, falling back with a warning on a malformed configured value.*
 - `def get_settings_manager()` - *Dependency to get the global settings manager instance.*
 - `def require_debug_mode(settings)` - *Dependency that requires debug mode to be enabled.*
 - `def get_llm_bridge(settings)` - *Dependency to get a cached LLMBridge instance.*
@@ -5998,9 +5999,10 @@
 ---
 
 ### [`tests/test_dependencies.py`](tests/test_dependencies.py)
-**Size**: `29` lines
+**Size**: `46` lines
 
 **Functions:**
+- `def test_get_llm_bridge_falls_back_on_bad_timeout(monkeypatch)` - *A malformed request_timeout must not break every LLM request (core triage queue).*
 - `def test_get_llm_bridge_uses_settings()` - *Tests that the get_llm_bridge dependency correctly uses the*
 
 ---

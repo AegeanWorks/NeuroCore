@@ -1,4 +1,5 @@
 from fastapi import Depends, Request, HTTPException
+import logging
 import threading
 
 from core.settings import SettingsManager, settings as settings_manager
@@ -7,9 +8,24 @@ from core.module_manager import ModuleManager
 from core.research_manager import ResearchManager, get_research_manager_instance
 
 
+logger = logging.getLogger(__name__)
+
 # Module-level cached LLM bridge instance
 _llm_bridge_instance: LLMBridge = None
 _llm_bridge_lock = threading.Lock()  # Lock for thread-safe singleton access
+
+
+def _number(value, default: float) -> float:
+    """Coerce a setting, falling back with a warning on a malformed configured value."""
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid numeric setting %r (%s); using %s. Why: a bad setting must not break every "
+            "LLM request. Fix: configure the value as a number.",
+            value, exc, default,
+        )
+        return default
 
 
 def get_settings_manager() -> SettingsManager:
@@ -50,7 +66,7 @@ def get_llm_bridge(settings: SettingsManager = Depends(get_settings_manager)) ->
     current_embedding_model = settings.get("embedding_model")
     # M-LLM-3: dedicated credential for the embedding endpoint.
     current_embedding_api_key = settings.get("embedding_api_key")
-    current_timeout = float(settings.get("request_timeout", 60.0))
+    current_timeout = _number(settings.get("request_timeout", 60.0), 60.0)
 
     def _norm(url, fallback=""):
         return (url or fallback or "").rstrip("/")
