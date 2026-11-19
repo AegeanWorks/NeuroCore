@@ -148,6 +148,20 @@ def test_a_legacy_comparison_still_works():
     assert result["regression"] is True
 
 
+def test_compare_results_tolerates_malformed_numeric_fields():
+    """A corrupted pass_rate/latency must not abort comparison (brain triage queue)."""
+    current = _run("same", {"a": "1"})
+    current["pass_rate"] = "abc"
+    current["avg_latency_ms"] = "abc"
+    baseline = _run("same", {"a": "1"})
+    baseline["pass_rate"] = "abc"
+    baseline["avg_latency_ms"] = "abc"
+
+    result = compare_results(current, baseline)
+
+    assert result["comparable"] is True
+
+
 @pytest.mark.asyncio
 async def test_promote_baseline_refuses_a_changed_suite_without_acceptance(tmp_path):
     from modules.brain.evaluation import EvalStore

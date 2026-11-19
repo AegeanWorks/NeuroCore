@@ -22,6 +22,19 @@ from .state import utc_now
 
 logger = logging.getLogger(__name__)
 
+
+def _number(value, default=0.0):
+    """Coerce a recorded metric, falling back with a warning on a malformed value."""
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[Evaluation] Invalid numeric metric %r (%s); using %s. Why: a bad record must not "
+            "abort comparison. Fix: store metrics as numbers.",
+            value, exc, default,
+        )
+        return default
+
 SUITE_NAME = "brain-echo-v1"
 
 # Evaluation must not execute external-effect or state-mutating nodes. Anything not listed
@@ -376,10 +389,10 @@ def compare_results(current: Dict[str, Any], baseline: Dict[str, Any],
             "latency_delta_pct": None,
         }
 
-    current_rate = float(current.get("pass_rate", 0.0))
-    baseline_rate = float(baseline.get("pass_rate", 0.0))
-    current_latency = float(current.get("avg_latency_ms", 0.0))
-    baseline_latency = float(baseline.get("avg_latency_ms", 0.0))
+    current_rate = _number(current.get("pass_rate", 0.0))
+    baseline_rate = _number(baseline.get("pass_rate", 0.0))
+    current_latency = _number(current.get("avg_latency_ms", 0.0))
+    baseline_latency = _number(baseline.get("avg_latency_ms", 0.0))
     rate_delta = round(current_rate - baseline_rate, 4)
     latency_delta_ms = current_latency - baseline_latency
     latency_delta_pct = (

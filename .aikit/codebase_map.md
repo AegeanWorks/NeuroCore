@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2862`
+- **Total Top-Level Functions**: `2864`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `102865`
+- **Total Source Lines**: `102892`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2203,7 +2203,7 @@
 ### [`modules/brain/evaluation.py`](modules/brain/evaluation.py)
 > *Deterministic evaluation harness used as the brain's scorecard.*
 
-**Size**: `415` lines
+**Size**: `428` lines
 
 **Classes:**
 - `class UnsafeEvaluationError` - *Raised when a flow contains nodes that must not run during evaluation.*
@@ -2225,6 +2225,7 @@
   - Method `.load_baseline()`
 
 **Functions:**
+- `def _number(value, default)` - *Coerce a recorded metric, falling back with a warning on a malformed value.*
 - `def validate_evaluation_flow(flow, allow_unsafe)` - *Reject flows with external-effect or state-mutating nodes.*
 - `def _field_value(output, field)`
 - `def compare_results(current, baseline, max_pass_drop, max_latency_increase_pct, min_latency_increase_ms)` - *Compare a current run to a baseline; promotion requires no regression.*
@@ -5004,7 +5005,7 @@
 ### [`tests/test_brain_eval_suite_manifest.py`](tests/test_brain_eval_suite_manifest.py)
 > *Content-addressed evaluation suite identity (IDEA-1207).*
 
-**Size**: `188` lines
+**Size**: `202` lines
 
 **Functions:**
 - `def _task(task_id, value, description, tags, threshold)`
@@ -5021,6 +5022,7 @@
 - `def test_compare_results_reports_incomparability_not_a_regression()`
 - `def test_compare_results_keeps_the_pass_rate_gate_for_a_matching_suite()`
 - `def test_a_legacy_comparison_still_works()`
+- `def test_compare_results_tolerates_malformed_numeric_fields()` - *A corrupted pass_rate/latency must not abort comparison (brain triage queue).*
 - `async def test_promote_baseline_refuses_a_changed_suite_without_acceptance(tmp_path)`
 
 ---
