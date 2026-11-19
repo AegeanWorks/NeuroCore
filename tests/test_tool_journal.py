@@ -134,6 +134,29 @@ async def test_rerun_dispatches_an_idempotent_tool():
 
 
 @pytest.mark.asyncio
+async def test_rerun_tolerates_malformed_attempts():
+    """A corrupt persisted attempts counter must not abort an idempotent replay."""
+    episode = EpisodeState()
+    manager = _Manager()
+    episode.add_journal_entry({
+        "call_id": "call-1", "name": "Calculator", "args_sha256": "a" * 64,
+        "state": "pending", "attempts": "abc", "result_sha256": None,
+        "result_preview": None, "success": None, "at": "2026-01-01T00:00:00+00:00",
+    })
+
+    async def dispatch():
+        return {"content": "4", "success": True}
+
+    result = await run_journaled_tool(
+        episode, manager, _call(name="Calculator", arguments='{"expression": "2+2"}'),
+        dispatch, policy="rerun", idempotent=True,
+    )
+
+    assert result["content"] == "4"
+    assert _entry(episode, "call-1")["attempts"] == 2
+
+
+@pytest.mark.asyncio
 async def test_pending_is_persisted_before_dispatch():
     episode = EpisodeState()
     manager = _Manager()

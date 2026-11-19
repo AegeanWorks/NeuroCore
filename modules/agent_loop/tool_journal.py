@@ -125,7 +125,15 @@ async def run_journaled_tool(
         idempotent = _is_idempotent(name) if idempotent is None else bool(idempotent)
         if decision == "rerun" and idempotent:
             entry["state"] = "pending"
-            entry["attempts"] = int(entry.get("attempts") or 1) + 1
+            try:
+                attempts = int(entry.get("attempts") or 1)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid journal attempts %r; treating as 1. Why: a corrupt counter must not "
+                    "abort an idempotent replay.", entry.get("attempts"),
+                )
+                attempts = 1
+            entry["attempts"] = attempts + 1
             reused = True
         elif decision == "rerun":
             _persist(session_manager, episode)

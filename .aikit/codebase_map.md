@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2883`
+- **Total Top-Level Functions**: `2884`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103281`
+- **Total Source Lines**: `103312`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1650,7 +1650,7 @@
 ### [`modules/agent_loop/tool_journal.py`](modules/agent_loop/tool_journal.py)
 > *Pending-writes journal for at-most-once tool execution (IDEA-1111).*
 
-**Size**: `183` lines
+**Size**: `191` lines
 
 **Functions:**
 - `def payload_digest(payload)`
@@ -8938,7 +8938,7 @@
 ### [`tests/test_tool_journal.py`](tests/test_tool_journal.py)
 > *At-most-once tool execution journal (IDEA-1111).*
 
-**Size**: `201` lines
+**Size**: `224` lines
 
 **Classes:**
 - `class _Manager`
@@ -8953,6 +8953,7 @@
 - `async def test_pending_entry_asks_and_does_not_dispatch()`
 - `async def test_rerun_refuses_a_non_idempotent_tool()`
 - `async def test_rerun_dispatches_an_idempotent_tool()`
+- `async def test_rerun_tolerates_malformed_attempts()` - *A corrupt persisted attempts counter must not abort an idempotent replay.*
 - `async def test_pending_is_persisted_before_dispatch()`
 - `def test_compaction_keeps_the_last_200_entries()`
 - `async def test_crash_between_pending_and_done_leaves_one_orphaned()`
