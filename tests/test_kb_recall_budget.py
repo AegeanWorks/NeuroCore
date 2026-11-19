@@ -46,6 +46,14 @@ def test_budget_from_settings_defaults_when_unset():
     assert budget_from_settings({"kb_recall_budget": {}}, enabled=False) is None
 
 
+def test_budget_from_settings_falls_back_on_bad_values():
+    """Malformed recall-budget settings must not abort knowledge search (KB triage queue)."""
+    budget = budget_from_settings({"kb_recall_budget": {
+        "oversample": "abc", "nprobe_fraction": "abc", "max_candidates": "abc",
+    }})
+    assert budget == RecallBudget()
+
+
 def test_budget_from_settings_reads_values():
     budget = budget_from_settings({
         "kb_recall_budget": {

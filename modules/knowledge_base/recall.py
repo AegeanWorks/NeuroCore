@@ -7,8 +7,11 @@ cost/recall trade-off explicit: derive ``nprobe`` from the list count, over-fetc
 truncate. A flat index is already exhaustive, so it skips both steps.
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_OVERSAMPLE = 4
 DEFAULT_NPROBE_FRACTION = 0.125
@@ -61,10 +64,21 @@ def budget_from_settings(settings_map: Optional[Dict[str, Any]] = None,
         return None
     if not isinstance(raw, dict):
         return RecallBudget()
+    def number(key, default, cast):
+        value = raw.get(key, default)
+        try:
+            return cast(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid recall setting %s=%r; using %s. Why: a bad setting must not abort "
+                "knowledge search. Fix: configure %s as a number.", key, value, default, key,
+            )
+            return default
+
     return RecallBudget(
-        oversample=int(raw.get("oversample", DEFAULT_OVERSAMPLE)),
-        nprobe_fraction=float(raw.get("nprobe_fraction", DEFAULT_NPROBE_FRACTION)),
-        max_candidates=int(raw.get("max_candidates", DEFAULT_MAX_CANDIDATES)),
+        oversample=number("oversample", DEFAULT_OVERSAMPLE, int),
+        nprobe_fraction=number("nprobe_fraction", DEFAULT_NPROBE_FRACTION, float),
+        max_candidates=number("max_candidates", DEFAULT_MAX_CANDIDATES, int),
         rescore=bool(raw.get("rescore", True)),
     ).validate()
 
