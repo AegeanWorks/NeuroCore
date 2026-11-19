@@ -135,6 +135,21 @@ def test_scan_is_bounded_by_page_size(episode_dir):
     assert counts["purged_status"] == 2
 
 
+def test_paging_does_not_stall_on_active_episodes(episode_dir):
+    """Deferred item: active files in the first page must not starve later expired episodes."""
+    _write_episode(episode_dir, "a-active", phase="executing", age_days=40)
+    _write_episode(episode_dir, "b-active", phase="paused", age_days=40)
+    _write_episode(episode_dir, "c-expired", age_days=40)
+    _write_episode(episode_dir, "d-expired", age_days=40)
+
+    first = prune_episodes(episode_dir, now=NOW, dry_run=False, page_size=2)
+    second = prune_episodes(episode_dir, now=NOW, dry_run=False, page_size=2)
+
+    assert first["purged_status"] == 2
+    assert second["purged_status"] == 0
+    assert first["skipped_active"] == 2
+
+
 def test_policy_validation_rejects_non_numeric_values():
     with pytest.raises(ValueError, match="must be numbers"):
         RetentionPolicy(completion_days="abc").validate()

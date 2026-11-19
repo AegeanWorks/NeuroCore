@@ -89,19 +89,15 @@ def _iso(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat()
 
 
-def _episode_files(episode_dir: str, page_size: int) -> List[str]:
+def _episode_files(episode_dir: str) -> List[str]:
+    """Every episode file, oldest name first; the page budget is applied to purges, not names."""
     try:
-        names = sorted(
+        return sorted(
             name for name in os.listdir(episode_dir)
             if name.endswith(".json") and name != "current.json"
         )
     except OSError:
         return []
-    try:
-        limit = max(1, int(page_size))
-    except (TypeError, ValueError):
-        limit = DEFAULT_PAGE_SIZE
-    return names[:limit]
 
 
 def _tombstone_path(episode_dir: str) -> str:
@@ -150,8 +146,17 @@ def prune_episodes(episode_dir: str, policy: Optional[RetentionPolicy] = None,
     if not os.path.isdir(episode_dir):
         return counts
 
+    # Deferred paging fix: the budget counts purges, not file names. Slicing the first page of
+    # names stalled the sweep forever when those files were active (or too recent) to purge, so
+    # expired episodes later in the sort were never reached on any later call.
+    try:
+        page_limit = max(1, int(page_size))
+    except (TypeError, ValueError):
+        page_limit = DEFAULT_PAGE_SIZE
+    purged_this_page = 0
+
     tombstones = _read_tombstones(episode_dir)
-    for name in _episode_files(episode_dir, page_size):
+    for name in _episode_files(episode_dir):
         path = os.path.join(episode_dir, name)
         try:
             with open(path, "r", encoding="utf-8") as handle:
@@ -202,7 +207,10 @@ def prune_episodes(episode_dir: str, policy: Optional[RetentionPolicy] = None,
             size = 0
         counts["purged_status"] += 1
         counts["bytes_freed"] += size
+        purged_this_page += 1
         if dry_run:
+            if purged_this_page >= page_limit:
+                break
             continue
 
         try:
@@ -231,5 +239,8 @@ def prune_episodes(episode_dir: str, policy: Optional[RetentionPolicy] = None,
             counts["purged_status"] -= 1
             counts["bytes_freed"] -= size
             counts["skipped_corrupt"] += 1
+            purged_this_page -= 1
+        if purged_this_page >= page_limit:
+            break
 
     return counts

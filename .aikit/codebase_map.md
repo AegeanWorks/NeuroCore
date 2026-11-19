@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2846`
+- **Total Top-Level Functions**: `2847`
 - **Total Class Methods**: `2480`
-- **Total Source Lines**: `102446`
+- **Total Source Lines**: `102472`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -885,7 +885,7 @@
 ### [`core/retention.py`](core/retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `235` lines
+**Size**: `246` lines
 
 **Classes:**
 - `class RetentionPolicy` - *Operator-facing knobs; every duration is in days.*
@@ -895,7 +895,7 @@
 - `def _parse(value)`
 - `def compute_retention(completed_at, policy, has_journal)` - *Return both expiry stamps; the journal expiry is capped by the completion expiry.*
 - `def _iso(value)`
-- `def _episode_files(episode_dir, page_size)`
+- `def _episode_files(episode_dir)` - *Every episode file, oldest name first; the page budget is applied to purges, not names.*
 - `def _tombstone_path(episode_dir)`
 - `def _read_tombstones(episode_dir)`
 - `def _write_tombstones(episode_dir, tombstones)`
@@ -6164,7 +6164,7 @@
 ### [`tests/test_episode_retention.py`](tests/test_episode_retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `220` lines
+**Size**: `235` lines
 
 **Functions:**
 - `def _write_episode(directory, episode_id, phase, age_days, **extra)`
@@ -6177,6 +6177,7 @@
 - `def test_future_timestamp_is_treated_as_a_clock_problem(episode_dir)`
 - `def test_dry_run_reports_without_moving_anything(episode_dir)`
 - `def test_scan_is_bounded_by_page_size(episode_dir)`
+- `def test_paging_does_not_stall_on_active_episodes(episode_dir)` - *Deferred item: active files in the first page must not starve later expired episodes.*
 - `def test_policy_validation_rejects_non_numeric_values()`
 - `def test_corrupt_generation_falls_back_instead_of_aborting(episode_dir)`
 - `def test_policy_validation_refuses_a_zero_window()`
