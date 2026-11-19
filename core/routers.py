@@ -25,6 +25,15 @@ from core.paths import data_path, state_path
 logger = logging.getLogger(__name__)
 
 
+def _body_bool(raw, default: bool = False) -> bool:
+    """Parse a JSON body flag strictly: bool("false") would otherwise be truthy."""
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 def _form_number(raw: str, cast, label: str):
     """Parse an optional numeric form field; a bad value is ignored with a warning."""
     text = str(raw or "").strip()
@@ -3199,7 +3208,7 @@ async def research_source_fetch(request: Request):
     try:
         return await search(
             str(body.get("source", "")), str(body.get("query", "")), limit,
-            persist=bool(body.get("persist", False)),
+            persist=_body_bool(body.get("persist", False)),
         )
     except SourcePolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

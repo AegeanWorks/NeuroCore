@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2894`
+- **Total Top-Level Functions**: `2896`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103493`
+- **Total Source Lines**: `103525`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -908,9 +908,10 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3811` lines
+**Size**: `3820` lines
 
 **Functions:**
+- `def _body_bool(raw, default)` - *Parse a JSON body flag strictly: bool("false") would otherwise be truthy.*
 - `def _form_number(raw, cast, label)` - *Parse an optional numeric form field; a bad value is ignored with a warning.*
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
 - `def _legacy_hardware_id_path()` - *The nested path some builds used (``<state dir>/data/hardware_id.txt``).*
@@ -8320,11 +8321,12 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `339` lines
+**Size**: `362` lines
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
 - `def private_resolver(host, port, **kwargs)`
+- `def test_research_fetch_parses_boolean_persist(monkeypatch)` - *The string "false" must not be treated as a truthy persist flag.*
 - `def test_create_finding_route_survives_bad_p_value(monkeypatch)` - *A malformed p_value form field must not 500 the research findings route.*
 - `def test_the_source_list_is_fixed_and_explains_its_licence()`
 - `def test_request_urls_are_built_from_the_allowlisted_endpoint()`

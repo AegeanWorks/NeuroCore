@@ -27,6 +27,29 @@ def private_resolver(host, port, **kwargs):
     return [(2, 1, 6, "", ("10.0.0.5", port))]
 
 
+def test_research_fetch_parses_boolean_persist(monkeypatch):
+    """The string "false" must not be treated as a truthy persist flag."""
+    from fastapi.testclient import TestClient
+
+    import core.research_gateway as gateway
+    from core.settings import settings as global_settings
+    from main import app
+
+    monkeypatch.setitem(global_settings.settings, "research_enabled", True)
+    captured = {}
+
+    async def fake_search(source, query, limit, persist=False):
+        captured["persist"] = persist
+        return {"items": [], "source": source}
+
+    monkeypatch.setattr(gateway, "search", fake_search)
+    with TestClient(app) as client:
+        client.post("/research/fetch", json={
+            "source": "arxiv", "query": "x", "persist": "false",
+        })
+    assert captured["persist"] is False
+
+
 def test_create_finding_route_survives_bad_p_value(monkeypatch):
     """A malformed p_value form field must not 500 the research findings route."""
     from fastapi.testclient import TestClient
