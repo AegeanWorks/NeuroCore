@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2842`
+- **Total Top-Level Functions**: `2845`
 - **Total Class Methods**: `2479`
-- **Total Source Lines**: `102347`
+- **Total Source Lines**: `102386`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -25,7 +25,7 @@
 ### [`core/archive.py`](core/archive.py)
 > *Safe ZIP extraction for attacker-controlled marketplace packages.*
 
-**Size**: `118` lines (`5262` bytes)
+**Size**: `118` lines
 
 **Classes:**
 - `class ArchiveSecurityError` - *Raised when a ZIP member would escape the destination directory.*
@@ -41,7 +41,7 @@
 ### [`core/auth_registry.py`](core/auth_registry.py)
 > *Minimal OAuth client + OIDC connector registry (no network, no secrets).*
 
-**Size**: `152` lines (`5401` bytes)
+**Size**: `152` lines
 
 **Classes:**
 - `class OAuthClient`
@@ -63,7 +63,7 @@
 ### [`core/cassette.py`](core/cassette.py)
 > *Recorded provider cassettes with deterministic replay (IDEA-619).*
 
-**Size**: `309` lines (`12884` bytes)
+**Size**: `309` lines
 
 **Classes:**
 - `class CassetteError` - *A cassette could not be built, saved or replayed.*
@@ -98,7 +98,7 @@
 ### [`core/confirmations.py`](core/confirmations.py)
 > *Server-side confirmation for irreversible routes (ADR-059).*
 
-**Size**: `25` lines (`971` bytes)
+**Size**: `25` lines
 
 **Functions:**
 - `def require_confirmation(provided, phrase, action)` - *Allow the operation only when ``provided`` matches ``phrase`` after normalization.*
@@ -106,7 +106,7 @@
 ---
 
 ### [`core/debug.py`](core/debug.py)
-**Size**: `103` lines (`3653` bytes)
+**Size**: `103` lines
 
 **Classes:**
 - `class DebugLogger` - *Debug logger for flow execution.*
@@ -124,7 +124,7 @@
 ### [`core/delegation.py`](core/delegation.py)
 > *Role/task delegation contract with capability bounds (IDEA-1242).*
 
-**Size**: `179` lines (`7958` bytes)
+**Size**: `179` lines
 
 **Classes:**
 - `class DelegationError` - *An invalid contract; the message carries Why and Fix.*
@@ -144,7 +144,7 @@
 ---
 
 ### [`core/dependencies.py`](core/dependencies.py)
-**Size**: `103` lines (`4633` bytes)
+**Size**: `103` lines
 
 **Functions:**
 - `def get_settings_manager()` - *Dependency to get the global settings manager instance.*
@@ -158,7 +158,7 @@
 ### [`core/episode_identity.py`](core/episode_identity.py)
 > *Episode identity and the resume guard (IDEA-1110).*
 
-**Size**: `130` lines (`4957` bytes)
+**Size**: `130` lines
 
 **Functions:**
 - `def _clean(value)`
@@ -176,7 +176,7 @@
 ### [`core/errors.py`](core/errors.py)
 > *Error Hierarchy for NeuroCore*
 
-**Size**: `214` lines (`6624` bytes)
+**Size**: `214` lines
 
 **Classes:**
 - `class NeuroCoreError` - *Base exception for all NeuroCore errors.*
@@ -222,7 +222,7 @@
 ### [`core/execution_budget.py`](core/execution_budget.py)
 > *Per-run execution budget: bound nodes, LLM calls, tokens, tool calls and wall time.*
 
-**Size**: `161` lines (`5943` bytes)
+**Size**: `161` lines
 
 **Classes:**
 - `class BudgetExceeded` - *Raised when one dimension of the run budget is exhausted.*
@@ -249,7 +249,7 @@
 ### [`core/flow_context.py`](core/flow_context.py)
 > *FlowContext Pydantic Model - Type-safe flow payload between nodes.*
 
-**Size**: `423` lines (`16318` bytes)
+**Size**: `423` lines
 
 **Classes:**
 - `class FlowContext` - *Pydantic model representing the canonical flow payload passed between nodes.*
@@ -280,7 +280,7 @@
 ### [`core/flow_data.py`](core/flow_data.py)
 > *FlowData TypedDict - Type-safe flow payload between nodes.*
 
-**Size**: `1195` lines (`39404` bytes)
+**Size**: `1195` lines
 
 **Classes:**
 - `class FlowData` - *TypedDict representing the canonical flow payload passed between nodes.*
@@ -381,7 +381,7 @@
 ### [`core/flow_evolution.py`](core/flow_evolution.py)
 > *Validated, versioned self-editing for NeuroCore flows.*
 
-**Size**: `358` lines (`16841` bytes)
+**Size**: `358` lines
 
 **Classes:**
 - `class FlowEvolutionError` - *Raised when an evolution proposal would produce an invalid flow.*
@@ -402,7 +402,7 @@
 ---
 
 ### [`core/flow_manager.py`](core/flow_manager.py)
-**Size**: `680` lines (`33328` bytes)
+**Size**: `680` lines
 
 **Classes:**
 - `class FlowManager`
@@ -440,7 +440,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1553` lines (`75678` bytes)
+**Size**: `1553` lines
 
 **Classes:**
 - `class FlowRunner`
@@ -469,7 +469,7 @@
 ### [`core/flow_simulation.py`](core/flow_simulation.py)
 > *Deterministic pre-flight flow analysis: structure, effects and a cost envelope.*
 
-**Size**: `321` lines (`12824` bytes)
+**Size**: `321` lines
 
 **Classes:**
 - `class Finding`
@@ -490,7 +490,7 @@
 ### [`core/handoff.py`](core/handoff.py)
 > *Handoff packets with delivery, acceptance and bounded retry (IDEA-1243).*
 
-**Size**: `176` lines (`6781` bytes)
+**Size**: `176` lines
 
 **Classes:**
 - `class HandoffError` - *An invalid packet; the message carries Why and Fix.*
@@ -512,7 +512,7 @@
 ---
 
 ### [`core/llm.py`](core/llm.py)
-**Size**: `479` lines (`20889` bytes)
+**Size**: `479` lines
 
 **Classes:**
 - `class LLMBridge`
@@ -540,7 +540,7 @@
 ### [`core/llm_errors.py`](core/llm_errors.py)
 > *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
 
-**Size**: `95` lines (`3412` bytes)
+**Size**: `95` lines
 
 **Functions:**
 - `def retry_after_seconds(value, *, now)` - *Parse a Retry-After seconds value or HTTP date into non-negative seconds.*
@@ -553,7 +553,7 @@
 ### [`core/meta_flow.py`](core/meta_flow.py)
 > *Compose small flows into meta-flows.*
 
-**Size**: `292` lines (`12328` bytes)
+**Size**: `292` lines
 
 **Classes:**
 - `class MetaFlowError` - *Raised when member flows or pathways cannot form a valid meta-flow.*
@@ -573,7 +573,7 @@
 ### [`core/model_registry.py`](core/model_registry.py)
 > *Per-model request limits with explicit, recorded clamping (IDEA-588).*
 
-**Size**: `174` lines (`7108` bytes)
+**Size**: `174` lines
 
 **Classes:**
 - `class UnknownModelError` - *A model id is not in the registry while strict limits are enabled.*
@@ -594,7 +594,7 @@
 ---
 
 ### [`core/module_manager.py`](core/module_manager.py)
-**Size**: `387` lines (`17902` bytes)
+**Size**: `387` lines
 
 **Classes:**
 - `class ModuleManager`
@@ -623,7 +623,7 @@
 ### [`core/node_retry.py`](core/node_retry.py)
 > *Opt-in per-node retry policy with bounded exponential backoff (ADR-060).*
 
-**Size**: `147` lines (`5990` bytes)
+**Size**: `147` lines
 
 **Classes:**
 - `class RetryPolicy` - *How many times a node may be retried and how long to wait between attempts.*
@@ -643,7 +643,7 @@
 ### [`core/node_stall.py`](core/node_stall.py)
 > *Node latency outlier detection for stalled executions (ADR-061).*
 
-**Size**: `205` lines (`7987` bytes)
+**Size**: `205` lines
 
 **Classes:**
 - `class NodeLatencyMonitor` - *Thread-safe bounded latency history per node type with p99 outlier detection.*
@@ -667,7 +667,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1152` lines (`43168` bytes)
+**Size**: `1152` lines
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -748,7 +748,7 @@
 ### [`core/outcomes.py`](core/outcomes.py)
 > *Small, dependency-free outcome hook used by FlowRunner and the brain.*
 
-**Size**: `53` lines (`1867` bytes)
+**Size**: `53` lines
 
 **Functions:**
 - `def set_trace_provider(provider)` - *Register the function that returns the active trace/span ids.*
@@ -761,7 +761,7 @@
 ### [`core/paths.py`](core/paths.py)
 > *Absolute locations for NeuroCore runtime files.*
 
-**Size**: `37` lines (`1425` bytes)
+**Size**: `37` lines
 
 **Functions:**
 - `def project_path(*parts)` - *Return an absolute path inside the NeuroCore project root.*
@@ -773,7 +773,7 @@
 ### [`core/pinned_http.py`](core/pinned_http.py)
 > *Send a request to the exact address an SSRF check approved (IDEA-063).*
 
-**Size**: `25` lines (`1268` bytes)
+**Size**: `25` lines
 
 **Functions:**
 - `def pinned_target(url, address)` - *``(url on the address, headers, request extensions)`` for fetching ``url`` from ``address``.*
@@ -783,7 +783,7 @@
 ### [`core/planner_helpers.py`](core/planner_helpers.py)
 > *Shared utility class for plan dependency management.*
 
-**Size**: `236` lines (`8485` bytes)
+**Size**: `236` lines
 
 **Classes:**
 - `class PlanHelper` - *Shared utility class for plan dependency management.*
@@ -798,7 +798,7 @@
 ### [`core/research_gateway.py`](core/research_gateway.py)
 > *Allowlisted research sources with SSRF protection, caching and provenance.*
 
-**Size**: `425` lines (`16689` bytes)
+**Size**: `425` lines
 
 **Classes:**
 - `class SourcePolicyError` - *A request violates the source allowlist or URL safety policy.*
@@ -830,7 +830,7 @@
 ### [`core/research_manager.py`](core/research_manager.py)
 > *Research Manager*
 
-**Size**: `944` lines (`40201` bytes)
+**Size**: `944` lines
 
 **Classes:**
 - `class ResearchManager` - *Manages persistent storage of research entities using SQLite.*
@@ -885,7 +885,7 @@
 ### [`core/retention.py`](core/retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `229` lines (`8535` bytes)
+**Size**: `235` lines
 
 **Classes:**
 - `class RetentionPolicy` - *Operator-facing knobs; every duration is in days.*
@@ -905,7 +905,7 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3796` lines (`168890` bytes)
+**Size**: `3796` lines
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -1060,7 +1060,7 @@
 ### [`core/run_ledger.py`](core/run_ledger.py)
 > *Run ledger primitives: asset graph, event log, state machine, result store.*
 
-**Size**: `453` lines (`16010` bytes)
+**Size**: `453` lines
 
 **Classes:**
 - `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
@@ -1096,14 +1096,14 @@
 ### [`core/schemas/__init__.py`](core/schemas/__init__.py)
 > *Scientific Schemas for NeuroCore*
 
-**Size**: `22` lines (`535` bytes)
+**Size**: `22` lines
 
 ---
 
 ### [`core/schemas/article.py`](core/schemas/article.py)
 > *Article Schema*
 
-**Size**: `199` lines (`4830` bytes)
+**Size**: `199` lines
 
 **Classes:**
 - `class Article` - *Represents an academic article.*
@@ -1113,7 +1113,7 @@
 ### [`core/schemas/finding.py`](core/schemas/finding.py)
 > *Finding Schema*
 
-**Size**: `179` lines (`4646` bytes)
+**Size**: `179` lines
 
 **Classes:**
 - `class Finding` - *Represents a research finding.*
@@ -1123,7 +1123,7 @@
 ### [`core/schemas/hypothesis.py`](core/schemas/hypothesis.py)
 > *Hypothesis Schema*
 
-**Size**: `114` lines (`3131` bytes)
+**Size**: `114` lines
 
 **Classes:**
 - `class Hypothesis` - *Represents a scientific hypothesis.*
@@ -1133,7 +1133,7 @@
 ### [`core/schemas/study_design.py`](core/schemas/study_design.py)
 > *Study Design Schema*
 
-**Size**: `169` lines (`4592` bytes)
+**Size**: `169` lines
 
 **Classes:**
 - `class StudyDesign` - *Represents a research study design.*
@@ -1143,7 +1143,7 @@
 ### [`core/security.py`](core/security.py)
 > *Control-plane security policy for NeuroCore.*
 
-**Size**: `475` lines (`18930` bytes)
+**Size**: `475` lines
 
 **Classes:**
 - `class ControlPlaneGuard` - *CSRF origin check plus an opt-in API token for non-loopback clients.*
@@ -1187,7 +1187,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1281` lines (`47473` bytes)
+**Size**: `1281` lines
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -1261,7 +1261,7 @@
 ---
 
 ### [`core/settings.py`](core/settings.py)
-**Size**: `301` lines (`13813` bytes)
+**Size**: `301` lines
 
 **Classes:**
 - `class SettingsManager`
@@ -1277,7 +1277,7 @@
 ### [`core/statistics_engine.py`](core/statistics_engine.py)
 > *Statistics Engine*
 
-**Size**: `771` lines (`28591` bytes)
+**Size**: `771` lines
 
 **Functions:**
 - `def parse_data(raw)` - *Parse a user-supplied string of numbers into a float list.*
@@ -1305,7 +1305,7 @@
 ### [`core/step_journal.py`](core/step_journal.py)
 > *Run-scoped node journal with deterministic step ids (IDEA-1152).*
 
-**Size**: `394` lines (`17049` bytes)
+**Size**: `394` lines
 
 **Classes:**
 - `class IncompleteStep` - *A node started and never committed; replaying it could repeat a side effect.*
@@ -1337,7 +1337,7 @@
 ### [`core/structured_output.py`](core/structured_output.py)
 > *Structured Output Enforcement Module*
 
-**Size**: `348` lines (`13619` bytes)
+**Size**: `348` lines
 
 **Classes:**
 - `class StructuredOutputError` - *Exception raised when structured output cannot be obtained*
@@ -1355,7 +1355,7 @@
 ### [`core/untrusted.py`](core/untrusted.py)
 > *Fence untrusted text as data before it reaches a model (IDEA-030).*
 
-**Size**: `48` lines (`2303` bytes)
+**Size**: `48` lines
 
 **Functions:**
 - `def wrap_untrusted(text, source)` - *``text`` inside a fence with a fresh id; tag-shaped text in it is neutralized.*
@@ -1366,7 +1366,7 @@
 ### [`core/useless_gate.py`](core/useless_gate.py)
 > *Harness-enforced stop rule on consecutive USELESS tool evidence (IDEA-1335).*
 
-**Size**: `86` lines (`2751` bytes)
+**Size**: `86` lines
 
 **Classes:**
 - `class UselessGate`
@@ -1383,7 +1383,7 @@
 ### [`docs/audit_repro/repro_allowlist.py`](docs/audit_repro/repro_allowlist.py)
 > *Audit finding H-8: module_allowlist does not stop a flow from executing a module's node code.*
 
-**Size**: `44` lines (`1734` bytes)
+**Size**: `44` lines
 
 **Functions:**
 - `async def main()`
@@ -1393,7 +1393,7 @@
 ### [`docs/audit_repro/repro_dispatcher.py`](docs/audit_repro/repro_dispatcher.py)
 > *Audit finding H-4: the tool dispatcher drops calls beyond max_tools_per_turn.*
 
-**Size**: `38` lines (`1716` bytes)
+**Size**: `38` lines
 
 **Functions:**
 - `async def main()`
@@ -1403,14 +1403,14 @@
 ### [`docs/audit_repro/repro_fence.py`](docs/audit_repro/repro_fence.py)
 > *Audit finding M-SEC-1: a tool result that starts with a fence-shaped header is not fenced.*
 
-**Size**: `23` lines (`936` bytes)
+**Size**: `23` lines
 
 ---
 
 ### [`docs/audit_repro/repro_flow_runner.py`](docs/audit_repro/repro_flow_runner.py)
 > *Audit findings H-2, H-3, H-9, M-FLOW-1..4: FlowRunner scheduling/result bugs and the planner skip.*
 
-**Size**: `205` lines (`9147` bytes)
+**Size**: `205` lines
 
 **Functions:**
 - `def make_executor(node_type_id)`
@@ -1430,14 +1430,14 @@
 ### [`docs/audit_repro/repro_fts.py`](docs/audit_repro/repro_fts.py)
 > *Audit finding H-5: knowledge-base keyword search fails for ordinary questions.*
 
-**Size**: `35` lines (`1656` bytes)
+**Size**: `35` lines
 
 ---
 
 ### [`docs/audit_repro/repro_llm_retry.py`](docs/audit_repro/repro_llm_retry.py)
 > *Audit findings M-LLM-1 / M-LLM-2: the LLM node retries deterministic failures and ignores*
 
-**Size**: `54` lines (`2478` bytes)
+**Size**: `54` lines
 
 **Functions:**
 - `async def main()`
@@ -1447,14 +1447,14 @@
 ### [`docs/audit_repro/repro_mem_keyword.py`](docs/audit_repro/repro_mem_keyword.py)
 > *Audit finding H-6: memory recall finds nothing for natural-language questions on default installs.*
 
-**Size**: `28` lines (`1256` bytes)
+**Size**: `28` lines
 
 ---
 
 ### [`docs/audit_repro/repro_on_event.py`](docs/audit_repro/repro_on_event.py)
 > *Audit finding M-LIFE-1: module-level @router.on_event handlers never run.*
 
-**Size**: `47` lines (`1570` bytes)
+**Size**: `47` lines
 
 **Functions:**
 - `async def on_startup()`
@@ -1466,7 +1466,7 @@
 ### [`docs/audit_repro/repro_repeater.py`](docs/audit_repro/repro_repeater.py)
 > *Audit repro: H-7 repeater auto-start (main.py:_fire_repeater_nodes) + dedupe follow-up.*
 
-**Size**: `100` lines (`4452` bytes)
+**Size**: `100` lines
 
 **Classes:**
 - `class StubRunner` - *Stands in for FlowRunner: records the start node, then blocks until released.*
@@ -1481,7 +1481,7 @@
 ### [`docs/audit_repro/repro_retry.py`](docs/audit_repro/repro_retry.py)
 > *Audit finding L-1: run_with_retry raises UnboundLocalError on a malformed retry_after.*
 
-**Size**: `41` lines (`1174` bytes)
+**Size**: `41` lines
 
 **Classes:**
 - `class TransientError`
@@ -1495,14 +1495,14 @@
 ### [`docs/audit_repro/repro_vision_clamp.py`](docs/audit_repro/repro_vision_clamp.py)
 > *Audit finding H-1: default model limits refuse a chat request carrying one ordinary image.*
 
-**Size**: `33` lines (`1572` bytes)
+**Size**: `33` lines
 
 ---
 
 ### [`docs/audit_repro/run_all.py`](docs/audit_repro/run_all.py)
 > *Run every audit reproduction script in an isolated state directory and print its verdicts.*
 
-**Size**: `36` lines (`1404` bytes)
+**Size**: `36` lines
 
 **Functions:**
 - `def main()`
@@ -1510,7 +1510,7 @@
 ---
 
 ### [`main.py`](main.py)
-**Size**: `285` lines (`12090` bytes)
+**Size**: `285` lines
 
 **Functions:**
 - `async def verify_debug_key(x_debug_key)` - *Verify debug API key for protected debug endpoints.*
@@ -1525,7 +1525,7 @@
 ### [`modules/agent_loop/loop_guard.py`](modules/agent_loop/loop_guard.py)
 > *Deterministic repetition and deadlock detection for an agent loop.*
 
-**Size**: `103` lines (`4039` bytes)
+**Size**: `103` lines
 
 **Classes:**
 - `class LoopGuard` - *Watch a bounded call history and return a warning or an abort decision.*
@@ -1540,7 +1540,7 @@
 ---
 
 ### [`modules/agent_loop/node.py`](modules/agent_loop/node.py)
-**Size**: `6190` lines (`285955` bytes)
+**Size**: `6190` lines
 
 **Classes:**
 - `class AgentBaseExecutor` - *Shared infrastructure for all agent loop variants.*
@@ -1628,7 +1628,7 @@
 ### [`modules/agent_loop/prompt_digest.py`](modules/agent_loop/prompt_digest.py)
 > *Shared system-role digest invariant for the agent-loop executors (IDEA-631).*
 
-**Size**: `61` lines (`2624` bytes)
+**Size**: `61` lines
 
 **Classes:**
 - `class PromptSnapshot` - *The pinned system messages and the digest of their contents.*
@@ -1646,7 +1646,7 @@
 ### [`modules/agent_loop/tool_journal.py`](modules/agent_loop/tool_journal.py)
 > *Pending-writes journal for at-most-once tool execution (IDEA-1111).*
 
-**Size**: `183` lines (`6498` bytes)
+**Size**: `183` lines
 
 **Functions:**
 - `def payload_digest(payload)`
@@ -1662,12 +1662,12 @@
 ---
 
 ### [`modules/annotations/__init__.py`](modules/annotations/__init__.py)
-**Size**: `1` lines (`20` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/annotations/node.py`](modules/annotations/node.py)
-**Size**: `22` lines (`955` bytes)
+**Size**: `22` lines
 
 **Classes:**
 - `class CommentExecutor` - *Executor for the Comment Node.*
@@ -1682,7 +1682,7 @@
 ### [`modules/autonomous_agent/__init__.py`](modules/autonomous_agent/__init__.py)
 > *Autonomous Agent Module - Main entry point.*
 
-**Size**: `42` lines (`1263` bytes)
+**Size**: `42` lines
 
 **Functions:**
 - `def __getattr__(name)`
@@ -1692,7 +1692,7 @@
 ### [`modules/autonomous_agent/core/communicator.py`](modules/autonomous_agent/core/communicator.py)
 > *Communication interface for the Autonomous Agent.*
 
-**Size**: `442` lines (`16140` bytes)
+**Size**: `442` lines
 
 **Classes:**
 - `class MessagePriority`
@@ -1744,7 +1744,7 @@
 ### [`modules/autonomous_agent/core/flow_creator.py`](modules/autonomous_agent/core/flow_creator.py)
 > *Flow Creator - Agent creates and manages its own flows dynamically.*
 
-**Size**: `417` lines (`15671` bytes)
+**Size**: `417` lines
 
 **Classes:**
 - `class FlowCreator` - *Agent creates and manages its own flows dynamically.*
@@ -1767,7 +1767,7 @@
 ### [`modules/autonomous_agent/core/flow_proposer.py`](modules/autonomous_agent/core/flow_proposer.py)
 > *Structured self-evolution proposals generated by an LLM.*
 
-**Size**: `161` lines (`7411` bytes)
+**Size**: `161` lines
 
 **Classes:**
 - `class FlowProposerError` - *Raised when the model does not return a usable operation list.*
@@ -1784,7 +1784,7 @@
 ### [`modules/autonomous_agent/core/memory.py`](modules/autonomous_agent/core/memory.py)
 > *Memory system for the Autonomous Agent - Three-tier memory architecture.*
 
-**Size**: `552` lines (`21560` bytes)
+**Size**: `552` lines
 
 **Classes:**
 - `class MemoryEntry` - *A single memory entry.*
@@ -1831,7 +1831,7 @@
 ### [`modules/autonomous_agent/core/sandbox.py`](modules/autonomous_agent/core/sandbox.py)
 > *Sandbox for the Autonomous Agent - Restricted execution environment.*
 
-**Size**: `396` lines (`17454` bytes)
+**Size**: `396` lines
 
 **Classes:**
 - `class SandboxViolation` - *Raised when agent attempts unauthorized action.*
@@ -1878,7 +1878,7 @@
 ### [`modules/autonomous_agent/core/self_model.py`](modules/autonomous_agent/core/self_model.py)
 > *Self-Model and Reflection system for the Autonomous Agent.*
 
-**Size**: `399` lines (`14878` bytes)
+**Size**: `399` lines
 
 **Classes:**
 - `class NeuroCoreStatus` - *Current status of NeuroCore as perceived by agent.*
@@ -1912,7 +1912,7 @@
 ### [`modules/autonomous_agent/core/service.py`](modules/autonomous_agent/core/service.py)
 > *Main Agent Service - Ties all components together and runs the cognitive loop.*
 
-**Size**: `1044` lines (`44623` bytes)
+**Size**: `1044` lines
 
 **Classes:**
 - `class AgentState` - *Current state of the agent.*
@@ -1972,7 +1972,7 @@
 ### [`modules/autonomous_agent/core/types.py`](modules/autonomous_agent/core/types.py)
 > *Core types and data structures for the Autonomous Agent.*
 
-**Size**: `192` lines (`6364` bytes)
+**Size**: `192` lines
 
 **Classes:**
 - `class ActionType` - *Types of actions the agent can take.*
@@ -1994,7 +1994,7 @@
 ### [`modules/autonomous_agent/examples/basic_usage.py`](modules/autonomous_agent/examples/basic_usage.py)
 > *Example: How to use the Autonomous Agent in NeuroCore.*
 
-**Size**: `139` lines (`4271` bytes)
+**Size**: `139` lines
 
 **Functions:**
 - `async def main()`
@@ -2006,14 +2006,14 @@
 ### [`modules/autonomous_agent/nodes/__init__.py`](modules/autonomous_agent/nodes/__init__.py)
 > *Nodes for the Autonomous Agent module.*
 
-**Size**: `11` lines (`192` bytes)
+**Size**: `11` lines
 
 ---
 
 ### [`modules/autonomous_agent/nodes/agent_node.py`](modules/autonomous_agent/nodes/agent_node.py)
 > *Autonomous Agent Node - Flow node that executes the agent's cognitive loop.*
 
-**Size**: `188` lines (`6956` bytes)
+**Size**: `188` lines
 
 **Classes:**
 - `class AgentNodeConfig` - *Configuration for the autonomous agent node.*
@@ -2031,7 +2031,7 @@
 ### [`modules/autonomous_agent/service.py`](modules/autonomous_agent/service.py)
 > *Autonomous Agent Module - Service entry point.*
 
-**Size**: `34` lines (`909` bytes)
+**Size**: `34` lines
 
 **Functions:**
 - `async def create_service(config)` - *Create and initialize the agent service.*
@@ -2041,14 +2041,14 @@
 ### [`modules/brain/__init__.py`](modules/brain/__init__.py)
 > *AI-Brain module: self-model, event bus, cognitive cycles and evaluations.*
 
-**Size**: `5` lines (`130` bytes)
+**Size**: `5` lines
 
 ---
 
 ### [`modules/brain/assertions.py`](modules/brain/assertions.py)
 > *Typed, weighted evaluation checks (IDEA-1206).*
 
-**Size**: `315` lines (`12339` bytes)
+**Size**: `315` lines
 
 **Classes:**
 - `class CheckCode`
@@ -2074,7 +2074,7 @@
 ### [`modules/brain/auth.py`](modules/brain/auth.py)
 > *Brain actor identity, token registry and role gates.*
 
-**Size**: `287` lines (`10487` bytes)
+**Size**: `287` lines
 
 **Classes:**
 - `class BrainActor`
@@ -2107,7 +2107,7 @@
 ### [`modules/brain/autonomy.py`](modules/brain/autonomy.py)
 > *Autonomous mode: the brain carries out its own safe proposals (ADR-067).*
 
-**Size**: `94` lines (`3899` bytes)
+**Size**: `94` lines
 
 **Functions:**
 - `async def _record_baseline(service)`
@@ -2123,7 +2123,7 @@
 ### [`modules/brain/configuration.py`](modules/brain/configuration.py)
 > *Policy-gated self-configuration for settings, modules and brain options.*
 
-**Size**: `436` lines (`18889` bytes)
+**Size**: `436` lines
 
 **Classes:**
 - `class ConfigurationPolicyError` - *Raised when a requested change violates the configuration policy.*
@@ -2160,7 +2160,7 @@
 ### [`modules/brain/conversation.py`](modules/brain/conversation.py)
 > *Talk to the brain (ADR-067).*
 
-**Size**: `207` lines (`9480` bytes)
+**Size**: `207` lines
 
 **Classes:**
 - `class ChatHistory` - *The conversation, bounded and written atomically under a ledger lock.*
@@ -2182,7 +2182,7 @@
 ### [`modules/brain/drift.py`](modules/brain/drift.py)
 > *Drift detection against a measured healthy baseline.*
 
-**Size**: `138` lines (`5079` bytes)
+**Size**: `138` lines
 
 **Classes:**
 - `class DriftMonitor` - *Compare live self-model metrics with a baseline and score divergence.*
@@ -2202,7 +2202,7 @@
 ### [`modules/brain/evaluation.py`](modules/brain/evaluation.py)
 > *Deterministic evaluation harness used as the brain's scorecard.*
 
-**Size**: `415` lines (`16079` bytes)
+**Size**: `415` lines
 
 **Classes:**
 - `class UnsafeEvaluationError` - *Raised when a flow contains nodes that must not run during evaluation.*
@@ -2233,7 +2233,7 @@
 ### [`modules/brain/events.py`](modules/brain/events.py)
 > *Bounded, async event bus for brain perceptions.*
 
-**Size**: `94` lines (`3377` bytes)
+**Size**: `94` lines
 
 **Classes:**
 - `class BrainEvent`
@@ -2251,7 +2251,7 @@
 ### [`modules/brain/goal_link.py`](modules/brain/goal_link.py)
 > *Goal linkage shared by the brain's self-modification engines.*
 
-**Size**: `86` lines (`3600` bytes)
+**Size**: `86` lines
 
 **Functions:**
 - `def default_goal_lookup(goal_id)` - *Read one goal from the shared memory store; a missing table is not an error.*
@@ -2264,7 +2264,7 @@
 ### [`modules/brain/goal_review.py`](modules/brain/goal_review.py)
 > *Deterministic, read-only review of the shared goal ledger (ADR-057).*
 
-**Size**: `174` lines (`5994` bytes)
+**Size**: `174` lines
 
 **Functions:**
 - `def _tokens(text)`
@@ -2281,7 +2281,7 @@
 ### [`modules/brain/guardrails.py`](modules/brain/guardrails.py)
 > *Deterministic guardrails for untrusted text entering or leaving the platform.*
 
-**Size**: `266` lines (`9611` bytes)
+**Size**: `266` lines
 
 **Classes:**
 - `class Finding` - *One matched rule, with the surface and the action the mode applied.*
@@ -2312,7 +2312,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `522` lines (`23040` bytes)
+**Size**: `522` lines
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -2345,7 +2345,7 @@
 ### [`modules/brain/kernel.py`](modules/brain/kernel.py)
 > *Brain governance kernel: modes, risk score, gates, kill switch and persistence.*
 
-**Size**: `493` lines (`20633` bytes)
+**Size**: `493` lines
 
 **Classes:**
 - `class KernelMode`
@@ -2394,7 +2394,7 @@
 ### [`modules/brain/learning.py`](modules/brain/learning.py)
 > *Outcome-driven learning: experiences, consolidation and held-out recall.*
 
-**Size**: `689` lines (`27208` bytes)
+**Size**: `689` lines
 
 **Classes:**
 - `class Outcome`
@@ -2451,7 +2451,7 @@
 ### [`modules/brain/persistence.py`](modules/brain/persistence.py)
 > *Cross-process locking and atomic JSON persistence shared by brain ledgers.*
 
-**Size**: `123` lines (`4009` bytes)
+**Size**: `123` lines
 
 **Classes:**
 - `class LedgerLock` - *Serialize access to one ledger across threads and processes.*
@@ -2471,7 +2471,7 @@
 ### [`modules/brain/prompt_registry.py`](modules/brain/prompt_registry.py)
 > *Versioned prompt registry with digests and rollout labels (IDEA-1238).*
 
-**Size**: `310` lines (`13007` bytes)
+**Size**: `310` lines
 
 **Classes:**
 - `class PromptConflict` - *A label or version request that would make history ambiguous.*
@@ -2505,7 +2505,7 @@
 ### [`modules/brain/reactivity.py`](modules/brain/reactivity.py)
 > *Event-driven reactivity: sources, dedupe/mute and proposal-only reactions.*
 
-**Size**: `443` lines (`17971` bytes)
+**Size**: `443` lines
 
 **Classes:**
 - `class ReactionStore`
@@ -2541,7 +2541,7 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `703` lines (`26532` bytes)
+**Size**: `703` lines
 
 **Functions:**
 - `async def brain_startup()`
@@ -2609,7 +2609,7 @@
 ### [`modules/brain/self_budget.py`](modules/brain/self_budget.py)
 > *One daily ceiling for everything the brain changes about itself.*
 
-**Size**: `154` lines (`5427` bytes)
+**Size**: `154` lines
 
 **Classes:**
 - `class SelfBudgetExceeded` - *Raised when the daily ceiling for one kind of self-modification is reached.*
@@ -2632,7 +2632,7 @@
 ### [`modules/brain/self_model.py`](modules/brain/self_model.py)
 > *Real self-model for the brain.*
 
-**Size**: `204` lines (`7443` bytes)
+**Size**: `204` lines
 
 **Classes:**
 - `class BrainSelfModel` - *Compose live subsystem snapshots into the brain's model of itself.*
@@ -2652,7 +2652,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `890` lines (`39480` bytes)
+**Size**: `890` lines
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -2720,7 +2720,7 @@
 ### [`modules/brain/state.py`](modules/brain/state.py)
 > *Persistent brain state and mode definitions.*
 
-**Size**: `94` lines (`3171` bytes)
+**Size**: `94` lines
 
 **Classes:**
 - `class BrainState` - *Observable state of the brain control plane.*
@@ -2739,7 +2739,7 @@
 ### [`modules/brain/suite_manifest.py`](modules/brain/suite_manifest.py)
 > *Suite identity for evaluation runs (IDEA-1207).*
 
-**Size**: `109` lines (`4473` bytes)
+**Size**: `109` lines
 
 **Functions:**
 - `def _canonical_json(payload)`
@@ -2755,7 +2755,7 @@
 ### [`modules/brain/trends.py`](modules/brain/trends.py)
 > *Bounded metric-trend detection for reviewable self-repair proposals (ADR-058).*
 
-**Size**: `258` lines (`10634` bytes)
+**Size**: `258` lines
 
 **Classes:**
 - `class TrendStore` - *Atomic JSON ledger for samples and emitted findings.*
@@ -2775,14 +2775,14 @@
 ---
 
 ### [`modules/browser_automation/__init__.py`](modules/browser_automation/__init__.py)
-**Size**: `3` lines (`49` bytes)
+**Size**: `3` lines
 
 ---
 
 ### [`modules/browser_automation/indexed.py`](modules/browser_automation/indexed.py)
 > *Indexed element actions with post-condition verification (IDEA-1208).*
 
-**Size**: `222` lines (`8415` bytes)
+**Size**: `222` lines
 
 **Classes:**
 - `class SnapshotBudgetExceeded` - *The snapshot is too large to return safely; the caller must narrow the scope.*
@@ -2809,7 +2809,7 @@
 ---
 
 ### [`modules/browser_automation/router.py`](modules/browser_automation/router.py)
-**Size**: `105` lines (`4162` bytes)
+**Size**: `105` lines
 
 **Classes:**
 - `class BrowserActionPayload`
@@ -2822,7 +2822,7 @@
 ---
 
 ### [`modules/browser_automation/service.py`](modules/browser_automation/service.py)
-**Size**: `315` lines (`14285` bytes)
+**Size**: `315` lines
 
 **Classes:**
 - `class BrowserService`
@@ -2852,7 +2852,7 @@
 ### [`modules/browser_automation/snapshot.py`](modules/browser_automation/snapshot.py)
 > *Bounded snapshot receipts with typed refusal (IDEA-1209).*
 
-**Size**: `142` lines (`4840` bytes)
+**Size**: `142` lines
 
 **Classes:**
 - `class SnapshotBudget`
@@ -2871,12 +2871,12 @@
 ---
 
 ### [`modules/calendar/__init__.py`](modules/calendar/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/calendar/events.py`](modules/calendar/events.py)
-**Size**: `219` lines (`8743` bytes)
+**Size**: `219` lines
 
 **Classes:**
 - `class EventManager`
@@ -2899,7 +2899,7 @@
 ---
 
 ### [`modules/calendar/node.py`](modules/calendar/node.py)
-**Size**: `49` lines (`1730` bytes)
+**Size**: `49` lines
 
 **Classes:**
 - `class CalendarWatcherExecutor`
@@ -2912,7 +2912,7 @@
 ---
 
 ### [`modules/calendar/router.py`](modules/calendar/router.py)
-**Size**: `154` lines (`5805` bytes)
+**Size**: `154` lines
 
 **Functions:**
 - `def get_enriched_upcoming_events(event_manager)` - *Enriches events with nav_year and nav_month for UI navigation.*
@@ -2925,12 +2925,12 @@
 ---
 
 ### [`modules/chat/__init__.py`](modules/chat/__init__.py)
-**Size**: `1` lines (`27` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/chat/node.py`](modules/chat/node.py)
-**Size**: `76` lines (`3242` bytes)
+**Size**: `76` lines
 
 **Classes:**
 - `class ChatInputExecutor` - *Node to start a flow with chat data.*
@@ -2946,7 +2946,7 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `904` lines (`40858` bytes)
+**Size**: `904` lines
 
 **Functions:**
 - `def _stream_key(session_id, msg_id)`
@@ -2976,7 +2976,7 @@
 ---
 
 ### [`modules/chat/sessions.py`](modules/chat/sessions.py)
-**Size**: `366` lines (`14206` bytes)
+**Size**: `366` lines
 
 **Classes:**
 - `class SessionManager`
@@ -3010,14 +3010,14 @@
 ---
 
 ### [`modules/email_bridge/__init__.py`](modules/email_bridge/__init__.py)
-**Size**: `1` lines (`27` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/email_bridge/imap_bridge.py`](modules/email_bridge/imap_bridge.py)
 > *IMAPBridge — blocking IMAP polling helper.*
 
-**Size**: `180` lines (`6293` bytes)
+**Size**: `180` lines
 
 **Classes:**
 - `class IMAPBridge` - *Connects to an IMAP server and polls for UNSEEN messages.*
@@ -3033,7 +3033,7 @@
 ### [`modules/email_bridge/node.py`](modules/email_bridge/node.py)
 > *Email Bridge node executors.*
 
-**Size**: `117` lines (`3949` bytes)
+**Size**: `117` lines
 
 **Classes:**
 - `class _ConfigLoader`
@@ -3053,7 +3053,7 @@
 ### [`modules/email_bridge/router.py`](modules/email_bridge/router.py)
 > *Email Bridge router — settings management endpoints.*
 
-**Size**: `88` lines (`2634` bytes)
+**Size**: `88` lines
 
 **Functions:**
 - `def _success(message)`
@@ -3065,7 +3065,7 @@
 ### [`modules/email_bridge/service.py`](modules/email_bridge/service.py)
 > *EmailService — singleton that manages IMAP polling and SMTP replies.*
 
-**Size**: `346` lines (`12371` bytes)
+**Size**: `346` lines
 
 **Classes:**
 - `class _SessionStore` - *Thread-safe sender→session_id map persisted to sessions.json.*
@@ -3101,7 +3101,7 @@
 ### [`modules/email_bridge/smtp_bridge.py`](modules/email_bridge/smtp_bridge.py)
 > *SMTPBridge — simple SMTP send helper.*
 
-**Size**: `78` lines (`2530` bytes)
+**Size**: `78` lines
 
 **Classes:**
 - `class SMTPBridge` - *Sends plain-text emails via SMTP with optional In-Reply-To threading.*
@@ -3111,12 +3111,12 @@
 ---
 
 ### [`modules/knowledge_base/__init__.py`](modules/knowledge_base/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1424` lines (`58199` bytes)
+**Size**: `1424` lines
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -3171,7 +3171,7 @@
 ### [`modules/knowledge_base/embedding_space.py`](modules/knowledge_base/embedding_space.py)
 > *Embedding-space identity for one collection (IDEA-591).*
 
-**Size**: `104` lines (`4501` bytes)
+**Size**: `104` lines
 
 **Classes:**
 - `class EmbeddingSpaceMismatch` - *A vector, record or query belongs to a different embedding space.*
@@ -3190,7 +3190,7 @@
 ---
 
 ### [`modules/knowledge_base/node.py`](modules/knowledge_base/node.py)
-**Size**: `112` lines (`4162` bytes)
+**Size**: `112` lines
 
 **Classes:**
 - `class KnowledgeQueryExecutor`
@@ -3205,7 +3205,7 @@
 ---
 
 ### [`modules/knowledge_base/processor.py`](modules/knowledge_base/processor.py)
-**Size**: `253` lines (`10159` bytes)
+**Size**: `253` lines
 
 **Classes:**
 - `class DocumentProcessor` - *Document processor for PDF, DOCX, and TXT files.*
@@ -3226,7 +3226,7 @@
 ### [`modules/knowledge_base/recall.py`](modules/knowledge_base/recall.py)
 > *ANN oversampling with exact rescore and an explicit recall budget (IDEA-1155).*
 
-**Size**: `92` lines (`3695` bytes)
+**Size**: `92` lines
 
 **Classes:**
 - `class RecallBudget`
@@ -3242,7 +3242,7 @@
 ---
 
 ### [`modules/knowledge_base/router.py`](modules/knowledge_base/router.py)
-**Size**: `570` lines (`23299` bytes)
+**Size**: `570` lines
 
 **Functions:**
 - `def _format_size(size_bytes)` - *Return a human-readable file size string.*
@@ -3265,12 +3265,12 @@
 ---
 
 ### [`modules/llm_module/__init__.py`](modules/llm_module/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/llm_module/node.py`](modules/llm_module/node.py)
-**Size**: `317` lines (`14097` bytes)
+**Size**: `317` lines
 
 **Classes:**
 - `class LLMExecutor`
@@ -3288,7 +3288,7 @@
 ---
 
 ### [`modules/llm_module/router.py`](modules/llm_module/router.py)
-**Size**: `21` lines (`890` bytes)
+**Size**: `21` lines
 
 **Functions:**
 - `async def save_generation_settings(request, temperature, max_tokens)`
@@ -3296,12 +3296,12 @@
 ---
 
 ### [`modules/logic/__init__.py`](modules/logic/__init__.py)
-**Size**: `1` lines (`14` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/logic/node.py`](modules/logic/node.py)
-**Size**: `411` lines (`18153` bytes)
+**Size**: `411` lines
 
 **Classes:**
 - `class ContextLengthRouterExecutor` - *Routes to RLM or standard LLM based on estimated token count.*
@@ -3333,7 +3333,7 @@
 ---
 
 ### [`modules/memory/__init__.py`](modules/memory/__init__.py)
-**Size**: `36` lines (`1355` bytes)
+**Size**: `36` lines
 
 **Functions:**
 - `async def shutdown()` - *Await any in-flight background memory save tasks before the server exits.*
@@ -3341,7 +3341,7 @@
 ---
 
 ### [`modules/memory/arbiter.py`](modules/memory/arbiter.py)
-**Size**: `144` lines (`5724` bytes)
+**Size**: `144` lines
 
 **Classes:**
 - `class MemoryArbiter` - *Autonomous bridge between Reasoning and MemoryStore.*
@@ -3352,7 +3352,7 @@
 ---
 
 ### [`modules/memory/backend.py`](modules/memory/backend.py)
-**Size**: `1824` lines (`85753` bytes)
+**Size**: `1824` lines
 
 **Classes:**
 - `class MemoryStore` - *Simplified MemoryStore for NeuroCore.*
@@ -3426,7 +3426,7 @@
 ### [`modules/memory/budget.py`](modules/memory/budget.py)
 > *Budgeted memory recall block (IDEA-1174).*
 
-**Size**: `144` lines (`5197` bytes)
+**Size**: `144` lines
 
 **Classes:**
 - `class BudgetReceipt`
@@ -3444,7 +3444,7 @@
 ---
 
 ### [`modules/memory/consolidation.py`](modules/memory/consolidation.py)
-**Size**: `305` lines (`11409` bytes)
+**Size**: `305` lines
 
 **Classes:**
 - `class ConsolidationState` - *Tracks the state of the memory consolidation background task.*
@@ -3467,7 +3467,7 @@
 ### [`modules/memory/file_table.py`](modules/memory/file_table.py)
 > *In-memory file table toy mirroring the qwenFS DeltaNet mechanism (Stage 3).*
 
-**Size**: `500` lines (`22330` bytes)
+**Size**: `500` lines
 
 **Classes:**
 - `class FilePager` - *Paged view over one file's version rows (qwenFS ``disk.py`` Pager).*
@@ -3505,7 +3505,7 @@
 ### [`modules/memory/filter_plan.py`](modules/memory/filter_plan.py)
 > *Filter-cardinality planner for memory recall (IDEA-1154).*
 
-**Size**: `116` lines (`5080` bytes)
+**Size**: `116` lines
 
 **Classes:**
 - `class FilterPlan`
@@ -3522,7 +3522,7 @@
 ### [`modules/memory/history.py`](modules/memory/history.py)
 > *Memory edit receipts, history and conditional undo (IDEA-1175).*
 
-**Size**: `198` lines (`7688` bytes)
+**Size**: `198` lines
 
 **Classes:**
 - `class MemoryEditReceipt`
@@ -3542,7 +3542,7 @@
 ---
 
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `436` lines (`19214` bytes)
+**Size**: `436` lines
 
 **Classes:**
 - `class ConfigLoader`
@@ -3568,7 +3568,7 @@
 ---
 
 ### [`modules/memory/router.py`](modules/memory/router.py)
-**Size**: `477` lines (`22808` bytes)
+**Size**: `477` lines
 
 **Functions:**
 - `async def get_stats(request)`
@@ -3603,7 +3603,7 @@
 ### [`modules/memory/scope.py`](modules/memory/scope.py)
 > *Session scope for memory reads and writes (IDEA-1109).*
 
-**Size**: `122` lines (`4544` bytes)
+**Size**: `122` lines
 
 **Classes:**
 - `class MemoryScopeRequired` - *Raised when strict scope is required but the call carries no identity.*
@@ -3622,12 +3622,12 @@
 ---
 
 ### [`modules/memory_browser/__init__.py`](modules/memory_browser/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/memory_browser/router.py`](modules/memory_browser/router.py)
-**Size**: `120` lines (`5242` bytes)
+**Size**: `120` lines
 
 **Functions:**
 - `def format_timestamp(ts)`
@@ -3643,14 +3643,14 @@
 ---
 
 ### [`modules/messaging_bridge/__init__.py`](modules/messaging_bridge/__init__.py)
-**Size**: `1` lines (`27` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/messaging_bridge/access.py`](modules/messaging_bridge/access.py)
 > *Per-bridge sender and chat allowlists (IDEA-839, narrowed).*
 
-**Size**: `92` lines (`3825` bytes)
+**Size**: `92` lines
 
 **Classes:**
 - `class AccessDecision` - *One admission decision for an inbound platform message.*
@@ -3669,7 +3669,7 @@
 ### [`modules/messaging_bridge/discord_bridge.py`](modules/messaging_bridge/discord_bridge.py)
 > *DiscordBridge — thin async wrapper around the Discord REST API and Gateway.*
 
-**Size**: `188` lines (`6998` bytes)
+**Size**: `188` lines
 
 **Classes:**
 - `class DiscordBridge` - *Handles communication with the Discord API.*
@@ -3686,7 +3686,7 @@
 ---
 
 ### [`modules/messaging_bridge/node.py`](modules/messaging_bridge/node.py)
-**Size**: `177` lines (`7110` bytes)
+**Size**: `177` lines
 
 **Classes:**
 - `class ConfigLoader`
@@ -3706,7 +3706,7 @@
 ---
 
 ### [`modules/messaging_bridge/router.py`](modules/messaging_bridge/router.py)
-**Size**: `226` lines (`7749` bytes)
+**Size**: `226` lines
 
 **Functions:**
 - `def _success(message)`
@@ -3724,7 +3724,7 @@
 ### [`modules/messaging_bridge/service.py`](modules/messaging_bridge/service.py)
 > *MessagingService — unified singleton that manages Telegram, Discord, and Signal bridges.*
 
-**Size**: `706` lines (`27484` bytes)
+**Size**: `706` lines
 
 **Classes:**
 - `class _SessionStore` - *Thread-safe session map persisted to sessions.json.*
@@ -3776,7 +3776,7 @@
 ### [`modules/messaging_bridge/signal_bridge.py`](modules/messaging_bridge/signal_bridge.py)
 > *SignalBridge — async wrapper around the signal-cli REST API.*
 
-**Size**: `145` lines (`5188` bytes)
+**Size**: `145` lines
 
 **Classes:**
 - `class SignalBridge` - *Handles communication with signal-cli REST API.*
@@ -3791,7 +3791,7 @@
 ---
 
 ### [`modules/messaging_bridge/telegram_bridge.py`](modules/messaging_bridge/telegram_bridge.py)
-**Size**: `186` lines (`7624` bytes)
+**Size**: `186` lines
 
 **Classes:**
 - `class TelegramBridge` - *Handles communication with Telegram API using async httpx.*
@@ -3811,7 +3811,7 @@
 ### [`modules/messaging_bridge/whatsapp_bridge.py`](modules/messaging_bridge/whatsapp_bridge.py)
 > *WhatsAppBridge — async wrapper around the Evolution API for WhatsApp messaging.*
 
-**Size**: `145` lines (`5013` bytes)
+**Size**: `145` lines
 
 **Classes:**
 - `class WhatsAppBridge` - *Handles outbound WhatsApp messaging via the Evolution API REST endpoint.*
@@ -3830,14 +3830,14 @@
 ### [`modules/meta/__init__.py`](modules/meta/__init__.py)
 > *Meta-flow module: runs a stored flow as one ganglion node.*
 
-**Size**: `1` lines (`65` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/meta/node.py`](modules/meta/node.py)
 > *Subflow executor: a ganglion is a reference to another stored flow.*
 
-**Size**: `60` lines (`2237` bytes)
+**Size**: `60` lines
 
 **Classes:**
 - `class SubflowExecutor` - *Run the flow named by ``config['flow_id']`` and pass its output through.*
@@ -3850,7 +3850,7 @@
 ---
 
 ### [`modules/planner/node.py`](modules/planner/node.py)
-**Size**: `754` lines (`31357` bytes)
+**Size**: `754` lines
 
 **Classes:**
 - `class PlannerExecutor`
@@ -3880,12 +3880,12 @@
 ---
 
 ### [`modules/reasoning_book/__init__.py`](modules/reasoning_book/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/reasoning_book/node.py`](modules/reasoning_book/node.py)
-**Size**: `90` lines (`3269` bytes)
+**Size**: `90` lines
 
 **Classes:**
 - `class ReasoningSaveExecutor`
@@ -3901,7 +3901,7 @@
 ---
 
 ### [`modules/reasoning_book/router.py`](modules/reasoning_book/router.py)
-**Size**: `67` lines (`2818` bytes)
+**Size**: `67` lines
 
 **Functions:**
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
@@ -3913,7 +3913,7 @@
 ---
 
 ### [`modules/reasoning_book/service.py`](modules/reasoning_book/service.py)
-**Size**: `164` lines (`6853` bytes)
+**Size**: `164` lines
 
 **Classes:**
 - `class ReasoningBookService`
@@ -3935,7 +3935,7 @@
 ### [`modules/reflection/lenses.py`](modules/reflection/lenses.py)
 > *Two epistemic lenses for the reflection node (IDEA-629).*
 
-**Size**: `136` lines (`5026` bytes)
+**Size**: `136` lines
 
 **Classes:**
 - `class LensFinding` - *One lens verdict over the assistant response.*
@@ -3950,7 +3950,7 @@
 ---
 
 ### [`modules/reflection/node.py`](modules/reflection/node.py)
-**Size**: `353` lines (`15804` bytes)
+**Size**: `353` lines
 
 **Classes:**
 - `class ReflectionExecutor`
@@ -3972,14 +3972,14 @@
 ### [`modules/security/__init__.py`](modules/security/__init__.py)
 > *Security policy surfaces that sit beside the tool registry (IDEA-058).*
 
-**Size**: `1` lines (`77` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/security/policy.py`](modules/security/policy.py)
 > *Ordered, default-deny tool policy (IDEA-058).*
 
-**Size**: `344` lines (`13403` bytes)
+**Size**: `344` lines
 
 **Classes:**
 - `class PolicyError` - *A policy document is unreadable, invalid or from an unknown schema.*
@@ -4006,14 +4006,14 @@
 ### [`modules/skills/__init__.py`](modules/skills/__init__.py)
 > *Skills module for NeuroCore - manages instruction files (SKILL.md) containing *
 
-**Size**: `10` lines (`292` bytes)
+**Size**: `10` lines
 
 ---
 
 ### [`modules/skills/admission.py`](modules/skills/admission.py)
 > *Guardrail admission for imported and edited skills (IDEA-849, narrowed).*
 
-**Size**: `92` lines (`3194` bytes)
+**Size**: `92` lines
 
 **Classes:**
 - `class SkillScan` - *The admission record stored beside a skill.*
@@ -4031,7 +4031,7 @@
 ### [`modules/skills/backend.py`](modules/skills/backend.py)
 > *Backend for Skills module - handles file storage and retrieval of SKILL.md files.*
 
-**Size**: `302` lines (`11245` bytes)
+**Size**: `302` lines
 
 **Classes:**
 - `class SkillBackend` - *Handles file-based storage for skills.*
@@ -4059,7 +4059,7 @@
 ### [`modules/skills/router.py`](modules/skills/router.py)
 > *Router for Skills module - API endpoints for skill management.*
 
-**Size**: `244` lines (`8086` bytes)
+**Size**: `244` lines
 
 **Functions:**
 - `async def skills_gui(request)` - *Returns the skills management GUI.*
@@ -4084,7 +4084,7 @@
 ### [`modules/skills/service.py`](modules/skills/service.py)
 > *Service layer for Skills module - business logic for skill management.*
 
-**Size**: `411` lines (`18050` bytes)
+**Size**: `411` lines
 
 **Classes:**
 - `class SkillService` - *Business logic for skill management.*
@@ -4115,7 +4115,7 @@
 ### [`modules/skills/versions.py`](modules/skills/versions.py)
 > *Content-addressed versions for skill documents.*
 
-**Size**: `149` lines (`6024` bytes)
+**Size**: `149` lines
 
 **Classes:**
 - `class SkillVersionStore` - *Per-skill version history rooted beside the skill storage.*
@@ -4137,12 +4137,12 @@
 ---
 
 ### [`modules/system_prompt/__init__.py`](modules/system_prompt/__init__.py)
-**Size**: `1` lines (`22` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/system_prompt/node.py`](modules/system_prompt/node.py)
-**Size**: `320` lines (`15462` bytes)
+**Size**: `320` lines
 
 **Classes:**
 - `class SystemPromptExecutor`
@@ -4161,7 +4161,7 @@
 ---
 
 ### [`modules/system_prompt/router.py`](modules/system_prompt/router.py)
-**Size**: `95` lines (`3824` bytes)
+**Size**: `95` lines
 
 **Functions:**
 - `async def _load_tools_cached()` - *Load available tools from the tools module with mtime-based caching.*
@@ -4170,14 +4170,14 @@
 ---
 
 ### [`modules/tools/__init__.py`](modules/tools/__init__.py)
-**Size**: `1` lines (`26` bytes)
+**Size**: `1` lines
 
 ---
 
 ### [`modules/tools/approvals.py`](modules/tools/approvals.py)
 > *Pending approvals for HIGH-tier tool calls (IDEA-060).*
 
-**Size**: `100` lines (`4094` bytes)
+**Size**: `100` lines
 
 **Classes:**
 - `class ToolApprovals` - *The approval ledger: pending calls, claimed at most once, then settled.*
@@ -4196,7 +4196,7 @@
 ### [`modules/tools/calls.py`](modules/tools/calls.py)
 > *Per-call lifecycle for tool execution (IDEA-1173).*
 
-**Size**: `229` lines (`7917` bytes)
+**Size**: `229` lines
 
 **Classes:**
 - `class ToolCallCancelled` - *The caller requested cancellation and the child was stopped.*
@@ -4230,7 +4230,7 @@
 ### [`modules/tools/capabilities.py`](modules/tools/capabilities.py)
 > *Declared tool primitives and pre-call capability refusal (IDEA-1172).*
 
-**Size**: `225` lines (`9277` bytes)
+**Size**: `225` lines
 
 **Classes:**
 - `class ToolRequirement`
@@ -4251,17 +4251,17 @@
 ---
 
 ### [`modules/tools/library/ArXivSearch.py`](modules/tools/library/ArXivSearch.py)
-**Size**: `69` lines (`2727` bytes)
+**Size**: `69` lines
 
 ---
 
 ### [`modules/tools/library/BrowserAction.py`](modules/tools/library/BrowserAction.py)
-**Size**: `57` lines (`2286` bytes)
+**Size**: `57` lines
 
 ---
 
 ### [`modules/tools/library/Calculator.py`](modules/tools/library/Calculator.py)
-**Size**: `132` lines (`4153` bytes)
+**Size**: `132` lines
 
 **Functions:**
 - `def evaluate_node(node, variables)` - *Safe AST-based expression evaluator.*
@@ -4269,87 +4269,87 @@
 ---
 
 ### [`modules/tools/library/CheckCalendar.py`](modules/tools/library/CheckCalendar.py)
-**Size**: `21` lines (`782` bytes)
+**Size**: `21` lines
 
 ---
 
 ### [`modules/tools/library/ConversionCalculator.py`](modules/tools/library/ConversionCalculator.py)
-**Size**: `129` lines (`2766` bytes)
+**Size**: `129` lines
 
 ---
 
 ### [`modules/tools/library/CurrencyConverter.py`](modules/tools/library/CurrencyConverter.py)
-**Size**: `74` lines (`3781` bytes)
+**Size**: `74` lines
 
 ---
 
 ### [`modules/tools/library/DeleteGoal.py`](modules/tools/library/DeleteGoal.py)
-**Size**: `31` lines (`1101` bytes)
+**Size**: `31` lines
 
 ---
 
 ### [`modules/tools/library/FetchURL.py`](modules/tools/library/FetchURL.py)
-**Size**: `64` lines (`2479` bytes)
+**Size**: `64` lines
 
 ---
 
 ### [`modules/tools/library/GetGoals.py`](modules/tools/library/GetGoals.py)
-**Size**: `45` lines (`1436` bytes)
+**Size**: `45` lines
 
 ---
 
 ### [`modules/tools/library/GetNextGoal.py`](modules/tools/library/GetNextGoal.py)
-**Size**: `34` lines (`1265` bytes)
+**Size**: `34` lines
 
 ---
 
 ### [`modules/tools/library/MarkGoalComplete.py`](modules/tools/library/MarkGoalComplete.py)
-**Size**: `31` lines (`1101` bytes)
+**Size**: `31` lines
 
 ---
 
 ### [`modules/tools/library/SaveReminder.py`](modules/tools/library/SaveReminder.py)
-**Size**: `18` lines (`539` bytes)
+**Size**: `18` lines
 
 ---
 
 ### [`modules/tools/library/SendEmail.py`](modules/tools/library/SendEmail.py)
-**Size**: `42` lines (`1535` bytes)
+**Size**: `42` lines
 
 ---
 
 ### [`modules/tools/library/SetGoal.py`](modules/tools/library/SetGoal.py)
-**Size**: `36` lines (`1165` bytes)
+**Size**: `36` lines
 
 ---
 
 ### [`modules/tools/library/SystemTime.py`](modules/tools/library/SystemTime.py)
-**Size**: `4` lines (`159` bytes)
+**Size**: `4` lines
 
 ---
 
 ### [`modules/tools/library/TimeZoneConverter.py`](modules/tools/library/TimeZoneConverter.py)
-**Size**: `37` lines (`1210` bytes)
+**Size**: `37` lines
 
 ---
 
 ### [`modules/tools/library/Weather.py`](modules/tools/library/Weather.py)
-**Size**: `36` lines (`1558` bytes)
+**Size**: `36` lines
 
 ---
 
 ### [`modules/tools/library/WikipediaLookup.py`](modules/tools/library/WikipediaLookup.py)
-**Size**: `59` lines (`2071` bytes)
+**Size**: `59` lines
 
 ---
 
 ### [`modules/tools/library/YouTubeTranscript.py`](modules/tools/library/YouTubeTranscript.py)
-**Size**: `37` lines (`1362` bytes)
+**Size**: `37` lines
 
 ---
 
 ### [`modules/tools/node.py`](modules/tools/node.py)
-**Size**: `256` lines (`12008` bytes)
+**Size**: `256` lines
 
 **Classes:**
 - `class ToolDispatcherExecutor`
@@ -4367,7 +4367,7 @@
 ### [`modules/tools/outbound.py`](modules/tools/outbound.py)
 > *Outbound tools draft; only the user's approval sends (IDEA-032).*
 
-**Size**: `137` lines (`6058` bytes)
+**Size**: `137` lines
 
 **Classes:**
 - `class OutboundDrafts` - *The draft ledger: pending drafts, claimed at most once, then settled.*
@@ -4387,42 +4387,42 @@
 ---
 
 ### [`modules/tools/rlm_library/Chunk.py`](modules/tools/rlm_library/Chunk.py)
-**Size**: `44` lines (`1427` bytes)
+**Size**: `44` lines
 
 ---
 
 ### [`modules/tools/rlm_library/GetVariable.py`](modules/tools/rlm_library/GetVariable.py)
-**Size**: `29` lines (`893` bytes)
+**Size**: `29` lines
 
 ---
 
 ### [`modules/tools/rlm_library/Peek.py`](modules/tools/rlm_library/Peek.py)
-**Size**: `27` lines (`893` bytes)
+**Size**: `27` lines
 
 ---
 
 ### [`modules/tools/rlm_library/Search.py`](modules/tools/rlm_library/Search.py)
-**Size**: `47` lines (`1569` bytes)
+**Size**: `47` lines
 
 ---
 
 ### [`modules/tools/rlm_library/SetFinal.py`](modules/tools/rlm_library/SetFinal.py)
-**Size**: `17` lines (`566` bytes)
+**Size**: `17` lines
 
 ---
 
 ### [`modules/tools/rlm_library/SetVariable.py`](modules/tools/rlm_library/SetVariable.py)
-**Size**: `24` lines (`768` bytes)
+**Size**: `24` lines
 
 ---
 
 ### [`modules/tools/rlm_library/SubCall.py`](modules/tools/rlm_library/SubCall.py)
-**Size**: `69` lines (`2242` bytes)
+**Size**: `69` lines
 
 ---
 
 ### [`modules/tools/router.py`](modules/tools/router.py)
-**Size**: `722` lines (`28735` bytes)
+**Size**: `722` lines
 
 **Functions:**
 - `def _sanitize_tool_name(name)` - *Sanitize tool name to prevent path traversal attacks.*
@@ -4466,7 +4466,7 @@
 ### [`modules/tools/sandbox.py`](modules/tools/sandbox.py)
 > *Tool Execution Sandbox for NeuroCore*
 
-**Size**: `1087` lines (`47099` bytes)
+**Size**: `1087` lines
 
 **Classes:**
 - `class SecurityError` - *Raised when sandbox security policy is violated.*
@@ -4516,7 +4516,7 @@
 ### [`modules/tools/tiers.py`](modules/tools/tiers.py)
 > *Fail-closed risk tiers for structured tool calls (IDEA-060).*
 
-**Size**: `166` lines (`6185` bytes)
+**Size**: `166` lines
 
 **Classes:**
 - `class Tier`
@@ -4539,7 +4539,7 @@
 ### [`tests/conftest.py`](tests/conftest.py)
 > *Pytest configuration and fixtures for test isolation.*
 
-**Size**: `496` lines (`17725` bytes)
+**Size**: `496` lines
 
 **Classes:**
 - `class FileBackupManager` - *Manages backup and restore operations for files during tests.*
@@ -4569,7 +4569,7 @@
 ---
 
 ### [`tests/run_tests.py`](tests/run_tests.py)
-**Size**: `55` lines (`1956` bytes)
+**Size**: `55` lines
 
 **Functions:**
 - `def run_tests()`
@@ -4579,7 +4579,7 @@
 ### [`tests/support/evasion.py`](tests/support/evasion.py)
 > *Mechanical evasion variants for guardrail stability tests (IDEA-625).*
 
-**Size**: `92` lines (`3049` bytes)
+**Size**: `92` lines
 
 **Functions:**
 - `def _case(payload)`
@@ -4597,7 +4597,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `2014` lines (`82053` bytes)
+**Size**: `2014` lines
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -4726,7 +4726,7 @@
 ### [`tests/test_agent_loop_guard.py`](tests/test_agent_loop_guard.py)
 > *Agent-loop repetition guard: normalization, warning, abort and trace reporting.*
 
-**Size**: `115` lines (`4230` bytes)
+**Size**: `115` lines
 
 **Functions:**
 - `def test_bad_guard_limits_fall_back_to_defaults()`
@@ -4746,7 +4746,7 @@
 ### [`tests/test_agent_loop_replan.py`](tests/test_agent_loop_replan.py)
 > *Tests for Agent Loop re-planning functionality*
 
-**Size**: `417` lines (`14923` bytes)
+**Size**: `417` lines
 
 **Functions:**
 - `def make_executor()` - *Create an AgentLoopExecutor with patched LLMBridge.*
@@ -4771,7 +4771,7 @@
 ---
 
 ### [`tests/test_annotations_node.py`](tests/test_annotations_node.py)
-**Size**: `44` lines (`1457` bytes)
+**Size**: `44` lines
 
 **Functions:**
 - `async def test_get_executor_class()`
@@ -4786,7 +4786,7 @@
 ### [`tests/test_archive_safety.py`](tests/test_archive_safety.py)
 > *Regression tests for M2: ZIP extraction must never escape its destination (zip-slip).*
 
-**Size**: `130` lines (`4820` bytes)
+**Size**: `130` lines
 
 **Functions:**
 - `def _write_zip(path, members)`
@@ -4805,7 +4805,7 @@
 ### [`tests/test_auth_registry.py`](tests/test_auth_registry.py)
 > *Failing-first tests for core/auth_registry.py (IDEA-1299, IDEA-1301).*
 
-**Size**: `83` lines (`2335` bytes)
+**Size**: `83` lines
 
 **Functions:**
 - `def test_oauth_register_and_validate_redirect()`
@@ -4821,7 +4821,7 @@
 ### [`tests/test_autonomous_agent.py`](tests/test_autonomous_agent.py)
 > *Tests for the experimental autonomous agent runtime.*
 
-**Size**: `1175` lines (`38639` bytes)
+**Size**: `1175` lines
 
 **Classes:**
 - `class FakeProposer`
@@ -4892,7 +4892,7 @@
 ### [`tests/test_brain_auth.py`](tests/test_brain_auth.py)
 > *Brain actor authentication and remote access gate.*
 
-**Size**: `255` lines (`8216` bytes)
+**Size**: `255` lines
 
 **Functions:**
 - `def make_request(host, headers)`
@@ -4919,7 +4919,7 @@
 ### [`tests/test_brain_autonomy.py`](tests/test_brain_autonomy.py)
 > *Autonomous mode: the brain carries out its own safe proposals inside the kernel and budget rails.*
 
-**Size**: `133` lines (`6022` bytes)
+**Size**: `133` lines
 
 **Classes:**
 - `class PerfectRunner`
@@ -4946,7 +4946,7 @@
 ### [`tests/test_brain_chat.py`](tests/test_brain_chat.py)
 > *Talking to the brain: replies with live-state context and allow-listed commands.*
 
-**Size**: `118` lines (`5419` bytes)
+**Size**: `118` lines
 
 **Classes:**
 - `class FakeLLM`
@@ -4968,7 +4968,7 @@
 ### [`tests/test_brain_configuration.py`](tests/test_brain_configuration.py)
 > *Policy-gated self-configuration: preview, apply, rollback and quotas.*
 
-**Size**: `257` lines (`8699` bytes)
+**Size**: `257` lines
 
 **Classes:**
 - `class FakeSettings`
@@ -4998,7 +4998,7 @@
 ### [`tests/test_brain_eval_suite_manifest.py`](tests/test_brain_eval_suite_manifest.py)
 > *Content-addressed evaluation suite identity (IDEA-1207).*
 
-**Size**: `188` lines (`5946` bytes)
+**Size**: `188` lines
 
 **Functions:**
 - `def _task(task_id, value, description, tags, threshold)`
@@ -5022,7 +5022,7 @@
 ### [`tests/test_brain_evaluation.py`](tests/test_brain_evaluation.py)
 > *Deterministic evaluation harness and baseline regression gate.*
 
-**Size**: `157` lines (`4967` bytes)
+**Size**: `157` lines
 
 **Functions:**
 - `async def test_runner_passes_echo_tasks_through_a_fake_executor()`
@@ -5039,7 +5039,7 @@
 ### [`tests/test_brain_evaluation_assertions.py`](tests/test_brain_evaluation_assertions.py)
 > *Typed weighted evaluation checks (IDEA-1206).*
 
-**Size**: `167` lines (`6025` bytes)
+**Size**: `167` lines
 
 **Functions:**
 - `def _output(content)`
@@ -5066,7 +5066,7 @@
 ### [`tests/test_brain_goal_governance.py`](tests/test_brain_goal_governance.py)
 > *Goal-governed improvement: a promotion names an active goal or a self-repair reason.*
 
-**Size**: `178` lines (`6576` bytes)
+**Size**: `178` lines
 
 **Functions:**
 - `def linked_engine(tmp_path, goal_map, marked)`
@@ -5090,7 +5090,7 @@
 ### [`tests/test_brain_goal_review.py`](tests/test_brain_goal_review.py)
 > *Deterministic goal review: overdue, stale, clarity and near-duplicate detection.*
 
-**Size**: `93` lines (`3640` bytes)
+**Size**: `93` lines
 
 **Functions:**
 - `def goal(goal_id, description, *, status, priority, context, deadline, updated_at)`
@@ -5106,7 +5106,7 @@
 ### [`tests/test_brain_guardrails.py`](tests/test_brain_guardrails.py)
 > *Deterministic guardrails: injection, secret redaction and prompt-leak detection.*
 
-**Size**: `168` lines (`6040` bytes)
+**Size**: `168` lines
 
 **Functions:**
 - `def test_context_switch_and_override_attempts_are_flagged(text)`
@@ -5130,7 +5130,7 @@
 ### [`tests/test_brain_improvement.py`](tests/test_brain_improvement.py)
 > *Eval-gated flow improvement: preview, quotas, promotion and rollback.*
 
-**Size**: `407` lines (`14987` bytes)
+**Size**: `407` lines
 
 **Classes:**
 - `class FakeEvalRunner`
@@ -5168,7 +5168,7 @@
 ### [`tests/test_brain_kernel.py`](tests/test_brain_kernel.py)
 > *Governance kernel, drift monitor and SAFE-mode actuator gates.*
 
-**Size**: `360` lines (`13442` bytes)
+**Size**: `360` lines
 
 **Classes:**
 - `class DegradedSelfModel`
@@ -5198,7 +5198,7 @@
 ### [`tests/test_brain_learning.py`](tests/test_brain_learning.py)
 > *Learning loop: outcomes, consolidation into global memory and held-out recall.*
 
-**Size**: `436` lines (`14362` bytes)
+**Size**: `436` lines
 
 **Classes:**
 - `class FakeMemoryBridge` - *In-memory stand-in for the global MemoryStore used by the learning loop.*
@@ -5239,7 +5239,7 @@
 ### [`tests/test_brain_ledger_locking.py`](tests/test_brain_ledger_locking.py)
 > *Cross-process safety of the brain ledgers: reload, mutate, persist under one lock.*
 
-**Size**: `152` lines (`5393` bytes)
+**Size**: `152` lines
 
 **Classes:**
 - `class FakeSettings`
@@ -5263,7 +5263,7 @@
 ### [`tests/test_brain_outcomes.py`](tests/test_brain_outcomes.py)
 > *Automatic flow outcome capture into the brain learning loop.*
 
-**Size**: `123` lines (`4032` bytes)
+**Size**: `123` lines
 
 **Classes:**
 - `class BoomExecutor`
@@ -5281,7 +5281,7 @@
 ### [`tests/test_brain_reactivity.py`](tests/test_brain_reactivity.py)
 > *Reactivity: proposals, dedupe, mute, sources, kernel gating and API.*
 
-**Size**: `272` lines (`9396` bytes)
+**Size**: `272` lines
 
 **Classes:**
 - `class SlowBus` - *Wraps EventBus.publish with a fixed delay while recording windows.*
@@ -5307,7 +5307,7 @@
 ### [`tests/test_brain_router_validation.py`](tests/test_brain_router_validation.py)
 > *Brain router numeric validation: malformed numbers are 400s, not 500s.*
 
-**Size**: `45` lines (`1473` bytes)
+**Size**: `45` lines
 
 **Functions:**
 - `async def _operator()`
@@ -5322,7 +5322,7 @@
 ### [`tests/test_brain_self_budget.py`](tests/test_brain_self_budget.py)
 > *Unified self-modification budget: caps, rollover, release and service wiring.*
 
-**Size**: `170` lines (`6308` bytes)
+**Size**: `170` lines
 
 **Functions:**
 - `def make_budget(tmp_path, **caps)`
@@ -5344,7 +5344,7 @@
 ### [`tests/test_brain_substrate.py`](tests/test_brain_substrate.py)
 > *Brain substrate: event bus, real self-model, service modes and API wiring.*
 
-**Size**: `239` lines (`7940` bytes)
+**Size**: `239` lines
 
 **Classes:**
 - `class NullMemoryBridge`
@@ -5373,7 +5373,7 @@
 ### [`tests/test_brain_trends.py`](tests/test_brain_trends.py)
 > *Bounded metric-trend detection and its reviewable proposals.*
 
-**Size**: `205` lines (`6229` bytes)
+**Size**: `205` lines
 
 **Functions:**
 - `def test_corrupt_trend_ledger_is_quarantined_not_silently_kept(tmp_path)`
@@ -5394,7 +5394,7 @@
 ### [`tests/test_brain_ui.py`](tests/test_brain_ui.py)
 > *Brain dashboard route and navigation.*
 
-**Size**: `67` lines (`2319` bytes)
+**Size**: `67` lines
 
 **Functions:**
 - `def test_brain_dashboard_renders()`
@@ -5407,7 +5407,7 @@
 ---
 
 ### [`tests/test_browser_automation.py`](tests/test_browser_automation.py)
-**Size**: `69` lines (`3267` bytes)
+**Size**: `69` lines
 
 **Functions:**
 - `def mock_browser_service()`
@@ -5421,7 +5421,7 @@
 ### [`tests/test_browser_automation_index.py`](tests/test_browser_automation_index.py)
 > *Indexed element actions and bounded snapshots (IDEA-1208/1209).*
 
-**Size**: `357` lines (`11703` bytes)
+**Size**: `357` lines
 
 **Classes:**
 - `class _FakeLocator`
@@ -5471,7 +5471,7 @@
 ---
 
 ### [`tests/test_calendar.py`](tests/test_calendar.py)
-**Size**: `135` lines (`4161` bytes)
+**Size**: `135` lines
 
 **Functions:**
 - `def temp_event_file()` - *Create a temporary event file for testing.*
@@ -5491,7 +5491,7 @@
 ---
 
 ### [`tests/test_calendar_events.py`](tests/test_calendar_events.py)
-**Size**: `195` lines (`6517` bytes)
+**Size**: `195` lines
 
 **Functions:**
 - `def temp_event_file()`
@@ -5519,7 +5519,7 @@
 ### [`tests/test_calendar_node.py`](tests/test_calendar_node.py)
 > *Tests for modules/calendar/node.py — CalendarWatcherExecutor.*
 
-**Size**: `196` lines (`6885` bytes)
+**Size**: `196` lines
 
 **Functions:**
 - `def now_str()` - *Return current time as 'YYYY-MM-DD HH:MM' string.*
@@ -5541,7 +5541,7 @@
 ### [`tests/test_cassette.py`](tests/test_cassette.py)
 > *Recorded provider cassettes with strict replay (IDEA-619).*
 
-**Size**: `265` lines (`8810` bytes)
+**Size**: `265` lines
 
 **Functions:**
 - `def test_a_recorded_exchange_replays_identically()`
@@ -5566,7 +5566,7 @@
 ### [`tests/test_chat_brain_rail.py`](tests/test_chat_brain_rail.py)
 > *The chat shell hosts the opt-in brain rail without importing the brain module.*
 
-**Size**: `27` lines (`937` bytes)
+**Size**: `27` lines
 
 **Functions:**
 - `def test_chat_gui_offers_to_enable_a_disabled_brain()`
@@ -5577,7 +5577,7 @@
 ### [`tests/test_chat_brain_turn.py`](tests/test_chat_brain_turn.py)
 > *A /brain chat turn uses the brain conversation but the chat session and stream.*
 
-**Size**: `224` lines (`9195` bytes)
+**Size**: `224` lines
 
 **Classes:**
 - `class FakeLLM`
@@ -5597,7 +5597,7 @@
 ---
 
 ### [`tests/test_chat_features.py`](tests/test_chat_features.py)
-**Size**: `158` lines (`7080` bytes)
+**Size**: `158` lines
 
 **Functions:**
 - `def client()`
@@ -5611,7 +5611,7 @@
 ---
 
 ### [`tests/test_chat_module.py`](tests/test_chat_module.py)
-**Size**: `167` lines (`7055` bytes)
+**Size**: `167` lines
 
 **Functions:**
 - `def client()` - *A TestClient that handles startup and shutdown events.*
@@ -5629,7 +5629,7 @@
 ---
 
 ### [`tests/test_chat_nodes.py`](tests/test_chat_nodes.py)
-**Size**: `117` lines (`3947` bytes)
+**Size**: `117` lines
 
 **Functions:**
 - `async def test_chat_input_send_validation()` - *Test that Chat Input requires 'messages' in the data.*
@@ -5649,7 +5649,7 @@
 ### [`tests/test_chat_persistence.py`](tests/test_chat_persistence.py)
 > *Chat persistence: stale-read protection, retention and corrupt-store recovery.*
 
-**Size**: `78` lines (`2604` bytes)
+**Size**: `78` lines
 
 **Functions:**
 - `def test_second_manager_does_not_overwrite_newer_messages(tmp_path)`
@@ -5661,7 +5661,7 @@
 ---
 
 ### [`tests/test_chat_router_flow.py`](tests/test_chat_router_flow.py)
-**Size**: `172` lines (`7416` bytes)
+**Size**: `172` lines
 
 **Functions:**
 - `def client()` - *Create test client with chat module enabled.*
@@ -5674,7 +5674,7 @@
 ---
 
 ### [`tests/test_chat_sessions.py`](tests/test_chat_sessions.py)
-**Size**: `139` lines (`4095` bytes)
+**Size**: `139` lines
 
 **Functions:**
 - `def temp_session_file()`
@@ -5698,7 +5698,7 @@
 ### [`tests/test_confirmations.py`](tests/test_confirmations.py)
 > *Server-side confirmation gates for irreversible routes (ADR-059).*
 
-**Size**: `51` lines (`1957` bytes)
+**Size**: `51` lines
 
 **Functions:**
 - `def test_confirmation_matches_case_and_whitespace()`
@@ -5711,7 +5711,7 @@
 ### [`tests/test_containment_regressions.py`](tests/test_containment_regressions.py)
 > *Archive expansion caps, statistics edge cases and exact index synchronization.*
 
-**Size**: `123` lines (`3621` bytes)
+**Size**: `123` lines
 
 **Functions:**
 - `def write_zip(path, members)`
@@ -5731,7 +5731,7 @@
 ### [`tests/test_core_concurrency.py`](tests/test_core_concurrency.py)
 > *Tests for concurrency and deadlock scenarios.*
 
-**Size**: `279` lines (`9685` bytes)
+**Size**: `279` lines
 
 **Classes:**
 - `class TestFlowManagerConcurrency` - *Test concurrent access to FlowManager.*
@@ -5760,7 +5760,7 @@
 ### [`tests/test_core_debug.py`](tests/test_core_debug.py)
 > *Tests for core/debug.py — DebugLogger*
 
-**Size**: `104` lines (`3429` bytes)
+**Size**: `104` lines
 
 **Classes:**
 - `class TestDebugLogger` - *Tests for DebugLogger class.*
@@ -5777,7 +5777,7 @@
 ### [`tests/test_core_flow_manager.py`](tests/test_core_flow_manager.py)
 > *Tests for core/flow_manager.py — FlowManager*
 
-**Size**: `205` lines (`7532` bytes)
+**Size**: `205` lines
 
 **Classes:**
 - `class TestFlowManager` - *Tests for FlowManager class.*
@@ -5800,7 +5800,7 @@
 ---
 
 ### [`tests/test_core_improvements.py`](tests/test_core_improvements.py)
-**Size**: `103` lines (`4190` bytes)
+**Size**: `103` lines
 
 **Functions:**
 - `def client()`
@@ -5810,7 +5810,7 @@
 ---
 
 ### [`tests/test_core_llm.py`](tests/test_core_llm.py)
-**Size**: `162` lines (`5392` bytes)
+**Size**: `162` lines
 
 **Functions:**
 - `async def test_chat_completion_success(httpx_mock)`
@@ -5829,7 +5829,7 @@
 ### [`tests/test_core_llm_bridge.py`](tests/test_core_llm_bridge.py)
 > *Tests for core/llm.py — LLMBridge*
 
-**Size**: `112` lines (`4837` bytes)
+**Size**: `112` lines
 
 **Classes:**
 - `class TestLLMBridgeInit` - *Tests for LLMBridge initialization.*
@@ -5856,7 +5856,7 @@
 ---
 
 ### [`tests/test_core_robustness.py`](tests/test_core_robustness.py)
-**Size**: `92` lines (`3049` bytes)
+**Size**: `92` lines
 
 **Functions:**
 - `def settings_manager()`
@@ -5866,7 +5866,7 @@
 ---
 
 ### [`tests/test_core_routers.py`](tests/test_core_routers.py)
-**Size**: `38` lines (`1155` bytes)
+**Size**: `38` lines
 
 **Functions:**
 - `def test_format_reasoning_content_passthrough()`
@@ -5881,7 +5881,7 @@
 ### [`tests/test_core_settings.py`](tests/test_core_settings.py)
 > *Tests for core/settings.py — SettingsManager*
 
-**Size**: `229` lines (`8602` bytes)
+**Size**: `229` lines
 
 **Classes:**
 - `class TestSettingsManager` - *Tests for SettingsManager class.*
@@ -5919,7 +5919,7 @@
 ---
 
 ### [`tests/test_debug.py`](tests/test_debug.py)
-**Size**: `99` lines (`2977` bytes)
+**Size**: `99` lines
 
 **Functions:**
 - `def debug_logger()`
@@ -5937,7 +5937,7 @@
 ### [`tests/test_default_flows.py`](tests/test_default_flows.py)
 > *The flows a fresh install starts with must only use node types that really execute.*
 
-**Size**: `34` lines (`1203` bytes)
+**Size**: `34` lines
 
 **Functions:**
 - `def default_flows(tmp_path)`
@@ -5949,7 +5949,7 @@
 ### [`tests/test_delegation_handoff.py`](tests/test_delegation_handoff.py)
 > *Delegation contracts and handoff packets (IDEA-1242/1243).*
 
-**Size**: `231` lines (`7252` bytes)
+**Size**: `231` lines
 
 **Functions:**
 - `def _contract(**overrides)`
@@ -5979,7 +5979,7 @@
 ---
 
 ### [`tests/test_dependencies.py`](tests/test_dependencies.py)
-**Size**: `29` lines (`1002` bytes)
+**Size**: `29` lines
 
 **Functions:**
 - `def test_get_llm_bridge_uses_settings()` - *Tests that the get_llm_bridge dependency correctly uses the*
@@ -5989,7 +5989,7 @@
 ### [`tests/test_e2e.py`](tests/test_e2e.py)
 > *End-to-end tests for NeuroCore module configuration workflows.*
 
-**Size**: `99` lines (`3544` bytes)
+**Size**: `99` lines
 
 **Functions:**
 - `def base_url()` - *Return base URL for E2E server after validating availability.*
@@ -6006,7 +6006,7 @@
 ### [`tests/test_email_bridge.py`](tests/test_email_bridge.py)
 > *Tests for the email_bridge module.*
 
-**Size**: `487` lines (`19626` bytes)
+**Size**: `487` lines
 
 **Classes:**
 - `class TestIMAPBridgeHelpers`
@@ -6064,7 +6064,7 @@
 ### [`tests/test_embedding_space.py`](tests/test_embedding_space.py)
 > *Embedding-space identity and mismatch refusal (IDEA-591).*
 
-**Size**: `62` lines (`2122` bytes)
+**Size**: `62` lines
 
 **Functions:**
 - `def space(**overrides)`
@@ -6080,7 +6080,7 @@
 ### [`tests/test_embedding_space_store.py`](tests/test_embedding_space_store.py)
 > *A knowledge-base collection refuses vectors from another embedding space (IDEA-591).*
 
-**Size**: `74` lines (`2819` bytes)
+**Size**: `74` lines
 
 **Functions:**
 - `def _chunk(text, vector)`
@@ -6095,7 +6095,7 @@
 ### [`tests/test_episode_identity.py`](tests/test_episode_identity.py)
 > *Thread-scoped episode identity and the resume guard (IDEA-1110).*
 
-**Size**: `141` lines (`4702` bytes)
+**Size**: `141` lines
 
 **Classes:**
 - `class _FakeManager`
@@ -6124,7 +6124,7 @@
 ### [`tests/test_episode_persistence.py`](tests/test_episode_persistence.py)
 > *Tests for Episode Persistence functionality.*
 
-**Size**: `567` lines (`19681` bytes)
+**Size**: `567` lines
 
 **Classes:**
 - `class TestEpisodeState` - *Tests for EpisodeState class.*
@@ -6164,7 +6164,7 @@
 ### [`tests/test_episode_retention.py`](tests/test_episode_retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `187` lines (`6195` bytes)
+**Size**: `220` lines
 
 **Functions:**
 - `def _write_episode(directory, episode_id, phase, age_days, **extra)`
@@ -6183,13 +6183,16 @@
 - `def test_terminal_episode_gets_both_expiry_stamps()`
 - `def test_running_episode_is_not_stamped()`
 - `def test_reused_episode_id_bumps_the_generation(tmp_path)`
+- `def test_validation_coerces_numeric_strings_into_the_returned_policy()`
+- `def test_compute_retention_accepts_numeric_string_policy()`
+- `def test_stamp_retention_accepts_numeric_string_policy()`
 
 ---
 
 ### [`tests/test_evasion_matrix.py`](tests/test_evasion_matrix.py)
 > *Guardrail evasion-variant matrix (IDEA-625).*
 
-**Size**: `68` lines (`2093` bytes)
+**Size**: `68` lines
 
 **Functions:**
 - `def test_every_generator_changes_the_text_and_keeps_it_nonempty()`
@@ -6204,7 +6207,7 @@
 ### [`tests/test_execution_budget.py`](tests/test_execution_budget.py)
 > *Per-run execution budget: caps, inheritance, flow overrides and executor spending.*
 
-**Size**: `209` lines (`7406` bytes)
+**Size**: `209` lines
 
 **Classes:**
 - `class FakeSettings`
@@ -6231,7 +6234,7 @@
 ### [`tests/test_feature_flags.py`](tests/test_feature_flags.py)
 > *Marketplace and Research ship disabled; opt-in via Settings.*
 
-**Size**: `71` lines (`2412` bytes)
+**Size**: `71` lines
 
 **Functions:**
 - `def client()`
@@ -6247,7 +6250,7 @@
 ### [`tests/test_fixes_verification.py`](tests/test_fixes_verification.py)
 > *Quick verification tests for the bug fixes*
 
-**Size**: `70` lines (`2430` bytes)
+**Size**: `70` lines
 
 **Functions:**
 - `def normalize_month_fixed(year, month)`
@@ -6257,7 +6260,7 @@
 ### [`tests/test_flow_composition.py`](tests/test_flow_composition.py)
 > *Composition and agent-pattern regressions for real (possibly cyclic) flows.*
 
-**Size**: `185` lines (`5591` bytes)
+**Size**: `185` lines
 
 **Functions:**
 - `def manager(tmp_path)`
@@ -6276,7 +6279,7 @@
 ### [`tests/test_flow_context.py`](tests/test_flow_context.py)
 > *Tests for core.flow_context - Pydantic-based FlowContext model*
 
-**Size**: `421` lines (`12617` bytes)
+**Size**: `421` lines
 
 **Classes:**
 - `class TestFlowContextCreation` - *Test FlowContext creation.*
@@ -6326,7 +6329,7 @@
 ### [`tests/test_flow_data.py`](tests/test_flow_data.py)
 > *Tests for core.flow_data - Type-safe flow data handling.*
 
-**Size**: `575` lines (`18382` bytes)
+**Size**: `575` lines
 
 **Classes:**
 - `class TestFlowDataGetters` - *Test type-safe getter functions.*
@@ -6423,7 +6426,7 @@
 ### [`tests/test_flow_evolution.py`](tests/test_flow_evolution.py)
 > *Tests for validated, versioned flow self-evolution.*
 
-**Size**: `276` lines (`9705` bytes)
+**Size**: `276` lines
 
 **Functions:**
 - `def node(node_id, node_type, module_id, **config)`
@@ -6453,7 +6456,7 @@
 ---
 
 ### [`tests/test_flow_integration.py`](tests/test_flow_integration.py)
-**Size**: `110` lines (`5374` bytes)
+**Size**: `110` lines
 
 **Functions:**
 - `def temp_memory_store()`
@@ -6462,7 +6465,7 @@
 ---
 
 ### [`tests/test_flow_manager.py`](tests/test_flow_manager.py)
-**Size**: `446` lines (`18722` bytes)
+**Size**: `446` lines
 
 **Classes:**
 - `class TestFlowVersioning`
@@ -6509,7 +6512,7 @@
 ### [`tests/test_flow_proposer.py`](tests/test_flow_proposer.py)
 > *Tests for LLM-generated flow edit proposals.*
 
-**Size**: `89` lines (`2941` bytes)
+**Size**: `89` lines
 
 **Classes:**
 - `class FakeLLM`
@@ -6529,7 +6532,7 @@
 ---
 
 ### [`tests/test_flow_runner.py`](tests/test_flow_runner.py)
-**Size**: `253` lines (`10114` bytes)
+**Size**: `253` lines
 
 **Functions:**
 - `def mock_flow()` - *A fixture for a valid, simple, linear flow.*
@@ -6549,7 +6552,7 @@
 ### [`tests/test_flow_scheduling.py`](tests/test_flow_scheduling.py)
 > *Regression tests for H-2, H-3 and M-FLOW-2 flow-engine scheduling fixes.*
 
-**Size**: `193` lines (`7826` bytes)
+**Size**: `193` lines
 
 **Functions:**
 - `def _dispatcher_for(executors)` - *Route importlib.import_module to per-module fake node dispatchers.*
@@ -6562,7 +6565,7 @@
 ### [`tests/test_flow_simulation.py`](tests/test_flow_simulation.py)
 > *Deterministic flow simulation: structure, effects, cycles and cost envelope.*
 
-**Size**: `170` lines (`6587` bytes)
+**Size**: `170` lines
 
 **Functions:**
 - `def node(node_id, module, node_type, **extra)`
@@ -6586,7 +6589,7 @@
 ### [`tests/test_flow_store_safety.py`](tests/test_flow_store_safety.py)
 > *Flow store durability and validation regressions.*
 
-**Size**: `149` lines (`4863` bytes)
+**Size**: `149` lines
 
 **Functions:**
 - `def valid_flow(flow_id, name)`
@@ -6603,7 +6606,7 @@
 ---
 
 ### [`tests/test_flow_validation.py`](tests/test_flow_validation.py)
-**Size**: `290` lines (`8581` bytes)
+**Size**: `290` lines
 
 **Functions:**
 - `def mock_module_manager()` - *Create a mock module manager.*
@@ -6627,7 +6630,7 @@
 ### [`tests/test_flow_versioning.py`](tests/test_flow_versioning.py)
 > *Version history for rename, delete, import and reversible rollback.*
 
-**Size**: `80` lines (`2839` bytes)
+**Size**: `80` lines
 
 **Functions:**
 - `def make_manager(tmp_path)`
@@ -6642,7 +6645,7 @@
 ### [`tests/test_goal_pursuit.py`](tests/test_goal_pursuit.py)
 > *Tests for GoalPursuitExecutor — integrated planning, step evaluation, replanning.*
 
-**Size**: `3866` lines (`153752` bytes)
+**Size**: `3866` lines
 
 **Functions:**
 - `def make_executor()` - *Create a GoalPursuitExecutor with patched LLMBridge and sandbox.*
@@ -6813,7 +6816,7 @@
 ---
 
 ### [`tests/test_goals.py`](tests/test_goals.py)
-**Size**: `179` lines (`5630` bytes)
+**Size**: `179` lines
 
 **Functions:**
 - `def temp_db()` - *Create a temporary database for testing.*
@@ -6837,7 +6840,7 @@
 ### [`tests/test_import_smoke.py`](tests/test_import_smoke.py)
 > *Import smoke test: every module's node and router must import (C-1 guard).*
 
-**Size**: `37` lines (`1370` bytes)
+**Size**: `37` lines
 
 **Functions:**
 - `def _module_ids()`
@@ -6849,7 +6852,7 @@
 ### [`tests/test_index_and_correlation.py`](tests/test_index_and_correlation.py)
 > *Correlation edge cases and FTS/FAISS self-healing.*
 
-**Size**: `89` lines (`2657` bytes)
+**Size**: `89` lines
 
 **Classes:**
 - `class CountingConnection` - *Minimal sqlite connection double that returns chosen FTS/chunk counts.*
@@ -6873,7 +6876,7 @@
 ### [`tests/test_kb_recall_budget.py`](tests/test_kb_recall_budget.py)
 > *ANN oversampling with exact rescore (IDEA-1155).*
 
-**Size**: `171` lines (`5517` bytes)
+**Size**: `171` lines
 
 **Classes:**
 - `class _Flat`
@@ -6897,7 +6900,7 @@
 ### [`tests/test_kb_stored_filename.py`](tests/test_kb_stored_filename.py)
 > *Knowledge-base storage-name regressions.*
 
-**Size**: `110` lines (`3428` bytes)
+**Size**: `110` lines
 
 **Functions:**
 - `def test_add_document_persists_stored_filename(tmp_path)`
@@ -6910,7 +6913,7 @@
 ---
 
 ### [`tests/test_knowledge_base.py`](tests/test_knowledge_base.py)
-**Size**: `584` lines (`24007` bytes)
+**Size**: `584` lines
 
 **Classes:**
 - `class TestFaissDimensionMismatchWarning` - *Regression tests for the FAISS/SQLite dimension-mismatch split-brain bug.*
@@ -6960,7 +6963,7 @@
 ---
 
 ### [`tests/test_knowledge_base_improvements.py`](tests/test_knowledge_base_improvements.py)
-**Size**: `245` lines (`8773` bytes)
+**Size**: `245` lines
 
 **Functions:**
 - `async def test_processor_parallel_embeddings()` - *Test that DocumentProcessor can generate embeddings.*
@@ -6976,7 +6979,7 @@
 ### [`tests/test_knowledge_base_node.py`](tests/test_knowledge_base_node.py)
 > *Tests for modules/knowledge_base/node.py — KnowledgeQueryExecutor*
 
-**Size**: `192` lines (`7439` bytes)
+**Size**: `192` lines
 
 **Functions:**
 - `def make_executor()` - *Create a KnowledgeQueryExecutor with fresh import to avoid stale class refs.*
@@ -6997,7 +7000,7 @@
 ### [`tests/test_llm_errors.py`](tests/test_llm_errors.py)
 > *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
 
-**Size**: `51` lines (`1792` bytes)
+**Size**: `51` lines
 
 **Functions:**
 - `def _response(status, *, headers, text)`
@@ -7009,7 +7012,7 @@
 ---
 
 ### [`tests/test_llm_node.py`](tests/test_llm_node.py)
-**Size**: `343` lines (`13461` bytes)
+**Size**: `343` lines
 
 **Functions:**
 - `def reset_shared_client()` - *Reset the shared client before each test to avoid event loop issues.*
@@ -7036,12 +7039,12 @@
 ### [`tests/test_load_error_protection.py`](tests/test_load_error_protection.py)
 > *Test that load_error is never persisted to module.json*
 
-**Size**: `60` lines (`1856` bytes)
+**Size**: `60` lines
 
 ---
 
 ### [`tests/test_logic_nodes.py`](tests/test_logic_nodes.py)
-**Size**: `501` lines (`19033` bytes)
+**Size**: `501` lines
 
 **Functions:**
 - `async def test_delay_executor_valid()` - *Test that DelayExecutor waits for the specified time.*
@@ -7085,7 +7088,7 @@
 ### [`tests/test_login.py`](tests/test_login.py)
 > *M-SEC-8: token-to-session-cookie login for browser UI.*
 
-**Size**: `96` lines (`3176` bytes)
+**Size**: `96` lines
 
 **Functions:**
 - `def client(monkeypatch)`
@@ -7100,7 +7103,7 @@
 ---
 
 ### [`tests/test_main.py`](tests/test_main.py)
-**Size**: `18` lines (`587` bytes)
+**Size**: `18` lines
 
 **Functions:**
 - `def client()` - *A TestClient that handles startup and shutdown events.*
@@ -7109,7 +7112,7 @@
 ---
 
 ### [`tests/test_main_routes.py`](tests/test_main_routes.py)
-**Size**: `188` lines (`7097` bytes)
+**Size**: `188` lines
 
 **Functions:**
 - `def client()` - *A TestClient that provides mock managers to isolate web routes from the file system.*
@@ -7128,7 +7131,7 @@
 ### [`tests/test_marketplace_flow_import.py`](tests/test_marketplace_flow_import.py)
 > *Marketplace flow imports go through the validated flow store, not a direct file write.*
 
-**Size**: `101` lines (`3226` bytes)
+**Size**: `101` lines
 
 **Classes:**
 - `class FakeSettings`
@@ -7146,7 +7149,7 @@
 ---
 
 ### [`tests/test_memory_arbiter.py`](tests/test_memory_arbiter.py)
-**Size**: `109` lines (`3689` bytes)
+**Size**: `109` lines
 
 **Functions:**
 - `def mock_store()`
@@ -7162,7 +7165,7 @@
 ### [`tests/test_memory_backend.py`](tests/test_memory_backend.py)
 > *Tests for modules/memory/backend.py - specifically the FAISS index handling improvements.*
 
-**Size**: `313` lines (`12456` bytes)
+**Size**: `313` lines
 
 **Classes:**
 - `class TestFaissIndexValidation` - *Tests for FAISS index loading and validation.*
@@ -7191,7 +7194,7 @@
 ---
 
 ### [`tests/test_memory_browser.py`](tests/test_memory_browser.py)
-**Size**: `109` lines (`3448` bytes)
+**Size**: `109` lines
 
 **Functions:**
 - `def client()`
@@ -7207,7 +7210,7 @@
 ### [`tests/test_memory_budget.py`](tests/test_memory_budget.py)
 > *Budgeted memory recall block (IDEA-1174).*
 
-**Size**: `146` lines (`5024` bytes)
+**Size**: `146` lines
 
 **Functions:**
 - `def _rows(*texts, **scope)`
@@ -7227,7 +7230,7 @@
 ---
 
 ### [`tests/test_memory_consolidation.py`](tests/test_memory_consolidation.py)
-**Size**: `159` lines (`6445` bytes)
+**Size**: `159` lines
 
 **Functions:**
 - `def mock_store()`
@@ -7245,7 +7248,7 @@
 ### [`tests/test_memory_durability_rung.py`](tests/test_memory_durability_rung.py)
 > *Rung 2: durable scoped memory that persists, reloads and compounds (ADR-104).*
 
-**Size**: `335` lines (`14328` bytes)
+**Size**: `335` lines
 
 **Functions:**
 - `def _vec(x, y, z)`
@@ -7267,7 +7270,7 @@
 ### [`tests/test_memory_file_table.py`](tests/test_memory_file_table.py)
 > *qwenFS parity matrix for the FileTable toy (Stage 3).*
 
-**Size**: `216` lines (`7809` bytes)
+**Size**: `216` lines
 
 **Functions:**
 - `def _scripted()` - *One fixed session script used across the matrix tests.*
@@ -7290,7 +7293,7 @@
 ### [`tests/test_memory_filter_plan.py`](tests/test_memory_filter_plan.py)
 > *Filter-cardinality planner for memory recall (IDEA-1154).*
 
-**Size**: `175` lines (`6470` bytes)
+**Size**: `175` lines
 
 **Functions:**
 - `def _con(rows, source)`
@@ -7313,7 +7316,7 @@
 ### [`tests/test_memory_history.py`](tests/test_memory_history.py)
 > *Edit receipts, history and conditional undo (IDEA-1175).*
 
-**Size**: `141` lines (`4739` bytes)
+**Size**: `141` lines
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -7335,7 +7338,7 @@
 ### [`tests/test_memory_links.py`](tests/test_memory_links.py)
 > *Memory evidence links: CRUD, Bayesian confidence and review-gated contradictions.*
 
-**Size**: `366` lines (`14163` bytes)
+**Size**: `366` lines
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -7370,7 +7373,7 @@
 ---
 
 ### [`tests/test_memory_nodes.py`](tests/test_memory_nodes.py)
-**Size**: `454` lines (`17608` bytes)
+**Size**: `454` lines
 
 **Functions:**
 - `def mock_store()`
@@ -7404,7 +7407,7 @@
 ### [`tests/test_memory_regressions.py`](tests/test_memory_regressions.py)
 > *Memory regressions: upgrade migrations, consolidation, and FAISS edits.*
 
-**Size**: `207` lines (`7224` bytes)
+**Size**: `207` lines
 
 **Functions:**
 - `def test_existing_database_receives_new_schema(tmp_path)`
@@ -7422,7 +7425,7 @@
 ---
 
 ### [`tests/test_memory_router.py`](tests/test_memory_router.py)
-**Size**: `119` lines (`4303` bytes)
+**Size**: `119` lines
 
 **Functions:**
 - `def client()`
@@ -7440,7 +7443,7 @@
 ### [`tests/test_memory_scope.py`](tests/test_memory_scope.py)
 > *Session-scoped memory isolation (IDEA-1109).*
 
-**Size**: `148` lines (`5276` bytes)
+**Size**: `148` lines
 
 **Functions:**
 - `def _vector(x, y, z)`
@@ -7464,7 +7467,7 @@
 ### [`tests/test_memory_write_guard.py`](tests/test_memory_write_guard.py)
 > *Memory and goal writes follow the guardrail policy (IDEA-334).*
 
-**Size**: `64` lines (`2551` bytes)
+**Size**: `64` lines
 
 **Functions:**
 - `def store(tmp_path)`
@@ -7480,7 +7483,7 @@
 ### [`tests/test_messaging_access.py`](tests/test_messaging_access.py)
 > *Per-bridge sender and chat allowlists (IDEA-839, narrowed).*
 
-**Size**: `184` lines (`6900` bytes)
+**Size**: `184` lines
 
 **Functions:**
 - `def make_access(channel, senders, chats)`
@@ -7502,7 +7505,7 @@
 ### [`tests/test_messaging_bridge.py`](tests/test_messaging_bridge.py)
 > *Tests for modules/messaging_bridge — node executors, service routing, and bridges.*
 
-**Size**: `899` lines (`36139` bytes)
+**Size**: `899` lines
 
 **Classes:**
 - `class TestMessagingInputExecutor`
@@ -7614,7 +7617,7 @@
 ### [`tests/test_meta_flow.py`](tests/test_meta_flow.py)
 > *Tests for composing small flows into meta-flows.*
 
-**Size**: `167` lines (`5193` bytes)
+**Size**: `167` lines
 
 **Functions:**
 - `def member(evolution, name, prefix)`
@@ -7637,7 +7640,7 @@
 ### [`tests/test_meta_module.py`](tests/test_meta_module.py)
 > *Tests for the meta-flow subflow executor.*
 
-**Size**: `123` lines (`3978` bytes)
+**Size**: `123` lines
 
 **Classes:**
 - `class FakeRunner`
@@ -7662,7 +7665,7 @@
 ### [`tests/test_model_registry.py`](tests/test_model_registry.py)
 > *Per-model request limits and explicit clamps (IDEA-588).*
 
-**Size**: `85` lines (`3088` bytes)
+**Size**: `85` lines
 
 **Functions:**
 - `def test_a_request_within_limits_is_unchanged_and_reports_no_clamp()`
@@ -7680,7 +7683,7 @@
 ### [`tests/test_module_defaults.py`](tests/test_module_defaults.py)
 > *Which modules a fresh install loads: experimental autonomy stays opt-in.*
 
-**Size**: `47` lines (`1634` bytes)
+**Size**: `47` lines
 
 **Functions:**
 - `def _enabled(module_id)`
@@ -7691,7 +7694,7 @@
 ---
 
 ### [`tests/test_module_manager.py`](tests/test_module_manager.py)
-**Size**: `188` lines (`8363` bytes)
+**Size**: `188` lines
 
 **Functions:**
 - `def temp_modules_dir(tmp_path, monkeypatch)` - *Creates a temporary module directory structure for testing.*
@@ -7710,7 +7713,7 @@
 ### [`tests/test_module_settings_forms.py`](tests/test_module_settings_forms.py)
 > *Typed module-settings forms: backend parsing, clamping and preservation.*
 
-**Size**: `180` lines (`7201` bytes)
+**Size**: `180` lines
 
 **Functions:**
 - `def client()`
@@ -7730,7 +7733,7 @@
 ### [`tests/test_node_retry.py`](tests/test_node_retry.py)
 > *Per-node retry policy: parsing, backoff, classification and bounded attempts.*
 
-**Size**: `354` lines (`10344` bytes)
+**Size**: `354` lines
 
 **Functions:**
 - `def test_retries_are_off_by_default()`
@@ -7759,7 +7762,7 @@
 ### [`tests/test_node_stall.py`](tests/test_node_stall.py)
 > *Node latency outlier detection, bounded history and the debug report (ADR-061).*
 
-**Size**: `103` lines (`3349` bytes)
+**Size**: `103` lines
 
 **Functions:**
 - `def monitor(**overrides)`
@@ -7775,7 +7778,7 @@
 ### [`tests/test_observability.py`](tests/test_observability.py)
 > *Tests for core.observability - Distributed Tracing, Metrics, and Structured Logging*
 
-**Size**: `521` lines (`17891` bytes)
+**Size**: `521` lines
 
 **Classes:**
 - `class TestTraceContext` - *Test TraceContext functionality.*
@@ -7844,7 +7847,7 @@
 ### [`tests/test_outbound_drafts.py`](tests/test_outbound_drafts.py)
 > *Outbound tools draft instead of sending; only the user's approval sends (IDEA-032).*
 
-**Size**: `104` lines (`4753` bytes)
+**Size**: `104` lines
 
 **Functions:**
 - `def store(tmp_path, monkeypatch)`
@@ -7861,7 +7864,7 @@
 ### [`tests/test_packaging.py`](tests/test_packaging.py)
 > *Packaging contract: pyproject.toml is the source of truth for every requirements file.*
 
-**Size**: `48` lines (`1558` bytes)
+**Size**: `48` lines
 
 **Functions:**
 - `def _name(requirement)`
@@ -7876,7 +7879,7 @@
 ### [`tests/test_pinned_http.py`](tests/test_pinned_http.py)
 > *Pinned requests: connect to the vetted address, keep the hostname for Host and TLS (IDEA-063).*
 
-**Size**: `30` lines (`1367` bytes)
+**Size**: `30` lines
 
 **Functions:**
 - `def test_https_goes_to_the_address_and_keeps_the_hostname_for_host_and_sni()`
@@ -7889,7 +7892,7 @@
 ### [`tests/test_plan_step_tracker.py`](tests/test_plan_step_tracker.py)
 > *Tests for modules/planner/node.py — PlanStepTracker*
 
-**Size**: `326` lines (`10912` bytes)
+**Size**: `326` lines
 
 **Functions:**
 - `def executor()`
@@ -7918,7 +7921,7 @@
 ### [`tests/test_planner_node.py`](tests/test_planner_node.py)
 > *Tests for modules/planner/node.py — PlannerExecutor*
 
-**Size**: `578` lines (`20841` bytes)
+**Size**: `578` lines
 
 **Functions:**
 - `def make_executor()` - *Create a PlannerExecutor with LLMBridge patched out.*
@@ -7960,7 +7963,7 @@
 ### [`tests/test_planning_recovery_rung.py`](tests/test_planning_recovery_rung.py)
 > *Rung 1: recoverable 3-step tool planning under a cost ceiling (ADR-103).*
 
-**Size**: `337` lines (`12379` bytes)
+**Size**: `337` lines
 
 **Functions:**
 - `def _tool_call(name, args, call_id)`
@@ -7987,7 +7990,7 @@
 ### [`tests/test_prompt_digest.py`](tests/test_prompt_digest.py)
 > *Shared system-role digest invariant for the agent-loop executors (IDEA-631).*
 
-**Size**: `67` lines (`2627` bytes)
+**Size**: `67` lines
 
 **Functions:**
 - `def test_a_mutated_system_message_is_detected_and_restored()`
@@ -8000,7 +8003,7 @@
 ### [`tests/test_prompt_registry.py`](tests/test_prompt_registry.py)
 > *Versioned prompt registry (IDEA-1238).*
 
-**Size**: `203` lines (`6907` bytes)
+**Size**: `203` lines
 
 **Functions:**
 - `def test_publish_creates_version_one()`
@@ -8023,7 +8026,7 @@
 ---
 
 ### [`tests/test_reasoning_book.py`](tests/test_reasoning_book.py)
-**Size**: `150` lines (`4615` bytes)
+**Size**: `150` lines
 
 **Functions:**
 - `def temp_reasoning_file()` - *Create a temporary reasoning file for testing.*
@@ -8045,7 +8048,7 @@
 ### [`tests/test_reasoning_book_node.py`](tests/test_reasoning_book_node.py)
 > *Tests for modules/reasoning_book/node.py*
 
-**Size**: `414` lines (`18756` bytes)
+**Size**: `414` lines
 
 **Classes:**
 - `class TestReasoningSaveExecutorDefaultField` - *ReasoningSaveExecutor reads 'content' by default (matches agent_loop output).*
@@ -8095,7 +8098,7 @@
 ---
 
 ### [`tests/test_reasoning_book_service.py`](tests/test_reasoning_book_service.py)
-**Size**: `216` lines (`7054` bytes)
+**Size**: `216` lines
 
 **Functions:**
 - `def temp_data_file()`
@@ -8119,7 +8122,7 @@
 ### [`tests/test_reflection_lenses.py`](tests/test_reflection_lenses.py)
 > *Two-lens epistemic critique in the reflection node (IDEA-629).*
 
-**Size**: `295` lines (`10358` bytes)
+**Size**: `295` lines
 
 **Functions:**
 - `def make_executor()`
@@ -8148,7 +8151,7 @@
 ### [`tests/test_reflection_node.py`](tests/test_reflection_node.py)
 > *Tests for modules/reflection/node.py*
 
-**Size**: `808` lines (`31278` bytes)
+**Size**: `808` lines
 
 **Classes:**
 - `class TestReflectionBasic` - *Core satisfied / not-satisfied behaviour.*
@@ -8215,7 +8218,7 @@
 ### [`tests/test_research.py`](tests/test_research.py)
 > *Tests for ResearchManager CRUD operations.*
 
-**Size**: `268` lines (`10491` bytes)
+**Size**: `268` lines
 
 **Classes:**
 - `class TestHypotheses`
@@ -8262,7 +8265,7 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `323` lines (`12352` bytes)
+**Size**: `323` lines
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
@@ -8291,7 +8294,7 @@
 ### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
 > *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
 
-**Size**: `219` lines (`7379` bytes)
+**Size**: `219` lines
 
 **Functions:**
 - `def test_state_allows_running_then_completed()`
@@ -8322,7 +8325,7 @@
 ### [`tests/test_runtime_paths.py`](tests/test_runtime_paths.py)
 > *Runtime state must stay inside the project, whatever the launch directory is.*
 
-**Size**: `121` lines (`4594` bytes)
+**Size**: `121` lines
 
 **Functions:**
 - `def test_runtime_paths_are_absolute_and_inside_project()`
@@ -8337,7 +8340,7 @@
 ### [`tests/test_runtime_regressions.py`](tests/test_runtime_regressions.py)
 > *Runtime regressions: state directory, raise_errors, debug trigger, hardware id.*
 
-**Size**: `150` lines (`4416` bytes)
+**Size**: `150` lines
 
 **Classes:**
 - `class BoomExecutor`
@@ -8359,7 +8362,7 @@
 ### [`tests/test_sandbox_escape.py`](tests/test_sandbox_escape.py)
 > *Regression tests for M3: sandbox escape paths.*
 
-**Size**: `75` lines (`2509` bytes)
+**Size**: `75` lines
 
 **Functions:**
 - `def test_bare_modules_package_is_not_passthrough()`
@@ -8378,7 +8381,7 @@
 ### [`tests/test_sandbox_security.py`](tests/test_sandbox_security.py)
 > *Tests for sandbox security - attempting known bypass techniques.*
 
-**Size**: `92` lines (`3426` bytes)
+**Size**: `92` lines
 
 **Classes:**
 - `class TestSandboxBypassAttempts` - *Test known sandbox bypass techniques are blocked.*
@@ -8401,7 +8404,7 @@
 ### [`tests/test_secret_redaction.py`](tests/test_secret_redaction.py)
 > *Regression tests for M4: secrets must never reach an export or a log in plaintext.*
 
-**Size**: `61` lines (`2340` bytes)
+**Size**: `61` lines
 
 **Functions:**
 - `def test_redact_secrets_masks_flat_and_nested()`
@@ -8416,7 +8419,7 @@
 ### [`tests/test_security_binding.py`](tests/test_security_binding.py)
 > *Regression tests for the M1 control-plane binding policy and trusted-host guard.*
 
-**Size**: `76` lines (`2693` bytes)
+**Size**: `76` lines
 
 **Functions:**
 - `def _guarded_client()`
@@ -8434,7 +8437,7 @@
 ### [`tests/test_security_middleware.py`](tests/test_security_middleware.py)
 > *Regression tests for auth (fail-closed API token) and CSRF (browser-origin) enforcement.*
 
-**Size**: `200` lines (`8210` bytes)
+**Size**: `200` lines
 
 **Classes:**
 - `class TestDeploymentValidation`
@@ -8473,7 +8476,7 @@
 ### [`tests/test_security_regressions.py`](tests/test_security_regressions.py)
 > *Security regressions: HTML escaping, sandbox escapes, isolation and network policy.*
 
-**Size**: `204` lines (`7379` bytes)
+**Size**: `204` lines
 
 **Functions:**
 - `def test_shared_escape_helper_escapes_html_entities()`
@@ -8496,7 +8499,7 @@
 ### [`tests/test_session_manager.py`](tests/test_session_manager.py)
 > *Tests for Session Manager*
 
-**Size**: `606` lines (`20157` bytes)
+**Size**: `606` lines
 
 **Classes:**
 - `class TestSessionManager` - *Test cases for SessionManager.*
@@ -8538,7 +8541,7 @@
 ---
 
 ### [`tests/test_settings.py`](tests/test_settings.py)
-**Size**: `56` lines (`2179` bytes)
+**Size**: `56` lines
 
 **Functions:**
 - `def settings_manager()`
@@ -8551,7 +8554,7 @@
 ---
 
 ### [`tests/test_settings_gui.py`](tests/test_settings_gui.py)
-**Size**: `49` lines (`1606` bytes)
+**Size**: `49` lines
 
 **Functions:**
 - `def client()`
@@ -8563,7 +8566,7 @@
 ### [`tests/test_skill_admission.py`](tests/test_skill_admission.py)
 > *Guardrail admission for imported and edited skills (IDEA-849, narrowed).*
 
-**Size**: `197` lines (`5619` bytes)
+**Size**: `197` lines
 
 **Functions:**
 - `def service(tmp_path, monkeypatch)`
@@ -8587,7 +8590,7 @@
 ### [`tests/test_skills_module.py`](tests/test_skills_module.py)
 > *Tests for the Skills module.*
 
-**Size**: `584` lines (`20485` bytes)
+**Size**: `584` lines
 
 **Classes:**
 - `class TestSkillBackend` - *Test SkillBackend data persistence layer.*
@@ -8646,7 +8649,7 @@
 ### [`tests/test_skills_versions.py`](tests/test_skills_versions.py)
 > *Content-addressed skill versions: history, deduplication and auditable rollback.*
 
-**Size**: `127` lines (`5211` bytes)
+**Size**: `127` lines
 
 **Functions:**
 - `def make_backend(tmp_path)`
@@ -8666,7 +8669,7 @@
 ### [`tests/test_sse_streaming.py`](tests/test_sse_streaming.py)
 > *Tests for SSE streaming (5.1): LLMExecutor streaming path and FlowRunner queue injection.*
 
-**Size**: `254` lines (`9813` bytes)
+**Size**: `254` lines
 
 **Classes:**
 - `class TestLLMExecutorStreaming` - *Tests for the new _receive_with_stream() path in LLMExecutor.*
@@ -8688,7 +8691,7 @@
 ### [`tests/test_statistics_engine.py`](tests/test_statistics_engine.py)
 > *Tests for core/statistics_engine.py and the new ResearchManager experiment tables.*
 
-**Size**: `413` lines (`19071` bytes)
+**Size**: `413` lines
 
 **Classes:**
 - `class TestParseData`
@@ -8766,7 +8769,7 @@
 ### [`tests/test_step_journal.py`](tests/test_step_journal.py)
 > *Run-scoped step journal (IDEA-1152).*
 
-**Size**: `225` lines (`8651` bytes)
+**Size**: `225` lines
 
 **Functions:**
 - `def journal(tmp_path)`
@@ -8792,7 +8795,7 @@
 ### [`tests/test_structured_output.py`](tests/test_structured_output.py)
 > *Tests for Structured Output Enforcement*
 
-**Size**: `365` lines (`11529` bytes)
+**Size**: `365` lines
 
 **Classes:**
 - `class Person`
@@ -8820,7 +8823,7 @@
 ---
 
 ### [`tests/test_system_prompt_node.py`](tests/test_system_prompt_node.py)
-**Size**: `399` lines (`14842` bytes)
+**Size**: `399` lines
 
 **Functions:**
 - `async def test_system_prompt_injection()`
@@ -8852,7 +8855,7 @@
 ### [`tests/test_tool_approvals_api.py`](tests/test_tool_approvals_api.py)
 > *Approval endpoints for HIGH-tier tool calls (IDEA-060).*
 
-**Size**: `51` lines (`2146` bytes)
+**Size**: `51` lines
 
 **Functions:**
 - `def test_a_held_call_needs_the_phrase_and_runs_once(tmp_path, monkeypatch)`
@@ -8864,7 +8867,7 @@
 ### [`tests/test_tool_cancellation.py`](tests/test_tool_cancellation.py)
 > *Per-call cancellation and status receipts (IDEA-1173).*
 
-**Size**: `167` lines (`5717` bytes)
+**Size**: `167` lines
 
 **Functions:**
 - `def test_progress_bad_fraction_falls_back_to_none()`
@@ -8886,7 +8889,7 @@
 ### [`tests/test_tool_journal.py`](tests/test_tool_journal.py)
 > *At-most-once tool execution journal (IDEA-1111).*
 
-**Size**: `201` lines (`5866` bytes)
+**Size**: `201` lines
 
 **Classes:**
 - `class _Manager`
@@ -8912,7 +8915,7 @@
 ### [`tests/test_tool_name_validation.py`](tests/test_tool_name_validation.py)
 > *L-5: tool names must be provider-safe function names.*
 
-**Size**: `34` lines (`941` bytes)
+**Size**: `34` lines
 
 **Functions:**
 - `def test_valid_names_pass()`
@@ -8926,7 +8929,7 @@
 ### [`tests/test_tool_policy.py`](tests/test_tool_policy.py)
 > *Default-deny first-match tool policy (IDEA-058).*
 
-**Size**: `256` lines (`9216` bytes)
+**Size**: `256` lines
 
 **Functions:**
 - `def rule(name, decision, when, risk, reason)`
@@ -8960,7 +8963,7 @@
 ### [`tests/test_tool_reliability_rung.py`](tests/test_tool_reliability_rung.py)
 > *Rung 3: reliable headless tool use under ceilings + kill-switch (ADR-110).*
 
-**Size**: `401` lines (`16386` bytes)
+**Size**: `401` lines
 
 **Functions:**
 - `def _calc_code()`
@@ -8978,7 +8981,7 @@
 ### [`tests/test_tool_sandbox.py`](tests/test_tool_sandbox.py)
 > *Tests for the Tool Sandbox security system.*
 
-**Size**: `631` lines (`22611` bytes)
+**Size**: `631` lines
 
 **Classes:**
 - `class TestRestrictedImport` - *Tests for the restricted import hook.*
@@ -9036,7 +9039,7 @@
 ### [`tests/test_tool_tiers.py`](tests/test_tool_tiers.py)
 > *Fail-closed tiers for structured tool calls (IDEA-060).*
 
-**Size**: `101` lines (`3855` bytes)
+**Size**: `101` lines
 
 **Functions:**
 - `def registry_with(tmp_path, entries)`
@@ -9053,7 +9056,7 @@
 ### [`tests/test_tools_capabilities.py`](tests/test_tools_capabilities.py)
 > *Declared-primitive tool manifest and pre-call refusal (IDEA-1172).*
 
-**Size**: `199` lines (`6775` bytes)
+**Size**: `199` lines
 
 **Functions:**
 - `def library(tmp_path)`
@@ -9076,7 +9079,7 @@
 ---
 
 ### [`tests/test_tools_library.py`](tests/test_tools_library.py)
-**Size**: `577` lines (`21041` bytes)
+**Size**: `577` lines
 
 **Classes:**
 - `class TestCalculator` - *Tests for Calculator tool.*
@@ -9159,7 +9162,7 @@
 ### [`tests/test_tools_node.py`](tests/test_tools_node.py)
 > *Tests for modules/tools/node.py — ToolDispatcherExecutor*
 
-**Size**: `211` lines (`8639` bytes)
+**Size**: `211` lines
 
 **Functions:**
 - `def make_input(tool_calls, messages)` - *Build a minimal input_data dict with tool_calls in OpenAI format.*
@@ -9185,7 +9188,7 @@
 ### [`tests/test_trace_context.py`](tests/test_trace_context.py)
 > *Trace/span identity and outcome stamping (IDEA-1237).*
 
-**Size**: `103` lines (`2765` bytes)
+**Size**: `103` lines
 
 **Functions:**
 - `def _reset()`
@@ -9201,7 +9204,7 @@
 ---
 
 ### [`tests/test_ui_dynamics.py`](tests/test_ui_dynamics.py)
-**Size**: `41` lines (`1589` bytes)
+**Size**: `41` lines
 
 **Functions:**
 - `def client()`
@@ -9215,7 +9218,7 @@
 ### [`tests/test_untrusted_fences.py`](tests/test_untrusted_fences.py)
 > *Untrusted text is fenced as data with a per-block random id (IDEA-030).*
 
-**Size**: `69` lines (`3608` bytes)
+**Size**: `69` lines
 
 **Functions:**
 - `def test_a_block_is_fenced_with_a_fresh_id_and_a_data_note()`
@@ -9230,7 +9233,7 @@
 ### [`tests/test_useless_gate.py`](tests/test_useless_gate.py)
 > *Failing-first tests for core/useless_gate.py (IDEA-1335).*
 
-**Size**: `56` lines (`1501` bytes)
+**Size**: `56` lines
 
 **Functions:**
 - `def test_explicit_useless_flag_counts()`
@@ -9246,7 +9249,7 @@
 ### [`tests/test_xss_escaping.py`](tests/test_xss_escaping.py)
 > *Regression tests for M5: stored content must be escaped, not rendered as HTML.*
 
-**Size**: `67` lines (`2780` bytes)
+**Size**: `67` lines
 
 **Functions:**
 - `def test_jinja_environment_autoescapes()`
@@ -9260,7 +9263,7 @@
 ### [`tests/test_xss_hardening.py`](tests/test_xss_hardening.py)
 > *C-2 regression: model output must never hit innerHTML unsanitised.*
 
-**Size**: `61` lines (`2217` bytes)
+**Size**: `61` lines
 
 **Functions:**
 - `def _read(name)`
