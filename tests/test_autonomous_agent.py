@@ -1022,6 +1022,24 @@ async def test_flow_update_rejects_a_cycle(tmp_path):
     ]
 
 
+def test_sandbox_falls_back_on_bad_numeric_config():
+    """A malformed sandbox limit must not abort agent startup (autonomous-agent triage)."""
+    from modules.autonomous_agent.core.sandbox import AgentSandbox
+
+    cfg = AgentConfig(sandbox={
+        "max_flow_nodes": "abc",
+        "max_flow_complexity": "abc",
+        "execution_timeout": "abc",
+        "rate_limits": {"messages_per_minute": "abc"},
+    })
+
+    sandbox = AgentSandbox(cfg)
+    assert sandbox.policies[ActionType.CREATE_FLOW].max_nodes > 0
+    assert sandbox.policies[ActionType.CREATE_FLOW].max_complexity > 0
+    assert sandbox.policies[ActionType.EXECUTE_FLOW].timeout > 0
+    assert sandbox.policies[ActionType.SEND_MESSAGE].rate_limit > 0
+
+
 @pytest.mark.asyncio
 async def test_sandbox_rejects_flow_over_configured_limit(tmp_path):
     agent = make_agent(

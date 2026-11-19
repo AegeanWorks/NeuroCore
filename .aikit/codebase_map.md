@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2881`
+- **Total Top-Level Functions**: `2883`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103240`
+- **Total Source Lines**: `103281`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1838,7 +1838,7 @@
 ### [`modules/autonomous_agent/core/sandbox.py`](modules/autonomous_agent/core/sandbox.py)
 > *Sandbox for the Autonomous Agent - Restricted execution environment.*
 
-**Size**: `396` lines
+**Size**: `419` lines
 
 **Classes:**
 - `class SandboxViolation` - *Raised when agent attempts unauthorized action.*
@@ -1879,6 +1879,9 @@
   - Method `.get_audit_log(limit)` - *Get recent audit log entries.*
   - Method `.get_resource_usage()` - *Get current resource usage.*
   - Method `.get_owned_flows()` - *Get list of flow IDs owned by agent.*
+
+**Functions:**
+- `def _number(value, cast)` - *Coerce a configured limit; on a bad value return None so the default policy stays.*
 
 ---
 
@@ -4837,7 +4840,7 @@
 ### [`tests/test_autonomous_agent.py`](tests/test_autonomous_agent.py)
 > *Tests for the experimental autonomous agent runtime.*
 
-**Size**: `1214` lines
+**Size**: `1232` lines
 
 **Classes:**
 - `class FakeProposer`
@@ -4894,6 +4897,7 @@
 - `async def test_agent_evolves_an_owned_flow(tmp_path)`
 - `async def test_agent_cannot_evolve_an_unowned_flow(tmp_path)`
 - `async def test_flow_update_rejects_a_cycle(tmp_path)`
+- `def test_sandbox_falls_back_on_bad_numeric_config()` - *A malformed sandbox limit must not abort agent startup (autonomous-agent triage).*
 - `async def test_sandbox_rejects_flow_over_configured_limit(tmp_path)`
 - `async def test_load_existing_flows_adopts_only_owned(tmp_path)`
 - `async def test_load_existing_flows_skips_malformed_metadata(tmp_path)`

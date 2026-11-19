@@ -5,6 +5,7 @@ Sandbox for the Autonomous Agent - Restricted execution environment.
 import asyncio
 import copy
 import json
+import logging
 import time
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
@@ -12,6 +13,20 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from .types import ActionType, AgentConfig, AgentAction, FlowSpec, AgentMessage
+
+logger = logging.getLogger(__name__)
+
+
+def _number(value, cast=int):
+    """Coerce a configured limit; on a bad value return None so the default policy stays."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError, OverflowError):
+        logger.warning(
+            "Invalid sandbox limit %r; keeping the default. Why: a bad setting must not abort "
+            "agent startup. Fix: configure the limit as a number.", value,
+        )
+        return None
 
 
 class SandboxViolation(Exception):
@@ -125,13 +140,19 @@ class AgentSandbox:
         """Apply the configured limits to the default policies."""
         create_policy = self.policies[ActionType.CREATE_FLOW]
         if sandbox_config.get("max_flow_nodes") is not None:
-            create_policy.max_nodes = int(sandbox_config["max_flow_nodes"])
+            value = _number(sandbox_config["max_flow_nodes"])
+            if value is not None:
+                create_policy.max_nodes = value
         if sandbox_config.get("max_flow_complexity") is not None:
-            create_policy.max_complexity = int(sandbox_config["max_flow_complexity"])
+            value = _number(sandbox_config["max_flow_complexity"])
+            if value is not None:
+                create_policy.max_complexity = value
 
         execute_policy = self.policies[ActionType.EXECUTE_FLOW]
         if sandbox_config.get("execution_timeout") is not None:
-            execute_policy.timeout = int(sandbox_config["execution_timeout"])
+            value = _number(sandbox_config["execution_timeout"])
+            if value is not None:
+                execute_policy.timeout = value
 
         tool_policy = self.policies[ActionType.USE_TOOL]
         if sandbox_config.get("allowed_tools"):
@@ -140,7 +161,9 @@ class AgentSandbox:
         rate_limits = sandbox_config.get("rate_limits", {})
         message_policy = self.policies[ActionType.SEND_MESSAGE]
         if rate_limits.get("messages_per_minute") is not None:
-            message_policy.rate_limit = int(rate_limits["messages_per_minute"])
+            value = _number(rate_limits["messages_per_minute"])
+            if value is not None:
+                message_policy.rate_limit = value
     
     def validate_action(self, action_type: ActionType) -> ActionPolicy:
         """Check if action is allowed and return its policy."""
