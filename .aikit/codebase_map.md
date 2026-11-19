@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2904`
+- **Total Top-Level Functions**: `2905`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103638`
+- **Total Source Lines**: `103645`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -4623,7 +4623,7 @@
 ### [`tests/test_agent_loop.py`](tests/test_agent_loop.py)
 > *Tests for modules/agent_loop/node.py*
 
-**Size**: `2014` lines
+**Size**: `2021` lines
 
 **Classes:**
 - `class TestAgentLoopBasic` - *Tests for basic agent loop functionality.*
@@ -4739,6 +4739,7 @@
 - `def make_llm_response(content, tool_calls)` - *Build a minimal valid LLM response dict.*
 - `def make_tool_call(name, args, call_id)` - *Build a minimal tool_call dict as returned by the LLM.*
 - `def make_executor(tools, library)` - *Create an AgentLoopExecutor with _load_tools and _load_tool_library patched*
+- `async def test_receive_tolerates_bad_checkpoint_interval()` - *A malformed checkpoint_interval must fall back instead of raising on comparison.*
 - `async def test_every_agent_loop_executor_holds_a_high_risk_tool(tmp_path, monkeypatch)`
 - `async def test_a_mutated_system_message_is_restored_before_the_next_model_call()`
 - `async def test_the_rlm_loop_restores_a_mutated_system_message()`

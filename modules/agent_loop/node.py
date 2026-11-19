@@ -1046,7 +1046,7 @@ class AgentLoopExecutor(AgentBaseExecutor):
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
-        checkpoint_interval = config.get("checkpoint_interval", 1)
+        checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
             logger.warning("checkpoint_interval must be >= 1, defaulting to 1")
             checkpoint_interval = 1
@@ -1932,7 +1932,7 @@ Call set_final() when complete."""
         max_replan_depth = _cfg_int("max_replan_depth", 3)
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
-        checkpoint_interval = config.get("checkpoint_interval", 1)
+        checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
             logger.warning("[RLMAgent] checkpoint_interval must be >= 1, defaulting to 1")
             checkpoint_interval = 1
@@ -2754,7 +2754,7 @@ class HybridAgentExecutor(AgentBaseExecutor):
         # --- Episode Persistence Support ---
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
-        checkpoint_interval = config.get("checkpoint_interval", 1)
+        checkpoint_interval = _state_int(config.get("checkpoint_interval", 1), 1)
         if checkpoint_interval <= 0:
             logger.warning("[HybridAgent] checkpoint_interval must be >= 1, defaulting to 1")
             checkpoint_interval = 1

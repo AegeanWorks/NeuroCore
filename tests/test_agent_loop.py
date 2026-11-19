@@ -64,6 +64,13 @@ def make_executor(tools: dict = None, library: dict = None) -> AgentLoopExecutor
 # Basic functionality
 # ---------------------------------------------------------------------------
 
+async def test_receive_tolerates_bad_checkpoint_interval():
+    """A malformed checkpoint_interval must fall back instead of raising on comparison."""
+    executor = make_executor()
+    result = await executor.receive({}, config={"checkpoint_interval": "abc"})
+    assert isinstance(result, dict)
+
+
 class TestAgentLoopBasic:
     """Tests for basic agent loop functionality."""
 
