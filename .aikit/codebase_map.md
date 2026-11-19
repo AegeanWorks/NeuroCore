@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2887`
+- **Total Top-Level Functions**: `2888`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103383`
+- **Total Source Lines**: `103404`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2325,7 +2325,7 @@
 ### [`modules/brain/improvement.py`](modules/brain/improvement.py)
 > *Evaluation-gated flow improvement with quotas, promotion and rollback.*
 
-**Size**: `522` lines
+**Size**: `531` lines
 
 **Classes:**
 - `class QuotaExceededError` - *Raised when a daily improvement quota is exhausted (HTTP 429).*
@@ -5155,7 +5155,7 @@
 ### [`tests/test_brain_improvement.py`](tests/test_brain_improvement.py)
 > *Eval-gated flow improvement: preview, quotas, promotion and rollback.*
 
-**Size**: `407` lines
+**Size**: `419` lines
 
 **Classes:**
 - `class FakeEvalRunner`
@@ -5172,6 +5172,7 @@
 - `def rename_ops(name)`
 - `def test_preview_applies_operations_without_saving(tmp_path)`
 - `async def test_concurrent_evaluations_share_the_run_window(tmp_path)` - *The slow evaluation run must not hold the ledger lock: two*
+- `async def test_evaluate_tolerates_malformed_pass_rate(tmp_path)` - *A bad pass_rate in an evaluation result must not abort the evaluate call.*
 - `async def test_candidate_is_promoted_only_after_evaluation_and_can_rollback(tmp_path)`
 - `async def test_failed_candidate_never_leaves_the_flow_modified(tmp_path)`
 - `async def test_candidate_with_a_foreign_baseline_is_not_promotable(tmp_path)`

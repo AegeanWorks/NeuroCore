@@ -312,7 +312,16 @@ class ImprovementEngine:
 
             comparison = compare_results(evaluation, baseline)
             baseline_reasons = self._baseline_quality_reasons(baseline, flow_id)
-            candidate_rate = float(evaluation.get("pass_rate", 0.0))
+            try:
+                candidate_rate = float(evaluation.get("pass_rate", 0.0))
+            except (TypeError, ValueError):
+                # A malformed pass rate cannot be a perfect result; treat it as zero and let the
+                # normal "failed" branch record the comparison rather than aborting evaluation.
+                logger.warning(
+                    "Invalid evaluation pass_rate %r; treating as 0.0.",
+                    evaluation.get("pass_rate"),
+                )
+                candidate_rate = 0.0
             candidate_failed = list(evaluation.get("failed_tasks", []))
             candidate_perfect = candidate_rate == 1.0 and not candidate_failed
             # An incomparable suite is not a pass: an edited check must not look like an improvement

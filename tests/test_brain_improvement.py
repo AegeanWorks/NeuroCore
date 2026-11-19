@@ -145,6 +145,18 @@ async def test_concurrent_evaluations_share_the_run_window(tmp_path):
     assert s2 < e1, "evaluation runs did not overlap: lock held across the run"
 
 
+async def test_evaluate_tolerates_malformed_pass_rate(tmp_path):
+    """A bad pass_rate in an evaluation result must not abort the evaluate call."""
+    manager = make_flow_manager(tmp_path)
+    engine, _ = make_engine(tmp_path, manager)
+    engine.evaluation_runner = FakeEvalRunner(pass_rate="abc")
+
+    candidate = await engine.propose("echo-flow", rename_ops("Bad rate"), "Bad rate")
+    result = await engine.evaluate(candidate["id"])
+
+    assert result["status"] == "failed"
+
+
 async def test_candidate_is_promoted_only_after_evaluation_and_can_rollback(tmp_path):
     manager = make_flow_manager(tmp_path)
     engine, _ = make_engine(tmp_path, manager)
