@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2896`
+- **Total Top-Level Functions**: `2898`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103525`
+- **Total Source Lines**: `103554`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2557,9 +2557,10 @@
 ### [`modules/brain/router.py`](modules/brain/router.py)
 > *HTTP surface for the AI-Brain substrate and evaluation harness.*
 
-**Size**: `703` lines
+**Size**: `712` lines
 
 **Functions:**
+- `def _body_bool(raw, default)` - *Parse a JSON body flag strictly; bool("false") would otherwise be truthy.*
 - `async def brain_startup()`
 - `async def brain_shutdown()`
 - `async def brain_ui(request)`
@@ -5340,11 +5341,12 @@
 ### [`tests/test_brain_router_validation.py`](tests/test_brain_router_validation.py)
 > *Brain router numeric validation: malformed numbers are 400s, not 500s.*
 
-**Size**: `45` lines
+**Size**: `65` lines
 
 **Functions:**
 - `async def _operator()`
 - `def _operator_client()`
+- `def test_learn_parses_false_string_as_false(operator_client, monkeypatch)` - *bool("false") is truthy in Python; the outcome endpoint must parse it strictly.*
 - `def test_events_rejects_bad_salience_with_400(operator_client)`
 - `def test_recall_rejects_bad_top_k()`
 - `def test_suggest_rejects_bad_top_k()`

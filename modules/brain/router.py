@@ -30,6 +30,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(get_brain_actor)])
 
 
+def _body_bool(raw, default: bool = False) -> bool:
+    """Parse a JSON body flag strictly; bool("false") would otherwise be truthy."""
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 @router.on_event("startup")
 async def brain_startup():
     if brain_resume_requested() or brain_auto_start_enabled():
@@ -271,7 +280,7 @@ async def brain_learn(body: dict = Body(...),
             action=str(body["action"]),
             input_data=body.get("input", {}),
             output=body.get("output", ""),
-            success=bool(body.get("success", False)),
+            success=_body_bool(body.get("success", False)),
             error=body.get("error"),
             latency_ms=float(body.get("latency_ms", 0.0)),
             tags=(body.get("tags") if isinstance(body.get("tags"), list) else [])
@@ -403,7 +412,7 @@ async def brain_improve_evaluate(body: dict = Body(...),
         raise HTTPException(status_code=400, detail="candidate_id is required")
     try:
         return await get_brain_service().evaluate_improvement(
-            str(candidate_id), approve=bool(body.get("approve", False)),
+            str(candidate_id), approve=_body_bool(body.get("approve", False)),
             approved_by=actor.name,
         )
     except KernelBlockedError as exc:
