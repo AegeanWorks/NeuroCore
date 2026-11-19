@@ -202,6 +202,33 @@ def test_reused_episode_id_bumps_the_generation(tmp_path):
     assert episode.generation == 2
 
 
+def test_episode_state_falls_back_on_malformed_generation():
+    from core.session_manager import EpisodeState
+
+    assert EpisodeState(generation="abc").generation == 1
+
+
+def test_reused_episode_with_corrupt_generation_falls_back(tmp_path):
+    """A corrupt tombstone generation must not abort creating the reused episode."""
+    directory = tmp_path / "episodes"
+    directory.mkdir()
+    (directory / "tombstones.json").write_text(json.dumps({
+        "reuse": {
+            "episode_id": "reuse", "generation": "abc",
+            "purged_at": "2026-10-31T12:00:00Z", "reason": "completion_retention",
+        },
+    }), encoding="utf-8")
+
+    manager = SessionManager(
+        session_file=str(tmp_path / "session.json"),
+        trace_file=str(tmp_path / "trace.jsonl"),
+        episode_dir=str(directory),
+    )
+    episode = manager.create_episode(episode_id="reuse")
+
+    assert episode.generation == 2
+
+
 def test_validation_coerces_numeric_strings_into_the_returned_policy():
     # validate() coerced into locals but returned the original frozen dataclass, so a policy built
     # from string settings still carried strings into the timedelta arithmetic downstream.

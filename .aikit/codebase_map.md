@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2872`
+- **Total Top-Level Functions**: `2875`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `103042`
+- **Total Source Lines**: `103082`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1188,7 +1188,7 @@
 ### [`core/session_manager.py`](core/session_manager.py)
 > *Session Manager for NeuroCore*
 
-**Size**: `1288` lines
+**Size**: `1301` lines
 
 **Classes:**
 - `class TraceWriter` - *Append-only JSON Lines trace writer.*
@@ -1256,6 +1256,7 @@
   - Method `.delete_episode(episode_id)` - *Delete a specific episode.*
 
 **Functions:**
+- `def _number(value, default, cast)` - *Coerce a persisted numeric field, falling back with a warning on a malformed value.*
 - `def validate_episode_id(episode_id)` - *Return the id when safe to use as a file name, else raise ValueError.*
 - `def get_session_manager()` - *Get or create the global SessionManager instance.*
 
@@ -6185,7 +6186,7 @@
 ### [`tests/test_episode_retention.py`](tests/test_episode_retention.py)
 > *Two-tier episode retention with a reuse guard (IDEA-1153).*
 
-**Size**: `235` lines
+**Size**: `262` lines
 
 **Functions:**
 - `def _write_episode(directory, episode_id, phase, age_days, **extra)`
@@ -6205,6 +6206,8 @@
 - `def test_terminal_episode_gets_both_expiry_stamps()`
 - `def test_running_episode_is_not_stamped()`
 - `def test_reused_episode_id_bumps_the_generation(tmp_path)`
+- `def test_episode_state_falls_back_on_malformed_generation()`
+- `def test_reused_episode_with_corrupt_generation_falls_back(tmp_path)` - *A corrupt tombstone generation must not abort creating the reused episode.*
 - `def test_validation_coerces_numeric_strings_into_the_returned_policy()`
 - `def test_compute_retention_accepts_numeric_string_policy()`
 - `def test_stamp_retention_accepts_numeric_string_policy()`

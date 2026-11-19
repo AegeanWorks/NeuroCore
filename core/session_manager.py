@@ -45,6 +45,19 @@ from core.paths import data_path
 
 logger = logging.getLogger(__name__)
 
+
+def _number(value, default, cast):
+    """Coerce a persisted numeric field, falling back with a warning on a malformed value."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid saved numeric field %r (%s); using %s. Why: a bad tombstone must not abort "
+            "episode creation. Fix: store the field as a number.",
+            value, exc, default,
+        )
+        return default
+
 # Configuration
 SESSION_FILE = data_path("session.json")
 TRACE_FILE = data_path("execution_trace.jsonl")
@@ -273,7 +286,7 @@ class EpisodeState:
         self.completed_at = completed_at
         self.expires_at = expires_at
         self.journal_expires_at = journal_expires_at
-        self.generation = int(generation or 1)
+        self.generation = _number(generation or 1, 1, int)
         self.created_at = datetime.now(timezone.utc).isoformat()
         self.updated_at = self.created_at
     
@@ -861,7 +874,7 @@ class SessionManager:
 
                 tombstone = purge_tombstoned(self.episode_dir, episode_id)
                 if tombstone:
-                    generation = int(tombstone.get("generation") or 1) + 1
+                    generation = _number(tombstone.get("generation") or 1, 1, int) + 1
                     logger.info(
                         "[Session] Reusing episode id %s at generation %d; the predecessor "
                         "was purged on %s",
