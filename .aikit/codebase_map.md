@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2901`
+- **Total Top-Level Functions**: `2903`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103615`
+- **Total Source Lines**: `103631`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3247,7 +3247,7 @@
 ### [`modules/knowledge_base/recall.py`](modules/knowledge_base/recall.py)
 > *ANN oversampling with exact rescore and an explicit recall budget (IDEA-1155).*
 
-**Size**: `106` lines
+**Size**: `116` lines
 
 **Classes:**
 - `class RecallBudget`
@@ -3256,6 +3256,7 @@
   - Method `.nprobe(nlist)`
 
 **Functions:**
+- `def _flag(value, default)` - *Parse a boolean flag strictly; bool("false") would otherwise be truthy.*
 - `def budget_from_settings(settings_map, enabled)` - *Read the configured budget; ``None`` means the caller keeps the plain path.*
 - `def is_ivf_index(index)` - *True when the index (or the index it wraps) is an IVF variant.*
 - `def diagnostics(budget, nlist, limit, ntotal)`
@@ -6921,7 +6922,7 @@
 ### [`tests/test_kb_recall_budget.py`](tests/test_kb_recall_budget.py)
 > *ANN oversampling with exact rescore (IDEA-1155).*
 
-**Size**: `207` lines
+**Size**: `213` lines
 
 **Classes:**
 - `class _Flat`
@@ -6934,6 +6935,7 @@
 - `def test_nprobe_is_a_fraction_of_the_list_count()`
 - `def test_budget_rejects_a_degenerate_oversample()`
 - `def test_budget_from_settings_defaults_when_unset()`
+- `def test_budget_from_settings_parses_false_string()` - *bool("false") is truthy; a configured rescore=false must stay disabled.*
 - `def test_budget_from_settings_falls_back_on_bad_values()` - *Malformed recall-budget settings must not abort knowledge search (KB triage queue).*
 - `def test_budget_from_settings_reads_values()`
 - `def test_is_ivf_index_sees_through_the_id_map_wrapper()`

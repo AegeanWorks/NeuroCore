@@ -46,6 +46,12 @@ def test_budget_from_settings_defaults_when_unset():
     assert budget_from_settings({"kb_recall_budget": {}}, enabled=False) is None
 
 
+def test_budget_from_settings_parses_false_string():
+    """bool("false") is truthy; a configured rescore=false must stay disabled."""
+    budget = budget_from_settings({"kb_recall_budget": {"rescore": "false"}})
+    assert budget.rescore is False
+
+
 def test_budget_from_settings_falls_back_on_bad_values():
     """Malformed recall-budget settings must not abort knowledge search (KB triage queue)."""
     budget = budget_from_settings({"kb_recall_budget": {

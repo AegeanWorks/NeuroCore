@@ -13,6 +13,16 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _flag(value, default: bool = True) -> bool:
+    """Parse a boolean flag strictly; bool("false") would otherwise be truthy."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 DEFAULT_OVERSAMPLE = 4
 DEFAULT_NPROBE_FRACTION = 0.125
 DEFAULT_MAX_CANDIDATES = 256
@@ -79,7 +89,7 @@ def budget_from_settings(settings_map: Optional[Dict[str, Any]] = None,
         oversample=number("oversample", DEFAULT_OVERSAMPLE, int),
         nprobe_fraction=number("nprobe_fraction", DEFAULT_NPROBE_FRACTION, float),
         max_candidates=number("max_candidates", DEFAULT_MAX_CANDIDATES, int),
-        rescore=bool(raw.get("rescore", True)),
+        rescore=_flag(raw.get("rescore", True)),
     ).validate()
 
 
