@@ -49,6 +49,22 @@ def patch_settings_url(monkeypatch):
     monkeypatch.setattr(global_settings, "save_settings", mock_save)
 
 
+def test_compact_route_survives_bad_keep_last(client, mock_chat_sessions):
+    """A malformed compact_keep_last must not 500 the compact route (chat triage queue)."""
+    session = mock_chat_sessions.create_session("Compact Test")
+    module_manager = client.app.state.module_manager
+    chat_module = dict(module_manager.modules.get("chat") or {})
+    chat_module["config"] = {"compact_keep_last": "abc"}
+    module_manager.modules["chat"] = chat_module
+
+    with patch.object(chat_router_module.session_manager, "compact_session",
+                      new_callable=AsyncMock) as compact:
+        compact.return_value = (True, 10)
+        response = client.post(f"/chat/sessions/{session['id']}/compact")
+
+    assert response.status_code == 200
+
+
 @pytest.mark.asyncio
 async def test_multimodal_image_upload(client, mock_chat_sessions):
     session = mock_chat_sessions.create_session("Image Test")

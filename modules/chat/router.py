@@ -21,6 +21,21 @@ logger = logging.getLogger(__name__)
 # A chat message starting with this word is answered by the brain conversation instead of the flow.
 BRAIN_PREFIX = "/brain"
 
+
+def _config_int(config: dict, key: str, default: int) -> int:
+    """Read an integer setting, falling back with a warning on malformed module config."""
+    raw = (config or {}).get(key, default)
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[Chat] Invalid %s=%r (%s); using %s. Why: a bad setting must not break the chat "
+            "route. Fix: configure %s as an integer.",
+            key, raw, exc, default, key,
+        )
+        return default
+
+
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
@@ -410,7 +425,7 @@ async def compact_session_route(
     module_manager = request.app.state.module_manager
     chat_module = module_manager.modules.get("chat")
     config = chat_module.get("config", {}) if chat_module else {}
-    keep_last = int(config.get("compact_keep_last", 10))
+    keep_last = _config_int(config, "compact_keep_last", 10)
 
     compacted, tokens_before = await session_manager.compact_session(session_id, llm, keep_last=keep_last)
 
@@ -575,8 +590,8 @@ async def send_message(
     config = chat_module.get("config", {}) if chat_module else {}
 
     # Auto-compact if estimated token count exceeds the configured threshold
-    auto_compact_tokens = int(config.get("auto_compact_tokens", 0))
-    compact_keep_last = int(config.get("compact_keep_last", 10))
+    auto_compact_tokens = _config_int(config, "auto_compact_tokens", 0)
+    compact_keep_last = _config_int(config, "compact_keep_last", 10)
     if auto_compact_tokens > 0:
         estimated = _estimate_tokens(active_session["history"])
         if estimated > auto_compact_tokens:
@@ -740,7 +755,7 @@ async def send_message(
                 module_manager = request.app.state.module_manager
                 chat_module = module_manager.modules.get("chat")
                 config = chat_module.get("config", {}) if chat_module else {}
-                auto_rename_turns = int(config.get("auto_rename_turns", 3))
+                auto_rename_turns = _config_int(config, "auto_rename_turns", 3)
 
                 # Reload session to ensure latest state
                 current_session = session_manager.get_session(session_id)

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2852`
+- **Total Top-Level Functions**: `2854`
 - **Total Class Methods**: `2483`
-- **Total Source Lines**: `102676`
+- **Total Source Lines**: `102707`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2946,9 +2946,10 @@
 ---
 
 ### [`modules/chat/router.py`](modules/chat/router.py)
-**Size**: `904` lines
+**Size**: `919` lines
 
 **Functions:**
+- `def _config_int(config, key, default)` - *Read an integer setting, falling back with a warning on malformed module config.*
 - `def _stream_key(session_id, msg_id)`
 - `def _latest_stream_for(session_id)` - *Newest queue for a session (back-compat when no msg_id is given).*
 - `def _session_has_stream(session_id)`
@@ -5600,12 +5601,13 @@
 ---
 
 ### [`tests/test_chat_features.py`](tests/test_chat_features.py)
-**Size**: `158` lines
+**Size**: `174` lines
 
 **Functions:**
 - `def client()`
 - `def mock_chat_sessions(monkeypatch)`
 - `def patch_settings_url(monkeypatch)`
+- `def test_compact_route_survives_bad_keep_last(client, mock_chat_sessions)` - *A malformed compact_keep_last must not 500 the compact route (chat triage queue).*
 - `async def test_multimodal_image_upload(client, mock_chat_sessions)`
 - `async def test_svg_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: scriptable image types never reach the session store.*
 - `async def test_oversize_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: uploads over 5 MB are refused before base64 inline.*
