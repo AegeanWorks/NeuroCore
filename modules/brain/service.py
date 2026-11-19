@@ -34,6 +34,24 @@ from .trends import TrendMonitor
 
 logger = logging.getLogger(__name__)
 
+
+def _option_number(key: str, value: Any, cast, floor=None, cap=None):
+    """Coerce a brain option, returning None on a bad value so the runtime setting is kept."""
+    try:
+        result = cast(value)
+    except (TypeError, ValueError, OverflowError):
+        logger.warning(
+            "Invalid brain option %s=%r; keeping the current value. Why: a bad setting must not "
+            "raise after it was written to config. Fix: configure %s as a number.",
+            key, value, key,
+        )
+        return None
+    if floor is not None:
+        result = max(floor, result)
+    if cap is not None:
+        result = min(cap, result)
+    return result
+
 CONFIG_PATH = Path(__file__).with_name("module.json")
 DEFAULT_CONFIG = {
     "mode": "observe",
@@ -551,26 +569,43 @@ class BrainService:
         return baseline
 
     def _apply_brain_option(self, key: str, value: Any) -> None:
-        if key == "cycle_interval_seconds":
-            self.cycle_interval = max(5.0, float(value))
-        elif key == "max_cycles_per_hour":
-            self.max_cycles_per_hour = max(1, int(value))
-        elif key == "max_candidates":
-            self.improvement.max_candidates = max(10, int(value))
-        elif key == "max_candidates_per_day":
-            self.improvement.max_candidates_per_day = max(1, int(value))
-        elif key == "max_evaluations_per_day":
-            self.improvement.max_evaluations_per_day = max(1, int(value))
-        elif key == "max_promotions_per_day":
-            self.improvement.max_promotions_per_day = max(1, int(value))
-        elif key == "max_experiences":
-            self.learning.max_experiences = max(10, int(value))
-        elif key == "max_skills":
-            self.learning.max_skills = max(10, int(value))
-        elif key == "min_occurrences":
-            self.learning.min_occurrences = max(1, int(value))
-        elif key == "holdout_ratio":
-            self.learning.holdout_ratio = min(0.5, max(0.0, float(value)))
+        numeric = {
+            "cycle_interval_seconds": (float, 5.0, None),
+            "max_cycles_per_hour": (int, 1, None),
+            "max_candidates": (int, 10, None),
+            "max_candidates_per_day": (int, 1, None),
+            "max_evaluations_per_day": (int, 1, None),
+            "max_promotions_per_day": (int, 1, None),
+            "max_experiences": (int, 10, None),
+            "max_skills": (int, 10, None),
+            "min_occurrences": (int, 1, None),
+            "holdout_ratio": (float, 0.0, 0.5),
+        }
+        if key in numeric:
+            cast, floor, cap = numeric[key]
+            number = _option_number(key, value, cast, floor=floor, cap=cap)
+            if number is None:
+                return
+            if key == "cycle_interval_seconds":
+                self.cycle_interval = number
+            elif key == "max_cycles_per_hour":
+                self.max_cycles_per_hour = number
+            elif key == "max_candidates":
+                self.improvement.max_candidates = number
+            elif key == "max_candidates_per_day":
+                self.improvement.max_candidates_per_day = number
+            elif key == "max_evaluations_per_day":
+                self.improvement.max_evaluations_per_day = number
+            elif key == "max_promotions_per_day":
+                self.improvement.max_promotions_per_day = number
+            elif key == "max_experiences":
+                self.learning.max_experiences = number
+            elif key == "max_skills":
+                self.learning.max_skills = number
+            elif key == "min_occurrences":
+                self.learning.min_occurrences = number
+            elif key == "holdout_ratio":
+                self.learning.holdout_ratio = number
         elif key == "allowed_tools":
             self.improvement.evolution.allowed_tools = set(value)
         self.config[key] = value

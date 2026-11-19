@@ -219,6 +219,23 @@ def test_configuration_quota_and_status(tmp_path):
     assert "changes" in summary and not isinstance(summary.get("changes"), list)
 
 
+def test_apply_brain_option_ignores_bad_numeric():
+    """A malformed brain option must not raise after its config was already written."""
+    from types import SimpleNamespace
+
+    from modules.brain.service import BrainService
+
+    class Dummy:
+        def __init__(self):
+            self.cycle_interval = 60.0
+            self.improvement = SimpleNamespace(max_candidates_per_day=20)
+            self.config = {}
+
+    dummy = Dummy()
+    BrainService._apply_brain_option(dummy, "max_candidates_per_day", "abc")
+    assert dummy.improvement.max_candidates_per_day == 20
+
+
 def test_configuration_routes(tmp_path, monkeypatch):
     engine, settings, _, _, _ = make_engine(tmp_path)
     service = BrainService(

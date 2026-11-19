@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2885`
+- **Total Top-Level Functions**: `2887`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103331`
+- **Total Source Lines**: `103383`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2665,7 +2665,7 @@
 ### [`modules/brain/service.py`](modules/brain/service.py)
 > *AI-Brain control service: observe/suggest cycles, state and evaluation.*
 
-**Size**: `890` lines
+**Size**: `925` lines
 
 **Classes:**
 - `class BrainService` - *Single brain control plane. No actuator can be called in observe/suggest mode.*
@@ -2721,6 +2721,7 @@
   - Method `._save()`
 
 **Functions:**
+- `def _option_number(key, value, cast, floor, cap)` - *Coerce a brain option, returning None on a bad value so the runtime setting is kept.*
 - `def _load_module_config()`
 - `def get_brain_service()`
 - `def get_existing_brain_service()` - *Return the service only if something already created it (e.g. /brain/start).*
@@ -4990,7 +4991,7 @@
 ### [`tests/test_brain_configuration.py`](tests/test_brain_configuration.py)
 > *Policy-gated self-configuration: preview, apply, rollback and quotas.*
 
-**Size**: `257` lines
+**Size**: `274` lines
 
 **Classes:**
 - `class FakeSettings`
@@ -5013,6 +5014,7 @@
 - `def test_allowed_tools_can_only_be_narrowed(tmp_path)`
 - `def test_rollback_rejects_an_older_change_for_the_same_target(tmp_path)`
 - `def test_configuration_quota_and_status(tmp_path)`
+- `def test_apply_brain_option_ignores_bad_numeric()` - *A malformed brain option must not raise after its config was already written.*
 - `def test_configuration_routes(tmp_path, monkeypatch)`
 
 ---
