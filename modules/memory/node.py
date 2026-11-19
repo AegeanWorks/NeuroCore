@@ -14,6 +14,15 @@ from .scope import MemoryScopeRequired, scope_from_input
 logger = logging.getLogger(__name__)
 
 
+def _flag(value, default: bool = False) -> bool:
+    """Parse a config flag strictly; bool("false") would otherwise be truthy."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "on"}
+    return default
+
+
 def _number(value, default, cast):
     """Coerce a numeric setting, falling back with a warning on malformed config."""
     try:
@@ -129,7 +138,7 @@ class MemoryRecallExecutor:
         link_boost = max(0.0, min(1.0, link_boost))
 
         scope = scope_from_input(input_data)
-        scope_required = bool(config.get(
+        scope_required = _flag(config.get(
             "scope_required", self.config.get("memory_scope_required", False)))
         scope_policy = config.get(
             "scope_policy", self.config.get("memory_scope_policy", "strict"))
@@ -356,10 +365,10 @@ class MemorySaveExecutor:
             confidence = default_conf
 
         mem_type = config.get("mem_type", "BELIEF")
-        verified = bool(config.get("verified", False))
+        verified = _flag(config.get("verified", False))
         expires_at = config.get("expires_at")
         scope = scope_from_input(input_data)
-        scope_required = bool(config.get(
+        scope_required = _flag(config.get(
             "scope_required", self.config.get("memory_scope_required", False)))
         scope_policy = config.get(
             "scope_policy", self.config.get("memory_scope_policy", "strict"))

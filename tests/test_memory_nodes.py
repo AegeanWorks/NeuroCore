@@ -163,6 +163,16 @@ async def test_memory_recall_min_score_filtering(mock_store, mock_llm_bridge):
     assert "Low score" not in result["_memory_context"]
 
 @pytest.mark.asyncio
+async def test_memory_save_parses_false_verified(mock_store):
+    """bool("false") is truthy; a verified=false flag must stay false."""
+    executor = MemorySaveExecutor()
+    with patch.object(executor, '_save_background', new_callable=AsyncMock) as mock_save_bg:
+        await executor.receive({"content": "Important fact"}, config={"verified": "false"})
+        _, kwargs = mock_save_bg.call_args
+        assert kwargs["verified"] is False
+
+
+@pytest.mark.asyncio
 async def test_memory_save_config_passing(mock_store):
     """Test that config values (type, confidence) are passed to save."""
     executor = MemorySaveExecutor()

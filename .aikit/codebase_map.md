@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2907`
+- **Total Top-Level Functions**: `2909`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103669`
+- **Total Source Lines**: `103688`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3567,7 +3567,7 @@
 ---
 
 ### [`modules/memory/node.py`](modules/memory/node.py)
-**Size**: `451` lines
+**Size**: `460` lines
 
 **Classes:**
 - `class ConfigLoader`
@@ -3587,6 +3587,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _flag(value, default)` - *Parse a config flag strictly; bool("false") would otherwise be truthy.*
 - `def _number(value, default, cast)` - *Coerce a numeric setting, falling back with a warning on malformed config.*
 - `def _consolidation_done(task)`
 - `async def get_executor_class(node_type_id)`
@@ -7430,7 +7431,7 @@
 ---
 
 ### [`tests/test_memory_nodes.py`](tests/test_memory_nodes.py)
-**Size**: `482` lines
+**Size**: `492` lines
 
 **Functions:**
 - `def mock_store()`
@@ -7443,6 +7444,7 @@
 - `async def test_memory_save_user_message(mock_store, mock_llm_bridge)` - *Test saving content from Chat Input (User).*
 - `async def test_memory_save_short_text_ignored(mock_store)` - *Test that short text is ignored.*
 - `async def test_memory_recall_min_score_filtering(mock_store, mock_llm_bridge)` - *Test that results below min_score are filtered out.*
+- `async def test_memory_save_parses_false_verified(mock_store)` - *bool("false") is truthy; a verified=false flag must stay false.*
 - `async def test_memory_save_config_passing(mock_store)` - *Test that config values (type, confidence) are passed to save.*
 - `async def test_memory_save_malformed_numeric_config_falls_back(mock_store)` - *Bad save_default_confidence/save_delay must not abort a save (memory triage queue).*
 - `async def test_memory_recall_malformed_budget_config_falls_back(mock_store, mock_llm_bridge)` - *Bad recall budget sizes must not abort recall (memory triage queue).*
