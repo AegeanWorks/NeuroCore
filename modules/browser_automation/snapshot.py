@@ -5,8 +5,9 @@ tell whether an element was absent from the page or merely cut from the snapshot
 measures a payload against a ``SnapshotBudget`` and either:
 
 * refuses with a typed ``SnapshotRefusal`` (default), or
-* truncates explicitly on request and reports ``truncated``, ``omitted_chars``/``omitted_bytes``
-  and a ``resume`` hint.
+* truncates text explicitly on request and reports ``truncated``, ``omitted_chars`` and a
+  ``resume`` hint. Screenshots are always refused when oversized: a JPEG cannot be byte-truncated
+  without corrupting it.
 
 Silent truncation is never a fallback.
 """
@@ -92,22 +93,18 @@ def measure_screenshot(png_bytes: bytes, budget: SnapshotBudget, *,
     budget_map = {"max_screenshot_bytes": budget.max_screenshot_bytes}
     if size <= budget.max_screenshot_bytes:
         return {"ok": True, "bytes": size, "truncated": False}
-    if not allow_truncate:
-        return {
-            "ok": False,
-            "refusal": SnapshotRefusal(
-                CODE_SCREENSHOT,
-                {"bytes": size},
-                budget_map,
-                {"screenshot": False, "hint": "request a viewport-only screenshot"},
-            ).as_dict(),
-        }
+    # Unlike text, a JPEG cannot be byte-truncated without producing a corrupt image. The
+    # `allow_truncate` flag is accepted for interface parity with text snapshots but never turns
+    # an oversized screenshot into a "success": doing so returned the full bytes while claiming
+    # `truncated=True` and `omitted_bytes=0`, which was both misleading and a budget bypass.
     return {
-        "ok": True,
-        "bytes": size,
-        "truncated": True,
-        "omitted_bytes": 0,
-        "resume": {"hint": "request a viewport-only screenshot"},
+        "ok": False,
+        "refusal": SnapshotRefusal(
+            CODE_SCREENSHOT,
+            {"bytes": size},
+            budget_map,
+            {"screenshot": False, "hint": "request a viewport-only screenshot"},
+        ).as_dict(),
     }
 
 

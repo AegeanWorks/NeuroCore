@@ -199,6 +199,14 @@ def test_screenshot_bytes_are_bounded():
     assert too_big["refusal"]["code"] == "screenshot_too_large"
 
 
+def test_oversized_screenshot_is_refused_even_when_truncation_allowed():
+    """A JPEG cannot be safely byte-truncated: never claim `truncated` while returning full bytes."""
+    measured = measure_screenshot(b"x" * 500, SnapshotBudget(max_screenshot_bytes=100),
+                                  allow_truncate=True)
+    assert measured["ok"] is False
+    assert measured["refusal"]["code"] == "screenshot_too_large"
+
+
 def test_budget_validation_refuses_zero():
     with pytest.raises(ValueError):
         SnapshotBudget(max_html_chars=0).validate()

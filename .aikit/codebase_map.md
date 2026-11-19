@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2909`
+- **Total Top-Level Functions**: `2910`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103688`
+- **Total Source Lines**: `103693`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2872,7 +2872,7 @@
 ### [`modules/browser_automation/snapshot.py`](modules/browser_automation/snapshot.py)
 > *Bounded snapshot receipts with typed refusal (IDEA-1209).*
 
-**Size**: `142` lines
+**Size**: `139` lines
 
 **Classes:**
 - `class SnapshotBudget`
@@ -5462,7 +5462,7 @@
 ### [`tests/test_browser_automation_index.py`](tests/test_browser_automation_index.py)
 > *Indexed element actions and bounded snapshots (IDEA-1208/1209).*
 
-**Size**: `362` lines
+**Size**: `370` lines
 
 **Classes:**
 - `class _FakeLocator`
@@ -5500,6 +5500,7 @@
 - `def test_explicit_truncation_reports_what_was_omitted()`
 - `def test_text_budget_is_independent_of_html()`
 - `def test_screenshot_bytes_are_bounded()`
+- `def test_oversized_screenshot_is_refused_even_when_truncation_allowed()` - *A JPEG cannot be safely byte-truncated: never claim `truncated` while returning full bytes.*
 - `def test_budget_validation_refuses_zero()`
 - `def _service_with_fake_page(monkeypatch, page)`
 - `async def _noop(*args, **kwargs)`
