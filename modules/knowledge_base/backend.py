@@ -1281,7 +1281,15 @@ class FaissDocumentStore(QueryExpansionMixin):
         candidate_k = limit
         if budget is not None and is_ivf_index(self.faiss_index):
             inner = getattr(self.faiss_index, "index", self.faiss_index)
-            nlist = int(getattr(inner, "nlist", 0) or 0)
+            try:
+                nlist = int(getattr(inner, "nlist", 0) or 0)
+            except (TypeError, ValueError) as exc:
+                # A malformed nlist only degrades the IVF probe plan; searching must still work.
+                logger.warning(
+                    "Invalid IVF nlist %r (%s); using 0 for the recall plan.",
+                    getattr(inner, "nlist", None), exc,
+                )
+                nlist = 0
             probe = budget.nprobe(nlist)
             try:
                 inner.nprobe = probe

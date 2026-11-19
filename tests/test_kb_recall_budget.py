@@ -85,6 +85,34 @@ def test_diagnostics_names_the_effective_knobs():
     assert payload["rescore"] is True
 
 
+def test_search_tolerates_malformed_ivf_nlist(monkeypatch, tmp_path):
+    """A malformed nlist on an IVF index must not abort search (KB triage queue)."""
+    from modules.knowledge_base import backend as kb_backend
+
+    db = str(tmp_path / "kb.sqlite3")
+    monkeypatch.setattr(kb_backend, "FAISS_AVAILABLE", True)
+    store = kb_backend.FaissDocumentStore(db_path=db)
+
+    class FakeIndex:
+        ntotal = 100
+
+        def __init__(self):
+            inner = _IVF()
+            inner.nlist = "abc"
+            self.index = inner
+
+        def search(self, query, k):
+            return (
+                np.array([[0.9]], dtype="float32"),
+                np.array([[1]], dtype="int64"),
+            )
+
+    store.faiss_index = FakeIndex()
+    results = store.search([0.0, 0.0, 1.0], limit=1,
+                           recall_budget=RecallBudget(oversample=1))
+    assert isinstance(results, list)
+
+
 def test_exact_rescore_recovers_a_true_neighbour_the_ann_misses(monkeypatch, tmp_path):
     from modules.knowledge_base import backend as kb_backend
 

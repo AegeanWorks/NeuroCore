@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2878`
+- **Total Top-Level Functions**: `2879`
 - **Total Class Methods**: `2486`
-- **Total Source Lines**: `103167`
+- **Total Source Lines**: `103203`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3127,7 +3127,7 @@
 ---
 
 ### [`modules/knowledge_base/backend.py`](modules/knowledge_base/backend.py)
-**Size**: `1424` lines
+**Size**: `1432` lines
 
 **Classes:**
 - `class QueryExpansionMixin` - *Mixin that adds query expansion and re-ranking capabilities to FaissDocumentStore.*
@@ -6905,7 +6905,7 @@
 ### [`tests/test_kb_recall_budget.py`](tests/test_kb_recall_budget.py)
 > *ANN oversampling with exact rescore (IDEA-1155).*
 
-**Size**: `171` lines
+**Size**: `199` lines
 
 **Classes:**
 - `class _Flat`
@@ -6921,6 +6921,7 @@
 - `def test_budget_from_settings_reads_values()`
 - `def test_is_ivf_index_sees_through_the_id_map_wrapper()`
 - `def test_diagnostics_names_the_effective_knobs()`
+- `def test_search_tolerates_malformed_ivf_nlist(monkeypatch, tmp_path)` - *A malformed nlist on an IVF index must not abort search (KB triage queue).*
 - `def test_exact_rescore_recovers_a_true_neighbour_the_ann_misses(monkeypatch, tmp_path)`
 - `def test_flat_index_keeps_the_plain_limit(monkeypatch, tmp_path)`
 
