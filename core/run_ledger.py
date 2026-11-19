@@ -128,6 +128,27 @@ def append_event(path: str, event: RunEvent) -> None:
             logger.debug("run-ledger fsync skipped: %s", exc)
 
 
+def _event_from_record(data) -> Optional[RunEvent]:
+    """Parse one record, skipping a corrupt line instead of hiding the rest of the log.
+
+    Version errors still propagate from ``from_dict`` so an unreadable format is never ignored.
+    """
+    if not isinstance(data, dict):
+        return None
+    if data.get("version", FORMAT_VERSION) != FORMAT_VERSION:
+        # Let from_dict raise the typed version error instead of silently skipping the line.
+        return RunEvent.from_dict(data)
+    try:
+        int(data["seq"])
+        float(data["timestamp"])
+        if data.get("payload") is not None:
+            dict(data["payload"])
+    except (TypeError, ValueError, KeyError) as exc:
+        logger.warning("Skipping malformed run event: %s", exc)
+        return None
+    return RunEvent.from_dict(data)
+
+
 def read_events(path: str) -> List[RunEvent]:
     """Read a JSONL event log; refuse unknown versions without modifying."""
     events: List[RunEvent] = []
@@ -136,7 +157,14 @@ def read_events(path: str) -> List[RunEvent]:
             raw = raw.strip()
             if not raw:
                 continue
-            events.append(RunEvent.from_dict(json.loads(raw)))
+            try:
+                data = json.loads(raw)
+            except ValueError as exc:
+                logger.warning("Skipping malformed run event line: %s", exc)
+                continue
+            event = _event_from_record(data)
+            if event is not None:
+                events.append(event)
     return events
 
 

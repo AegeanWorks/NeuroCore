@@ -43,6 +43,21 @@ def test_event_log_roundtrip_jsonl(tmp_path):
     assert events[-1].terminal is True
 
 
+def test_event_log_skips_a_line_with_bad_numeric_fields(tmp_path):
+    """One corrupt event must not hide the rest of the run log."""
+    path = str(tmp_path / "run.jsonl")
+    good = RunEvent("r1", 1, "s1", "start", 1.0, {}, False).to_dict()
+    bad = dict(good, seq="abc")
+    last = dict(good, seq=3)
+    with open(path, "w", encoding="utf-8") as handle:
+        for record in (good, bad, last):
+            handle.write(json.dumps(record) + "\n")
+
+    events = read_events(path)
+
+    assert [event.seq for event in events] == [1, 3]
+
+
 def test_event_refuses_unknown_version(tmp_path):
     path = str(tmp_path / "bad.jsonl")
     with open(path, "w", encoding="utf-8") as handle:

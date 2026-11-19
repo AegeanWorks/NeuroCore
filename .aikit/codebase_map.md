@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2898`
+- **Total Top-Level Functions**: `2900`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103554`
+- **Total Source Lines**: `103597`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1065,7 +1065,7 @@
 ### [`core/run_ledger.py`](core/run_ledger.py)
 > *Run ledger primitives: asset graph, event log, state machine, result store.*
 
-**Size**: `453` lines
+**Size**: `481` lines
 
 **Classes:**
 - `class InvalidTransitionError` - *Raised when a state transition is not allowed.*
@@ -1092,6 +1092,7 @@
 **Functions:**
 - `def transition(state, new_state)` - *Return new_state when allowed, else raise InvalidTransition.*
 - `def append_event(path, event)` - *Append one event as JSONL with a single fsync (one fsync per file).*
+- `def _event_from_record(data)` - *Parse one record, skipping a corrupt line instead of hiding the rest of the log.*
 - `def read_events(path)` - *Read a JSONL event log; refuse unknown versions without modifying.*
 - `def is_stale(asset, upstream_materialized_at)` - *True when an upstream materialization is newer than this asset.*
 - `def materialize(asset, run_id, upstream)` - *Record a materialization; refuse when an upstream asset is stale.*
@@ -8354,13 +8355,14 @@
 ### [`tests/test_run_ledger.py`](tests/test_run_ledger.py)
 > *Failing-first tests for core/run_ledger.py (IDEA-1271..1274).*
 
-**Size**: `219` lines
+**Size**: `234` lines
 
 **Functions:**
 - `def test_state_allows_running_then_completed()`
 - `def test_state_refuses_pending_to_completed()`
 - `def test_state_terminal_is_closed()`
 - `def test_event_log_roundtrip_jsonl(tmp_path)`
+- `def test_event_log_skips_a_line_with_bad_numeric_fields(tmp_path)` - *One corrupt event must not hide the rest of the run log.*
 - `def test_event_refuses_unknown_version(tmp_path)`
 - `def test_asset_materialize_updates_timestamp()`
 - `def test_asset_refuses_never_materialized_upstream()`
