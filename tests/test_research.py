@@ -262,6 +262,12 @@ class TestStats:
         with pytest.raises(ValueError):
             rm.create_finding({"title": "T"})
 
+    def test_create_finding_rejects_out_of_range_p_value(self, rm):
+        for bad in (1.5, -0.1):
+            with pytest.raises(ValueError, match="p_value"):
+                rm.create_finding({"title": "T", "summary": "S", "conclusion": "C",
+                                   "p_value": bad})
+
     def test_update_hypothesis_invalid_confidence_is_value_error(self, rm):
         h = rm.create_hypothesis({"title": "T", "statement": "S"})
         with pytest.raises(ValueError, match="confidence_level"):

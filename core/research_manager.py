@@ -552,6 +552,21 @@ class ResearchManager:
                 raise ValueError(
                     f"finding needs {field}. Why: {field} is required. Fix: pass {field}."
                 )
+        # Deferred item: Finding.p_value is constrained to [0, 1] in the schema, but the manager
+        # stored whatever the form supplied. Reject/normalise here so every caller is covered.
+        p_value = data.get("p_value")
+        if p_value is not None:
+            try:
+                p_value = float(p_value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"finding p_value must be a number. Why: {exc}. Fix: pass a value from 0 to 1."
+                ) from exc
+            if not 0.0 <= p_value <= 1.0:
+                raise ValueError(
+                    f"finding p_value must be between 0 and 1. Why: {p_value} is outside the "
+                    "schema's [0, 1] range. Fix: pass a value from 0 to 1."
+                )
         with self._lock:
             now = _now()
             row = {
@@ -562,7 +577,7 @@ class ResearchManager:
                 "study_id": data.get("study_id"),
                 "hypothesis_id": data.get("hypothesis_id"),
                 "statistical_test": data.get("statistical_test"),
-                "p_value": data.get("p_value"),
+                "p_value": p_value,
                 "effect_size": data.get("effect_size"),
                 "significance": data.get("significance", "not_significant"),
                 "status": data.get("status", "preliminary"),
