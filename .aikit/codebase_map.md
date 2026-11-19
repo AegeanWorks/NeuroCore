@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2877`
+- **Total Top-Level Functions**: `2878`
 - **Total Class Methods**: `2486`
-- **Total Source Lines**: `103147`
+- **Total Source Lines**: `103167`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -541,7 +541,7 @@
 ### [`core/llm_errors.py`](core/llm_errors.py)
 > *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
 
-**Size**: `95` lines
+**Size**: `104` lines
 
 **Functions:**
 - `def retry_after_seconds(value, *, now)` - *Parse a Retry-After seconds value or HTTP date into non-negative seconds.*
@@ -7029,11 +7029,12 @@
 ### [`tests/test_llm_errors.py`](tests/test_llm_errors.py)
 > *Provider exception taxonomy and Retry-After preservation (IDEA-891).*
 
-**Size**: `51` lines
+**Size**: `62` lines
 
 **Functions:**
 - `def _response(status, *, headers, text)`
 - `def test_retry_after_seconds_accepts_seconds_and_http_dates()`
+- `def test_from_response_tolerates_malformed_status_code()` - *A malformed status code must still classify as a typed LLM error (core triage queue).*
 - `def test_a_429_preserves_retry_after_and_is_retryable()`
 - `def test_auth_context_and_budget_errors_are_not_retryable()`
 - `def test_an_unknown_5xx_stays_a_retryable_http_error()`

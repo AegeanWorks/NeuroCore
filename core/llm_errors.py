@@ -59,7 +59,16 @@ def _provider(response: Any) -> Optional[str]:
 
 def from_response(response: Any, model: Optional[str] = None) -> LLMError:
     """Map one failed provider response to the closest typed exception."""
-    status = int(getattr(response, "status_code", 0) or 0)
+    try:
+        status = int(getattr(response, "status_code", 0) or 0)
+    except (TypeError, ValueError) as exc:
+        # An unparseable code is still an HTTP failure; classify it as the generic typed error
+        # instead of crashing while classifying another error.
+        logger.warning(
+            "Invalid provider status code %r (%s); using 0 and classifying generically.",
+            getattr(response, "status_code", None), exc,
+        )
+        status = 0
     text = str(getattr(response, "text", "") or "")
     headers = getattr(response, "headers", {}) or {}
     retry_after = retry_after_seconds(headers.get("retry-after") if hasattr(headers, "get") else None)

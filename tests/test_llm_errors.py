@@ -28,6 +28,17 @@ def test_retry_after_seconds_accepts_seconds_and_http_dates():
     assert retry_after_seconds("not-a-date") is None
 
 
+def test_from_response_tolerates_malformed_status_code():
+    """A malformed status code must still classify as a typed LLM error (core triage queue)."""
+    class BadResponse:
+        status_code = "abc"
+        text = "provider gave a non-numeric status"
+        headers = {}
+
+    error = from_response(BadResponse())
+    assert isinstance(error, LLMHTTPError)
+
+
 def test_a_429_preserves_retry_after_and_is_retryable():
     error = from_response(_response(429, headers={"retry-after": "7"}, text="slow down"))
     assert isinstance(error, LLMRateLimitError)
