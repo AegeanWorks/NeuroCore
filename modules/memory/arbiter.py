@@ -23,6 +23,19 @@ class MemoryArbiter:
         self.embed_fn = embed_fn
         self.config = config or {}
 
+    def _number(self, key: str, default, cast):
+        """Coerce a numeric setting, falling back with a warning on bad user config."""
+        raw = self.config.get(key, default)
+        try:
+            return cast(raw)
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "[Arbiter] Invalid %s=%r (%s); using %s. Why: a malformed setting must not "
+                "abort memory admission. Fix: configure %s as a number.",
+                key, raw, exc, default, key,
+            )
+            return default
+
     async def consider(
         self,
         text: str,
@@ -43,7 +56,7 @@ class MemoryArbiter:
         """
         
         # 1. Confidence Gate
-        min_conf = float(self.config.get("save_confidence_threshold", 0.75))
+        min_conf = self._number("save_confidence_threshold", 0.75, float)
         if confidence < min_conf:
             logger.debug(f"[Arbiter] Confidence gate failed: {confidence} < {min_conf}")
             return None
@@ -54,7 +67,7 @@ class MemoryArbiter:
         
         # Calculate expires_at for beliefs if not provided
         if mem_type == "BELIEF" and expires_at is None:
-            ttl_days = int(self.config.get("belief_ttl_days", 30))
+            ttl_days = self._number("belief_ttl_days", 30, int)
             expires_at = int(time.time()) + (ttl_days * 24 * 60 * 60)
 
         # 2. Identity & Duplicates
@@ -67,7 +80,7 @@ class MemoryArbiter:
         # Note: We do NOT exclude same source - we want to deduplicate within same source
         # (e.g., user telling the same fact twice in chat should be deduplicated)
         if embedding:
-            similarity_threshold = float(self.config.get("similarity_threshold", 0.9))
+            similarity_threshold = self._number("similarity_threshold", 0.9, float)
             loop = asyncio.get_running_loop()
             similar_memories = await loop.run_in_executor(
                 self.memory_store.executor,

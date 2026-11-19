@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2851`
-- **Total Class Methods**: `2482`
-- **Total Source Lines**: `102644`
+- **Total Top-Level Functions**: `2852`
+- **Total Class Methods**: `2483`
+- **Total Source Lines**: `102676`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3341,11 +3341,12 @@
 ---
 
 ### [`modules/memory/arbiter.py`](modules/memory/arbiter.py)
-**Size**: `144` lines
+**Size**: `157` lines
 
 **Classes:**
 - `class MemoryArbiter` - *Autonomous bridge between Reasoning and MemoryStore.*
   - Method `.__init__(memory_store, embed_fn, config)`
+  - Method `._number(key, default, cast)` - *Coerce a numeric setting, falling back with a warning on bad user config.*
   - Method `async def .consider(text, confidence, subject, source, embedding, mem_type, verified, expires_at, scope, require_scope, scope_policy)` - *Decide whether to promote reasoning into memory.*
   - Method `async def .consider_batch(candidates, scope, require_scope, scope_policy)` - *Process a batch of memory candidates in parallel.*
 
@@ -7153,7 +7154,7 @@
 ---
 
 ### [`tests/test_memory_arbiter.py`](tests/test_memory_arbiter.py)
-**Size**: `109` lines
+**Size**: `128` lines
 
 **Functions:**
 - `def mock_store()`
@@ -7161,6 +7162,7 @@
 - `async def test_arbiter_confidence_gate(mock_store)` - *Test that low-confidence memories are rejected.*
 - `async def test_arbiter_unknown_type_defaults_to_belief(mock_store)` - *Test that unknown memory types default to BELIEF.*
 - `async def test_arbiter_backend_rejection(mock_store)` - *Test handling of backend rejection (e.g. duplicates).*
+- `async def test_arbiter_falls_back_on_malformed_numeric_config(mock_store)` - *A malformed numeric setting must not abort memory admission (triage queue: memory).*
 - `async def test_arbiter_consider_batch(mock_store)` - *Test batch processing of memories.*
 - `async def test_arbiter_passes_embedding(mock_store)` - *Test that embedding is passed to the store.*
 

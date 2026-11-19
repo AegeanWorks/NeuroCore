@@ -68,6 +68,25 @@ async def test_arbiter_backend_rejection(mock_store):
     assert mid is None
 
 @pytest.mark.asyncio
+async def test_arbiter_falls_back_on_malformed_numeric_config(mock_store):
+    """A malformed numeric setting must not abort memory admission (triage queue: memory)."""
+    f_similar = Future(); f_similar.set_result([])
+    f_save = Future(); f_save.set_result(123)
+    mock_store.executor.submit.side_effect = [f_similar, f_save]
+
+    arbiter = MemoryArbiter(mock_store, config={
+        "save_confidence_threshold": "abc",
+        "belief_ttl_days": "abc",
+        "similarity_threshold": "abc",
+    })
+    mid = await arbiter.consider(
+        text="Test fact", mem_type="BELIEF", confidence=0.9, embedding=[0.1, 0.2],
+    )
+
+    assert mid == 123
+
+
+@pytest.mark.asyncio
 async def test_arbiter_consider_batch(mock_store):
     """Test batch processing of memories."""
     f1 = Future(); f1.set_result(101)
