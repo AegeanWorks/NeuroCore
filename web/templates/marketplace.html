@@ -144,6 +144,7 @@
                     {% for item in catalog %}
                     {% set user_vote = my_votes.get(item.id) %}
                     <div id="marketplace-card-{{ item.id }}"
+                         data-item="{{ item.id }}"
                          data-name="{{ item.name | lower }}"
                          data-description="{{ (item.description or '') | lower }}"
                          data-type="{{ item.type | lower }}"
@@ -151,7 +152,7 @@
                          data-date="{{ item.created_at if item.created_at is defined else '' }}"
                          data-downloads="{{ item.download_count if item.download_count is defined else 0 }}"
                          data-upvotes="{{ item.upvotes if item.upvotes is defined else 0 }}"
-                         onclick="window.location.href='/marketplace/item/{{ item.id }}'"
+                         onclick="window.location.href='/marketplace/item/' + this.dataset.item"
                          class="community-card bg-slate-950/50 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between hover:border-slate-700 hover:bg-slate-950/80 transition-all group shadow-lg overflow-hidden relative marketplace-card cursor-pointer">
                         {% if item.image_filename %}
                         <div class="h-40 -mt-6 -mx-6 mb-4 overflow-hidden border-b border-slate-800/80">
@@ -191,7 +192,8 @@
                             <!-- Vote buttons -->
                             <div class="flex items-center space-x-1">
                                 <button id="upvote-btn-{{ item.id }}"
-                                        onclick="event.stopPropagation(); castVote('{{ item.id }}', 'up')"
+                                        data-item="{{ item.id }}"
+                                        onclick="event.stopPropagation(); castVote(this.dataset.item, 'up')"
                                         class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all
                                                {{ 'bg-emerald-900/40 text-emerald-400 border-emerald-700/50' if user_vote == 'up' else 'bg-slate-800/60 text-slate-400 hover:text-emerald-400 hover:border-emerald-700/40 border-slate-700/50' }}"
                                         title="Upvote">
@@ -199,7 +201,8 @@
                                     <span id="upvote-count-{{ item.id }}">{{ item.upvotes if item.upvotes is defined else 0 }}</span>
                                 </button>
                                 <button id="downvote-btn-{{ item.id }}"
-                                        onclick="event.stopPropagation(); castVote('{{ item.id }}', 'down')"
+                                        data-item="{{ item.id }}"
+                                        onclick="event.stopPropagation(); castVote(this.dataset.item, 'down')"
                                         class="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all
                                                {{ 'bg-red-900/40 text-red-400 border-red-700/50' if user_vote == 'down' else 'bg-slate-800/60 text-slate-400 hover:text-red-400 hover:border-red-700/40 border-slate-700/50' }}"
                                         title="Downvote">

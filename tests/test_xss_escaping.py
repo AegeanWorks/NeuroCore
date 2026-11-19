@@ -55,6 +55,16 @@ def test_marketplace_listing_uses_dataset_not_interpolation():
     assert "confirmDownload('{{" not in listing
 
 
+def test_marketplace_listing_has_no_inline_id_interpolation():
+    """Deferred item: catalog ids belong in data-* attributes, not inline JavaScript strings."""
+    base = Path(__file__).resolve().parent.parent / "web" / "templates"
+    listing = (base / "marketplace.html").read_text(encoding="utf-8")
+
+    assert "'/marketplace/item/{{" not in listing
+    assert "castVote('{{" not in listing
+    assert "this.dataset.item" in listing
+
+
 def test_marketplace_templates_escape_stored_content():
     base = Path(__file__).resolve().parent.parent / "web" / "templates"
     item = (base / "marketplace_item.html").read_text(encoding="utf-8")

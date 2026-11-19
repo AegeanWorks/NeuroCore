@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2847`
+- **Total Top-Level Functions**: `2848`
 - **Total Class Methods**: `2480`
-- **Total Source Lines**: `102472`
+- **Total Source Lines**: `102482`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -9252,13 +9252,14 @@
 ### [`tests/test_xss_escaping.py`](tests/test_xss_escaping.py)
 > *Regression tests for M5: stored content must be escaped, not rendered as HTML.*
 
-**Size**: `67` lines
+**Size**: `77` lines
 
 **Functions:**
 - `def test_jinja_environment_autoescapes()`
 - `async def test_memory_stats_type_is_html_escaped(monkeypatch)`
 - `def test_marketplace_file_tree_uses_dataset_not_interpolation()`
 - `def test_marketplace_listing_uses_dataset_not_interpolation()`
+- `def test_marketplace_listing_has_no_inline_id_interpolation()` - *Deferred item: catalog ids belong in data-* attributes, not inline JavaScript strings.*
 - `def test_marketplace_templates_escape_stored_content()`
 
 ---
