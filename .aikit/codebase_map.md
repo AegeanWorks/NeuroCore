@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2850`
+- **Total Top-Level Functions**: `2851`
 - **Total Class Methods**: `2482`
-- **Total Source Lines**: `102607`
+- **Total Source Lines**: `102644`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -440,7 +440,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1572` lines
+**Size**: `1575` lines
 
 **Classes:**
 - `class FlowRunner`
@@ -5263,7 +5263,7 @@
 ### [`tests/test_brain_outcomes.py`](tests/test_brain_outcomes.py)
 > *Automatic flow outcome capture into the brain learning loop.*
 
-**Size**: `123` lines
+**Size**: `157` lines
 
 **Classes:**
 - `class BoomExecutor`
@@ -5272,6 +5272,7 @@
 
 **Functions:**
 - `async def test_flow_runner_emits_a_success_outcome()`
+- `async def test_flow_outcome_carries_detail_when_error_is_only_a_code(monkeypatch)` - *The LLM client returns error codes plus a detail string; the outcome must keep the detail.*
 - `async def test_flow_runner_emits_a_failure_outcome(monkeypatch)`
 - `async def test_evaluation_does_not_emit_flow_outcomes()`
 - `async def test_brain_service_captures_flow_outcomes_until_safe(tmp_path)`

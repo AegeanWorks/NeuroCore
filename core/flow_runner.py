@@ -805,6 +805,9 @@ class FlowRunner:
                     summary = (
                         result.get("content")
                         or result.get("response")
+                        # LLM-style failures carry an error code plus a detailed reason; keep the
+                        # reason rather than recording only the code as the run's outcome detail.
+                        or result.get("detail")
                         or result.get("error")
                         or "completed"
                     )

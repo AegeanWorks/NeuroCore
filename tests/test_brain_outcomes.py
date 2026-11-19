@@ -38,6 +38,40 @@ async def test_flow_runner_emits_a_success_outcome():
     assert outcomes[0]["duration_ms"] >= 0
 
 
+async def test_flow_outcome_carries_detail_when_error_is_only_a_code(monkeypatch):
+    """The LLM client returns error codes plus a detail string; the outcome must keep the detail."""
+    class DetailExecutor:
+        async def receive(self, input_data, config=None):
+            return {"error": "model_limit", "detail": "context too large"}
+
+        async def send(self, processed_data):
+            return processed_data
+
+    async def fake_executor_class(cls, module_id, node_type_id):
+        return DetailExecutor
+
+    monkeypatch.setattr(
+        FlowRunner, "_get_executor_class", classmethod(fake_executor_class)
+    )
+    outcomes = []
+    set_outcome_listener(outcomes.append)
+    flow = {
+        "id": "detail",
+        "nodes": [{
+            "id": "n1", "moduleId": "chat", "nodeTypeId": "chat_input",
+            "name": "Detail", "config": {},
+        }],
+        "connections": [],
+        "bridges": [],
+    }
+    try:
+        await FlowRunner("detail", flow_override=flow).run({})
+    finally:
+        clear_outcome_listener()
+
+    assert "context too large" in outcomes[0]["summary"]
+
+
 async def test_flow_runner_emits_a_failure_outcome(monkeypatch):
     async def fake_executor_class(cls, module_id, node_type_id):
         return BoomExecutor
