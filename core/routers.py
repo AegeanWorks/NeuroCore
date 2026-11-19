@@ -25,6 +25,21 @@ from core.paths import data_path, state_path
 logger = logging.getLogger(__name__)
 
 
+def _form_number(raw: str, cast, label: str):
+    """Parse an optional numeric form field; a bad value is ignored with a warning."""
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return cast(text)
+    except (TypeError, ValueError, OverflowError):
+        logger.warning(
+            "Ignoring invalid %s=%r in form submission. Why: a bad value must not 500 the "
+            "route. Fix: submit %s as a number.", label, raw, label,
+        )
+        return None
+
+
 router = APIRouter()
 templates = Jinja2Templates(directory="web/templates")
 
@@ -3318,7 +3333,7 @@ async def create_article(
     rm.create_article({
         "title": title,
         "authors": authors_list,
-        "year": int(year) if year.strip() else None,
+        "year": _form_number(year, int, "year"),
         "journal": journal or None,
         "doi": doi or None,
         "url": url or None,
@@ -3366,7 +3381,7 @@ async def create_study_design(
         "title": title,
         "study_type": study_type,
         "population": population,
-        "sample_size": int(sample_size) if sample_size.strip() else None,
+        "sample_size": _form_number(sample_size, int, "sample_size"),
         "sampling_method": sampling_method,
         "design_type": design_type or None,
         "control_group": control_group == "true",
@@ -3423,8 +3438,8 @@ async def create_finding(
         "summary": summary,
         "conclusion": conclusion,
         "statistical_test": statistical_test or None,
-        "p_value": float(p_value) if p_value.strip() else None,
-        "effect_size": float(effect_size) if effect_size.strip() else None,
+        "p_value": _form_number(p_value, float, "p_value"),
+        "effect_size": _form_number(effect_size, float, "effect_size"),
         "significance": significance,
         "status": status,
         "notes": notes or None,

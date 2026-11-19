@@ -27,6 +27,22 @@ def private_resolver(host, port, **kwargs):
     return [(2, 1, 6, "", ("10.0.0.5", port))]
 
 
+def test_create_finding_route_survives_bad_p_value(monkeypatch):
+    """A malformed p_value form field must not 500 the research findings route."""
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    from core.settings import settings as global_settings
+
+    monkeypatch.setitem(global_settings.settings, "research_enabled", True)
+    with TestClient(app) as client:
+        response = client.post("/research/findings", data={
+            "title": "T", "summary": "S", "conclusion": "C", "p_value": "abc",
+        })
+    assert response.status_code < 500
+
+
 def test_the_source_list_is_fixed_and_explains_its_licence():
     listing = sources()
     assert {item["id"] for item in listing} == {"wikipedia", "arxiv", "pubmed"}

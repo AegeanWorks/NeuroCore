@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2888`
+- **Total Top-Level Functions**: `2890`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103404`
+- **Total Source Lines**: `103435`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -907,9 +907,10 @@
 ---
 
 ### [`core/routers.py`](core/routers.py)
-**Size**: `3796` lines
+**Size**: `3811` lines
 
 **Functions:**
+- `def _form_number(raw, cast, label)` - *Parse an optional numeric form field; a bad value is ignored with a warning.*
 - `def format_reasoning_content(content)` - *Extracts the actual content from a raw LLM response dictionary string.*
 - `def _legacy_hardware_id_path()` - *The nested path some builds used (``<state dir>/data/hardware_id.txt``).*
 - `def _adopt_legacy_hardware_id(id_file, legacy_file)`
@@ -8316,11 +8317,12 @@
 ### [`tests/test_research_gateway.py`](tests/test_research_gateway.py)
 > *Research gateway: allowlist, SSRF policy, parsers, cache and provenance.*
 
-**Size**: `323` lines
+**Size**: `339` lines
 
 **Functions:**
 - `def public_resolver(host, port, **kwargs)`
 - `def private_resolver(host, port, **kwargs)`
+- `def test_create_finding_route_survives_bad_p_value(monkeypatch)` - *A malformed p_value form field must not 500 the research findings route.*
 - `def test_the_source_list_is_fixed_and_explains_its_licence()`
 - `def test_request_urls_are_built_from_the_allowlisted_endpoint()`
 - `def test_urls_must_be_https_allowlisted_and_public(monkeypatch)`
