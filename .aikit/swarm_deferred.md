@@ -42,18 +42,27 @@ the whole batch back to re-analysis.
 ## Deferred true-class items (real, need isolated failing-first batches)
 - Constructor-coercion sweep CLOSED across `modules/brain`: 8 constructors (auth, config, kernel, learning, improvement, reactivity, trends, service) now reject bad config with typed Why/Fix errors; loaders coerce-or-quarantine on read; `_apply_brain_option` internals and service readiness reads verified upstream-validated or internally-built with no public repro path — dropped with reason, not implemented.
 - Core router 400-mapping for delegation/handoff: CLOSED, no HTTP surface exists — `DelegationContract.child` / `new_packet` have no production callers (only `from_dict` deserialization in agent_loop); typed Why/Fix errors already surface as failed flows. Nothing to map.
-- `create_article/study/finding` parity done; remaining
-  `update_*` field validation (variables/evidence JSON, p_value etc.).
+- `create_article/study/finding` parity and `update_*` field validation CLOSED: hypothesis
+  variables/evidence must be lists of strings (`7273b50`) and finding `p_value` is checked against
+  the schema's [0, 1] range (`afdaa04`).
 - S-BRAIN-R2 D1 (comparability asymmetry): `compare_results` treats an incomparable suite as NOT a regression (IDEA-1207, evaluation.py:17-32) but a different-flow baseline AS a regression (:34-47) — inconsistent conservatism. Changing either direction alters promotion gating; needs a product decision with ADR, so deferred, not implemented.
-- Marketplace catalog sinks (`marketplace.html:154,179,193,201,219,
-  223` — server-controlled id/handle/name) for data-attr refactor.
-- Flow-runner `_finalize_run_summary` outcome detail, retention
-  paging, session-trace `read_all` memory cap, bridge fan-out
-  swallow, SandboxStartupError mapping — each needs its own repro
-  + targeted gate run.
+- Marketplace catalog sinks CLOSED (`43cfe66`): catalog ids moved out of inline JS strings into
+  `data-item` attributes read via `this.dataset.item`.
+- Individually closed with failing-first repros + targeted gate runs: run-outcome detail (`d62b774`),
+  retention paging (`cf947cd`), session-trace `read_all` memory cap (`919c242`), bridge fan-out
+  swallow (`e8433ae`), SandboxStartupError mapping (`f793bb5`). `_finalize_run_summary` never
+  existed in this repo; its live equivalent is the summary block in `FlowRunner.run()`.
 - S-BRAIN-R2 B4 (config-file race) DROPPED after failed repro: `apply` runs under the store file lock with refresh, so the read-modify-write is already serialized; concurrent applies keep both keys (verified live).
-- S-BRAIN-R2 B6 (ledger lock held across slow eval/publish): `improvement.evaluate` awaits the evaluation runner and `reactivity` awaits bus publish inside `@engine_transaction_async`; a second concurrent evaluate times out at 10s. Needs a split into lock-free run + locked commit with quota re-validation, plus a slow-runner contention test; structural refactor, not a minimal diff. Repro: two concurrent `evaluate` calls on a 30s-task suite, second raises filelock Timeout.
-- S-BRAIN-R2 E5 (cap-hit invisibility): `process_event` returns the same `None` for duplicates, mutes, unknown types and quota caps; quota `used/limit` is already visible in `summary()`/`status()`, so this is an observability nicety (capped-drop counter), not a defect — deferred as an improvement with no repro of harm.
+- S-BRAIN-R2 B6 (ledger lock held across slow eval/publish) CLOSED, no further change needed:
+  `improvement.evaluate` already does locked validate → unlocked evaluation run → locked commit with
+  quota re-validation (`4e45f71`), and `reactivity.process_event` publishes outside the lock
+  (`0085dcd`). Both are covered by passing contention tests
+  (`test_concurrent_evaluations_share_the_run_window`,
+  `test_concurrent_events_share_the_broadcast_window`); two concurrent evaluates overlap instead of
+  timing out. The old entry described code that no longer exists.
+- S-BRAIN-R2 E5 (cap-hit invisibility) CLOSED (`2c6a0cb`): `summary()` exposes `capped_drops`,
+  incremented only on the hourly quota-cap path, so a rate-limited drop is distinguishable from a
+  duplicate/mute/unknown-type drop.
 - S-BRAIN-R2 E6 (empty `allowed_tools` allowlist accepted): `[]` passes narrowing-only validation and would disable all tool use; changing it to reject risks breaking a legitimate disable-all intent — needs a product decision (and ADR) on empty-means-disabled vs empty-means-invalid, so deferred.
 - KB/memory/tool/messaging/browser/calendar/chat/meta edge cases
   from swarm docs — triage queue, one module per batch, minimal
