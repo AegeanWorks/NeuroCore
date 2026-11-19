@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2892`
+- **Total Top-Level Functions**: `2894`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103474`
+- **Total Source Lines**: `103493`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -668,7 +668,7 @@
 ### [`core/observability.py`](core/observability.py)
 > *Observability Infrastructure for NeuroCore*
 
-**Size**: `1161` lines
+**Size**: `1172` lines
 
 **Classes:**
 - `class SpanKind` - *Types of spans in distributed tracing.*
@@ -721,6 +721,7 @@
 
 **Functions:**
 - `def _count(value, default)` - *Coerce a metric counter to an int, skipping non-finite/malformed values.*
+- `def _rate(value, default)` - *Coerce a sampling rate, clamping to [0, 1] and skipping non-finite/malformed values.*
 - `def get_trace_context()` - *Get current trace context.*
 - `def get_trace_id()` - *Get current trace ID.*
 - `def get_or_create_trace_context()` - *Get current trace context or create a new one.*
@@ -9246,13 +9247,14 @@
 ### [`tests/test_trace_context.py`](tests/test_trace_context.py)
 > *Trace/span identity and outcome stamping (IDEA-1237).*
 
-**Size**: `103` lines
+**Size**: `111` lines
 
 **Functions:**
 - `def _reset()`
 - `def test_root_trace_has_a_trace_and_span_id()`
 - `def test_child_span_links_to_its_parent()`
 - `def test_sampling_zero_and_one_are_deterministic()`
+- `def test_bad_sampling_rate_falls_back()` - *A malformed sampling rate must not abort trace creation (observability triage).*
 - `def test_sampling_decision_is_recorded_on_the_context()`
 - `def test_untraced_current_ids_are_empty()`
 - `def test_outcome_is_stamped_when_traced()`

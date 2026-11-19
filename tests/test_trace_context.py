@@ -44,6 +44,14 @@ def test_sampling_zero_and_one_are_deterministic():
     assert ctx.sampled is True
 
 
+def test_bad_sampling_rate_falls_back():
+    """A malformed sampling rate must not abort trace creation (observability triage)."""
+    _reset()
+    ctx = start_root_trace("bad", sampling="abc")
+    assert ctx.sampling == 1.0
+    assert isinstance(ctx.sampled, bool)
+
+
 def test_sampling_decision_is_recorded_on_the_context():
     _reset()
     ctx = start_root_trace("half", sampling=0.5)

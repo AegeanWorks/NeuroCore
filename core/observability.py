@@ -46,6 +46,18 @@ def _count(value, default: int = 0) -> int:
         return default
     return result if result >= 0 else default
 
+
+def _rate(value, default: float = 1.0) -> float:
+    """Coerce a sampling rate, clamping to [0, 1] and skipping non-finite/malformed values."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if result != result or result in (float("inf"), float("-inf")):
+        return default
+    return max(0.0, min(1.0, result))
+
+
 # Thread-local trace context
 _trace_ctx: contextvars.ContextVar[Optional['TraceContext']] = contextvars.ContextVar('trace_ctx', default=None)
 
@@ -134,8 +146,7 @@ class TraceContext:
 
     def sampling_decision(self, rate: float = None) -> bool:
         """One decision at the root; 0 and 1 are deterministic, anything else is one draw."""
-        rate = self.sampling if rate is None else float(rate)
-        rate = max(0.0, min(1.0, rate))
+        rate = _rate(self.sampling if rate is None else rate)
         if rate <= 0.0:
             self.sampled = False
         elif rate >= 1.0:
@@ -235,7 +246,7 @@ _outcomes.set_trace_provider(current_span_ids)
 def start_root_trace(name: str = "run", sampling: float = 1.0,
                      trace_id: Optional[str] = None) -> TraceContext:
     """Start a root trace and record its sampling decision; children inherit it."""
-    ctx = TraceContext(trace_id=trace_id or uuid.uuid4().hex, sampling=float(sampling))
+    ctx = TraceContext(trace_id=trace_id or uuid.uuid4().hex, sampling=_rate(sampling))
     ctx.sampling_decision(sampling)
     ctx.add_span(name)
     _trace_ctx.set(ctx)
