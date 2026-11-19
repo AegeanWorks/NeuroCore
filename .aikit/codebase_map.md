@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2866`
+- **Total Top-Level Functions**: `2868`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `102938`
+- **Total Source Lines**: `102976`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1913,7 +1913,7 @@
 ### [`modules/autonomous_agent/core/service.py`](modules/autonomous_agent/core/service.py)
 > *Main Agent Service - Ties all components together and runs the cognitive loop.*
 
-**Size**: `1044` lines
+**Size**: `1060` lines
 
 **Classes:**
 - `class AgentState` - *Current state of the agent.*
@@ -1966,6 +1966,7 @@
   - Method `async def .handle_user_message(channel, content, user_id, metadata)` - *Handle incoming user message.*
 
 **Functions:**
+- `def _state_int(value, default)` - *Coerce a saved counter, falling back on a malformed value so the rest of the state loads.*
 - `def create_agent_service(config_dict)` - *Factory function to create agent service from config dict.*
 
 ---
@@ -4829,7 +4830,7 @@
 ### [`tests/test_autonomous_agent.py`](tests/test_autonomous_agent.py)
 > *Tests for the experimental autonomous agent runtime.*
 
-**Size**: `1175` lines
+**Size**: `1197` lines
 
 **Classes:**
 - `class FakeProposer`
@@ -4841,6 +4842,7 @@
 - `async def test_handle_user_message_records_perception_and_chat_ack(tmp_path)`
 - `async def test_memory_persists_across_service_instances(tmp_path)`
 - `async def test_corrupt_state_is_quarantined(tmp_path)`
+- `async def test_malformed_cycle_counter_does_not_quarantine_state(tmp_path)` - *One bad counter must not discard otherwise valid memory (autonomous-agent triage).*
 - `async def test_valid_json_state_with_wrong_shape_is_quarantined(tmp_path)`
 - `async def test_persistence_can_be_disabled(tmp_path)`
 - `async def test_flow_creation_registers_ownership(tmp_path)`

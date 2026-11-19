@@ -4,6 +4,7 @@ Main Agent Service - Ties all components together and runs the cognitive loop.
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -31,6 +32,21 @@ from .self_model import SelfModel
 from .flow_creator import FlowCreator, node_template_types
 from .flow_proposer import FlowProposer
 from .communicator import AgentCommunicator
+
+logger = logging.getLogger(__name__)
+
+
+def _state_int(value, default: int = 0) -> int:
+    """Coerce a saved counter, falling back on a malformed value so the rest of the state loads."""
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid saved cycle counter %r (%s); using %s. Why: one bad counter must not "
+            "quarantine otherwise valid agent state. Fix: store counters as integers.",
+            value, exc, default,
+        )
+        return default
 
 
 @dataclass
@@ -898,8 +914,8 @@ class AgentService:
             if not isinstance(snapshot_errors, list):
                 raise ValueError("state errors must be a JSON array")
             self.memory.load_dict(memory_snapshot)
-            self.state.current_cycle = int(snapshot.get("current_cycle", 0))
-            self.state.total_cycles = int(snapshot.get("total_cycles", 0))
+            self.state.current_cycle = _state_int(snapshot.get("current_cycle", 0))
+            self.state.total_cycles = _state_int(snapshot.get("total_cycles", 0))
             self.state.errors = list(snapshot_errors)[-100:]
             for flow_id in owned_flows:
                 if isinstance(flow_id, str):

@@ -107,6 +107,28 @@ async def test_corrupt_state_is_quarantined(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_malformed_cycle_counter_does_not_quarantine_state(tmp_path):
+    """One bad counter must not discard otherwise valid memory (autonomous-agent triage)."""
+    state_path = tmp_path / "state.json"
+    state_path.write_text(json.dumps({
+        "agent_id": "test-agent",
+        "current_cycle": "abc",
+        "total_cycles": "abc",
+        "errors": [],
+        "owned_flows": [],
+        "memory": {},
+    }), encoding="utf-8")
+
+    agent = make_agent(tmp_path)
+    assert await agent.initialize() is True
+
+    assert not any(error["phase"] == "memory_loading" for error in agent.state.errors)
+    assert agent.state.current_cycle == 0
+    assert agent.state.total_cycles == 0
+    assert state_path.exists()
+
+
+@pytest.mark.asyncio
 async def test_valid_json_state_with_wrong_shape_is_quarantined(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text("[]", encoding="utf-8")
