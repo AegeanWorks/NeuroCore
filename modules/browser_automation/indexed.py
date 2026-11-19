@@ -13,8 +13,11 @@ carries a typed code so a caller can retry a re-render, ask for a fresh snapshot
 
 import asyncio
 import hashlib
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 MAX_ELEMENTS = 200
 MAX_SNAPSHOT_CHARS = 40000
@@ -92,7 +95,16 @@ class ActionExpectation:
 
     @property
     def budget_ms(self) -> int:
-        return max(POLL_INTERVAL_MS, min(int(self.timeout_ms), MAX_POLL_MS))
+        try:
+            timeout = int(self.timeout_ms)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid poll timeout_ms %r; using the maximum. Why: a bad value must not "
+                "abort the post-condition poll. Fix: pass a millisecond integer.",
+                self.timeout_ms,
+            )
+            timeout = MAX_POLL_MS
+        return max(POLL_INTERVAL_MS, min(timeout, MAX_POLL_MS))
 
 
 @dataclass(frozen=True)

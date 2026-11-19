@@ -74,6 +74,11 @@ def test_unknown_expectation_kind_is_refused():
     assert "Fix:" in str(caught.value)
 
 
+def test_expectation_budget_tolerates_bad_timeout():
+    """A malformed timeout_ms must not crash the poll budget (browser triage queue)."""
+    assert ActionExpectation(timeout_ms="abc").budget_ms == 2000
+
+
 def test_expectation_budget_is_capped():
     assert ActionExpectation(timeout_ms=999999).budget_ms == 2000
 

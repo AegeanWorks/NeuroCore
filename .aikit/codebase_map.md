@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2890`
+- **Total Top-Level Functions**: `2891`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103435`
+- **Total Source Lines**: `103452`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2797,7 +2797,7 @@
 ### [`modules/browser_automation/indexed.py`](modules/browser_automation/indexed.py)
 > *Indexed element actions with post-condition verification (IDEA-1208).*
 
-**Size**: `222` lines
+**Size**: `234` lines
 
 **Classes:**
 - `class SnapshotBudgetExceeded` - *The snapshot is too large to return safely; the caller must narrow the scope.*
@@ -5452,7 +5452,7 @@
 ### [`tests/test_browser_automation_index.py`](tests/test_browser_automation_index.py)
 > *Indexed element actions and bounded snapshots (IDEA-1208/1209).*
 
-**Size**: `357` lines
+**Size**: `362` lines
 
 **Classes:**
 - `class _FakeLocator`
@@ -5476,6 +5476,7 @@
 - `def test_snapshot_refuses_over_the_char_budget()`
 - `def test_file_and_select_roles_are_policy_refused()`
 - `def test_unknown_expectation_kind_is_refused()`
+- `def test_expectation_budget_tolerates_bad_timeout()` - *A malformed timeout_ms must not crash the poll budget (browser triage queue).*
 - `def test_expectation_budget_is_capped()`
 - `def test_auto_detects_a_url_change()`
 - `def test_auto_reports_no_change_within_the_budget()`
