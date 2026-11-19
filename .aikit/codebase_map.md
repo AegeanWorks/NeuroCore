@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2879`
+- **Total Top-Level Functions**: `2880`
 - **Total Class Methods**: `2486`
-- **Total Source Lines**: `103203`
+- **Total Source Lines**: `103221`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3457,7 +3457,7 @@
 ---
 
 ### [`modules/memory/consolidation.py`](modules/memory/consolidation.py)
-**Size**: `305` lines
+**Size**: `313` lines
 
 **Classes:**
 - `class ConsolidationState` - *Tracks the state of the memory consolidation background task.*
@@ -7263,11 +7263,12 @@
 ---
 
 ### [`tests/test_memory_consolidation.py`](tests/test_memory_consolidation.py)
-**Size**: `159` lines
+**Size**: `169` lines
 
 **Functions:**
 - `def mock_store()`
 - `def mock_llm()`
+- `async def test_consolidation_tolerates_bad_threshold(mock_store)` - *A malformed consolidation_threshold must not abort the run (memory triage queue).*
 - `async def test_consolidation_logic(mock_store, mock_llm)` - *Test that high similarity + entailment triggers consolidation.*
 - `async def test_consolidation_entailment_check(mock_llm)` - *Test the LLM entailment verification logic.*
 - `def test_consolidation_state_defaults()`

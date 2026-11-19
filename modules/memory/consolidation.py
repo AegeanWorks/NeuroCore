@@ -197,7 +197,15 @@ class MemoryConsolidator:
 
     async def _run_inner(self) -> int:
         """Internal consolidation logic. Returns number of memories consolidated."""
-        THRESHOLD = float(self.config.get("consolidation_threshold", 0.92))
+        try:
+            THRESHOLD = float(self.config.get("consolidation_threshold", 0.92))
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Invalid consolidation_threshold %r (%s); using 0.92. Why: a bad setting must "
+                "not abort consolidation. Fix: configure the threshold as a number.",
+                self.config.get("consolidation_threshold"), exc,
+            )
+            THRESHOLD = 0.92
 
         processed_pairs = self._get_processed_pairs()
         logger.info(f"Starting consolidation (threshold: {THRESHOLD}, already processed: {len(processed_pairs)} pairs)")

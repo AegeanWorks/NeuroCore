@@ -17,6 +17,16 @@ def mock_llm():
         yield MockBridge.return_value
 
 @pytest.mark.asyncio
+async def test_consolidation_tolerates_bad_threshold(mock_store):
+    """A malformed consolidation_threshold must not abort the run (memory triage queue)."""
+    consolidator = MemoryConsolidator(config={"consolidation_threshold": "abc"})
+    with patch.object(MemoryConsolidator, "_get_processed_pairs", return_value=set()), \
+         patch.object(MemoryConsolidator, "_fetch_candidates_with_timestamps", return_value=[]):
+        count = await consolidator._run_inner()
+    assert count == 0
+
+
+@pytest.mark.asyncio
 async def test_consolidation_logic(mock_store, mock_llm):
     """Test that high similarity + entailment triggers consolidation."""
 
