@@ -51,6 +51,22 @@ async def test_llm_executor_receive():
 
 
 @pytest.mark.asyncio
+async def test_llm_executor_falls_back_on_bad_numeric_config():
+    """Malformed timeout/max_retries/retry_delay must not abort an LLM node (triage queue)."""
+    with patch("modules.llm_module.node.LLMBridge") as MockBridge:
+        mock_bridge_instance = MockBridge.return_value
+        mock_bridge_instance.chat_completion = AsyncMock(return_value={"choices": []})
+
+        executor = LLMExecutor()
+        result = await executor.receive(
+            {"messages": [{"role": "user", "content": "Hi"}]},
+            config={"timeout": "abc", "max_retries": "abc", "retry_delay": "abc"},
+        )
+
+    assert result == {"choices": []}
+
+
+@pytest.mark.asyncio
 async def test_llm_executor_explicit_fallbacks(mock_settings):
     """Test that LLMExecutor uses explicit fallbacks when module_defaults is empty."""
     

@@ -17,6 +17,20 @@ DEFAULT_RETRY_DELAY = 1.0  # seconds
 MAX_RETRY_DELAY_CAP = 30.0  # Cap exponential backoff to prevent exceeding timeout
 
 
+def _number(config: dict, key: str, default, cast):
+    """Coerce a numeric node setting, falling back with a warning on malformed config."""
+    raw = config.get(key, default)
+    try:
+        return cast(raw)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[LLMNode] Invalid %s=%r (%s); using %s. Why: a bad setting must not abort the node. "
+            "Fix: configure %s as a number.",
+            key, raw, exc, default, key,
+        )
+        return default
+
+
 def _spend_usage(response) -> None:
     """Charge the run budget with the tokens the provider reported, when available."""
     usage = response.get("usage") if isinstance(response, dict) else None
@@ -63,9 +77,9 @@ class LLMExecutor:
         config = config or {}
 
         # Get timeout, retry config from node config
-        timeout = float(config.get("timeout", DEFAULT_TIMEOUT))
-        max_retries = int(config.get("max_retries", DEFAULT_MAX_RETRIES))
-        retry_delay = float(config.get("retry_delay", DEFAULT_RETRY_DELAY))
+        timeout = _number(config, "timeout", DEFAULT_TIMEOUT, float)
+        max_retries = _number(config, "max_retries", DEFAULT_MAX_RETRIES, int)
+        retry_delay = _number(config, "retry_delay", DEFAULT_RETRY_DELAY, float)
 
         # 1. Start with Module Defaults (with explicit fallbacks to hardcoded defaults).
         # Use the thread-safe settings.get() API — never access settings.settings directly.

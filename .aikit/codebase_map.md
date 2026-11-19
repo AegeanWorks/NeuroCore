@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2854`
+- **Total Top-Level Functions**: `2856`
 - **Total Class Methods**: `2484`
-- **Total Source Lines**: `102729`
+- **Total Source Lines**: `102759`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3271,7 +3271,7 @@
 ---
 
 ### [`modules/llm_module/node.py`](modules/llm_module/node.py)
-**Size**: `317` lines
+**Size**: `331` lines
 
 **Classes:**
 - `class LLMExecutor`
@@ -3283,6 +3283,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _number(config, key, default, cast)` - *Coerce a numeric node setting, falling back with a warning on malformed config.*
 - `def _spend_usage(response)` - *Charge the run budget with the tokens the provider reported, when available.*
 - `async def get_executor_class(node_type_id)`
 
@@ -7019,12 +7020,13 @@
 ---
 
 ### [`tests/test_llm_node.py`](tests/test_llm_node.py)
-**Size**: `343` lines
+**Size**: `359` lines
 
 **Functions:**
 - `def reset_shared_client()` - *Reset the shared client before each test to avoid event loop issues.*
 - `def mock_settings()` - *Mock settings to return predictable values for tests.*
 - `async def test_llm_executor_receive()` - *Test that the executor calls the bridge with correct messages.*
+- `async def test_llm_executor_falls_back_on_bad_numeric_config()` - *Malformed timeout/max_retries/retry_delay must not abort an LLM node (triage queue).*
 - `async def test_llm_executor_explicit_fallbacks(mock_settings)` - *Test that LLMExecutor uses explicit fallbacks when module_defaults is empty.*
 - `async def test_llm_executor_timeout(mock_settings)` - *Test that LLMExecutor respects timeout config.*
 - `async def test_llm_executor_timeout_disabled(mock_settings)` - *Test that LLMExecutor with timeout=0 doesn't use asyncio.wait_for.*
