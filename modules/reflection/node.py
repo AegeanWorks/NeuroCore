@@ -12,6 +12,20 @@ from .lenses import EpistemicCritique, build_lens_prompt, context_text, lens_ena
 
 logger = logging.getLogger(__name__)
 
+
+def _number(value, default, cast=int):
+    """Coerce a numeric setting, falling back with a warning on malformed input."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "[Reflection] Invalid numeric value %r (%s); using %s. Why: a bad value must not "
+            "abort reflection. Fix: pass an integer.",
+            value, exc, default,
+        )
+        return default
+
+
 # M-DATA-3/M-ASYNC-2: retain fire-and-forget reasoning-book saves so they
 # cannot be garbage-collected mid-flight; entries drop on completion.
 _pending_log_tasks: set = set()
@@ -179,8 +193,8 @@ class ReflectionExecutor:
         assistant_response = self._extract_assistant_response(input_data)
 
         # Check reflection retry depth to prevent infinite loops
-        reflection_retry_count = int(input_data.get("reflection_retry_count", 0))
-        max_reflection_retries = int(config.get("max_reflection_retries", 3))
+        reflection_retry_count = _number(input_data.get("reflection_retry_count", 0), 0)
+        max_reflection_retries = _number(config.get("max_reflection_retries", 3), 3)
         
         if reflection_retry_count >= max_reflection_retries:
             # Max retries exceeded — force satisfied to prevent infinite loops

@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2859`
-- **Total Class Methods**: `2484`
-- **Total Source Lines**: `102802`
+- **Total Top-Level Functions**: `2860`
+- **Total Class Methods**: `2485`
+- **Total Source Lines**: `102831`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3954,7 +3954,7 @@
 ---
 
 ### [`modules/reflection/node.py`](modules/reflection/node.py)
-**Size**: `353` lines
+**Size**: `367` lines
 
 **Classes:**
 - `class ReflectionExecutor`
@@ -3968,6 +3968,7 @@
   - Method `async def .send(processed_data)`
 
 **Functions:**
+- `def _number(value, default, cast)` - *Coerce a numeric setting, falling back with a warning on malformed input.*
 - `def _log_thought_retained(service, *args, **kwargs)`
 - `async def get_executor_class(node_type_id)`
 
@@ -8165,7 +8166,7 @@
 ### [`tests/test_reflection_node.py`](tests/test_reflection_node.py)
 > *Tests for modules/reflection/node.py*
 
-**Size**: `808` lines
+**Size**: `823` lines
 
 **Classes:**
 - `class TestReflectionBasic` - *Core satisfied / not-satisfied behaviour.*
@@ -8190,6 +8191,7 @@
 - `class TestReflectionRetryDepth` - *Tests for reflection retry depth counter and max_reflection_retries.*
   - Method `async def .test_reflection_retry_count_increments_on_retry()` - *When not satisfied, reflection_retry_count should increment.*
   - Method `async def .test_max_reflection_retries_enforced()` - *When reflection_retry_count >= max_reflection_retries, force satisfied=True.*
+  - Method `async def .test_malformed_retry_config_falls_back()` - *Malformed retry settings must not abort reflection (triage queue).*
   - Method `async def .test_max_reflection_retries_default_is_3()` - *Default max_reflection_retries should be 3.*
   - Method `async def .test_custom_max_reflection_retries()` - *Custom max_reflection_retries config should be respected.*
   - Method `async def .test_below_max_retries_allows_retry()` - *When below max retries, should allow normal reflection behavior.*

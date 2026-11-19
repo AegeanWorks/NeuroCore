@@ -410,6 +410,21 @@ class TestReflectionRetryDepth:
         assert len(result["messages"]) == len(input_data["messages"])
 
     @pytest.mark.asyncio
+    async def test_malformed_retry_config_falls_back(self):
+        """Malformed retry settings must not abort reflection (triage queue)."""
+        executor = make_executor()
+        executor.llm.chat_completion = AsyncMock(
+            return_value=make_reflection_llm_response(satisfied=True)
+        )
+
+        input_data = make_input()
+        input_data["reflection_retry_count"] = "abc"
+
+        result = await executor.receive(input_data,
+                                        config={"max_reflection_retries": "abc"})
+        assert result["satisfied"] is True
+
+    @pytest.mark.asyncio
     async def test_max_reflection_retries_default_is_3(self):
         """Default max_reflection_retries should be 3."""
         executor = make_executor()
