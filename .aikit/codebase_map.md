@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2903`
+- **Total Top-Level Functions**: `2904`
 - **Total Class Methods**: `2487`
-- **Total Source Lines**: `103631`
+- **Total Source Lines**: `103638`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -6690,7 +6690,7 @@
 ### [`tests/test_goal_pursuit.py`](tests/test_goal_pursuit.py)
 > *Tests for GoalPursuitExecutor — integrated planning, step evaluation, replanning.*
 
-**Size**: `3899` lines
+**Size**: `3906` lines
 
 **Functions:**
 - `def make_executor()` - *Create a GoalPursuitExecutor with patched LLMBridge and sandbox.*
@@ -6718,6 +6718,7 @@
 - `async def test_replan_llm_failure_returns_none()` - *_replan must return None (not []) on LLM failure so the caller can*
 - `def test_build_plan_context_shows_progress()`
 - `async def test_receive_no_messages_returns_error()`
+- `async def test_receive_tolerates_bad_checkpoint_interval()` - *A malformed checkpoint interval must not abort the receive path.*
 - `async def test_receive_no_user_message_returns_error()`
 - `async def test_receive_single_step_success()`
 - `async def test_receive_bad_reflection_timeout_falls_back()`

@@ -4785,7 +4785,7 @@ class GoalPursuitExecutor(HybridAgentExecutor, RLMAgentLoopExecutor):
         # --- Episode persistence ---
         enable_episode = config.get("enable_episode_persistence", False)
         episode_id = config.get("episode_id")
-        checkpoint_interval = max(1, int(config.get("checkpoint_interval", 1)))
+        checkpoint_interval = max(1, _state_int(config.get("checkpoint_interval", 1), 1))
         episode = None
         iteration_count = 0
 

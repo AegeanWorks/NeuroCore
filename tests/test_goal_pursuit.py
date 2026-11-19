@@ -313,6 +313,13 @@ async def test_receive_no_messages_returns_error():
     assert result["content"] == ""
 
 
+async def test_receive_tolerates_bad_checkpoint_interval():
+    """A malformed checkpoint interval must not abort the receive path."""
+    ex = make_executor()
+    result = await ex.receive({}, config={"checkpoint_interval": "abc"})
+    assert result.get("agent_loop_error") == "No messages provided"
+
+
 async def test_receive_no_user_message_returns_error():
     ex = make_executor()
     result = await ex.receive(
