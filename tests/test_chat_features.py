@@ -65,6 +65,22 @@ def test_compact_route_survives_bad_keep_last(client, mock_chat_sessions):
     assert response.status_code == 200
 
 
+def test_add_tokens_tolerates_malformed_usage(tmp_path):
+    """Malformed usage values must not abort token accounting (chat triage queue)."""
+    manager = sessions.SessionManager(storage_file=str(tmp_path / "sessions.json"))
+    session = manager.create_session("Token Test")
+
+    ok = manager.add_tokens(session["id"], {
+        "total_tokens": "abc", "prompt_tokens": None, "completion_tokens": 12,
+    })
+
+    assert ok is True
+    stored = manager.get_session(session["id"])
+    assert stored["total_tokens"] == 0
+    assert stored["prompt_tokens"] == 0
+    assert stored["completion_tokens"] == 12
+
+
 @pytest.mark.asyncio
 async def test_multimodal_image_upload(client, mock_chat_sessions):
     session = mock_chat_sessions.create_session("Image Test")

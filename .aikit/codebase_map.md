@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2875`
+- **Total Top-Level Functions**: `2877`
 - **Total Class Methods**: `2486`
-- **Total Source Lines**: `103118`
+- **Total Source Lines**: `103147`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -2986,7 +2986,7 @@
 ---
 
 ### [`modules/chat/sessions.py`](modules/chat/sessions.py)
-**Size**: `366` lines
+**Size**: `379` lines
 
 **Classes:**
 - `class SessionManager`
@@ -3014,6 +3014,7 @@
   - Method `async def .compact_session(session_id, llm_bridge, keep_last)` - *Summarize old messages and replace them with a compact summary system message.*
 
 **Functions:**
+- `def _number(value, default)` - *Coerce a usage count, falling back with a warning on a malformed provider value.*
 - `def _now_iso()`
 - `def _estimate_tokens(messages)` - *Rough token estimate using the ~4 chars/token approximation.*
 
@@ -5617,13 +5618,14 @@
 ---
 
 ### [`tests/test_chat_features.py`](tests/test_chat_features.py)
-**Size**: `174` lines
+**Size**: `190` lines
 
 **Functions:**
 - `def client()`
 - `def mock_chat_sessions(monkeypatch)`
 - `def patch_settings_url(monkeypatch)`
 - `def test_compact_route_survives_bad_keep_last(client, mock_chat_sessions)` - *A malformed compact_keep_last must not 500 the compact route (chat triage queue).*
+- `def test_add_tokens_tolerates_malformed_usage(tmp_path)` - *Malformed usage values must not abort token accounting (chat triage queue).*
 - `async def test_multimodal_image_upload(client, mock_chat_sessions)`
 - `async def test_svg_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: scriptable image types never reach the session store.*
 - `async def test_oversize_upload_rejected(client, mock_chat_sessions)` - *M-PERF-1: uploads over 5 MB are refused before base64 inline.*

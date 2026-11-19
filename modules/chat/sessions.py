@@ -17,6 +17,19 @@ logger = logging.getLogger(__name__)
 SESSIONS_FILE = state_path("chat_sessions.json")
 
 
+def _number(value, default: int = 0) -> int:
+    """Coerce a usage count, falling back with a warning on a malformed provider value."""
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid token usage %r (%s); using %s. Why: a bad provider value must not abort "
+            "session accounting. Fix: report token counts as integers.",
+            value, exc, default,
+        )
+        return default
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -194,9 +207,9 @@ class SessionManager:
             session = self.sessions.get(session_id)
             if not session:
                 return False, False
-            session["total_tokens"] = session.get("total_tokens", 0) + int(usage.get("total_tokens", 0))
-            session["prompt_tokens"] = session.get("prompt_tokens", 0) + int(usage.get("prompt_tokens", 0))
-            session["completion_tokens"] = session.get("completion_tokens", 0) + int(usage.get("completion_tokens", 0))
+            session["total_tokens"] = session.get("total_tokens", 0) + _number(usage.get("total_tokens", 0))
+            session["prompt_tokens"] = session.get("prompt_tokens", 0) + _number(usage.get("prompt_tokens", 0))
+            session["completion_tokens"] = session.get("completion_tokens", 0) + _number(usage.get("completion_tokens", 0))
             return True, True
 
         return self._mutate(mutate)
