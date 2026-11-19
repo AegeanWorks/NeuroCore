@@ -280,6 +280,17 @@ class ResearchManager:
                 raise ValueError(
                     f"invalid confidence_level. Why: {exc}. Fix: pass a number."
                 ) from exc
+        # Deferred item: variables/evidence are List[str] in the schema and are stored as JSON
+        # arrays. A string or mapping would be serialised as a non-array and break list consumers.
+        for field in ("variables", "evidence"):
+            if field in (data or {}):
+                value = data[field]
+                if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                    raise ValueError(
+                        f"hypothesis {field} must be a list of strings. "
+                        f"Why: the stored field is a JSON array of {field}. "
+                        f"Fix: pass a list of strings for {field}."
+                    )
         with self._lock:
             existing = self.get_hypothesis(hypothesis_id)
             if not existing:

@@ -266,3 +266,10 @@ class TestStats:
         h = rm.create_hypothesis({"title": "T", "statement": "S"})
         with pytest.raises(ValueError, match="confidence_level"):
             rm.update_hypothesis(h["id"], {"confidence_level": "abc"})
+
+    def test_update_hypothesis_rejects_non_list_variables_and_evidence(self, rm):
+        h = rm.create_hypothesis({"title": "T", "statement": "S"})
+        with pytest.raises(ValueError, match="variables"):
+            rm.update_hypothesis(h["id"], {"variables": "not-a-list"})
+        with pytest.raises(ValueError, match="evidence"):
+            rm.update_hypothesis(h["id"], {"evidence": {"bad": "map"}})

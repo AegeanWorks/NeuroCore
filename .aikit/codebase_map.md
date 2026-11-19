@@ -9,8 +9,8 @@
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
 - **Total Top-Level Functions**: `2849`
-- **Total Class Methods**: `2480`
-- **Total Source Lines**: `102542`
+- **Total Class Methods**: `2481`
+- **Total Source Lines**: `102560`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -830,7 +830,7 @@
 ### [`core/research_manager.py`](core/research_manager.py)
 > *Research Manager*
 
-**Size**: `944` lines
+**Size**: `955` lines
 
 **Classes:**
 - `class ResearchManager` - *Manages persistent storage of research entities using SQLite.*
@@ -8220,7 +8220,7 @@
 ### [`tests/test_research.py`](tests/test_research.py)
 > *Tests for ResearchManager CRUD operations.*
 
-**Size**: `268` lines
+**Size**: `275` lines
 
 **Classes:**
 - `class TestHypotheses`
@@ -8258,6 +8258,7 @@
   - Method `.test_create_study_design_missing_field_is_value_error(rm)`
   - Method `.test_create_finding_missing_field_is_value_error(rm)`
   - Method `.test_update_hypothesis_invalid_confidence_is_value_error(rm)`
+  - Method `.test_update_hypothesis_rejects_non_list_variables_and_evidence(rm)`
 
 **Functions:**
 - `def rm(tmp_path)` - *Fresh ResearchManager backed by a temp SQLite file.*
