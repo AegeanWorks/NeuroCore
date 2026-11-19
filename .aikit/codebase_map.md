@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2868`
+- **Total Top-Level Functions**: `2870`
 - **Total Class Methods**: `2485`
-- **Total Source Lines**: `102976`
+- **Total Source Lines**: `103009`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -1785,7 +1785,7 @@
 ### [`modules/autonomous_agent/core/memory.py`](modules/autonomous_agent/core/memory.py)
 > *Memory system for the Autonomous Agent - Three-tier memory architecture.*
 
-**Size**: `552` lines
+**Size**: `568` lines
 
 **Classes:**
 - `class MemoryEntry` - *A single memory entry.*
@@ -1826,6 +1826,9 @@
   - Method `.get_all_stats()` - *Get statistics for all memory systems.*
   - Method `.to_dict()` - *Serialize all memory tiers for persistence.*
   - Method `.load_dict(data)` - *Restore all memory tiers from :meth:`to_dict` output.*
+
+**Functions:**
+- `def _number(value, default, cast)` - *Coerce a persisted numeric field, falling back on a malformed saved value.*
 
 ---
 
@@ -4830,7 +4833,7 @@
 ### [`tests/test_autonomous_agent.py`](tests/test_autonomous_agent.py)
 > *Tests for the experimental autonomous agent runtime.*
 
-**Size**: `1197` lines
+**Size**: `1214` lines
 
 **Classes:**
 - `class FakeProposer`
@@ -4843,6 +4846,7 @@
 - `async def test_memory_persists_across_service_instances(tmp_path)`
 - `async def test_corrupt_state_is_quarantined(tmp_path)`
 - `async def test_malformed_cycle_counter_does_not_quarantine_state(tmp_path)` - *One bad counter must not discard otherwise valid memory (autonomous-agent triage).*
+- `def test_episodic_memory_load_tolerates_bad_numeric_fields()` - *A malformed importance/access_count must not abort loading the memory tier.*
 - `async def test_valid_json_state_with_wrong_shape_is_quarantined(tmp_path)`
 - `async def test_persistence_can_be_disabled(tmp_path)`
 - `async def test_flow_creation_registers_ownership(tmp_path)`

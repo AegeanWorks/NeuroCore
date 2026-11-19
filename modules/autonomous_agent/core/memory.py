@@ -4,6 +4,7 @@ Memory system for the Autonomous Agent - Three-tier memory architecture.
 
 import asyncio
 import json
+import logging
 import time
 from typing import Dict, Any, List, Optional, Set
 from dataclasses import dataclass, field
@@ -12,6 +13,21 @@ from collections import defaultdict
 import uuid
 
 from .types import Experience, Perception, Reflection
+
+logger = logging.getLogger(__name__)
+
+
+def _number(value, default, cast):
+    """Coerce a persisted numeric field, falling back on a malformed saved value."""
+    try:
+        return cast(value)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "Invalid saved numeric field %r (%s); using %s. Why: one bad entry must not "
+            "abort loading the memory tier. Fix: store the field as a number.",
+            value, exc, default,
+        )
+        return default
 
 
 @dataclass
@@ -161,10 +177,10 @@ class BaseMemory:
                 type=raw.get("type", self.memory_type),
                 content=raw.get("content", {}),
                 tags=list(raw.get("tags", [])),
-                importance=float(raw.get("importance", 0.5)),
+                importance=_number(raw.get("importance", 0.5), 0.5, float),
                 created_at=created_at,
                 accessed_at=accessed_at,
-                access_count=int(raw.get("access_count", 0)),
+                access_count=_number(raw.get("access_count", 0), 0, int),
                 ttl_days=raw.get("ttl_days"),
                 source_experience_id=raw.get("source_experience_id"),
             )
@@ -395,7 +411,7 @@ class ProceduralMemory(BaseMemory):
             if not isinstance(name, str):
                 continue
             key = f"pattern:{name}"
-            occurrences = int(entry.content.get("occurrences", 1))
+            occurrences = _number(entry.content.get("occurrences", 1), 1, int)
             self.pattern_counts[key] = max(self.pattern_counts[key], occurrences)
 
 

@@ -7,6 +7,7 @@ import pytest
 from core.flow_evolution import FlowEvolutionError
 from core.flow_manager import FlowManager, flow_manager as shared_flow_manager
 from modules.autonomous_agent.core.communicator import AgentCommunicator
+from modules.autonomous_agent.core.memory import EpisodicMemory
 from modules.autonomous_agent.core.sandbox import FlowValidationError, SandboxViolation
 from modules.autonomous_agent.core.service import AgentService
 from modules.autonomous_agent.core.types import (
@@ -126,6 +127,22 @@ async def test_malformed_cycle_counter_does_not_quarantine_state(tmp_path):
     assert agent.state.current_cycle == 0
     assert agent.state.total_cycles == 0
     assert state_path.exists()
+
+
+def test_episodic_memory_load_tolerates_bad_numeric_fields():
+    """A malformed importance/access_count must not abort loading the memory tier."""
+    tier = EpisodicMemory("test-agent")
+    tier.load_dict({"entries": [
+        {"id": "ok", "created_at": "2026-01-01T00:00:00", "content": {},
+         "importance": 0.8, "access_count": 2},
+        {"id": "bad", "created_at": "2026-01-01T00:00:00", "content": {},
+         "importance": "abc", "access_count": "abc"},
+    ]})
+
+    assert "ok" in tier.memories
+    assert "bad" in tier.memories
+    assert tier.memories["bad"].importance == 0.5
+    assert tier.memories["bad"].access_count == 0
 
 
 @pytest.mark.asyncio
