@@ -122,6 +122,47 @@ async def test_bridge_members_run_once():
 
 
 @pytest.mark.asyncio
+async def test_bridge_fan_out_failure_is_not_swallowed():
+    """Deferred item: a failed parallel bridge branch must be reported, never silently re-run."""
+    flow = {
+        "id": "bridge-fanout-error",
+        "nodes": [
+            {"id": "A", "moduleId": "mod_a", "nodeTypeId": "t_a", "name": "A"},
+            {"id": "B", "moduleId": "mod_b", "nodeTypeId": "t_b", "name": "B"},
+            {"id": "C", "moduleId": "mod_c", "nodeTypeId": "t_c", "name": "C"},
+        ],
+        "connections": [],
+        "bridges": [{"from": "A", "to": "C"}, {"from": "B", "to": "C"}],
+    }
+
+    def _maker(tag, fail=False):
+        async def _recv(data, config=None):
+            if fail:
+                raise RuntimeError("fan-out boom")
+            return {**(data or {}), tag: 1}
+        return MagicMock(
+            receive=AsyncMock(side_effect=_recv),
+            send=AsyncMock(side_effect=lambda d, config=None: d),
+        )
+
+    executors = {"mod_a": _maker("v_a", fail=True), "mod_b": _maker("v_b"),
+                 "mod_c": _maker("v_c")}
+
+    FlowRunner.clear_cache()
+    with patch('core.flow_runner.flow_manager') as mock_fm, \
+         patch('importlib.import_module', side_effect=_dispatcher_for(executors)), \
+         patch('importlib.reload'):
+        mock_fm.get_flow.return_value = flow
+        runner = FlowRunner(flow_id="bridge-fanout-error", flow_override=flow)
+        # Put the target first so its two ancestors are pre-run in the parallel fan-out.
+        runner.execution_order = ["C", "A", "B"]
+        result = await runner.run({"start": True})
+
+    assert "fan-out boom" in str(result.get("error", ""))
+    assert executors["mod_a"].receive.call_count == 1, "failed fan-out branch ran twice"
+
+
+@pytest.mark.asyncio
 async def test_loop_returns_latest_output_not_stale_intermediate():
     """H-3: in → llm → router → {tool → llm, out}; out returns nothing.
 

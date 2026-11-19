@@ -896,6 +896,9 @@ class FlowRunner:
         
         async def run_impl():
             node_outputs = {}
+            # Deferred item: a failed bridge fan-out is recorded here so the run reports it instead
+            # of silently returning a partial success built from the surviving sibling branches.
+            bridge_error = None
             total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
             # M-FLOW-1: pass-through nodes forward the upstream usage dict
             # untouched, so summing every node's payload multiplies one LLM
@@ -1127,14 +1130,25 @@ class FlowRunner:
 
                             level_output = bridge_input.copy()
                             any_stopped = False
+                            fanout_failed = False
                             for bridge_node_id, result in zip(to_run, results):
                                 if isinstance(result, Exception):
                                     import traceback
                                     logger.error(f"[Bridge Error] Node {bridge_node_id} failed: {result}")
+                                    bridge_meta = self.nodes[bridge_node_id]
                                     if settings.get("debug_mode"):
-                                        bridge_meta = self.nodes[bridge_node_id]
                                         debug_logger.log(self.flow_id, bridge_node_id, bridge_meta.get('name', bridge_node_id), "bridge_error", {"error": str(result)})
-                                    # One parallel node failed — skip its contribution but continue
+                                    # Do not swallow a fan-out failure. Record an error output so
+                                    # the main loop does not re-execute the failed branch (once in
+                                    # the fan-out and again in the queue), and stop the chain rather
+                                    # than feeding the target partial sibling data.
+                                    bridge_error = (
+                                        f"Bridge node '{bridge_meta.get('name', bridge_node_id)}' "
+                                        f"failed: {type(result).__name__}: {result}"
+                                    )
+                                    node_outputs[bridge_node_id] = {"error": bridge_error}
+                                    _record_seq(bridge_node_id)
+                                    fanout_failed = True
                                     continue
 
                                 if result is None:
@@ -1148,7 +1162,7 @@ class FlowRunner:
                                 if isinstance(result, dict):
                                     level_output.update(result)
 
-                            if any_stopped:
+                            if any_stopped or fanout_failed:
                                 chain_stopped = True
                                 break
 
@@ -1421,7 +1435,12 @@ class FlowRunner:
             
             if settings.get("debug_mode"):
                 debug_logger.log(self.flow_id, "SYSTEM", "FlowRunner", "flow_complete", {})
-                
+
+            if bridge_error is not None:
+                if raise_errors:
+                    raise NodeExecutionError(bridge_error)
+                return {"error": bridge_error}
+
             # H-3: return the latest real output by execution sequence — the
             # output of the last node that actually ran — not the last
             # non-empty slot in the static topological order (which could be

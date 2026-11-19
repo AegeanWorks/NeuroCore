@@ -8,9 +8,9 @@
 ## 📊 Codebase Metrics
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
-- **Total Top-Level Functions**: `2848`
+- **Total Top-Level Functions**: `2849`
 - **Total Class Methods**: `2480`
-- **Total Source Lines**: `102482`
+- **Total Source Lines**: `102542`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -440,7 +440,7 @@
 ---
 
 ### [`core/flow_runner.py`](core/flow_runner.py)
-**Size**: `1553` lines
+**Size**: `1572` lines
 
 **Classes:**
 - `class FlowRunner`
@@ -6553,12 +6553,13 @@
 ### [`tests/test_flow_scheduling.py`](tests/test_flow_scheduling.py)
 > *Regression tests for H-2, H-3 and M-FLOW-2 flow-engine scheduling fixes.*
 
-**Size**: `193` lines
+**Size**: `234` lines
 
 **Functions:**
 - `def _dispatcher_for(executors)` - *Route importlib.import_module to per-module fake node dispatchers.*
 - `async def test_diamond_join_runs_once_with_full_inputs()` - *H-2: with in→D and in→A→B→D, D must run once with both parents' outputs.*
 - `async def test_bridge_members_run_once()` - *M-FLOW-2: with bridges A→C and B→C, no bridged node may run twice.*
+- `async def test_bridge_fan_out_failure_is_not_swallowed()` - *Deferred item: a failed parallel bridge branch must be reported, never silently re-run.*
 - `async def test_loop_returns_latest_output_not_stale_intermediate()` - *H-3: in → llm → router → {tool → llm, out}; out returns nothing.*
 
 ---
