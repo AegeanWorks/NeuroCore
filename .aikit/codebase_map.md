@@ -9,8 +9,8 @@
 - **Total Python Modules**: `391`
 - **Total Classes**: `507`
 - **Total Top-Level Functions**: `2854`
-- **Total Class Methods**: `2483`
-- **Total Source Lines**: `102707`
+- **Total Class Methods**: `2484`
+- **Total Source Lines**: `102729`
 
 ## 🧭 Map Coverage
 - **Indexed**: python (`391` module(s))
@@ -3887,7 +3887,7 @@
 ---
 
 ### [`modules/reasoning_book/node.py`](modules/reasoning_book/node.py)
-**Size**: `90` lines
+**Size**: `101` lines
 
 **Classes:**
 - `class ReasoningSaveExecutor`
@@ -8056,7 +8056,7 @@
 ### [`tests/test_reasoning_book_node.py`](tests/test_reasoning_book_node.py)
 > *Tests for modules/reasoning_book/node.py*
 
-**Size**: `414` lines
+**Size**: `425` lines
 
 **Classes:**
 - `class TestReasoningSaveExecutorDefaultField` - *ReasoningSaveExecutor reads 'content' by default (matches agent_loop output).*
@@ -8088,6 +8088,7 @@
   - Method `async def .test_injects_reasoning_context_string()` - *reasoning_context should be a formatted string in chronological order.*
   - Method `async def .test_last_n_limits_thoughts()` - *last_n config should limit the number of thoughts loaded.*
   - Method `async def .test_default_last_n_is_5()` - *Default last_n should be 5.*
+  - Method `async def .test_malformed_last_n_falls_back_to_default()` - *A malformed last_n must not abort the load node (triage queue: reasoning_book).*
   - Method `async def .test_empty_thoughts_injects_empty_structures()` - *With no thoughts, reasoning_history should be [] and reasoning_context ''.*
   - Method `async def .test_original_keys_preserved()` - *All original input keys should be preserved in the output.*
   - Method `async def .test_non_dict_input_returned_unchanged()` - *Non-dict input should be returned as-is without modification.*

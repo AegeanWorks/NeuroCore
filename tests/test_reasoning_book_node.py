@@ -320,6 +320,17 @@ class TestReasoningLoadExecutor:
         assert len(result["reasoning_history"]) == 5
 
     @pytest.mark.asyncio
+    async def test_malformed_last_n_falls_back_to_default(self):
+        """A malformed last_n must not abort the load node (triage queue: reasoning_book)."""
+        executor = ReasoningLoadExecutor()
+        thoughts = [make_thought(f"Thought {i}", f"12:0{i}:00") for i in range(10)]
+        with patch("modules.reasoning_book.node.service") as mock_service:
+            mock_service.get_thoughts.return_value = thoughts
+            result = await executor.receive({}, config={"last_n": "abc"})
+
+        assert len(result["reasoning_history"]) == 5
+
+    @pytest.mark.asyncio
     async def test_empty_thoughts_injects_empty_structures(self):
         """With no thoughts, reasoning_history should be [] and reasoning_context ''."""
         executor = ReasoningLoadExecutor()

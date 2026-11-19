@@ -1,6 +1,9 @@
+import logging
+
 from .service import ReasoningBookService
 service = ReasoningBookService()
 
+logger = logging.getLogger(__name__)
 MIN_CONTENT_LENGTH = 30
 
 
@@ -50,7 +53,15 @@ class ReasoningSaveExecutor:
 class ReasoningLoadExecutor:
     async def receive(self, data: dict, config: dict = None) -> dict:
         config = config or {}
-        last_n = int(config.get("last_n", 5))
+        try:
+            last_n = max(0, int(config.get("last_n", 5)))
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "[ReasoningLoad] Invalid last_n=%r (%s); using 5. Why: a malformed setting must "
+                "not abort the load node. Fix: configure last_n as a non-negative integer.",
+                config.get("last_n"), exc,
+            )
+            last_n = 5
         
         # Get thoughts from service (newest first)
         thoughts = service.get_thoughts()
